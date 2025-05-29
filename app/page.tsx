@@ -1,6 +1,7 @@
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
 import { AuthStatus } from "@/components/auth-status";
+import { GoogleAuthButton } from "@/components/google-auth-button";
 import { MainLayout } from "@/components/main-layout";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { hasEnvVars } from "@/lib/utils";
@@ -15,8 +16,9 @@ export default function Home() {
            
             </div>
             <div className="flex items-center gap-4">
+              <GoogleAuthButton />
               <AuthStatus />
-            {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
+              {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
             </div>
           </div>
         </nav>

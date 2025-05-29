@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   loadVideoHistory,
@@ -11,10 +12,12 @@ import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Badge } from './ui/badge'
 import { Progress } from './ui/progress'
-import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, Clock, Eye, Trash2, RefreshCw, Calendar } from 'lucide-react'
+import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, Clock, Eye, Trash2, RefreshCw, Calendar, Upload, UploadCloud } from 'lucide-react'
 import { VideoRecord } from '@/types/video-generation'
+import { GoogleLogo } from './google-logo'
 
 export function VideoStatus() {
+  const { data: session, status } = useSession()
   const dispatch = useAppDispatch()
   const { 
     currentGeneration, 
@@ -25,6 +28,8 @@ export function VideoStatus() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isCheckingStatus, setIsCheckingStatus] = useState(false)
+  const [uploadingVideos, setUploadingVideos] = useState<Set<string>>(new Set())
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -33,6 +38,109 @@ export function VideoStatus() {
     setMessage(msg)
     setMessageType(type)
     setTimeout(() => setMessage(""), 3000)
+  }
+
+  // Handle upload to Google Drive with progress tracking
+  const handleUploadToGoogleDrive = async (video: VideoRecord) => {
+    console.log('🚀 Upload button clicked for video:', video.id)
+    console.log('📊 Session status:', status)
+    console.log('👤 Session data:', session)
+    
+    if (status !== 'authenticated') {
+      console.log('❌ Authentication check failed:', status)
+      showMessage('Please sign in with Google first', 'error')
+      return
+    }
+
+    if (!video.final_video_url) {
+      console.log('❌ No video URL available:', video.final_video_url)
+      showMessage('Video URL not available', 'error')
+      return
+    }
+
+    console.log('✅ Starting upload process for video:', video.id)
+    console.log('🎬 Video URL:', video.final_video_url)
+    
+    setUploadingVideos(prev => {
+      const newSet = new Set(prev).add(video.id)
+      console.log('📝 Updated uploading videos set:', newSet)
+      return newSet
+    })
+    
+    setUploadProgress(prev => {
+      const newProgress = { ...prev, [video.id]: 0 }
+      console.log('📊 Initialized progress:', newProgress)
+      return newProgress
+    })
+
+    try {
+      showMessage(`Downloading video for upload...`, 'info')
+      const videoResponse = await fetch(video.final_video_url)
+      
+      if (!videoResponse.ok) {
+        throw new Error('Failed to download video file for upload.')
+      }
+      
+      const videoBlob = await videoResponse.blob()
+      const videoFile = new File([videoBlob], video.final_video_url.split('/').pop() || `video-${video.id}.mp4`, {
+        type: videoBlob.type || 'video/mp4',
+      })
+
+      console.log('📁 Video file created:', {
+        name: videoFile.name,
+        size: (videoFile.size / 1024 / 1024).toFixed(2) + ' MB',
+        type: videoFile.type
+      })
+
+      showMessage(`Uploading ${videoFile.name} to Google Drive...`, 'info')
+      
+      const formData = new FormData()
+      formData.append('file', videoFile)
+      formData.append('parentId', 'root')
+
+      const uploadApiResponse = await fetch('/api/upload-to-gdrive', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!uploadApiResponse.ok) {
+        const errorData = await uploadApiResponse.json()
+        throw new Error(errorData.error || `Upload failed with status ${uploadApiResponse.status}`)
+      }
+
+      const result = await uploadApiResponse.json()
+      console.log('✅ Upload successful:', result)
+
+      setUploadProgress(prev => ({ ...prev, [video.id]: 100 }))
+      showMessage(`Successfully uploaded ${videoFile.name} to Google Drive!`, 'success')
+      
+      // Clear progress after a delay
+      setTimeout(() => {
+        setUploadProgress(prev => {
+          const newProgress = { ...prev }
+          delete newProgress[video.id]
+          return newProgress
+        })
+      }, 2000)
+      
+    } catch (error: any) {
+      console.error('💥 Upload error caught:', error)
+      showMessage(`Failed to upload: ${error.message}`, 'error')
+      
+      // Clear progress on error
+      setUploadProgress(prev => {
+        const newProgress = { ...prev }
+        delete newProgress[video.id]
+        return newProgress
+      })
+    } finally {
+      console.log('🏁 Upload process finished, cleaning up...')
+      setUploadingVideos(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(video.id)
+        return newSet
+      })
+    }
   }
 
   // Fetch videos from database
@@ -271,6 +379,33 @@ export function VideoStatus() {
         </div>
       </div>
 
+      {/* Google Drive Warning/Status */}
+      {status === 'unauthenticated' && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-800">
+                Sign in with Google in the navbar to upload videos to Google Drive
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {status === 'authenticated' && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-800">
+                Connected to Google Drive as {session?.user?.email} - Upload buttons available for completed videos
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-white shadow-sm border border-gray-200">
@@ -423,6 +558,56 @@ export function VideoStatus() {
                               <PlayCircle className="h-3 w-3 mr-1" />
                               View
                             </Button>
+                            {/* Google Drive Upload Button */}
+                            {status === 'authenticated' ? (
+                              <div className="flex flex-col gap-1">
+                                <Button
+                                  onClick={() => {
+                                    console.log('🔘 Upload button onClick triggered for video:', video.id)
+                                    handleUploadToGoogleDrive(video)
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={uploadingVideos.has(video.id)}
+                                  className="border-blue-300 bg-white hover:bg-blue-50 text-blue-600 hover:text-blue-700 shadow-sm transition-all duration-200 hover:shadow-md"
+                                >
+                                  {uploadingVideos.has(video.id) ? (
+                                    <>
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                      Uploading {uploadProgress[video.id] || 0}%
+                                    </>
+                                  ) : (
+                                    <>
+                                      <GoogleLogo size={12} />
+                                      <span className="ml-1">Upload to Drive</span>
+                                    </>
+                                  )}
+                                </Button>
+                                {/* Progress Bar */}
+                                {uploadingVideos.has(video.id) && uploadProgress[video.id] !== undefined && (
+                                  <div className="w-full">
+                                    <Progress 
+                                      value={uploadProgress[video.id]} 
+                                      className="h-1.5 w-full"
+                                    />
+                                    <div className="text-xs text-blue-600 mt-0.5 text-center">
+                                      {uploadProgress[video.id]}% uploaded
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                className="border-gray-300 bg-gray-50 text-gray-400 opacity-60"
+                                title="Sign in with Google to upload"
+                              >
+                                <GoogleLogo size={12} />
+                                <span className="ml-1">Upload to Drive</span>
+                              </Button>
+                            )}
                           </>
                         )}
 

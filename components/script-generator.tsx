@@ -35,6 +35,9 @@ export function ScriptGenerator() {
     currentImage: '',
     completedImages: []
   })
+  // Individual prompts for each image
+  const [individualPrompts, setIndividualPrompts] = useState<Record<string, string>>({})
+  const [showIndividualPrompts, setShowIndividualPrompts] = useState(false)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -46,15 +49,39 @@ export function ScriptGenerator() {
     dispatch(setPrompt(value))
   }
 
-  // Regenerate a single script
-  const regenerateScript = async (imageId: string) => {
+  // Handle individual prompt changes
+  const handleIndividualPromptChange = (imageId: string, value: string) => {
+    setIndividualPrompts(prev => ({
+      ...prev,
+      [imageId]: value
+    }))
+  }
+
+  // Apply global prompt to all individual prompts
+  const applyPromptToAll = () => {
+    if (!prompt.trim()) {
+      showMessage('Please enter a global prompt first', 'error')
+      return
+    }
+    
+    const newIndividualPrompts: Record<string, string> = {}
+    originalImages.forEach(image => {
+      newIndividualPrompts[image.id] = prompt
+    })
+    setIndividualPrompts(newIndividualPrompts)
+    showMessage(`Applied global prompt to all ${originalImages.length} segments`, 'success')
+  }
+
+  // Regenerate a single script with custom prompt
+  const regenerateScript = async (imageId: string, customPrompt?: string) => {
     const image = originalImages.find(img => img.id === imageId)
     if (!image) {
       showMessage('Image not found for regeneration', 'error')
       return
     }
 
-    if (!prompt.trim()) {
+    const promptToUse = customPrompt || individualPrompts[imageId] || prompt
+    if (!promptToUse.trim()) {
       showMessage('Please enter a prompt before regenerating', 'error')
       return
     }
@@ -72,7 +99,7 @@ export function ScriptGenerator() {
         body: JSON.stringify({
           imageDataUrl: image.dataUrl,
           imageName: image.originalName,
-          prompt: prompt.trim()
+          prompt: promptToUse.trim()
         }),
       })
 
@@ -108,6 +135,107 @@ export function ScriptGenerator() {
         newSet.delete(imageId)
         return newSet
       })
+    }
+  }
+
+  // Regenerate all scripts with individual prompts
+  const regenerateAllWithIndividualPrompts = async () => {
+    const imagesToUpdate = originalImages.filter(image => {
+      const individualPrompt = individualPrompts[image.id]
+      return individualPrompt && individualPrompt.trim()
+    })
+
+    if (imagesToUpdate.length === 0) {
+      showMessage('No individual prompts found. Set prompts for specific segments first.', 'error')
+      return
+    }
+
+    setIsGenerating(true)
+    setProgress({
+      total: imagesToUpdate.length,
+      completed: 0,
+      currentImage: '',
+      completedImages: []
+    })
+
+    showMessage(`Regenerating ${imagesToUpdate.length} scripts with individual prompts...`, 'info')
+
+    try {
+      const scriptPromises = imagesToUpdate.map(async (image, index) => {
+        const individualPrompt = individualPrompts[image.id]
+        
+        try {
+          const response = await fetch('/api/generate-script', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              imageDataUrl: image.dataUrl,
+              imageName: image.originalName,
+              prompt: individualPrompt.trim()
+            }),
+          })
+
+          if (!response.ok) {
+            throw new Error(`Failed to regenerate script for ${image.originalName}`)
+          }
+
+          const data = await response.json()
+          
+          setProgress(prev => ({
+            ...prev,
+            completed: prev.completed + 1,
+            completedImages: [...prev.completedImages, image.originalName],
+            currentImage: `Completed: ${image.originalName}`
+          }))
+          
+          return {
+            success: true,
+            data: {
+              imageId: image.id,
+              script: data.usingMock 
+                ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
+                : data.script,
+              generated: true
+            }
+          }
+        } catch (error) {
+          setProgress(prev => ({
+            ...prev,
+            completed: prev.completed + 1,
+            completedImages: [...prev.completedImages, `${image.originalName} (failed)`],
+            currentImage: `Failed: ${image.originalName}`
+          }))
+          
+          return {
+            success: false,
+            data: {
+              imageId: image.id,
+              script: `Error: ${error instanceof Error ? error.message : 'Failed to regenerate script'}`,
+              generated: false
+            }
+          }
+        }
+      })
+
+      const results = await Promise.all(scriptPromises)
+      
+      // Update all scripts in Redux
+      results.forEach(result => {
+        dispatch(updateScript(result.data))
+      })
+
+      const successCount = results.filter(r => r.success).length
+      showMessage(`Regenerated ${successCount}/${imagesToUpdate.length} scripts with individual prompts!`, 'success')
+
+    } catch (error) {
+      showMessage('Error during bulk regeneration: ' + (error as Error).message, 'error')
+    } finally {
+      setIsGenerating(false)
+      setTimeout(() => {
+        setProgress({ total: 0, completed: 0, currentImage: '', completedImages: [] })
+      }, 3000)
     }
   }
 
@@ -299,7 +427,7 @@ export function ScriptGenerator() {
   const progressPercentage = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0
 
   return (
-    <div className="flex-1 p-6 space-y-6">
+    <div className="w-full max-w-full p-6 space-y-6 overflow-hidden">
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Script Generator</h1>
@@ -394,11 +522,11 @@ export function ScriptGenerator() {
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <Button 
               onClick={handleNarrateImages}
               disabled={isGenerating || originalImages.length === 0 || !prompt.trim()}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 whitespace-nowrap"
             >
               {isGenerating ? (
                 <>
@@ -418,12 +546,66 @@ export function ScriptGenerator() {
                 onClick={downloadAllScripts}
                 variant="outline"
                 disabled={isGenerating}
+                className="whitespace-nowrap"
               >
                 <Download className="h-4 w-4 mr-2" />
                 Download All Scripts
               </Button>
             )}
+
+            {originalImages.length > 0 && (
+              <Button 
+                onClick={() => setShowIndividualPrompts(!showIndividualPrompts)}
+                variant="outline"
+                disabled={isGenerating}
+                className="whitespace-nowrap"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {showIndividualPrompts ? 'Hide' : 'Show'} Individual Prompts
+              </Button>
+            )}
           </div>
+
+          {/* Individual Prompt Controls */}
+          {showIndividualPrompts && originalImages.length > 0 && (
+            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <h4 className="font-medium text-gray-900">Individual Segment Prompts</h4>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={applyPromptToAll}
+                    size="sm"
+                    variant="outline"
+                    disabled={!prompt.trim() || isGenerating}
+                    className="whitespace-nowrap"
+                  >
+                    Apply Global Prompt to All
+                  </Button>
+                  <Button
+                    onClick={regenerateAllWithIndividualPrompts}
+                    size="sm"
+                    disabled={isGenerating || Object.keys(individualPrompts).filter(id => individualPrompts[id]?.trim()).length === 0}
+                    className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Regenerate All with Individual Prompts
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 break-words">
+                Customize prompts for specific segments. Empty prompts will use the global prompt above.
+              </p>
+            </div>
+          )}
 
           {/* Next Step Hint */}
           {generatedCount > 0 && (
@@ -590,6 +772,47 @@ export function ScriptGenerator() {
                             ) : (
                               'No script generated yet'
                             )}
+                          </div>
+                        )}
+
+                        {/* Individual Prompt Input */}
+                        {showIndividualPrompts && (
+                          <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                            <Label htmlFor={`prompt-${image.id}`} className="text-xs font-medium text-gray-700">
+                              Custom prompt for "{image.originalName}":
+                            </Label>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <Input
+                                id={`prompt-${image.id}`}
+                                value={individualPrompts[image.id] || ''}
+                                onChange={(e) => handleIndividualPromptChange(image.id, e.target.value)}
+                                placeholder={`Custom prompt for ${image.originalName}... (leave empty to use global prompt)`}
+                                className="flex-1 text-sm min-w-0"
+                                disabled={isRegenerating || isGenerating}
+                              />
+                              <Button
+                                onClick={() => regenerateScript(image.id, individualPrompts[image.id])}
+                                size="sm"
+                                disabled={isRegenerating || isGenerating || (!individualPrompts[image.id]?.trim() && !prompt.trim())}
+                                className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                                title="Regenerate with this specific prompt"
+                              >
+                                {isRegenerating ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>
+                                    <RotateCcw className="h-3 w-3 mr-1" />
+                                    Regenerate
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                            <p className="text-xs text-gray-500 break-words">
+                              {individualPrompts[image.id]?.trim() 
+                                ? 'Will use this custom prompt' 
+                                : 'Will use global prompt if empty'
+                              }
+                            </p>
                           </div>
                         )}
                       </div>
