@@ -18,7 +18,7 @@ export function AuthStatus() {
     return (
       <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full text-sm">
         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-        <span>Redux: {user.email}</span>
+        <span>Email: {user.email}</span>
       </div>
     )
   }
@@ -26,7 +26,7 @@ export function AuthStatus() {
   return (
     <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 rounded-full text-sm">
       <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-      <span>Redux: Not logged in</span>
+      <span>Error: Not logged in</span>
     </div>
   )
 } 

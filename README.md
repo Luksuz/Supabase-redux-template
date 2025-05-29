@@ -103,3 +103,40 @@ Please file feedback and issues over on the [Supabase GitHub org](https://github
 - [Next.js Subscription Payments Starter](https://github.com/vercel/nextjs-subscription-payments)
 - [Cookie-based Auth and the Next.js 13 App Router (free course)](https://youtube.com/playlist?list=PL5S4mPUpp4OtMhpnp93EFSo42iQ40XjbF)
 - [Supabase Auth and the Next.js App Router](https://github.com/supabase/supabase/tree/master/examples/auth/nextjs)
+
+## Audio Generation Workflow (Optimized)
+
+### Efficient Chunk Processing
+The audio generation system has been optimized to minimize Supabase storage usage and bandwidth:
+
+**Previous Workflow (Inefficient):**
+1. Generate chunks → Upload each to Supabase
+2. Concatenate → Download all chunks from Supabase
+3. Combine locally → Upload final audio to Supabase
+4. ❌ Extra uploads, downloads, and storage usage
+
+**Current Workflow (Optimized):**
+1. Generate chunks → Keep locally in session-specific temp directory
+2. Concatenate → Use local files directly (no downloads needed)
+3. Upload final audio → Only final result goes to Supabase
+4. Cleanup → Remove all temporary chunk files automatically
+5. ✅ Faster, bandwidth-efficient, cleaner storage
+
+### Key Features:
+- **Session Management**: Each generation session gets a unique temp directory
+- **Local Chunk Storage**: Audio chunks stored in `/tmp/wellsaid-audio/{sessionId}/`
+- **Automatic Cleanup**: All temporary files removed after successful concatenation
+- **Error Recovery**: Cleanup happens even if concatenation fails
+- **Reduced Bandwidth**: Only final audio uploaded to Supabase
+- **Faster Processing**: No download step needed for concatenation
+
+### File Structure:
+```
+/tmp/wellsaid-audio/
+├── session_1234567890_abc123def/
+│   ├── chunk-0-sub-0-1234567890.mp3
+│   ├── chunk-1-sub-0-1234567890.mp3
+│   ├── chunk-N-final-1234567890.mp3
+│   └── concat-final-1234567890.txt
+└── [cleaned up after completion]
+```
