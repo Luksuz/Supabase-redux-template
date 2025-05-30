@@ -39,10 +39,20 @@ export function ImageProcessor() {
   // Handle file selection
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file && file.type === 'application/zip') {
-      setSelectedFile(file)
-      dispatch(clearImages()) // Clear Redux state
-      setMessage('')
+    if (file) {
+      // Check file extension as fallback if MIME type is not detected correctly
+      const fileName = file.name.toLowerCase()
+      const isZipFile = file.type === 'application/zip' || 
+                       file.type === 'application/x-zip-compressed' ||
+                       fileName.endsWith('.zip')
+      
+      if (isZipFile) {      
+        setSelectedFile(file)
+        dispatch(clearImages()) // Clear Redux state
+        setMessage('')
+      } else {
+        showMessage('Please select a valid ZIP file (.zip extension)', 'error')
+      }
     } else {
       showMessage('Please select a valid ZIP file', 'error')
     }
@@ -72,15 +82,27 @@ export function ImageProcessor() {
     setIsDragActive(false)
 
     const files = Array.from(e.dataTransfer.files)
-    const zipFile = files.find(file => file.type === 'application/zip')
+    const zipFile = files.find(file => {
+      const fileName = file.name.toLowerCase()
+      return file.type === 'application/zip' || 
+             file.type === 'application/x-zip-compressed' ||
+             fileName.endsWith('.zip')
+    })
 
     if (zipFile) {
+      // Check file size (limit to 100MB)
+      const maxSize = 100 * 1024 * 1024 // 100MB
+      if (zipFile.size > maxSize) {
+        showMessage('ZIP file is too large. Maximum size is 100MB.', 'error')
+        return
+      }
+      
       setSelectedFile(zipFile)
       dispatch(clearImages())
       setMessage('')
       showMessage(`Selected ${zipFile.name} for processing`, 'info')
     } else {
-      showMessage('Please drop a valid ZIP file', 'error')
+      showMessage('Please drop a valid ZIP file (.zip extension)', 'error')
     }
   }
 

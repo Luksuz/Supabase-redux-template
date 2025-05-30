@@ -195,9 +195,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No zip file provided' }, { status: 400 })
     }
 
-    // Read the zip file
-    const zipBuffer = Buffer.from(await zipFile.arrayBuffer())
-    const zip = await JSZip.loadAsync(zipBuffer)
+    // Validate file size (100MB limit)
+    const maxSize = 100 * 1024 * 1024 // 100MB
+    if (zipFile.size > maxSize) {
+      return NextResponse.json({ 
+        error: 'ZIP file is too large. Maximum size is 100MB.' 
+      }, { status: 400 })
+    }
+
+    // Validate file extension
+    const fileName = zipFile.name.toLowerCase()
+    if (!fileName.endsWith('.zip')) {
+      return NextResponse.json({ 
+        error: 'Invalid file type. Please upload a .zip file.' 
+      }, { status: 400 })
+    }
+
+    let zip: JSZip
+    try {
+      // Read the zip file
+      const zipBuffer = Buffer.from(await zipFile.arrayBuffer())
+      
+      // Validate buffer is not empty
+      if (zipBuffer.length === 0) {
+        return NextResponse.json({ 
+          error: 'ZIP file appears to be empty or corrupted.' 
+        }, { status: 400 })
+      }
+      
+      zip = await JSZip.loadAsync(zipBuffer)
+    } catch (zipError) {
+      console.error('ZIP loading error:', zipError)
+      return NextResponse.json({ 
+        error: 'Invalid ZIP file. The file may be corrupted, password-protected, or not a valid ZIP archive.' 
+      }, { status: 400 })
+    }
 
     // First, collect all valid image files with their sort information
     const imageFiles: Array<{
@@ -221,6 +253,13 @@ export async function POST(request: NextRequest) {
         sortInfo
       })
     })
+
+    // Check if any valid images were found
+    if (imageFiles.length === 0) {
+      return NextResponse.json({ 
+        error: 'No valid image files found in the ZIP archive. Please ensure your ZIP contains images (jpg, png, gif, bmp, webp).' 
+      }, { status: 400 })
+    }
 
     // Sort files by chapter and image number
     imageFiles.sort((a, b) => a.sortInfo.sortKey.localeCompare(b.sortInfo.sortKey))
