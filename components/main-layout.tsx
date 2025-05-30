@@ -7,9 +7,9 @@ import { ScriptGenerator } from './script-generator'
 import { AudioGenerator } from './audio-generator'
 import { VideoGenerator } from './video-generator'
 import { VideoStatus } from './video-status'
-import { ApiKeyManager } from './api-key-manager'
+import { AdminDashboard } from './admin-dashboard'
 
-type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'api-keys'
+type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
 
 export function MainLayout() {
   const [activeView, setActiveView] = useState<NavigationView>('process-images')
@@ -26,8 +26,8 @@ export function MainLayout() {
         return <VideoGenerator />
       case 'video-status':
         return <VideoStatus />
-      case 'api-keys':
-        return <ApiKeyManager />
+      case 'admin-dashboard':
+        return <AdminDashboard />
       default:
         return <ImageProcessor />
     }

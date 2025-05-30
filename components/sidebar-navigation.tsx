@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown } from 'lucide-react'
 
-type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'api-keys'
+type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -18,6 +18,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
   const { hasGeneratedScripts, scripts } = useAppSelector(state => state.scripts)
   const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
   const { currentGeneration: videoGeneration, generationHistory, isGeneratingVideo } = useAppSelector(state => state.video)
+  const user = useAppSelector(state => state.user)
 
   const navigationItems = [
     {
@@ -65,14 +66,15 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       dataCount: generationHistory.length + (videoGeneration ? 1 : 0),
       disabled: false
     },
-    {
-      id: 'api-keys' as NavigationView,
-      label: 'API Keys',
-      icon: Key,
-      description: 'Manage WellSaid Labs API keys',
+    ...(user.isAdmin ? [{
+      id: 'admin-dashboard' as NavigationView,
+      label: 'Admin Dashboard',
+      icon: Crown,
+      description: 'Manage users and system settings',
       hasData: false,
-      dataCount: 0
-    }
+      dataCount: 0,
+      isAdmin: true
+    }] : [])
   ]
 
   return (
@@ -84,40 +86,81 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       
       <nav className="p-4 space-y-2">
         {navigationItems.map((item) => {
-          const Icon = item.icon
           const isActive = activeView === item.id
           const isDisabled = item.disabled
+          const Icon = item.icon
           
           return (
-            <button
+            <Card 
               key={item.id}
-              onClick={() => !isDisabled && onViewChange(item.id)}
-              disabled={isDisabled}
               className={`
-                w-full text-left p-3 rounded-lg transition-all duration-200
+                p-4 cursor-pointer transition-all duration-200 border
                 ${isActive 
-                  ? 'bg-blue-50 border border-blue-200 text-blue-900' 
-                  : isDisabled
-                    ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                    : 'hover:bg-gray-50 text-gray-700 hover:text-gray-900'
+                  ? 'bg-blue-50 border-blue-200 shadow-sm' 
+                  : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                }
+                ${isDisabled 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : ''
+                }
+                ${item.isAdmin
+                  ? 'border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50'
+                  : ''
                 }
               `}
+              onClick={() => !isDisabled && onViewChange(item.id)}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Icon className={`h-5 w-5 ${
-                    isActive ? 'text-blue-600' : 
-                    isDisabled ? 'text-gray-400' : 
-                    'text-gray-500'
-                  } ${item.isGenerating ? 'animate-pulse' : ''}`} />
+                  <Icon 
+                    className={`
+                      h-5 w-5 
+                      ${isActive 
+                        ? 'text-blue-600' 
+                        : isDisabled 
+                          ? 'text-gray-400' 
+                          : 'text-gray-600'
+                      }
+                      ${item.isAdmin ? 'text-yellow-600' : ''}
+                      ${item.isGenerating ? 'animate-pulse' : ''}
+                    `} 
+                  />
                   <div>
-                    <div className="font-medium">{item.label}</div>
-                    <div className="text-xs text-gray-500">{item.description}</div>
+                    <div className={`
+                      font-medium 
+                      ${isActive 
+                        ? 'text-blue-900' 
+                        : isDisabled 
+                          ? 'text-gray-400' 
+                          : 'text-gray-900'
+                      }
+                      ${item.isAdmin ? 'text-yellow-900' : ''}
+                    `}>
+                      {item.label}
+                      {item.isAdmin && (
+                        <Crown className="inline h-4 w-4 ml-1 text-yellow-600" />
+                      )}
+                    </div>
+                    <div className={`
+                      text-xs 
+                      ${isActive 
+                        ? 'text-blue-700' 
+                        : isDisabled 
+                          ? 'text-gray-400' 
+                          : 'text-gray-500'
+                      }
+                      ${item.isAdmin ? 'text-yellow-700' : ''}
+                    `}>
+                      {item.description}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {item.hasData && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge 
+                      variant={isActive ? "default" : "secondary"} 
+                      className={`text-xs ${item.isAdmin ? 'bg-yellow-100 text-yellow-800' : ''}`}
+                    >
                       {item.dataCount}
                     </Badge>
                   )}
@@ -127,7 +170,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                     </Badge>
                   )}
                   {isActive && (
-                    <ChevronRight className="h-4 w-4 text-blue-600" />
+                    <ChevronRight className={`h-4 w-4 ${item.isAdmin ? 'text-yellow-600' : 'text-blue-600'}`} />
                   )}
                 </div>
               </div>
@@ -150,7 +193,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                   Generate audio first to enable video creation
                 </div>
               )}
-            </button>
+            </Card>
           )
         })}
       </nav>

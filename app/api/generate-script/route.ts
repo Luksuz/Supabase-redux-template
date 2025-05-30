@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageDataUrl, imageName, prompt } = await request.json()
+    const { imageDataUrl, imageName, prompt, batchInfo } = await request.json()
 
     if (!imageDataUrl || !prompt) {
       return NextResponse.json(
@@ -27,33 +27,48 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log(`🚀 Generating script for image: ${imageName}`)
+    // Log batch information if provided
+    if (batchInfo) {
+      console.log(`🚀 [Batch ${batchInfo.batchIndex}/${batchInfo.totalBatches}] Generating script ${batchInfo.imageIndex}/${batchInfo.batchSize} for: ${imageName}`)
+    } else {
+      console.log(`🚀 Generating script for image: ${imageName}`)
+    }
 
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages: [{
-          role: "user",
-          content: [
-            { 
-              type: "text", 
-              text: `${prompt}\n\nPlease analyze this image titled "${imageName}" and create a compelling narration script based on what you see. Focus on the visual elements, mood, composition, and any story the image tells.`
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageDataUrl, // Using data URL directly
+        messages: [
+          {
+            role: "system",
+            content: `${prompt}`
+          },
+          {
+            role: "user",
+            content: [
+              { 
+                type: "text", 
+                text: `Please analyze this image titled and create a compelling narration script based on what you see.`
               },
-            },
-          ],
-        }],
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageDataUrl, // Using data URL directly
+                },
+              },
+            ],
+          }
+        ],
         max_tokens: 400, // Slightly higher for more detailed scripts
       })
 
       const script = response.choices[0]?.message?.content?.trim()
       
       if (script) {
-        console.log(`✅ Generated script for image: ${imageName}`)
+        if (batchInfo) {
+          console.log(`✅ [Batch ${batchInfo.batchIndex}/${batchInfo.totalBatches}] Script generated ${batchInfo.imageIndex}/${batchInfo.batchSize} for: ${imageName}`)
+        } else {
+          console.log(`✅ Generated script for image: ${imageName}`)
+        }
         return NextResponse.json({
           success: true,
           script: script,
@@ -66,7 +81,11 @@ export async function POST(request: NextRequest) {
       }
 
     } catch (openaiError: any) {
-      console.error(`❌ OpenAI API error for ${imageName}:`, openaiError)
+      if (batchInfo) {
+        console.error(`❌ [Batch ${batchInfo.batchIndex}/${batchInfo.totalBatches}] OpenAI API error for ${imageName}:`, openaiError)
+      } else {
+        console.error(`❌ OpenAI API error for ${imageName}:`, openaiError)
+      }
       
       // Fallback to mock if OpenAI fails
       const mockScript = generateMockScript(imageName, prompt)

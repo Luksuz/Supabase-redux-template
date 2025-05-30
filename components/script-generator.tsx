@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { setPrompt, setScripts, initializeScripts, updateScript } from '../lib/features/scripts/scriptsSlice'
+import { startScriptGeneration, updateScriptGenerationProgress, finishScriptGeneration, clearScriptGenerationProgress } from '../lib/features/progress/progressSlice'
 import type { GeneratedScript } from '../lib/features/scripts/scriptsSlice'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
@@ -12,29 +13,32 @@ import { Badge } from './ui/badge'
 import { Progress } from './ui/progress'
 import { FileText, Copy, Download, Mic, Image as ImageIcon, CheckCircle, AlertCircle, Loader2, RotateCcw } from 'lucide-react'
 
+const BATCH_SIZE = 10
+const BATCH_DELAY = 60000 // 60 seconds in milliseconds
+
+
 interface ProgressState {
   total: number
   completed: number
   currentImage: string
   completedImages: string[]
+  currentBatch: number
+  totalBatches: number
+  batchProgress: number
+  timeUntilNextBatch?: number
 }
 
 export function ScriptGenerator() {
   const dispatch = useAppDispatch()
   const { originalImages } = useAppSelector(state => state.images)
   const { prompt, scripts, hasGeneratedScripts } = useAppSelector(state => state.scripts)
+  const { scriptGeneration: progress } = useAppSelector(state => state.progress)
   
   // UI-specific states (not stored in Redux)
   const [isGenerating, setIsGenerating] = useState(false)
   const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
-  const [progress, setProgress] = useState<ProgressState>({
-    total: 0,
-    completed: 0,
-    currentImage: '',
-    completedImages: []
-  })
   // Individual prompts for each image
   const [individualPrompts, setIndividualPrompts] = useState<Record<string, string>>({})
   const [showIndividualPrompts, setShowIndividualPrompts] = useState(false)
@@ -151,12 +155,12 @@ export function ScriptGenerator() {
     }
 
     setIsGenerating(true)
-    setProgress({
+    
+    // Initialize progress
+    dispatch(startScriptGeneration({
       total: imagesToUpdate.length,
-      completed: 0,
-      currentImage: '',
-      completedImages: []
-    })
+      totalBatches: 1 // Single batch for regeneration
+    }))
 
     showMessage(`Regenerating ${imagesToUpdate.length} scripts with individual prompts...`, 'info')
 
@@ -183,11 +187,18 @@ export function ScriptGenerator() {
 
           const data = await response.json()
           
-          setProgress(prev => ({
-            ...prev,
-            completed: prev.completed + 1,
-            completedImages: [...prev.completedImages, image.originalName],
+          dispatch(updateScriptGenerationProgress({
+            completed: index + 1,
             currentImage: `Completed: ${image.originalName}`
+          }))
+          
+          // Immediately update the script in Redux
+          dispatch(updateScript({
+            imageId: image.id,
+            script: data.usingMock 
+              ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
+              : data.script,
+            generated: true
           }))
           
           return {
@@ -201,19 +212,25 @@ export function ScriptGenerator() {
             }
           }
         } catch (error) {
-          setProgress(prev => ({
-            ...prev,
-            completed: prev.completed + 1,
-            completedImages: [...prev.completedImages, `${image.originalName} (failed)`],
+          dispatch(updateScriptGenerationProgress({
+            completed: index + 1,
             currentImage: `Failed: ${image.originalName}`
+          }))
+          
+          // Immediately update the script in Redux with error message
+          const errorMessage = `Error: ${error instanceof Error ? error.message : 'Failed to regenerate script'}`
+          dispatch(updateScript({
+            imageId: image.id,
+            script: errorMessage,
+            generated: false
           }))
           
           return {
             success: false,
-            data: {
+            error: {
               imageId: image.id,
-              script: `Error: ${error instanceof Error ? error.message : 'Failed to regenerate script'}`,
-              generated: false
+              imageName: image.originalName,
+              error: error instanceof Error ? error.message : 'Failed to regenerate script'
             }
           }
         }
@@ -221,11 +238,7 @@ export function ScriptGenerator() {
 
       const results = await Promise.all(scriptPromises)
       
-      // Update all scripts in Redux
-      results.forEach(result => {
-        dispatch(updateScript(result.data))
-      })
-
+      // Count results since scripts are already updated immediately
       const successCount = results.filter(r => r.success).length
       showMessage(`Regenerated ${successCount}/${imagesToUpdate.length} scripts with individual prompts!`, 'success')
 
@@ -233,13 +246,15 @@ export function ScriptGenerator() {
       showMessage('Error during bulk regeneration: ' + (error as Error).message, 'error')
     } finally {
       setIsGenerating(false)
+      dispatch(finishScriptGeneration())
+      // Clear progress after completion
       setTimeout(() => {
-        setProgress({ total: 0, completed: 0, currentImage: '', completedImages: [] })
+        dispatch(clearScriptGenerationProgress())
       }, 3000)
     }
   }
 
-  // Generate scripts for all images
+  // Generate scripts for all images with rate limiting
   const handleNarrateImages = async () => {
     if (!prompt.trim()) {
       showMessage('Please enter a prompt for script generation', 'error')
@@ -252,16 +267,15 @@ export function ScriptGenerator() {
     }
 
     setIsGenerating(true)
+    const totalBatches = Math.ceil(originalImages.length / BATCH_SIZE)
     
     // Initialize progress
-    setProgress({
+    dispatch(startScriptGeneration({
       total: originalImages.length,
-      completed: 0,
-      currentImage: '',
-      completedImages: []
-    })
-
-    showMessage(`Starting parallel processing of ${originalImages.length} images...`, 'info')
+      totalBatches
+    }))
+    
+    showMessage(`Starting batched processing of ${originalImages.length} images in ${totalBatches} batch(es) of ${BATCH_SIZE}...`, 'info')
 
     try {
       // Initialize scripts array in Redux
@@ -272,118 +286,167 @@ export function ScriptGenerator() {
         }))
       ))
 
-      console.log(`🚀 Processing ${originalImages.length} images in parallel`)
+      console.log(`🚀 Processing ${originalImages.length} images in ${totalBatches} batches`)
 
-      // Create all fetch promises immediately - NO STATE UPDATES in promise creation
-      const scriptPromises = originalImages.map(async (image, index) => {
-        console.log(`📸 Starting request ${index + 1}/${originalImages.length}: ${image.originalName}`)
+      const allResults: Array<{
+        success: boolean
+        data?: any
+        error?: any
+      }> = []
+      
+      let completedCount = 0 // Shared counter for completed items
 
-        try {
-          // Fire the request immediately - this is where parallel execution happens
-          const response = await fetch('/api/generate-script', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              imageDataUrl: image.dataUrl,
-              imageName: image.originalName,
-              prompt: prompt.trim()
-            }),
-          })
+      // Process images in batches
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const startIndex = batchIndex * BATCH_SIZE
+        const endIndex = Math.min(startIndex + BATCH_SIZE, originalImages.length)
+        const batchImages = originalImages.slice(startIndex, endIndex)
+        
+        console.log(`📦 Processing batch ${batchIndex + 1}/${totalBatches}: ${batchImages.length} images`)
+        
+        // Update progress for current batch
+        dispatch(updateScriptGenerationProgress({
+          currentBatch: batchIndex + 1,
+          batchProgress: 0,
+          currentImage: `Processing batch ${batchIndex + 1}/${totalBatches}...`
+        }))
 
-          if (!response.ok) {
-            throw new Error(`Failed to generate script for ${image.originalName}`)
-          }
+        // Create promises for current batch
+        const batchPromises = batchImages.map(async (image, imageIndex) => {
+          const globalIndex = startIndex + imageIndex
+          console.log(`📸 Starting request ${globalIndex + 1}/${originalImages.length}: ${image.originalName}`)
 
-          const data = await response.json()
-          
-          console.log(`✅ Completed request ${index + 1}: ${image.originalName}`)
-          
-          // Update progress ONLY after request completes
-          setProgress(prev => ({
-            ...prev,
-            completed: prev.completed + 1,
-            completedImages: [...prev.completedImages, image.originalName],
-            currentImage: `Completed: ${image.originalName}`
-          }))
-          
-          return {
-            success: true,
-            data: {
+          try {
+            const response = await fetch('/api/generate-script', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                imageDataUrl: image.dataUrl,
+                imageName: image.originalName,
+                prompt: prompt.trim(),
+                batchInfo: {
+                  batchIndex: batchIndex + 1,
+                  totalBatches,
+                  imageIndex: imageIndex + 1,
+                  batchSize: batchImages.length
+                }
+              }),
+            })
+
+            if (!response.ok) {
+              throw new Error(`Failed to generate script for ${image.originalName}`)
+            }
+
+            const data = await response.json()
+            
+            console.log(`✅ Completed request ${globalIndex + 1}: ${image.originalName}`)
+            
+            // Increment shared counter and update progress
+            completedCount++
+            dispatch(updateScriptGenerationProgress({
+              completed: completedCount,
+              batchProgress: imageIndex + 1,
+              currentImage: `Batch ${batchIndex + 1}: Completed ${image.originalName}`
+            }))
+            
+            // Immediately update the script in Redux so it shows in the UI
+            dispatch(updateScript({
               imageId: image.id,
-              imageName: image.originalName,
               script: data.usingMock 
                 ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
                 : data.script,
-              generated: true,
-              usingMock: data.usingMock
+              generated: true
+            }))
+            
+            return {
+              success: true,
+              data: {
+                imageId: image.id,
+                imageName: image.originalName,
+                script: data.usingMock 
+                  ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
+                  : data.script,
+                generated: true,
+                usingMock: data.usingMock
+              }
             }
-          }
-        } catch (error) {
-          console.error(`❌ Error in request ${index + 1}:`, error)
-          
-          // Update progress even for failed requests
-          setProgress(prev => ({
-            ...prev,
-            completed: prev.completed + 1,
-            completedImages: [...prev.completedImages, `${image.originalName} (failed)`],
-            currentImage: `Failed: ${image.originalName}`
-          }))
-          
-          return {
-            success: false,
-            error: {
+          } catch (error) {
+            console.error(`❌ Error in request ${globalIndex + 1}:`, error)
+            
+            // Increment shared counter even for failures
+            completedCount++
+            dispatch(updateScriptGenerationProgress({
+              completed: completedCount,
+              batchProgress: imageIndex + 1,
+              currentImage: `Batch ${batchIndex + 1}: Failed ${image.originalName}`
+            }))
+            
+            // Immediately update the script in Redux with error message
+            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Failed to generate script'}`
+            dispatch(updateScript({
               imageId: image.id,
-              imageName: image.originalName,
-              error: error instanceof Error ? error.message : 'Failed to generate script'
+              script: errorMessage,
+              generated: false
+            }))
+            
+            return {
+              success: false,
+              error: {
+                imageId: image.id,
+                imageName: image.originalName,
+                error: error instanceof Error ? error.message : 'Failed to generate script'
+              }
             }
           }
-        }
-      })
+        })
 
-      console.log(`⚡ All ${originalImages.length} requests initiated in parallel, waiting for completion...`)
-      
-      // This is where all parallel requests are awaited
-      const results = await Promise.all(scriptPromises)
+        // Process current batch in parallel
+        const batchResults = await Promise.all(batchPromises)
+        allResults.push(...batchResults)
+        
+        console.log(`✅ Batch ${batchIndex + 1}/${totalBatches} complete`)
 
-      // Separate successful scripts from errors
-      const successfulScripts: GeneratedScript[] = []
-      const errors: Array<{ imageId: string; imageName: string; error: string }> = []
-
-      for (const result of results) {
-        if (result.success && result.data) {
-          successfulScripts.push(result.data)
-        } else if (!result.success && result.error) {
-          errors.push(result.error)
-          // Add error script to the list
-          successfulScripts.push({
-            imageId: result.error.imageId,
-            imageName: result.error.imageName,
-            script: `Error: ${result.error.error}`,
-            generated: false
-          })
+        // Add delay between batches (except for the last batch)
+        if (batchIndex < totalBatches - 1) {
+          console.log(`⏱️ Waiting ${BATCH_DELAY / 1000} seconds before next batch...`)
+          
+          // Countdown timer for user feedback
+          for (let seconds = Math.floor(BATCH_DELAY / 1000); seconds > 0; seconds--) {
+            dispatch(updateScriptGenerationProgress({
+              timeUntilNextBatch: seconds,
+              currentImage: `Waiting ${seconds}s before next batch...`
+            }))
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+          
+          dispatch(updateScriptGenerationProgress({
+            timeUntilNextBatch: 0
+          }))
         }
       }
 
-      // Update all scripts in Redux
-      dispatch(setScripts(successfulScripts))
+      // Process all results - just count successes and errors since scripts are already updated
+      const successCount = allResults.filter(r => r.success).length
+      const errorCount = allResults.filter(r => !r.success).length
 
-      console.log(`🎉 Parallel processing complete: ${successfulScripts.filter(s => s.generated).length} successful, ${errors.length} failed`)
+      console.log(`🎉 Batched processing complete: ${successCount} successful, ${errorCount} failed`)
 
-      if (errors.length === 0) {
-        showMessage(`Successfully generated all ${successfulScripts.length} scripts!`, 'success')
+      if (errorCount === 0) {
+        showMessage(`Successfully generated all ${successCount} scripts using ${totalBatches} batch(es)!`, 'success')
       } else {
-        showMessage(`Generated ${successfulScripts.filter(s => s.generated).length} scripts successfully, ${errors.length} failed`, 'success')
+        showMessage(`Generated ${successCount} scripts successfully, ${errorCount} failed using ${totalBatches} batch(es)`, 'success')
       }
 
     } catch (error) {
       showMessage('Error during script generation: ' + (error as Error).message, 'error')
     } finally {
       setIsGenerating(false)
+      dispatch(finishScriptGeneration())
       // Clear progress after completion
       setTimeout(() => {
-        setProgress({ total: 0, completed: 0, currentImage: '', completedImages: [] })
+        dispatch(clearScriptGenerationProgress())
       }, 3000)
     }
   }
@@ -437,22 +500,22 @@ export function ScriptGenerator() {
       </div>
 
       {/* Progress Card - Only show when generating */}
-      {isGenerating && (
+      {progress.isActive && (
         <Card className="bg-blue-50 border border-blue-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-              Generating Scripts ({progress.completed}/{progress.total})
+              Generating Scripts ({progressPercentage}%)
             </CardTitle>
             <CardDescription>
-              Processing images in parallel for maximum speed
+              Processing images in batches of 10 to respect API rate limits
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Progress Bar */}
+            {/* Overall Progress Bar */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Progress</span>
+                <span className="text-gray-600">Overall Progress</span>
                 <span className="font-medium text-blue-600">{progressPercentage}%</span>
               </div>
               <Progress value={progressPercentage} className="h-2" />
@@ -461,11 +524,27 @@ export function ScriptGenerator() {
               </div>
             </div>
 
+            {/* Countdown Timer */}
+            {progress.timeUntilNextBatch && progress.timeUntilNextBatch > 0 && (
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="flex items-center gap-2 text-orange-800">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="font-medium">Rate Limit Pause</span>
+                  <Badge variant="secondary" className="bg-orange-100">
+                    {progress.timeUntilNextBatch}s
+                  </Badge>
+                </div>
+                <p className="text-sm text-orange-700 mt-1">
+                  Waiting before processing next batch to respect API limits
+                </p>
+              </div>
+            )}
+
             {/* Current Status */}
             {progress.currentImage && (
               <div className="flex items-center gap-2 text-sm">
                 <CheckCircle className="h-4 w-4 text-green-500" />
-                <span className="text-gray-600">Latest:</span>
+                <span className="text-gray-600">Status:</span>
                 <span className="font-medium">{progress.currentImage}</span>
               </div>
             )}
@@ -603,15 +682,6 @@ export function ScriptGenerator() {
               </div>
               <p className="text-sm text-gray-600 break-words">
                 Customize prompts for specific segments. Empty prompts will use the global prompt above.
-              </p>
-            </div>
-          )}
-
-          {/* Next Step Hint */}
-          {generatedCount > 0 && (
-            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-sm text-purple-800">
-                ✨ Great! You have {generatedCount} scripts ready. Go to the <strong>Audio Generator</strong> to convert them to high-quality audio with WellSaid Labs.
               </p>
             </div>
           )}

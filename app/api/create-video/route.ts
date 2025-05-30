@@ -113,16 +113,23 @@ export async function POST(request: NextRequest) {
               type: "caption",
               src: subtitlesUrl,
               font: {
-                size: 70,
+                family: "Montserrat",
+                size: 40,
+                stroke: "#000000",
+                strokeWidth: 1
               },
               background: {
-                padding: 15,
+                color: "#ffffff",
+                opacity: 0.5,
+                padding: 12,
               },
             },
             start: 0,
             length: totalDuration,
             position: "bottom",
-            
+            offset: {
+              y: 0.05
+            }
           }
         ]
       };
@@ -152,7 +159,7 @@ export async function POST(request: NextRequest) {
           start: startTime,
           length: duration,
           effect: selectedEffect,
-          fit: "cover"
+          fit: "contain"
         };
         
         currentTime += duration;
@@ -182,7 +189,7 @@ export async function POST(request: NextRequest) {
           start: startTime,
           length: imageDuration,
           effect: selectedEffect,
-          fit: "cover"
+          fit: "contain"
         };
       });
 

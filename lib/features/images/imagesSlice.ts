@@ -6,6 +6,9 @@ export interface ProcessedImage {
   originalName: string
   dataUrl: string
   processed: boolean
+  chapter?: number // Chapter number extracted from filename
+  imageNumber?: number // Image number within the chapter
+  sortOrder?: number // Overall sort order (1, 2, 3, etc.)
   supabasePath?: string // Path where image is saved in Supabase storage
   savedToSupabase?: boolean // Whether image has been saved to Supabase
 }

@@ -420,131 +420,213 @@ export function VideoGenerator() {
       </Card>
 
       {/* Video Settings */}
-      {hasPrerequisites && (
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Video Generation Settings
-            </CardTitle>
-            <CardDescription>
-              Configure timing, quality, and subtitle options
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Basic Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Video Quality</Label>
-                <Select 
-                  value={settings.videoQuality} 
-                  onValueChange={(value: 'hd' | 'sd') => dispatch(setVideoSettings({ videoQuality: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hd">HD (1280x720)</SelectItem>
-                    <SelectItem value="sd">SD (854x480)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      <Card className="bg-white shadow-sm border border-gray-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Video Generation Settings
+          </CardTitle>
+          <CardDescription>
+            Configure timing, quality, and subtitle options
+            {!hasPrerequisites && (
+              <span className="block text-orange-600 mt-1">
+                Complete prerequisites above to enable video generation
+              </span>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Basic Settings */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Video Quality</Label>
+              <Select 
+                value={settings.videoQuality} 
+                onValueChange={(value: 'hd' | 'sd') => dispatch(setVideoSettings({ videoQuality: value }))}
+                disabled={!hasPrerequisites}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hd">HD (1280x720)</SelectItem>
+                  <SelectItem value="sd">SD (854x480)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
+            <div className="space-y-2">
+              <Label className="text-sm">Timing Mode</Label>
               <div className="space-y-2">
-                <Label className="text-sm">Timing Mode</Label>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="segmented-timing"
-                      checked={settings.useSegmentedTiming}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          dispatch(setVideoSettings({ useSegmentedTiming: true, useScriptBasedTiming: false }))
-                        } else {
-                          dispatch(setVideoSettings({ useSegmentedTiming: false }))
-                        }
-                      }}
-                    />
-                    <Label htmlFor="segmented-timing" className="text-sm">Custom segment timing</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="segmented-timing"
+                    checked={settings.useSegmentedTiming}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        dispatch(setVideoSettings({ useSegmentedTiming: true, useScriptBasedTiming: false }))
+                      } else {
+                        dispatch(setVideoSettings({ useSegmentedTiming: false }))
+                      }
+                    }}
+                    disabled={!hasPrerequisites}
+                  />
+                  <Label htmlFor="segmented-timing" className="text-sm">Custom segment timing</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="script-based-timing"
+                    checked={settings.useScriptBasedTiming}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        dispatch(setVideoSettings({ useScriptBasedTiming: true, useSegmentedTiming: false }))
+                      } else {
+                        dispatch(setVideoSettings({ useScriptBasedTiming: false }))
+                      }
+                    }}
+                    disabled={!hasPrerequisites || !scriptBasedTimingAvailable}
+                  />
+                  <Label htmlFor="script-based-timing" className="text-sm">
+                    Script-based timing {!scriptBasedTimingAvailable && '(not available)'}
+                  </Label>
+                </div>
+                {!scriptBasedTimingAvailable && (
+                  <p className="text-xs text-gray-500 ml-6">
+                    Script-based timing requires audio generation with individual script durations
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Subtitles</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="include-subtitles"
+                  checked={settings.includeSubtitles}
+                  onCheckedChange={(checked) => dispatch(setVideoSettings({ includeSubtitles: checked as boolean }))}
+                  disabled={!hasPrerequisites || !audioGeneration?.subtitlesUrl}
+                />
+                <Label htmlFor="include-subtitles" className="text-sm">
+                  Include subtitles {!audioGeneration?.subtitlesUrl && '(not available)'}
+                </Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Prerequisites Warning */}
+          {!hasPrerequisites && (
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <span className="font-medium text-orange-800">Prerequisites Required</span>
+              </div>
+              <div className="text-sm text-orange-700 space-y-1">
+                {originalImages.length === 0 && <div>• Process images first</div>}
+                {originalImages.length > 0 && !allImagesUploaded && (
+                  <div>• Upload all images to Supabase storage (currently {originalImages.filter(img => img.savedToSupabase).length}/{originalImages.length} uploaded)</div>
+                )}
+                {!audioGeneration?.audioUrl && <div>• Generate audio from scripts</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Segment Timing Configuration */}
+          {settings.useSegmentedTiming && (
+            <div className={`space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg ${!hasPrerequisites ? 'opacity-60' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Custom Segment Timing</h4>
+                  <p className="text-sm text-gray-600">
+                    Adjust how long each image appears in the video
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium">
+                    Total: {totalSegmentDuration.toFixed(1)}s
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="script-based-timing"
-                      checked={settings.useScriptBasedTiming}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          dispatch(setVideoSettings({ useScriptBasedTiming: true, useSegmentedTiming: false }))
-                        } else {
-                          dispatch(setVideoSettings({ useScriptBasedTiming: false }))
-                        }
-                      }}
-                      disabled={!scriptBasedTimingAvailable}
-                    />
-                    <Label htmlFor="script-based-timing" className="text-sm">
-                      Script-based timing {!scriptBasedTimingAvailable && '(not available)'}
-                    </Label>
-                  </div>
-                  {!scriptBasedTimingAvailable && (
-                    <p className="text-xs text-gray-500 ml-6">
-                      Script-based timing requires audio generation with individual script durations
-                    </p>
+                  {audioGeneration?.duration && (
+                    <div className={`text-xs ${
+                      Math.abs(totalSegmentDuration - audioGeneration.duration) < 0.5 
+                        ? 'text-green-600' 
+                        : 'text-orange-600'
+                    }`}>
+                      Audio: {audioGeneration.duration.toFixed(1)}s
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm">Subtitles</Label>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="include-subtitles"
-                    checked={settings.includeSubtitles}
-                    onCheckedChange={(checked) => dispatch(setVideoSettings({ includeSubtitles: checked as boolean }))}
-                    disabled={!audioGeneration?.subtitlesUrl}
-                  />
-                  <Label htmlFor="include-subtitles" className="text-sm">
-                    Include subtitles {!audioGeneration?.subtitlesUrl && '(not available)'}
-                  </Label>
-                </div>
+              <Button 
+                onClick={distributeEquallyAcrossSegments}
+                size="sm"
+                variant="outline"
+                disabled={!hasPrerequisites || !audioGeneration?.audioUrl}
+              >
+                Distribute Equally
+              </Button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {originalImages.length > 0 ? originalImages.map((image, index) => (
+                  <div key={image.id} className="flex items-center gap-2 p-2 bg-white rounded border">
+                    <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
+                      <img
+                        src={image.dataUrl}
+                        alt={`Image ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Image {index + 1}</div>
+                      <Input
+                        type="number"
+                        value={customSegmentTimings[index]?.duration.toFixed(1) || '0.0'}
+                        onChange={(e) => updateSegmentTiming(index, parseFloat(e.target.value) || 0)}
+                        className="h-6 text-xs"
+                        step="0.1"
+                        min="0.1"
+                        disabled={!hasPrerequisites}
+                      />
+                      <div className="text-xs text-gray-400">seconds</div>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="col-span-full text-center text-gray-500 py-4">
+                    No images processed yet
+                  </div>
+                )}
               </div>
             </div>
+          )}
 
-            {/* Segment Timing Configuration */}
-            {settings.useSegmentedTiming && (
-              <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Custom Segment Timing</h4>
-                    <p className="text-sm text-gray-600">
-                      Adjust how long each image appears in the video
-                    </p>
+          {/* Script-Based Timing Preview */}
+          {settings.useScriptBasedTiming && (
+            <div className={`space-y-4 p-4 border rounded-lg ${
+              scriptBasedTimingAvailable && hasPrerequisites 
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-gray-50 border-gray-200 opacity-60'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Script-Based Timing Preview</h4>
+                  <p className="text-sm text-gray-600">
+                    Each image will show for the duration of its script's audio
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium">
+                    Total: {scriptBasedTimingAvailable ? getScriptBasedTimings().reduce((sum, timing) => sum + timing.duration, 0).toFixed(1) : '0.0'}s
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      Total: {totalSegmentDuration.toFixed(1)}s
-                    </div>
-                    {audioGeneration?.duration && (
-                      <div className={`text-xs ${
-                        Math.abs(totalSegmentDuration - audioGeneration.duration) < 0.5 
-                          ? 'text-green-600' 
-                          : 'text-orange-600'
-                      }`}>
-                        Audio: {audioGeneration.duration.toFixed(1)}s
-                      </div>
-                    )}
+                  <div className={`text-xs ${scriptBasedTimingAvailable ? 'text-green-600' : 'text-gray-500'}`}>
+                    {scriptBasedTimingAvailable ? 'Matches audio duration' : 'Not available'}
                   </div>
                 </div>
+              </div>
 
-                <Button 
-                  onClick={distributeEquallyAcrossSegments}
-                  size="sm"
-                  variant="outline"
-                  disabled={!audioGeneration?.audioUrl}
-                >
-                  Distribute Equally
-                </Button>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {originalImages.map((image, index) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {originalImages.length > 0 ? originalImages.map((image, index) => {
+                  const scriptDuration = audioGeneration?.scriptDurations?.find(sd => sd.imageId === image.id)
+                  return (
                     <div key={image.id} className="flex items-center gap-2 p-2 bg-white rounded border">
                       <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
                         <img
@@ -554,97 +636,55 @@ export function VideoGenerator() {
                         />
                       </div>
                       <div className="flex-1">
-                        <div className="text-xs text-gray-500">Image {index + 1}</div>
-                        <Input
-                          type="number"
-                          value={customSegmentTimings[index]?.duration.toFixed(1) || '0.0'}
-                          onChange={(e) => updateSegmentTiming(index, parseFloat(e.target.value) || 0)}
-                          className="h-6 text-xs"
-                          step="0.1"
-                          min="0.1"
-                        />
-                        <div className="text-xs text-gray-400">seconds</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Script-Based Timing Preview */}
-            {settings.useScriptBasedTiming && scriptBasedTimingAvailable && (
-              <div className="space-y-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Script-Based Timing Preview</h4>
-                    <p className="text-sm text-gray-600">
-                      Each image will show for the duration of its script's audio
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      Total: {getScriptBasedTimings().reduce((sum, timing) => sum + timing.duration, 0).toFixed(1)}s
-                    </div>
-                    <div className="text-xs text-green-600">
-                      Matches audio duration
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {originalImages.map((image, index) => {
-                    const scriptDuration = audioGeneration?.scriptDurations?.find(sd => sd.imageId === image.id)
-                    return (
-                      <div key={image.id} className="flex items-center gap-2 p-2 bg-white rounded border">
-                        <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
-                          <img
-                            src={image.dataUrl}
-                            alt={`Image ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
+                        <div className="text-xs text-gray-500">{scriptDuration?.imageName || `Image ${index + 1}`}</div>
+                        <div className="text-sm font-medium">
+                          {scriptDuration ? `${scriptDuration.duration.toFixed(1)}s` : 'No timing'}
                         </div>
-                        <div className="flex-1">
-                          <div className="text-xs text-gray-500">{scriptDuration?.imageName || `Image ${index + 1}`}</div>
-                          <div className="text-sm font-medium">
-                            {scriptDuration ? `${scriptDuration.duration.toFixed(1)}s` : 'No timing'}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {scriptDuration ? `Starts at ${scriptDuration.startTime.toFixed(1)}s` : 'Missing script'}
-                          </div>
+                        <div className="text-xs text-gray-400">
+                          {scriptDuration ? `Starts at ${scriptDuration.startTime.toFixed(1)}s` : 'Missing script'}
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
+                    </div>
+                  )
+                }) : (
+                  <div className="col-span-full text-center text-gray-500 py-4">
+                    No images processed yet
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Generate Button */}
-            <Button
-              onClick={handleGenerateVideo}
-              disabled={isGeneratingVideo || !hasPrerequisites}
-              className="w-full bg-purple-600 hover:bg-purple-700"
-              size="lg"
-            >
-              {isGeneratingVideo ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating Video...
-                </>
-              ) : (
-                <>
-                  <VideoIcon className="h-4 w-4 mr-2" />
-                  Generate Video ({
-                    settings.useSegmentedTiming ? 'Custom Timing' :
-                    settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
-                    'Traditional'
-                  })
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+          {/* Generate Button */}
+          <Button
+            onClick={handleGenerateVideo}
+            disabled={isGeneratingVideo || !hasPrerequisites}
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
+            size="lg"
+          >
+            {isGeneratingVideo ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generating Video...
+              </>
+            ) : !hasPrerequisites ? (
+              <>
+                <VideoIcon className="h-4 w-4 mr-2" />
+                Complete Prerequisites to Generate Video
+              </>
+            ) : (
+              <>
+                <VideoIcon className="h-4 w-4 mr-2" />
+                Generate Video ({
+                  settings.useSegmentedTiming ? 'Custom Timing' :
+                  settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
+                  'Traditional'
+                })
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Current Generation Status */}
       {currentGeneration && (

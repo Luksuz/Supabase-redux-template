@@ -8,6 +8,11 @@ import os from 'os'
 
 const execAsync = promisify(exec)
 
+// Retry configuration
+const MAX_RETRIES = 3
+const INITIAL_RETRY_DELAY = 1000 // 1 second
+const RETRY_MULTIPLIER = 2 // Exponential backoff
+
 // Function to split text into chunks under 1000 characters while preserving word boundaries
 function splitTextIntoChunks(text: string, maxLength: number = 950): string[] {
   if (text.length <= maxLength) {
@@ -45,6 +50,100 @@ function splitTextIntoChunks(text: string, maxLength: number = 950): string[] {
   return chunks.length > 0 ? chunks : [text];
 }
 
+// Sleep function for retry delays
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// Retry wrapper function
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = MAX_RETRIES,
+  initialDelay: number = INITIAL_RETRY_DELAY
+): Promise<T> {
+  let lastError: Error | null = null
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error as Error
+      
+      if (attempt === maxRetries) {
+        console.error(`❌ All ${maxRetries + 1} attempts failed. Last error:`, lastError)
+        throw lastError
+      }
+      
+      const delay = initialDelay * Math.pow(RETRY_MULTIPLIER, attempt)
+      console.warn(`⚠️ Attempt ${attempt + 1} failed: ${lastError.message}. Retrying in ${delay}ms...`)
+      await sleep(delay)
+    }
+  }
+  
+  throw lastError
+}
+
+// Generate audio for a single sub-chunk with retry logic
+async function generateSubChunkAudio(
+  subChunk: string,
+  speaker_id: number,
+  model: string,
+  subChunkIndex: number,
+  totalSubChunks: number
+): Promise<ArrayBuffer> {
+  return withRetry(async () => {
+    console.log(`🎵 [Sub-chunk ${subChunkIndex + 1}/${totalSubChunks}] Generating: "${subChunk.substring(0, 50)}..." (${subChunk.length} chars)`)
+    
+    // Get a valid API key (this might be different from previous attempts if keys were invalidated)
+    const apiKey = await getValidApiKey()
+    if (!apiKey) {
+      throw new Error('No valid WellSaid Labs API keys available')
+    }
+    
+    console.log(`🔑 Using API key for sub-chunk ${subChunkIndex + 1}`)
+
+    // Call WellSaid Labs API
+    const wellSaidResponse = await fetch('https://api.wellsaidlabs.com/v1/tts/stream', {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'content-type': 'application/json',
+        'X-Api-Key': apiKey
+      },
+      body: JSON.stringify({
+        text: subChunk,
+        speaker_id: speaker_id,
+        model: model
+      })
+    })
+
+    if (!wellSaidResponse.ok) {
+      const errorText = await wellSaidResponse.text()
+      console.error(`WellSaid Labs API error: ${wellSaidResponse.status} ${wellSaidResponse.statusText}`)
+      
+      // If API key is invalid, mark it as invalid and throw error to trigger retry with new key
+      if (wellSaidResponse.status === 401 || wellSaidResponse.status === 403) {
+        console.log(`🚫 Marking API key as invalid due to ${wellSaidResponse.status} error`)
+        await markApiKeyAsInvalid(apiKey)
+        throw new Error(`API key invalid (${wellSaidResponse.status}): ${wellSaidResponse.statusText}`)
+      }
+      
+      // For other errors, throw with status for potential retry
+      throw new Error(`WellSaid Labs API error (${wellSaidResponse.status}): ${wellSaidResponse.statusText}`)
+    }
+
+    // Increment API key usage after successful generation
+    const usageResult = await incrementApiKeyUsage(apiKey)
+    if (usageResult.success) {
+      if (usageResult.markedInvalid) {
+        console.log(`🚫 API key reached usage limit (${usageResult.newCount} uses) and was marked invalid`)
+      } else {
+        console.log(`📊 API key usage updated: ${usageResult.newCount}/50 uses`)
+      }
+    }
+
+    return wellSaidResponse.arrayBuffer()
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { text, speaker_id = 3, model = 'caruso', chunkIndex, userId = 'unknown_user', sessionId } = await request.json()
@@ -63,20 +162,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🎵 Starting WellSaid Labs audio generation for chunk ${chunkIndex}`)
+    console.log(`🎵 Starting WellSaid Labs audio generation for chunk ${chunkIndex} (with retry mechanism)`)
     console.log(`📝 Text length: ${text.length} characters`)
     console.log(`🎤 Speaker ID: ${speaker_id}, Model: ${model}`)
-
-    // Get a valid API key from the database
-    const apiKey = await getValidApiKey()
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'No valid WellSaid Labs API keys available. Please upload API keys first.' },
-        { status: 400 }
-      )
-    }
-
-    console.log(`🔑 Using WellSaid Labs API key: ${apiKey}`)
 
     // Split text into sub-chunks if it's too long
     const textChunks = splitTextIntoChunks(text)
@@ -89,69 +177,74 @@ export async function POST(request: NextRequest) {
     const subChunkFiles: string[] = []
 
     try {
-      // Generate audio for each sub-chunk
+      // Generate audio for each sub-chunk with retry logic
       for (let i = 0; i < textChunks.length; i++) {
         const subChunk = textChunks[i]
-        console.log(`🎵 [Sub-chunk ${i + 1}/${textChunks.length}] Generating: "${subChunk.substring(0, 50)}..." (${subChunk.length} chars)`)
-
-        // Call WellSaid Labs API
-        const wellSaidResponse = await fetch('https://api.wellsaidlabs.com/v1/tts/stream', {
-          method: 'POST',
-          headers: {
-            'accept': '*/*',
-            'content-type': 'application/json',
-            'X-Api-Key': apiKey
-          },
-          body: JSON.stringify({
-            text: subChunk,
-            speaker_id: speaker_id,
-            model: model
-          })
-        })
-
-        if (!wellSaidResponse.ok) {
-          const errorText = await wellSaidResponse.text()
-          console.error(`WellSaid Labs API error: ${wellSaidResponse.status} ${wellSaidResponse.statusText}`)
+        
+        try {
+          // Generate audio with retry mechanism
+          const audioBuffer = await generateSubChunkAudio(subChunk, speaker_id, model, i, textChunks.length)
+          const audioData = new Uint8Array(audioBuffer)
           
-          // If API key is invalid, mark it as invalid
-          if (wellSaidResponse.status === 401 || wellSaidResponse.status === 403) {
-            console.log(`🚫 Marking API key as invalid due to ${wellSaidResponse.status} error`)
-            await markApiKeyAsInvalid(apiKey)
-            
-            return NextResponse.json(
-              { error: 'API key is invalid. Please upload new API keys.' },
-              { status: 401 }
-            )
+          // Save raw audio from WellSaid Labs first
+          const rawSubChunkFileName = `chunk-${chunkIndex}-sub-${i}-raw-${Date.now()}.mp3`
+          const rawSubChunkFilePath = path.join(tempDir, rawSubChunkFileName)
+          await fs.writeFile(rawSubChunkFilePath, audioData)
+          
+          // Compress the audio chunk
+          const compressedSubChunkFileName = `chunk-${chunkIndex}-sub-${i}-compressed-${Date.now()}.mp3`
+          const compressedSubChunkFilePath = path.join(tempDir, compressedSubChunkFileName)
+          
+          console.log(`🗜️ [Sub-chunk ${i + 1}] Compressing audio: ${rawSubChunkFilePath} -> ${compressedSubChunkFilePath}`)
+          
+          await withRetry(async () => {
+            const compressionCommand = `ffmpeg -i "${rawSubChunkFilePath}" -b:a 64k -ar 44100 -ac 1 -y "${compressedSubChunkFilePath}"`
+            console.log(`🎛️ Running compression: ${compressionCommand}`)
+            await execAsync(compressionCommand)
+          }, 2, 500)
+          
+          // Clean up raw file and use compressed file
+          await fs.unlink(rawSubChunkFilePath)
+          subChunkFiles.push(compressedSubChunkFilePath)
+          
+          console.log(`✅ [Sub-chunk ${i + 1}] Audio compressed and saved: ${compressedSubChunkFilePath}`)
+          
+        } catch (error) {
+          console.error(`❌ Sub-chunk ${i + 1} failed after all retry attempts:`, error)
+          
+          // Clean up any temp files created so far
+          for (const tempFile of subChunkFiles) {
+            try {
+              await fs.unlink(tempFile)
+            } catch (cleanupError) {
+              console.warn(`Warning: Failed to clean up temp file ${tempFile}`, cleanupError)
+            }
           }
           
-          throw new Error(`WellSaid Labs API error: ${wellSaidResponse.statusText}`)
+          // Return specific error message
+          return NextResponse.json(
+            { 
+              error: `Failed to generate audio for sub-chunk ${i + 1} after ${MAX_RETRIES + 1} attempts: ${(error as Error).message}`,
+              retryable: true,
+              chunkIndex: chunkIndex
+            },
+            { status: 500 }
+          )
         }
-
-        // Save sub-chunk audio to local file
-        const audioBuffer = await wellSaidResponse.arrayBuffer()
-        const audioData = new Uint8Array(audioBuffer)
-        
-        const subChunkFileName = `chunk-${chunkIndex}-sub-${i}-${Date.now()}.mp3`
-        const subChunkFilePath = path.join(tempDir, subChunkFileName)
-        
-        await fs.writeFile(subChunkFilePath, audioData)
-        subChunkFiles.push(subChunkFilePath)
-        
-        console.log(`✅ [Sub-chunk ${i + 1}] Audio saved locally: ${subChunkFilePath}`)
       }
 
-      // If multiple sub-chunks, concatenate them
+      // If multiple sub-chunks, concatenate them with compression
       let finalFilePath: string
       
       if (textChunks.length === 1) {
-        // Single sub-chunk, use it directly
+        // Single sub-chunk, already compressed - use it directly
         finalFilePath = subChunkFiles[0]
-        console.log(`📤 Single sub-chunk, using directly`)
+        console.log(`📤 Single compressed sub-chunk, using directly`)
       } else {
-        // Multiple sub-chunks, concatenate them
-        console.log(`🔗 Concatenating ${textChunks.length} sub-chunks`)
+        // Multiple sub-chunks, concatenate them with additional compression
+        console.log(`🔗 Concatenating ${textChunks.length} compressed sub-chunks`)
         
-        const finalFileName = `chunk-${chunkIndex}-final-${Date.now()}.mp3`
+        const finalFileName = `chunk-${chunkIndex}-final-compressed-${Date.now()}.mp3`
         finalFilePath = path.join(tempDir, finalFileName)
         
         // Create ffmpeg concat file
@@ -161,11 +254,12 @@ export async function POST(request: NextRequest) {
         const concatContent = subChunkFiles.map(file => `file '${file}'`).join('\n')
         await fs.writeFile(concatFilePath, concatContent)
         
-        // Run ffmpeg concatenation
-        const ffmpegCommand = `ffmpeg -f concat -safe 0 -i "${concatFilePath}" -c copy "${finalFilePath}"`
-        console.log(`🎬 Running ffmpeg: ${ffmpegCommand}`)
-        
-        await execAsync(ffmpegCommand)
+        // Run ffmpeg concatenation with compression (not using -c copy)
+        await withRetry(async () => {
+          const ffmpegCommand = `ffmpeg -f concat -safe 0 -i "${concatFilePath}" -b:a 64k -ar 44100 -ac 1 -y "${finalFilePath}"`
+          console.log(`🎬 Running compressed concatenation: ${ffmpegCommand}`)
+          await execAsync(ffmpegCommand)
+        }, 2, 500) // Fewer retries for ffmpeg, shorter delay
         
         // Clean up sub-chunk files and concat file
         for (const subChunkFile of subChunkFiles) {
@@ -173,45 +267,37 @@ export async function POST(request: NextRequest) {
         }
         await fs.unlink(concatFilePath)
         
-        console.log(`✅ Sub-chunks concatenated successfully`)
+        console.log(`✅ Sub-chunks concatenated with compression successfully`)
       }
 
-      // Get duration using ffprobe
+      // Get duration using ffprobe with retry
       console.log(`⏱️ Getting audio duration with ffprobe`)
-      const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${finalFilePath}"`)
-      const duration = parseFloat(stdout.trim())
-      
-      if (isNaN(duration) || duration <= 0) {
-        throw new Error(`Invalid duration detected: ${stdout.trim()}`)
-      }
+      const duration = await withRetry(async () => {
+        const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${finalFilePath}"`)
+        const parsedDuration = parseFloat(stdout.trim())
+        
+        if (isNaN(parsedDuration) || parsedDuration <= 0) {
+          throw new Error(`Invalid duration detected: ${stdout.trim()}`)
+        }
+        
+        return parsedDuration
+      }, 2, 500)
       
       console.log(`✅ Audio duration: ${duration.toFixed(2)}s`)
-
-      // Increment API key usage after successful generation
-      const usageResult = await incrementApiKeyUsage(apiKey)
-      if (usageResult.success) {
-        if (usageResult.markedInvalid) {
-          console.log(`🚫 API key reached usage limit (${usageResult.newCount} uses) and was marked invalid`)
-        } else {
-          console.log(`📊 API key usage updated: ${usageResult.newCount}/50 uses`)
-        }
-      } else {
-        console.warn(`⚠️ Failed to update API key usage count, but audio generation was successful`)
-      }
-
-      console.log(`🎉 Audio chunk generation completed successfully!`)
+      console.log(`🎉 Audio chunk generation completed successfully after retries!`)
 
       return NextResponse.json({
         success: true,
         chunkIndex: chunkIndex,
-        localFilePath: finalFilePath, // Return local file path instead of URL
+        localFilePath: finalFilePath,
         duration: duration,
         text: text,
+        retriesUsed: true, // Indicate that retry mechanism was available
         message: `Audio chunk ${chunkIndex} generated successfully and saved locally`
       })
 
     } catch (error: any) {
-      console.error(`❌ Error generating audio chunk:`, error)
+      console.error(`❌ Error generating audio chunk after retries:`, error)
       
       // Clean up any temporary files
       const allTempFiles = [...subChunkFiles]
@@ -224,7 +310,11 @@ export async function POST(request: NextRequest) {
       }
       
       return NextResponse.json(
-        { error: `Failed to generate audio chunk: ${error.message}` },
+        { 
+          error: `Failed to generate audio chunk after retries: ${error.message}`,
+          retryable: false,
+          chunkIndex: chunkIndex
+        },
         { status: 500 }
       )
     }
@@ -232,7 +322,10 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error in WellSaid Labs audio chunk generation:', error)
     return NextResponse.json(
-      { error: 'Internal server error during audio generation' },
+      { 
+        error: 'Internal server error during audio generation',
+        retryable: false
+      },
       { status: 500 }
     )
   }

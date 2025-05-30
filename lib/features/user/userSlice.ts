@@ -13,6 +13,7 @@ interface UserState {
     [key: string]: any
   }
   isLoggedIn: boolean
+  isAdmin: boolean
   loading: boolean
   error: string | null
   initialized: boolean // Track if we've checked initial auth state
@@ -24,6 +25,7 @@ const initialState: UserState = {
   email: null,
   userMetadata: {},
   isLoggedIn: false,
+  isAdmin: false,
   loading: false,
   error: null,
   initialized: false,
@@ -113,14 +115,48 @@ export const signUpUser = createAsyncThunk(
   }
 )
 
+// Async thunk for checking admin status
+export const checkAdminStatus = createAsyncThunk(
+  'user/checkAdminStatus',
+  async (userId: string) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('profiles_rezu')
+      .select('is_admin')
+      .eq('user_id', userId)
+      .single()
+    
+    if (error) {
+      // If profile doesn't exist, create one with is_admin: false
+      if (error.code === 'PGRST116') {
+        const { error: insertError } = await supabase
+          .from('profiles_rezu')
+          .insert({ user_id: userId, is_admin: false })
+        
+        if (insertError) {
+          console.error('Error creating profile:', insertError)
+        }
+        
+        return false
+      }
+      
+      console.error('Error checking admin status:', error)
+      return false
+    }
+    
+    return data?.is_admin || false
+  }
+)
+
 // Helper function to map Supabase user to our state
-const mapSupabaseUser = (user: User | null) => {
+const mapSupabaseUser = (user: User | null, isAdmin: boolean = false) => {
   if (!user) {
     return {
       id: null,
       email: null,
       userMetadata: {},
       isLoggedIn: false,
+      isAdmin: false,
     }
   }
   
@@ -129,6 +165,7 @@ const mapSupabaseUser = (user: User | null) => {
     email: user.email || null,
     userMetadata: user.user_metadata || {},
     isLoggedIn: true,
+    isAdmin,
   }
 }
 
@@ -151,13 +188,19 @@ export const userSlice = createSlice({
       return { ...initialState, initialized: true }
     },
     
+    // Set admin status
+    setAdminStatus: (state, action: PayloadAction<boolean>) => {
+      state.isAdmin = action.payload
+    },
+    
     // Manual sync with Supabase auth state (called by auth listener)
-    syncAuthState: (state, action: PayloadAction<User | null>) => {
-      const userData = mapSupabaseUser(action.payload)
+    syncAuthState: (state, action: PayloadAction<{ user: User | null; isAdmin?: boolean }>) => {
+      const userData = mapSupabaseUser(action.payload.user, action.payload.isAdmin || false)
       state.id = userData.id
       state.email = userData.email
       state.userMetadata = userData.userMetadata
       state.isLoggedIn = userData.isLoggedIn
+      state.isAdmin = userData.isAdmin
       state.initialized = true
       state.loading = false
       state.error = null
@@ -176,6 +219,7 @@ export const userSlice = createSlice({
         state.email = userData.email
         state.userMetadata = userData.userMetadata
         state.isLoggedIn = userData.isLoggedIn
+        state.isAdmin = userData.isAdmin
         state.loading = false
         state.error = null
         state.initialized = true
@@ -184,6 +228,16 @@ export const userSlice = createSlice({
         state.loading = false
         state.error = action.error.message || 'Failed to check authentication'
         state.initialized = true
+      })
+    
+    // Check admin status
+    builder
+      .addCase(checkAdminStatus.fulfilled, (state, action) => {
+        state.isAdmin = action.payload
+      })
+      .addCase(checkAdminStatus.rejected, (state, action) => {
+        console.error('Failed to check admin status:', action.error.message)
+        state.isAdmin = false
       })
     
     // Login user
@@ -198,6 +252,7 @@ export const userSlice = createSlice({
         state.email = userData.email
         state.userMetadata = userData.userMetadata
         state.isLoggedIn = userData.isLoggedIn
+        state.isAdmin = userData.isAdmin
         state.loading = false
         state.error = null
       })
@@ -218,6 +273,7 @@ export const userSlice = createSlice({
         state.email = null
         state.userMetadata = {}
         state.isLoggedIn = false
+        state.isAdmin = false
         state.loading = false
         state.error = null
       })
@@ -240,6 +296,7 @@ export const userSlice = createSlice({
           state.email = userData.email
           state.userMetadata = userData.userMetadata
           state.isLoggedIn = userData.isLoggedIn
+          state.isAdmin = userData.isAdmin
         }
         state.loading = false
         state.error = null
@@ -257,6 +314,7 @@ export const {
   clearError, 
   updateUserMetadata, 
   resetUser,
+  setAdminStatus,
   syncAuthState 
 } = userSlice.actions
 

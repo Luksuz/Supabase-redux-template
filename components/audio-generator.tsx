@@ -111,7 +111,7 @@ export function AudioGenerator() {
         generateSubtitles: generateSubtitles
       }))
 
-      console.log(`🎵 Starting WellSaid Labs audio generation for ${generatedScripts.length} scripts`)
+      console.log(`🎵 Starting WellSaid Labs audio generation for ${generatedScripts.length} scripts (with retry mechanism)`)
 
       // Initialize progress
       dispatch(setAudioProgress({ total: generatedScripts.length, completed: 0, phase: 'chunks' }))
@@ -126,7 +126,7 @@ export function AudioGenerator() {
         text: string
       }> = []
 
-      // Generate audio for each script individually with staggered sends
+      // Generate audio for each script individually with staggered sends and retry handling
       const scriptPromises = generatedScripts.map((script, index) => {
         return new Promise((resolve, reject) => {
           // Delay each request by index * 1000ms (1 second intervals)
@@ -149,7 +149,25 @@ export function AudioGenerator() {
               })
 
               if (!response.ok) {
-                throw new Error(`Failed to generate audio for script ${index + 1}`)
+                const errorData = await response.json()
+                
+                // Check if this is a retryable error
+                if (errorData.retryable) {
+                  console.warn(`⚠️ Script ${index + 1} encountered retryable error: ${errorData.error}`)
+                  // Don't show error to user immediately if it's retryable - let backend handle retries
+                  
+                  // Check if we should attempt one more time at frontend level for specific cases
+                  if (errorData.error.includes('No valid WellSaid Labs API keys available')) {
+                    // This is a critical error that retries won't fix
+                    throw new Error(`Script ${index + 1}: ${errorData.error}`)
+                  }
+                  
+                  // For other retryable errors, the backend has already tried multiple times
+                  throw new Error(`Script ${index + 1}: ${errorData.error}`)
+                } else {
+                  // Non-retryable error
+                  throw new Error(`Script ${index + 1}: ${errorData.error || 'Unknown error'}`)
+                }
               }
 
               const data = await response.json()
@@ -161,7 +179,8 @@ export function AudioGenerator() {
                 duration: data.duration,
                 scriptId: script.imageId, // Use imageId as scriptId for mapping
                 imageId: script.imageId,
-                imageName: script.imageName
+                imageName: script.imageName,
+                retriesUsed: data.retriesUsed || false
               }
               
               // Store script duration info
@@ -179,11 +198,12 @@ export function AudioGenerator() {
                 completed: index + 1 
               }))
 
-              console.log(`✅ Completed script ${index + 1}/${generatedScripts.length} (${data.duration.toFixed(2)}s): ${script.imageName}`)
+              const retryIndicator = data.retriesUsed ? ' (with retries)' : ''
+              console.log(`✅ Completed script ${index + 1}/${generatedScripts.length} (${data.duration.toFixed(2)}s)${retryIndicator}: ${script.imageName}`)
               resolve(result)
               
             } catch (error: any) {
-              console.error(`Error generating script ${index + 1}:`, error)
+              console.error(`❌ Failed to generate script ${index + 1} after all attempts:`, error)
               reject(error)
             }
           }, index * 1000) // Stagger requests by 1 second each
@@ -191,7 +211,7 @@ export function AudioGenerator() {
       })
 
       const completedChunks = await Promise.all(scriptPromises)
-      console.log(`✅ All ${completedChunks.length} script audio chunks generated with rate limiting`)
+      console.log(`✅ All ${completedChunks.length} script audio chunks generated (with retry protection)`)
 
       // Calculate start times for each script (cumulative durations)
       let currentStartTime = 0
@@ -238,7 +258,7 @@ export function AudioGenerator() {
         }))
       }))
 
-      showMessage(`Successfully generated audio from ${generatedScripts.length} scripts with individual timing!`, 'success')
+      showMessage(`Successfully generated audio from ${generatedScripts.length} scripts with automatic retry protection!`, 'success')
 
       // Generate subtitles if requested
       if (generateSubtitles) {
@@ -251,7 +271,16 @@ export function AudioGenerator() {
     } catch (error: any) {
       console.error('Audio generation error:', error)
       dispatch(setAudioGenerationError(error.message))
-      showMessage(`Audio generation failed: ${error.message}`, 'error')
+      
+      // Provide more helpful error messages
+      let errorMessage = error.message
+      if (errorMessage.includes('No valid WellSaid Labs API keys available')) {
+        errorMessage = 'No valid API keys available. Please ask an admin to upload new WellSaid Labs API keys.'
+      } else if (errorMessage.includes('Failed to generate audio for script')) {
+        errorMessage = `Audio generation failed: ${errorMessage}. The system attempted automatic retries but was unable to recover.`
+      }
+      
+      showMessage(`Audio generation failed: ${errorMessage}`, 'error')
     }
   }
 

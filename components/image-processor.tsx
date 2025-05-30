@@ -4,13 +4,14 @@ import { useState, useRef } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { createClient } from '../lib/supabase/client'
 import { setOriginalImages, setCurrentImages, setSelectedColor, clearImages, updateMultipleSupabasePaths } from '../lib/features/images/imagesSlice'
+import { startImageSaving, updateImageSavingProgress, finishImageSaving, clearImageSavingProgress } from '../lib/features/progress/progressSlice'
 import type { ProcessedImage } from '../lib/features/images/imagesSlice'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Badge } from './ui/badge'
-import * as Progress from '@radix-ui/react-progress'
+import { Progress } from './ui/progress'
 import * as Separator from '@radix-ui/react-separator'
 import { Upload, Image as ImageIcon, Palette, Save, CheckCircle, AlertCircle } from 'lucide-react'
 
@@ -18,6 +19,7 @@ export function ImageProcessor() {
   const dispatch = useAppDispatch()
   const user = useAppSelector(state => state.user)
   const { originalImages, currentImages, selectedColor, savedImagesCount } = useAppSelector(state => state.images)
+  const { imageSaving: savingProgress } = useAppSelector(state => state.progress)
   
   // UI-specific states (not stored in Redux)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -28,7 +30,7 @@ export function ImageProcessor() {
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [isDragActive, setIsDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
+  
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
@@ -162,57 +164,156 @@ export function ImageProcessor() {
       return
     }
 
-    if (currentImages.length === 0) return
+    if (currentImages.length === 0) {
+      showMessage('No images to save', 'error')
+      return
+    }
+
+    console.log(`🔄 Starting Supabase upload for ${currentImages.length} images`)
+    console.log('📋 User state:', { isLoggedIn: user.isLoggedIn, id: user.id, email: user.email })
 
     setIsSaving(true)
-    showMessage('Saving images to Supabase...', 'info')
+    
+    // Initialize progress
+    dispatch(startImageSaving({
+      total: currentImages.length
+    }))
+    
+    showMessage('Initializing upload to Supabase...', 'info')
 
     try {
       const supabase = createClient()
+      console.log('🔌 Supabase client created')
+      
+      // Test Supabase connection first
+      const { data: buckets, error: bucketError } = await supabase.storage.listBuckets()
+      if (bucketError) {
+        console.error('❌ Failed to list buckets:', bucketError)
+        throw new Error(`Cannot connect to Supabase storage: ${bucketError.message}`)
+      }
+      
+      console.log('📂 Available buckets:', buckets?.map(b => b.name))
+      
+      // Check if images bucket exists
+      const imagesBucket = buckets?.find(b => b.name === 'images')
+      if (!imagesBucket) {
+        console.error('❌ Images bucket not found')
+        throw new Error('Images storage bucket not found. Please contact an administrator.')
+      }
+      
+      console.log('✅ Images bucket found:', imagesBucket)
+      
+      const results: Array<{ imageId: string; supabasePath: string }> = []
 
-      const uploadPromises = currentImages.map(async (image) => {
-        // Convert data URL to blob
-        const response = await fetch(image.dataUrl)
-        const blob = await response.blob()
+      // Process images sequentially to show clear progress
+      for (let i = 0; i < currentImages.length; i++) {
+        const image = currentImages[i]
+        console.log(`📤 Processing image ${i + 1}/${currentImages.length}: ${image.originalName}`)
         
-        // Create unique filename
-        const fileName = `processed_${Date.now()}_${image.name}`
-        const filePath = `${user.id}/processed-images/${fileName}`
+        try {
+          // Update progress - starting current image
+          dispatch(updateImageSavingProgress({
+            currentImage: `Uploading ${image.originalName}...`
+          }))
 
-        const { data, error } = await supabase.storage
-          .from('images')
-          .upload(filePath, blob, {
-            contentType: 'image/jpeg',
-            upsert: false
+          console.log(`🖼️ Converting data URL to blob for: ${image.originalName}`)
+          
+          // Convert data URL to blob
+          const response = await fetch(image.dataUrl)
+          if (!response.ok) {
+            throw new Error(`Failed to convert image data URL: ${response.status}`)
+          }
+          
+          const blob = await response.blob()
+          console.log(`📊 Blob created - size: ${blob.size} bytes, type: ${blob.type}`)
+          
+          // Generate UUID for unique filename
+          const generateUUID = () => {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              const r = Math.random() * 16 | 0
+              const v = c == 'x' ? r : (r & 0x3 | 0x8)
+              return v.toString(16)
+            })
+          }
+          
+          // Create unique filename with UUID
+          const uuid = generateUUID()
+          const fileExtension = 'jpg' // All processed images are JPEGs
+          const fileName = `${uuid}.${fileExtension}`
+          const filePath = `${user.id}/processed-images/${fileName}`
+
+          console.log(`🎯 Uploading to path: ${filePath}`)
+
+          const { data, error } = await supabase.storage
+            .from('images')
+            .upload(filePath, blob, {
+              contentType: 'image/jpeg',
+              upsert: false
+            })
+
+          if (error) {
+            console.error(`❌ Upload error for ${image.originalName}:`, error)
+            throw error
+          }
+
+          console.log(`✅ Upload successful for ${image.originalName}:`, data)
+
+          results.push({ 
+            imageId: image.id, 
+            supabasePath: data?.path || filePath
           })
 
-        if (error) {
-          throw error
-        }
+          // Update progress - completed current image
+          dispatch(updateImageSavingProgress({
+            completed: i + 1,
+            completedImages: [...savingProgress.completedImages, image.originalName],
+            currentImage: `Uploaded ${image.originalName}`
+          }))
 
-        return { 
-          imageId: image.id, 
-          supabasePath: data?.path || filePath,
-          fileName, 
-          filePath 
-        }
-      })
+          console.log(`📈 Progress updated: ${i + 1}/${currentImages.length}`)
 
-      const results = await Promise.all(uploadPromises)
+        } catch (error) {
+          console.error(`❌ Error uploading ${image.originalName}:`, error)
+          
+          // Update progress even for failed uploads
+          dispatch(updateImageSavingProgress({
+            completed: i + 1,
+            completedImages: [...savingProgress.completedImages, `${image.originalName} (failed)`],
+            currentImage: `Failed to upload ${image.originalName}: ${(error as Error).message}`
+          }))
+          
+          // Continue with other images instead of stopping completely
+          showMessage(`Warning: Failed to upload ${image.originalName}: ${(error as Error).message}`, 'error')
+        }
+      }
       
-      // Update Redux with Supabase paths
-      dispatch(updateMultipleSupabasePaths(
-        results.map(result => ({
-          imageId: result.imageId,
-          supabasePath: result.supabasePath
-        }))
-      ))
+      console.log(`🎉 Upload process completed. Successful uploads: ${results.length}/${currentImages.length}`)
       
-      showMessage(`Successfully saved ${results.length} images to Supabase Storage`, 'success')
+      // Update Redux with successful uploads only
+      if (results.length > 0) {
+        dispatch(updateMultipleSupabasePaths(results))
+        console.log('📋 Redux state updated with Supabase paths')
+      }
+      
+      if (results.length === currentImages.length) {
+        showMessage(`Successfully saved all ${results.length} images to Supabase Storage`, 'success')
+      } else if (results.length > 0) {
+        showMessage(`Saved ${results.length}/${currentImages.length} images to Supabase Storage`, 'success')
+      } else {
+        showMessage(`Failed to save any images to Supabase Storage`, 'error')
+      }
+      
     } catch (error) {
+      console.error('💥 Critical error in Supabase upload:', error)
       showMessage('Error saving to Supabase: ' + (error as Error).message, 'error')
     } finally {
+      console.log('🏁 Upload process finished, cleaning up...')
       setIsSaving(false)
+      dispatch(finishImageSaving())
+      // Clear progress after completion
+      setTimeout(() => {
+        dispatch(clearImageSavingProgress())
+      }, 3000)
     }
   }
 
@@ -435,6 +536,68 @@ export function ImageProcessor() {
           </Card>
         )}
 
+        {/* Saving Progress Card - Only show when saving */}
+        {savingProgress.isActive && savingProgress.total > 0 && (
+          <Card className="bg-purple-50 border border-purple-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Save className="h-5 w-5 animate-pulse text-purple-600" />
+                Saving to Supabase ({savingProgress.completed}/{savingProgress.total})
+              </CardTitle>
+              <CardDescription>
+                Uploading images to Supabase Storage
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Upload Progress</span>
+                  <span className="font-medium text-purple-600">
+                    {Math.round((savingProgress.completed / savingProgress.total) * 100)}%
+                  </span>
+                </div>
+                <Progress 
+                  value={(savingProgress.completed / savingProgress.total) * 100} 
+                  className="h-2" 
+                />
+                <div className="text-xs text-gray-500">
+                  {savingProgress.completed} of {savingProgress.total} images uploaded
+                </div>
+              </div>
+
+              {/* Current Status */}
+              {savingProgress.currentImage && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Save className="h-4 w-4 text-purple-500" />
+                  <span className="text-gray-600">Status:</span>
+                  <span className="font-medium">{savingProgress.currentImage}</span>
+                </div>
+              )}
+
+              {/* Completed Images List */}
+              {savingProgress.completedImages.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-gray-700">Recently Uploaded:</div>
+                  <div className="max-h-24 overflow-y-auto space-y-1">
+                    {savingProgress.completedImages.slice(-5).map((imageName, index) => (
+                      <div key={index} className="flex items-center gap-2 text-xs">
+                        <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
+                        <span className="text-gray-600 truncate">{imageName}</span>
+                      </div>
+                    ))}
+                    {savingProgress.completedImages.length > 5 && (
+                      <div className="text-xs text-gray-400">
+                        ...and {savingProgress.completedImages.length - 5} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Status Message */}
         {message && (
           <Card className={`border ${
@@ -468,7 +631,7 @@ export function ImageProcessor() {
                 Processed Images ({currentImages.length})
               </CardTitle>
               <CardDescription>
-                All images have been resized to 1280x720 resolution
+                All images have been resized to 1280x720 resolution and sorted by chapter/image order
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -487,12 +650,17 @@ export function ImageProcessor() {
                       <p className="text-sm font-medium text-gray-900 truncate" title={image.originalName}>
                         {image.originalName}
                       </p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="secondary" className="text-xs">
                           1280x720
                         </Badge>
+                        {image.chapter && image.imageNumber && (
+                          <Badge variant="outline" className="text-xs">
+                            Ch.{image.chapter} Img.{image.imageNumber}
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="text-xs">
-                          #{index + 1}
+                          #{image.sortOrder || index + 1}
                         </Badge>
                       </div>
                     </div>

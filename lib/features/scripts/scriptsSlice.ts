@@ -50,6 +50,12 @@ export const scriptsSlice = createSlice({
       if (existingScript) {
         existingScript.script = script
         existingScript.generated = generated
+        
+        // Update hasGeneratedScripts if any script is successfully generated
+        if (generated) {
+          state.hasGeneratedScripts = true
+          state.lastGeneratedAt = new Date().toISOString()
+        }
       }
     },
     

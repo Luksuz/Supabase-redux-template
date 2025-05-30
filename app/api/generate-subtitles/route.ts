@@ -16,13 +16,153 @@ interface GenerateSubtitlesRequestBody {
     userId?: string;
 }
 
-// Simple SRT reformatting utility
+// Comprehensive SRT reformatting utility
 function reformatSrtContent(srt: string): string {
-    return srt
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .join('\n') + '\n';
+    console.log("🔄 Starting SRT reformatting with 4-word segments...")
+    
+    try {
+        const lines = srt.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+        const subtitles: Array<{
+            index: number
+            startTime: string
+            endTime: string
+            text: string
+        }> = []
+        
+        // Parse existing SRT format
+        let i = 0
+        while (i < lines.length) {
+            const indexLine = lines[i]
+            if (!indexLine || !indexLine.match(/^\d+$/)) {
+                i++
+                continue
+            }
+            
+            const timingLine = lines[i + 1]
+            const textLines: string[] = []
+            
+            // Collect all text lines for this subtitle
+            let j = i + 2
+            while (j < lines.length && !lines[j].match(/^\d+$/)) {
+                if (lines[j].includes('-->')) {
+                    j++
+                    continue
+                }
+                textLines.push(lines[j])
+                j++
+            }
+            
+            if (timingLine && timingLine.includes('-->')) {
+                const [startTime, endTime] = timingLine.split(' --> ')
+                const text = textLines.join(' ').trim()
+                
+                if (text) {
+                    subtitles.push({
+                        index: parseInt(indexLine),
+                        startTime: startTime.trim(),
+                        endTime: endTime.trim(),
+                        text
+                    })
+                }
+            }
+            
+            i = j
+        }
+        
+        console.log(`📊 Parsed ${subtitles.length} original subtitle segments`)
+        
+        // Split into 4-word segments with distributed timing
+        const reformattedSubtitles: Array<{
+            index: number
+            startTime: string
+            endTime: string
+            text: string
+        }> = []
+        
+        let newIndex = 1
+        
+        for (const subtitle of subtitles) {
+            const words = subtitle.text.split(/\s+/).filter(word => word.length > 0)
+            
+            if (words.length <= 4) {
+                // Keep as is if 4 words or fewer
+                reformattedSubtitles.push({
+                    ...subtitle,
+                    index: newIndex++
+                })
+            } else {
+                // Split into segments of max 4 words
+                const segments: string[] = []
+                for (let i = 0; i < words.length; i += 4) {
+                    segments.push(words.slice(i, i + 4).join(' '))
+                }
+                
+                // Calculate timing for each segment
+                const totalDurationMs = timeToMs(subtitle.endTime) - timeToMs(subtitle.startTime)
+                const segmentDurationMs = Math.floor(totalDurationMs / segments.length)
+                
+                for (let i = 0; i < segments.length; i++) {
+                    const segmentStartMs = timeToMs(subtitle.startTime) + (i * segmentDurationMs)
+                    const segmentEndMs = i === segments.length - 1 
+                        ? timeToMs(subtitle.endTime) // Last segment gets the exact end time
+                        : segmentStartMs + segmentDurationMs
+                    
+                    reformattedSubtitles.push({
+                        index: newIndex++,
+                        startTime: msToTime(segmentStartMs),
+                        endTime: msToTime(segmentEndMs),
+                        text: segments[i]
+                    })
+                }
+            }
+        }
+        
+        console.log(`✅ Reformatted into ${reformattedSubtitles.length} segments (4 words max each)`)
+        
+        // Generate new SRT content
+        const reformattedSrt = reformattedSubtitles
+            .map(sub => `${sub.index}\n${sub.startTime} --> ${sub.endTime}\n${sub.text}\n`)
+            .join('\n')
+        
+        return reformattedSrt
+        
+    } catch (error) {
+        console.error('❌ Error reformatting SRT:', error)
+        // Fallback to simple cleanup if parsing fails
+        return srt
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .join('\n') + '\n'
+    }
+}
+
+// Helper function to convert SRT time format to milliseconds
+function timeToMs(timeStr: string): number {
+    // Format: HH:MM:SS,mmm
+    const match = timeStr.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/)
+    if (!match) {
+        console.warn(`⚠️ Invalid time format: ${timeStr}`)
+        return 0
+    }
+    
+    const hours = parseInt(match[1])
+    const minutes = parseInt(match[2])
+    const seconds = parseInt(match[3])
+    const milliseconds = parseInt(match[4])
+    
+    return (hours * 3600 + minutes * 60 + seconds) * 1000 + milliseconds
+}
+
+// Helper function to convert milliseconds to SRT time format
+function msToTime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000)
+    const milliseconds = ms % 1000
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')},${milliseconds.toString().padStart(3, '0')}`
 }
 
 export async function POST(request: NextRequest) {
