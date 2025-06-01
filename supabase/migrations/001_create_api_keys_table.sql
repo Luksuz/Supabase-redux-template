@@ -1,5 +1,5 @@
 -- Create table for storing WellSaid Labs API keys with usage tracking
-CREATE TABLE IF NOT EXISTS api_keys_profiles (
+CREATE TABLE IF NOT EXISTS api_keys (
     id BIGSERIAL PRIMARY KEY,
     api_key TEXT NOT NULL UNIQUE,
     is_valid BOOLEAN NOT NULL DEFAULT true,
@@ -9,9 +9,9 @@ CREATE TABLE IF NOT EXISTS api_keys_profiles (
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_api_keys_profiles_valid ON api_keys_profiles(is_valid);
-CREATE INDEX IF NOT EXISTS idx_api_keys_profiles_use_count ON api_keys_profiles(use_count);
-CREATE INDEX IF NOT EXISTS idx_api_keys_profiles_created_at ON api_keys_profiles(created_at);
+CREATE INDEX IF NOT EXISTS idx_api_keys_valid ON api_keys(is_valid);
+CREATE INDEX IF NOT EXISTS idx_api_keys_use_count ON api_keys(use_count);
+CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at);
 
 -- Create function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -23,15 +23,15 @@ END;
 $$ language 'plpgsql';
 
 -- Create trigger to automatically update updated_at on row updates
-CREATE OR REPLACE TRIGGER update_api_keys_profiles_updated_at
-    BEFORE UPDATE ON api_keys_profiles
+CREATE OR REPLACE TRIGGER update_api_keys_updated_at
+    BEFORE UPDATE ON api_keys
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Add comment to table
-COMMENT ON TABLE api_keys_profiles IS 'Stores WellSaid Labs API keys with usage tracking and validation status';
-COMMENT ON COLUMN api_keys_profiles.api_key IS 'The WellSaid Labs API key';
-COMMENT ON COLUMN api_keys_profiles.is_valid IS 'Whether the API key is currently valid for use';
-COMMENT ON COLUMN api_keys_profiles.use_count IS 'Number of times this API key has been used (max 50)';
-COMMENT ON COLUMN api_keys_profiles.created_at IS 'When the API key was added to the system';
-COMMENT ON COLUMN api_keys_profiles.updated_at IS 'When the API key record was last modified'; 
+COMMENT ON TABLE api_keys IS 'Stores WellSaid Labs API keys with usage tracking and validation status';
+COMMENT ON COLUMN api_keys.api_key IS 'The WellSaid Labs API key';
+COMMENT ON COLUMN api_keys.is_valid IS 'Whether the API key is currently valid for use';
+COMMENT ON COLUMN api_keys.use_count IS 'Number of times this API key has been used (max 50)';
+COMMENT ON COLUMN api_keys.created_at IS 'When the API key was added to the system';
+COMMENT ON COLUMN api_keys.updated_at IS 'When the API key record was last modified'; 
