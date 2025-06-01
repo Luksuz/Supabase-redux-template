@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     
     // First, get the video record from database to get shotstack_id
     const { data: videoRecord, error: fetchError } = await supabase
-      .from('video_records_rezu')
+      .from('video_records')
       .select('*')
       .eq('id', videoId)
       .single();
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { error: updateError } = await supabase
-        .from('video_records_rezu')
+        .from('video_records')
         .update(updateData)
         .eq('id', videoId);
 

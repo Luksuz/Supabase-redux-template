@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user is admin
     const { data: profile, error: profileError } = await supabase
-      .from('profiles_rezu')
+      .from('profiles')
       .select('is_admin')
       .eq('user_id', user.id)
       .single()
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all profiles
     const { data: profiles, error: profilesError } = await supabase
-      .from('profiles_rezu')
+      .from('profiles')
       .select('*')
 
     if (profilesError) {
@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest) {
 
     // Check if current user is admin
     const { data: profile, error: profileError } = await supabase
-      .from('profiles_rezu')
+      .from('profiles')
       .select('is_admin')
       .eq('user_id', user.id)
       .single()
@@ -142,7 +142,7 @@ export async function PATCH(request: NextRequest) {
 
     // Update user admin status
     const { error: updateError } = await supabase
-      .from('profiles_rezu')
+      .from('profiles')
       .update({ 
         is_admin: isAdmin 
       })

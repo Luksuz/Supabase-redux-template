@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
     } : null;
     
     const { error: dbError } = await supabase
-      .from('video_records_rezu')
+      .from('video_records')
       .insert({
         id: videoId,
         user_id: userId,

@@ -121,7 +121,7 @@ export const checkAdminStatus = createAsyncThunk(
   async (userId: string) => {
     const supabase = createClient()
     const { data, error } = await supabase
-      .from('profiles_rezu')
+      .from('profiles')
       .select('is_admin')
       .eq('user_id', userId)
       .single()
@@ -130,7 +130,7 @@ export const checkAdminStatus = createAsyncThunk(
       // If profile doesn't exist, create one with is_admin: false
       if (error.code === 'PGRST116') {
         const { error: insertError } = await supabase
-          .from('profiles_rezu')
+          .from('profiles')
           .insert({ user_id: userId, is_admin: false })
         
         if (insertError) {

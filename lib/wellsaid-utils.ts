@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 const supabaseAdmin = createClient()
 
 /**
- * Uploads API keys from a text file to the api_keys_rezu table
+ * Uploads API keys from a text file to the api_keys_profiles table
  * @param apiKeysText Text content with one API key per line
  * @param userId User ID for logging purposes
  * @returns Object with success status and details
@@ -38,7 +38,7 @@ export async function uploadApiKeysToDatabase(apiKeysText: string, userId: strin
 
     // Insert API keys into the database
     const { data, error } = await supabaseAdmin
-      .from('api_keys_rezu')
+      .from('api_keys_profiles')
       .insert(apiKeyRecords)
       .select();
 
@@ -69,7 +69,7 @@ export async function getValidApiKey(): Promise<string | null> {
 
   try {
     const { data, error } = await supabaseAdmin
-      .from('api_keys_rezu')
+      .from('api_keys_profiles')
       .select('api_key, use_count')
       .eq('is_valid', true)
       .lt('use_count', 50) // Only get keys with less than 50 uses
@@ -115,7 +115,7 @@ export async function incrementApiKeyUsage(apiKey: string): Promise<{ success: b
   try {
     // First, get the current usage count
     const { data: currentData, error: fetchError } = await supabaseAdmin
-      .from('api_keys_rezu')
+      .from('api_keys_profiles')
       .select('use_count, is_valid')
       .eq('api_key', apiKey)
       .single();
@@ -131,7 +131,7 @@ export async function incrementApiKeyUsage(apiKey: string): Promise<{ success: b
 
     // Update the usage count and potentially mark as invalid
     const { error: updateError } = await supabaseAdmin
-      .from('api_keys_rezu')
+      .from('api_keys_profiles')
       .update({ 
         use_count: newCount,
         is_valid: shouldMarkInvalid ? false : currentData.is_valid
@@ -174,7 +174,7 @@ export async function markApiKeyAsInvalid(apiKey: string): Promise<boolean> {
 
   try {
     const { error } = await supabaseAdmin
-      .from('api_keys_rezu')
+      .from('api_keys_profiles')
       .update({ is_valid: false })
       .eq('api_key', apiKey);
 
@@ -267,7 +267,7 @@ export async function getApiKeyStatistics(): Promise<{
   try {
     // Get all API keys with their usage data
     const { data: allKeys, error: allKeysError } = await supabaseAdmin
-      .from('api_keys_rezu')
+      .from('api_keys_profiles')
       .select('is_valid, use_count');
 
     if (allKeysError) {

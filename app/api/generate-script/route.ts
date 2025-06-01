@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageDataUrl, imageName, prompt, batchInfo } = await request.json()
+    const { imageDataUrl, imageName, prompt, batchInfo, wordCount } = await request.json()
 
     if (!imageDataUrl || !prompt) {
       return NextResponse.json(
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     if (!process.env.OPENAI_API_KEY) {
       console.warn('OpenAI API key not found, using mock generation')
-      const mockScript = generateMockScript(imageName, prompt)
+      const mockScript = generateMockScript(imageName, prompt, wordCount)
       return NextResponse.json({
         success: true,
         script: mockScript,
@@ -34,9 +34,21 @@ export async function POST(request: NextRequest) {
       console.log(`🚀 Generating script for image: ${imageName}`)
     }
 
+    // Calculate max_tokens based on word count (roughly 1.3 tokens per word, with some buffer)
+    const targetWordCount = wordCount || 150 // Default to 150 words if not specified
+    const maxTokens = Math.min(Math.max(Math.round(targetWordCount * 1.5), 100), 1000) // Min 100, max 1000 tokens
+
+    let wordCountInstruction = ""
+    if (targetWordCount > 300) {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount+200} words. feel free to add some extra words to make it more detailed and engaging.`
+    } else {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount+100} words. feel free to add some extra words to make it more detailed and engaging.`
+    }
+    // Create word count instruction
+
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         messages: [
           {
             role: "system",
@@ -47,7 +59,7 @@ export async function POST(request: NextRequest) {
             content: [
               { 
                 type: "text", 
-                text: `Please analyze this image titled and create a compelling narration script based on what you see.`
+                text: `${wordCountInstruction}`
               },
               {
                 type: "image_url",
@@ -58,7 +70,7 @@ export async function POST(request: NextRequest) {
             ],
           }
         ],
-        max_tokens: 400, // Slightly higher for more detailed scripts
+        max_tokens: maxTokens,
       })
 
       const script = response.choices[0]?.message?.content?.trim()
@@ -88,7 +100,7 @@ export async function POST(request: NextRequest) {
       }
       
       // Fallback to mock if OpenAI fails
-      const mockScript = generateMockScript(imageName, prompt)
+      const mockScript = generateMockScript(imageName, prompt, wordCount)
       return NextResponse.json({
         success: true,
         script: `[AI Unavailable - Mock Script]\n\n${mockScript}`,
@@ -108,7 +120,9 @@ export async function POST(request: NextRequest) {
 }
 
 // Enhanced mock script generation function (fallback)
-function generateMockScript(imageName: string, prompt: string): string {
+function generateMockScript(imageName: string, prompt: string, wordCount?: number): string {
+  const targetWordCount = wordCount || 150
+  
   const templates = [
     `In this captivating image titled "${imageName}", we witness a compelling visual narrative. ${prompt} The composition draws our attention through carefully balanced elements, where light and shadow work together to create depth and meaning. Every detail contributes to the overall story, from the subtle color palette to the thoughtful framing that guides our emotional response.`,
     
@@ -137,46 +151,43 @@ function generateMockScript(imageName: string, prompt: string): string {
     additionalContext = " The unique character of this image stems from its ability to transform the ordinary into something extraordinary, revealing beauty and meaning in unexpected places."
   }
 
-  return randomTemplate + additionalContext
-}
-
-/* 
-TODO: Replace with actual AI integration
-Example OpenAI Vision API integration:
-
-import OpenAI from 'openai'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
-async function generateRealScript(imageDataUrl: string, imageName: string, prompt: string): Promise<string> {
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `${prompt}\n\nPlease analyze this image titled "${imageName}" and create a compelling narration script based on what you see.`
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageDataUrl,
-              },
-            },
-          ],
-        },
-      ],
-      max_tokens: 500,
-    })
-
-    return response.choices[0]?.message?.content || "Could not generate script for this image."
-  } catch (error) {
-    throw new Error(`OpenAI API error: ${error}`)
+  // Combine template and additional context
+  let fullScript = randomTemplate + additionalContext
+  
+  // Adjust script length to match target word count
+  const words = fullScript.split(/\s+/)
+  
+  if (words.length > targetWordCount) {
+    // Truncate to target word count
+    fullScript = words.slice(0, targetWordCount).join(' ')
+    if (!fullScript.endsWith('.')) {
+      fullScript += '.'
+    }
+  } else if (words.length < targetWordCount && targetWordCount > 100) {
+    // Extend with additional descriptive content
+    const extensions = [
+      " The interplay of light and shadow creates a dynamic visual rhythm that guides the viewer's eye through the composition.",
+      " Each element within the frame has been carefully considered, contributing to the overall narrative and emotional impact.",
+      " The technical execution demonstrates a deep understanding of both artistic principles and the medium's capabilities.",
+      " This image stands as a testament to the photographer's ability to capture not just what is seen, but what is felt.",
+      " The composition invites multiple readings, revealing new details and meanings with each viewing experience.",
+      " Through careful use of color, texture, and form, the image creates a lasting impression that resonates long after viewing."
+    ]
+    
+    while (fullScript.split(/\s+/).length < targetWordCount && extensions.length > 0) {
+      const randomExtension = extensions.splice(Math.floor(Math.random() * extensions.length), 1)[0]
+      fullScript += randomExtension
+      
+      if (fullScript.split(/\s+/).length >= targetWordCount) {
+        const finalWords = fullScript.split(/\s+/).slice(0, targetWordCount)
+        fullScript = finalWords.join(' ')
+        if (!fullScript.endsWith('.')) {
+          fullScript += '.'
+        }
+        break
+      }
+    }
   }
+
+  return fullScript
 }
-*/ 

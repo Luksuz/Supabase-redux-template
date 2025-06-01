@@ -11,7 +11,8 @@ import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Badge } from './ui/badge'
 import { Progress } from './ui/progress'
-import { FileText, Copy, Download, Mic, Image as ImageIcon, CheckCircle, AlertCircle, Loader2, RotateCcw } from 'lucide-react'
+import { Textarea } from './ui/textarea'
+import { FileText, Copy, Download, Mic, Image as ImageIcon, CheckCircle, AlertCircle, Loader2, RotateCcw, Edit, Save, X } from 'lucide-react'
 
 const BATCH_SIZE = 10
 const BATCH_DELAY = 60000 // 60 seconds in milliseconds
@@ -37,10 +38,14 @@ export function ScriptGenerator() {
   // UI-specific states (not stored in Redux)
   const [isGenerating, setIsGenerating] = useState(false)
   const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set())
+  const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
+  const [editingScripts, setEditingScripts] = useState<Record<string, string>>({})
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+  const [wordCountPerImage, setWordCountPerImage] = useState(150) // Default word count
   // Individual prompts for each image
   const [individualPrompts, setIndividualPrompts] = useState<Record<string, string>>({})
+  const [individualWordCounts, setIndividualWordCounts] = useState<Record<string, number>>({})
   const [showIndividualPrompts, setShowIndividualPrompts] = useState(false)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -76,8 +81,77 @@ export function ScriptGenerator() {
     showMessage(`Applied global prompt to all ${originalImages.length} segments`, 'success')
   }
 
+  // Apply word count to all individual prompts
+  const applyWordCountToAll = () => {
+    const newIndividualWordCounts: Record<string, number> = {}
+    originalImages.forEach(image => {
+      newIndividualWordCounts[image.id] = wordCountPerImage
+    })
+    setIndividualWordCounts(newIndividualWordCounts)
+    showMessage(`Applied ${wordCountPerImage} word count to all ${originalImages.length} segments`, 'success')
+  }
+
+  // Handle individual word count changes
+  const handleIndividualWordCountChange = (imageId: string, value: number) => {
+    setIndividualWordCounts(prev => ({
+      ...prev,
+      [imageId]: value
+    }))
+  }
+
+  // Start editing a script
+  const startEditingScript = (imageId: string, currentScript: string) => {
+    setEditingIds(prev => new Set(prev).add(imageId))
+    setEditingScripts(prev => ({
+      ...prev,
+      [imageId]: currentScript
+    }))
+  }
+
+  // Cancel editing a script
+  const cancelEditingScript = (imageId: string) => {
+    setEditingIds(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(imageId)
+      return newSet
+    })
+    setEditingScripts(prev => {
+      const newScripts = { ...prev }
+      delete newScripts[imageId]
+      return newScripts
+    })
+  }
+
+  // Save edited script
+  const saveEditedScript = (imageId: string) => {
+    const editedScript = editingScripts[imageId]
+    if (!editedScript || !editedScript.trim()) {
+      showMessage('Script cannot be empty', 'error')
+      return
+    }
+
+    // Update the script in Redux
+    dispatch(updateScript({
+      imageId: imageId,
+      script: editedScript.trim(),
+      generated: true
+    }))
+
+    // Clear editing state
+    cancelEditingScript(imageId)
+    showMessage('Script updated successfully!', 'success')
+  }
+
+  // Handle editing script text changes
+  const handleEditingScriptChange = (imageId: string, value: string) => {
+    setEditingScripts(prev => ({
+      ...prev,
+      [imageId]: value
+    }))
+  }
+
   // Regenerate a single script with custom prompt
-  const regenerateScript = async (imageId: string, customPrompt?: string) => {
+  const regenerateScript = async (imageId: string, customPrompt?: string, customWordCount?: number) => {
     const image = originalImages.find(img => img.id === imageId)
     if (!image) {
       showMessage('Image not found for regeneration', 'error')
@@ -85,6 +159,8 @@ export function ScriptGenerator() {
     }
 
     const promptToUse = customPrompt || individualPrompts[imageId] || prompt
+    const wordCountToUse = customWordCount || individualWordCounts[imageId] || wordCountPerImage
+    
     if (!promptToUse.trim()) {
       showMessage('Please enter a prompt before regenerating', 'error')
       return
@@ -103,7 +179,8 @@ export function ScriptGenerator() {
         body: JSON.stringify({
           imageDataUrl: image.dataUrl,
           imageName: image.originalName,
-          prompt: promptToUse.trim()
+          prompt: promptToUse.trim(),
+          wordCount: wordCountToUse
         }),
       })
 
@@ -167,6 +244,7 @@ export function ScriptGenerator() {
     try {
       const scriptPromises = imagesToUpdate.map(async (image, index) => {
         const individualPrompt = individualPrompts[image.id]
+        const individualWordCount = individualWordCounts[image.id] || wordCountPerImage
         
         try {
           const response = await fetch('/api/generate-script', {
@@ -177,7 +255,8 @@ export function ScriptGenerator() {
             body: JSON.stringify({
               imageDataUrl: image.dataUrl,
               imageName: image.originalName,
-              prompt: individualPrompt.trim()
+              prompt: individualPrompt.trim(),
+              wordCount: individualWordCount
             }),
           })
 
@@ -326,6 +405,7 @@ export function ScriptGenerator() {
                 imageDataUrl: image.dataUrl,
                 imageName: image.originalName,
                 prompt: prompt.trim(),
+                wordCount: wordCountPerImage,
                 batchInfo: {
                   batchIndex: batchIndex + 1,
                   totalBatches,
@@ -463,27 +543,55 @@ export function ScriptGenerator() {
 
   // Download all scripts as text file
   const downloadAllScripts = () => {
-    const allScripts = scripts
-      .filter(s => s.generated && s.script)
-      .map(s => `=== ${s.imageName} ===\n${s.script}\n\n`)
-      .join('')
+    const validScripts = scripts.filter(s => s.generated && s.script)
     
-    if (!allScripts) {
+    if (validScripts.length === 0) {
       showMessage('No scripts available to download', 'error')
       return
     }
 
-    const blob = new Blob([allScripts], { type: 'text/plain' })
+    // Calculate statistics
+    const totalWords = validScripts.reduce((total, s) => 
+      total + s.script.split(/\s+/).filter(word => word.length > 0).length, 0
+    )
+    const averageWords = Math.round(totalWords / validScripts.length)
+
+    // Create file content with statistics header
+    const statsHeader = `=== SCRIPT GENERATION SUMMARY ===
+Total Scripts: ${validScripts.length}
+Total Words: ${totalWords}
+Average Words per Script: ${averageWords}
+Generated on: ${new Date().toLocaleString()}
+Target Word Count: ${wordCountPerImage} words per script
+
+=== SCRIPTS ===
+
+`
+
+    const allScripts = validScripts
+      .map((s, index) => {
+        const wordCount = s.script.split(/\s+/).filter(word => word.length > 0).length
+        return `=== ${s.imageName} ===
+Word Count: ${wordCount} words
+${s.script}
+
+`
+      })
+      .join('')
+    
+    const fullContent = statsHeader + allScripts
+
+    const blob = new Blob([fullContent], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `image-scripts-${new Date().toISOString().split('T')[0]}.txt`
+    a.download = `image-scripts-${validScripts.length}-scripts-${totalWords}-words-${new Date().toISOString().split('T')[0]}.txt`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
     
-    showMessage('Scripts downloaded successfully!', 'success')
+    showMessage(`Downloaded ${validScripts.length} scripts (${totalWords} total words)!`, 'success')
   }
 
   const generatedCount = scripts.filter(s => s.generated).length
@@ -601,6 +709,35 @@ export function ScriptGenerator() {
             </p>
           </div>
 
+          {/* Word Count Control */}
+          <div className="space-y-2">
+            <Label htmlFor="wordCount">Word Count Per Image</Label>
+            <div className="flex gap-2 items-center">
+              <Input
+                id="wordCount"
+                type="text"
+                value={wordCountPerImage}
+                onChange={(e) => setWordCountPerImage(parseInt(e.target.value) || 150)}
+                className="w-24"
+                disabled={isGenerating}
+                placeholder="150"
+              />
+              <span className="text-sm text-gray-600">words per script</span>
+              <Button
+                onClick={applyWordCountToAll}
+                size="sm"
+                variant="outline"
+                disabled={isGenerating}
+                className="whitespace-nowrap"
+              >
+                Apply to All Images
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Target word count for each generated script (actual count may vary slightly)
+            </p>
+          </div>
+
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <Button 
               onClick={handleNarrateImages}
@@ -661,6 +798,15 @@ export function ScriptGenerator() {
                     Apply Global Prompt to All
                   </Button>
                   <Button
+                    onClick={applyWordCountToAll}
+                    size="sm"
+                    variant="outline"
+                    disabled={isGenerating}
+                    className="whitespace-nowrap"
+                  >
+                    Apply Word Count to All
+                  </Button>
+                  <Button
                     onClick={regenerateAllWithIndividualPrompts}
                     size="sm"
                     disabled={isGenerating || Object.keys(individualPrompts).filter(id => individualPrompts[id]?.trim()).length === 0}
@@ -681,7 +827,7 @@ export function ScriptGenerator() {
                 </div>
               </div>
               <p className="text-sm text-gray-600 break-words">
-                Customize prompts for specific segments. Empty prompts will use the global prompt above.
+                Customize prompts and word counts for specific segments. Empty prompts will use the global prompt above.
               </p>
             </div>
           )}
@@ -720,8 +866,20 @@ export function ScriptGenerator() {
               <ImageIcon className="h-5 w-5" />
               Images & Generated Scripts ({generatedCount}/{originalImages.length})
             </CardTitle>
-            <CardDescription>
-              View your images and their generated narration scripts
+            <CardDescription className="space-y-1">
+              <div>View your images and their generated narration scripts</div>
+              {generatedCount > 0 && (
+                <div className="text-sm text-green-600 font-medium">
+                  Total words generated: {scripts
+                    .filter(s => s.generated && s.script)
+                    .reduce((total, s) => total + s.script.split(/\s+/).filter(word => word.length > 0).length, 0)
+                  } words across {generatedCount} scripts • 
+                  Average: {Math.round(scripts
+                    .filter(s => s.generated && s.script)
+                    .reduce((total, s) => total + s.script.split(/\s+/).filter(word => word.length > 0).length, 0) / generatedCount
+                  )} words per script
+                </div>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -781,6 +939,13 @@ export function ScriptGenerator() {
                               </Badge>
                             )}
                             
+                            {/* Word Count Badge */}
+                            {script?.script && script.generated && (
+                              <Badge variant="outline" className="text-xs">
+                                {script.script.split(/\s+/).filter(word => word.length > 0).length} words
+                              </Badge>
+                            )}
+                            
                             {/* Action Buttons */}
                             <div className="flex gap-1">
                               {script?.script && script.generated && (
@@ -794,8 +959,48 @@ export function ScriptGenerator() {
                                 </Button>
                               )}
                               
+                              {/* Edit Button */}
+                              {script?.script && script.generated && !editingIds.has(image.id) && (
+                                <Button
+                                  onClick={() => startEditingScript(image.id, script.script)}
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={isRegenerating || isGenerating}
+                                  title="Edit script"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              )}
+                              
+                              {/* Save Edit Button */}
+                              {editingIds.has(image.id) && (
+                                <Button
+                                  onClick={() => saveEditedScript(image.id)}
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!editingScripts[image.id]?.trim()}
+                                  title="Save changes"
+                                  className="text-green-600 border-green-200 hover:bg-green-50"
+                                >
+                                  <Save className="h-3 w-3" />
+                                </Button>
+                              )}
+                              
+                              {/* Cancel Edit Button */}
+                              {editingIds.has(image.id) && (
+                                <Button
+                                  onClick={() => cancelEditingScript(image.id)}
+                                  size="sm"
+                                  variant="outline"
+                                  title="Cancel editing"
+                                  className="text-red-600 border-red-200 hover:bg-red-50"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                              
                               {/* Regenerate Button */}
-                              {script && (
+                              {script && !editingIds.has(image.id) && (
                                 <Button
                                   onClick={() => regenerateScript(image.id)}
                                   size="sm"
@@ -827,7 +1032,38 @@ export function ScriptGenerator() {
                                 <span className="text-xs">Regenerating with current prompt...</span>
                               </div>
                             )}
-                            <p className="whitespace-pre-wrap">{script.script}</p>
+                            
+                            {/* Edit Mode */}
+                            {editingIds.has(image.id) ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 mb-2 text-blue-700">
+                                  <Edit className="h-3 w-3" />
+                                  <span className="text-xs">Editing script...</span>
+                                </div>
+                                <Textarea
+                                  value={editingScripts[image.id] || ''}
+                                  onChange={(e) => handleEditingScriptChange(image.id, e.target.value)}
+                                  className="min-h-[100px] text-sm"
+                                  placeholder="Edit your script here..."
+                                />
+                                <div className="text-xs text-gray-500">
+                                  Word count: {editingScripts[image.id]?.split(/\s+/).filter(word => word.length > 0).length || 0} words
+                                </div>
+                              </div>
+                            ) : (
+                              /* Display Mode */
+                              <div className="space-y-2">
+                                <p className="whitespace-pre-wrap">{script.script}</p>
+                                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                                  <div className="text-xs text-gray-500">
+                                    Word count: {script.script.split(/\s+/).filter(word => word.length > 0).length} words
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    Target: {individualWordCounts[image.id] || wordCountPerImage} words
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className={`p-3 rounded-lg text-sm ${
@@ -860,28 +1096,39 @@ export function ScriptGenerator() {
                                 className="flex-1 text-sm min-w-0"
                                 disabled={isRegenerating || isGenerating}
                               />
-                              <Button
-                                onClick={() => regenerateScript(image.id, individualPrompts[image.id])}
-                                size="sm"
-                                disabled={isRegenerating || isGenerating || (!individualPrompts[image.id]?.trim() && !prompt.trim())}
-                                className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
-                                title="Regenerate with this specific prompt"
-                              >
-                                {isRegenerating ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <>
-                                    <RotateCcw className="h-3 w-3 mr-1" />
-                                    Regenerate
-                                  </>
-                                )}
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="text"
+                                  value={individualWordCounts[image.id] || wordCountPerImage}
+                                  onChange={(e) => handleIndividualWordCountChange(image.id, parseInt(e.target.value) || wordCountPerImage)}
+                                  className="w-20 text-sm"
+                                  disabled={isRegenerating || isGenerating}
+                                  placeholder="Words"
+                                />
+                                <span className="text-xs text-gray-500 whitespace-nowrap">words</span>
+                                <Button
+                                  onClick={() => regenerateScript(image.id, individualPrompts[image.id], individualWordCounts[image.id])}
+                                  size="sm"
+                                  disabled={isRegenerating || isGenerating || (!individualPrompts[image.id]?.trim() && !prompt.trim())}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                                  title="Regenerate with this specific prompt and word count"
+                                >
+                                  {isRegenerating ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <RotateCcw className="h-3 w-3 mr-1" />
+                                      Regenerate
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                             <p className="text-xs text-gray-500 break-words">
                               {individualPrompts[image.id]?.trim() 
                                 ? 'Will use this custom prompt' 
                                 : 'Will use global prompt if empty'
-                              }
+                              } • Target: {individualWordCounts[image.id] || wordCountPerImage} words
                             </p>
                           </div>
                         )}

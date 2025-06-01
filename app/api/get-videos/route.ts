@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     
     const { data: videos, error } = await supabase
-      .from('video_records_rezu')
+      .from('video_records')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
