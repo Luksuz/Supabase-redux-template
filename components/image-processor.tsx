@@ -206,25 +206,7 @@ export function ImageProcessor() {
     try {
       const supabase = createClient()
       console.log('🔌 Supabase client created')
-      
-      // Test Supabase connection first
-      const { data: buckets, error: bucketError } = await supabase.storage.listBuckets()
-      if (bucketError) {
-        console.error('❌ Failed to list buckets:', bucketError)
-        throw new Error(`Cannot connect to Supabase storage: ${bucketError.message}`)
-      }
-      
-      console.log('📂 Available buckets:', buckets?.map(b => b.name))
-      
-      // Check if images bucket exists
-      const imagesBucket = buckets?.find(b => b.name === 'images')
-      if (!imagesBucket) {
-        console.error('❌ Images bucket not found')
-        throw new Error('Images storage bucket not found. Please contact an administrator.')
-      }
-      
-      console.log('✅ Images bucket found:', imagesBucket)
-      
+            
       const results: Array<{ imageId: string; supabasePath: string }> = []
 
       // Process images sequentially to show clear progress
