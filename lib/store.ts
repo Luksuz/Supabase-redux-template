@@ -3,6 +3,7 @@ import userReducer from './features/user/userSlice'
 import imagesReducer from './features/images/imagesSlice'
 import scriptsReducer from './features/scripts/scriptsSlice'
 import audioReducer from './features/audio/audioSlice'
+import simpleAudioReducer from './features/audio/simpleAudioSlice'
 import videoReducer from './features/video/videoSlice'
 import progressReducer from './features/progress/progressSlice'
 import imageGenerationReducer from './features/imageGeneration/imageGenerationSlice'
@@ -15,6 +16,7 @@ export const store = configureStore({
     images: imagesReducer,
     scripts: scriptsReducer,
     audio: audioReducer,
+    simpleAudio: simpleAudioReducer,
     video: videoReducer,
     progress: progressReducer,
     imageGeneration: imageGenerationReducer,

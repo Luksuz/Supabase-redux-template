@@ -1,4 +1,4 @@
-export type ImageProvider = 'minimax' | 'openai'
+export type ImageProvider = 'minimax' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large'
 
 export interface GenerateImageRequestBody {
   provider: ImageProvider
@@ -6,6 +6,7 @@ export interface GenerateImageRequestBody {
   numberOfImages?: number
   outputFormat?: 'url' | 'base64'
   minimaxAspectRatio?: '16:9' | '1:1' | '9:16'
+  fluxImageSize?: { width: number; height: number }
   userId?: string
 }
 
@@ -38,6 +39,7 @@ export interface ImageGenerationState {
   error: string | null
   generationInfo: string | null
   // Settings
+  selectedModel: ImageProvider
   aspectRatio: '16:9' | '1:1' | '9:16'
   numberOfImages: number
   // Scene extraction
@@ -45,4 +47,7 @@ export interface ImageGenerationState {
   isExtractingScenes: boolean
   sceneExtractionError: string | null
   numberOfScenesToExtract: number
+  // Rate limiting for flux models
+  lastFluxRequest: number | null
+  remainingFluxRequests: number
 } 

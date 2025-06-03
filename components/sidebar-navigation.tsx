@@ -15,7 +15,7 @@ interface SidebarNavigationProps {
 
 export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigationProps) {
   const { hasGeneratedScripts, scripts } = useAppSelector(state => state.scripts)
-  const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
+  const { generatedAudioUrl } = useAppSelector(state => state.simpleAudio)
   const user = useAppSelector(state => state.user)
 
   const navigationItems = [
@@ -41,10 +41,10 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       id: 'audio-generator' as NavigationView,
       label: 'Audio Generator',
       icon: Volume2,
-      description: 'Convert scripts to audio',
-      hasData: !!audioGeneration,
-      dataCount: audioGeneration ? 1 : 0,
-      disabled: !hasGeneratedScripts
+      description: 'MiniMax & ElevenLabs TTS',
+      hasData: !!generatedAudioUrl,
+      dataCount: generatedAudioUrl ? 1 : 0,
+      disabled: false
     },
     ...(user.isAdmin ? [{
       id: 'admin-dashboard' as NavigationView,
@@ -148,37 +148,10 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                   )}
                 </div>
               </div>
-              
-              {/* Helper hints for disabled items */}
-              {item.id === 'audio-generator' && !hasGeneratedScripts && (
-                <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                  Generate scripts first to enable audio generation
-                </div>
-              )}
             </Card>
           )
         })}
       </nav>
-      
-      {/* User info */}
-      <div className="absolute bottom-4 left-4 right-4">
-        <Card className="p-3 bg-gray-50 border-gray-200">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-blue-600">
-                {user.userMetadata?.name ? user.userMetadata.name.charAt(0).toUpperCase() : 
-                 user.email ? user.email.charAt(0).toUpperCase() : 'U'}
-              </span>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">
-                {user.userMetadata?.name || user.email || 'Guest'}
-              </div>
-              <div className="text-xs text-gray-500">{user.email || 'Not logged in'}</div>
-            </div>
-          </div>
-        </Card>
-      </div>
     </div>
   )
 } 

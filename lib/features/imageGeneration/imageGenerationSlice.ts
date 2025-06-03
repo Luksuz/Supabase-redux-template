@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { ImageGenerationState, GeneratedImageSet, ExtractedScene } from '../../../types/image-generation'
+import { ImageGenerationState, GeneratedImageSet, ExtractedScene, ImageProvider } from '../../../types/image-generation'
 
 const initialState: ImageGenerationState = {
   currentGeneration: null,
@@ -7,14 +7,18 @@ const initialState: ImageGenerationState = {
   isGenerating: false,
   error: null,
   generationInfo: null,
-  // Settings (only MiniMax, so simplified)
+  // Settings
+  selectedModel: 'minimax',
   aspectRatio: '16:9',
   numberOfImages: 1,
   // Scene extraction
   extractedScenes: [],
   isExtractingScenes: false,
   sceneExtractionError: null,
-  numberOfScenesToExtract: 5
+  numberOfScenesToExtract: 5,
+  // Rate limiting for flux models
+  lastFluxRequest: null,
+  remainingFluxRequests: 10 // 10 per minute for flux
 }
 
 export const imageGenerationSlice = createSlice({
@@ -22,16 +26,40 @@ export const imageGenerationSlice = createSlice({
   initialState,
   reducers: {
     // Settings
+    setSelectedModel: (state, action: PayloadAction<ImageProvider>) => {
+      state.selectedModel = action.payload
+      // Reset flux rate limiting when switching models
+      if (action.payload !== 'minimax') {
+        state.remainingFluxRequests = 10
+        state.lastFluxRequest = null
+      }
+    },
+
     setAspectRatio: (state, action: PayloadAction<'16:9' | '1:1' | '9:16'>) => {
       state.aspectRatio = action.payload
     },
     
     setNumberOfImages: (state, action: PayloadAction<number>) => {
-      state.numberOfImages = Math.max(1, Math.min(10, action.payload)) // Limit 1-10
+      const maxImages = state.selectedModel === 'minimax' ? 10 : Math.min(10, state.remainingFluxRequests)
+      state.numberOfImages = Math.max(1, Math.min(maxImages, action.payload))
     },
 
     setNumberOfScenesToExtract: (state, action: PayloadAction<number>) => {
-      state.numberOfScenesToExtract = Math.max(1, Math.min(100, action.payload)) // Limit 1-100
+      state.numberOfScenesToExtract = Math.max(1, Math.min(100, action.payload))
+    },
+
+    // Rate limiting for flux models
+    updateFluxRateLimit: (state, action: PayloadAction<{ used: number }>) => {
+      const now = Date.now()
+      const { used } = action.payload
+      
+      // Reset rate limit if it's been more than a minute
+      if (state.lastFluxRequest && now - state.lastFluxRequest > 60000) {
+        state.remainingFluxRequests = 10
+      }
+      
+      state.remainingFluxRequests = Math.max(0, state.remainingFluxRequests - used)
+      state.lastFluxRequest = now
     },
 
     // Scene extraction lifecycle
@@ -70,7 +98,7 @@ export const imageGenerationSlice = createSlice({
         originalPrompt: prompt,
         imageUrls: [],
         imageData: [],
-        provider: 'minimax', // Only MiniMax
+        provider: state.selectedModel,
         generatedAt: new Date().toISOString(),
         aspectRatio: state.aspectRatio
       }
@@ -121,9 +149,11 @@ export const imageGenerationSlice = createSlice({
 })
 
 export const { 
+  setSelectedModel,
   setAspectRatio,
   setNumberOfImages,
   setNumberOfScenesToExtract,
+  updateFluxRateLimit,
   startSceneExtraction,
   completeSceneExtraction,
   failSceneExtraction,
@@ -137,4 +167,4 @@ export const {
   removeImageSet
 } = imageGenerationSlice.actions
 
-export default imageGenerationSlice.reducer 
+export default imageGenerationSlice.reducer

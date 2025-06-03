@@ -12,9 +12,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Slider } from './ui/slider'
 import { Checkbox } from './ui/checkbox'
 import { ScrollArea } from './ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { ImageIcon, Download, Trash2, RefreshCw, FileText, Sparkles } from 'lucide-react'
+import { Progress } from './ui/progress'
 import { 
+  ImageIcon, 
+  Download, 
+  Trash2, 
+  RefreshCw, 
+  FileText, 
+  Sparkles,
+  Clock,
+  Cpu,
+  Info
+} from 'lucide-react'
+import { 
+  setSelectedModel,
   setAspectRatio, 
   setNumberOfImages,
   setNumberOfScenesToExtract,
@@ -30,8 +41,44 @@ import {
   clearImageSets,
   removeImageSet
 } from '../lib/features/imageGeneration/imageGenerationSlice'
-import type { ExtractedScene, GeneratedImageSet } from '../types/image-generation'
+import type { ExtractedScene, GeneratedImageSet, ImageProvider } from '../types/image-generation'
 import { v4 as uuidv4 } from 'uuid'
+
+const MODEL_INFO: Record<ImageProvider, {
+  name: string;
+  description: string;
+  batchSize: number;
+  rateLimit?: string;
+  features: string[];
+}> = {
+  'minimax': {
+    name: 'MiniMax',
+    description: 'Fast, reliable image generation with optimized prompts',
+    batchSize: 5,
+    features: ['Base64 output', 'Prompt optimization', 'Multiple aspect ratios']
+  },
+  'flux-dev': {
+    name: 'FLUX.1 [dev]',
+    description: '12B parameter flow transformer for high-quality images',
+    batchSize: 10,
+    rateLimit: '10/min per batch',
+    features: ['High quality', 'Commercial use', 'Advanced prompting']
+  },
+  'recraft-v3': {
+    name: 'Recraft V3',
+    description: 'SOTA model with long text, vector art, and brand style',
+    batchSize: 10,
+    rateLimit: '10/min per batch',
+    features: ['Long texts', 'Vector art', 'Brand styles', 'SOTA quality']
+  },
+  'stable-diffusion-v35-large': {
+    name: 'Stable Diffusion 3.5 Large',
+    description: 'MMDiT model with improved typography and efficiency',
+    batchSize: 10,
+    rateLimit: '10/min per batch',
+    features: ['Typography', 'Complex prompts', 'Resource efficient']
+  }
+}
 
 export function AIImageGenerator() {
   const dispatch = useAppDispatch()
@@ -40,6 +87,7 @@ export function AIImageGenerator() {
     isGenerating, 
     error, 
     generationInfo,
+    selectedModel,
     aspectRatio,
     numberOfImages,
     extractedScenes,
@@ -51,9 +99,9 @@ export function AIImageGenerator() {
   // Get script from Redux state
   const { sectionedWorkflow, hasGeneratedScripts } = useAppSelector(state => state.scripts)
   
-  const [prompt, setPrompt] = useState('')
   const [selectedScenes, setSelectedScenes] = useState<number[]>([])
   const [scriptInput, setScriptInput] = useState('')
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
 
   // Get available script sources (prioritized)
   const fullScript = sectionedWorkflow.fullScript || ''
@@ -63,7 +111,6 @@ export function AIImageGenerator() {
   
   // Determine what script source to use for extraction
   const getScriptForExtraction = () => {
-    // Priority: custom input > full script > section prompts joined
     if (scriptInput.trim()) {
       return scriptInput.trim()
     }
@@ -87,6 +134,124 @@ export function AIImageGenerator() {
       return { source: 'sections', count: sectionPrompts.join('\n\n').length, type: `${sectionPrompts.length} section prompts` }
     }
     return { source: 'none', count: 0, type: 'No script available' }
+  }
+
+  const handleModelChange = (model: ImageProvider) => {
+    dispatch(setSelectedModel(model))
+  }
+
+  // Utility function to split array into batches
+  const createBatches = <T,>(array: T[], batchSize: number): T[][] => {
+    const batches: T[][] = []
+    for (let i = 0; i < array.length; i += batchSize) {
+      batches.push(array.slice(i, i + batchSize))
+    }
+    return batches
+  }
+
+  // Generate images with batch processing
+  const generateImagesBatch = async (prompts: string[], batchIndex: number, totalBatches: number) => {
+    const batchSize = MODEL_INFO[selectedModel].batchSize
+    const batchPrompts = prompts.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize)
+    
+    setBatchProgress({ 
+      current: batchIndex * batchSize, 
+      total: prompts.length, 
+      currentBatch: batchIndex + 1, 
+      totalBatches 
+    })
+
+    dispatch(updateGenerationInfo(
+      `Processing batch ${batchIndex + 1}/${totalBatches} (${batchPrompts.length} images)...`
+    ))
+
+    if (selectedModel === 'minimax') {
+      // For MiniMax: send requests sequentially with small delays
+      const imageUrls: string[] = []
+      
+      for (let i = 0; i < batchPrompts.length; i++) {
+        const response = await fetch('/api/generate-images', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            provider: selectedModel,
+            prompt: batchPrompts[i],
+            numberOfImages: 1,
+            minimaxAspectRatio: aspectRatio,
+            userId: 'user-123'
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error(`Failed to generate image ${i + 1} in batch ${batchIndex + 1}:`, errorData.error)
+          continue
+        }
+
+        const data = await response.json()
+        if (data.imageUrls && data.imageUrls.length > 0) {
+          imageUrls.push(...data.imageUrls)
+        }
+
+        // Update progress for each image
+        setBatchProgress(prev => ({ 
+          ...prev, 
+          current: prev.current + 1 
+        }))
+
+        // Small delay between MiniMax requests
+        if (i < batchPrompts.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+      }
+
+      return imageUrls
+    } else {
+      // For Flux models: send all requests in parallel
+      const requestPromises = batchPrompts.map(async (prompt, index) => {
+        try {
+          const response = await fetch('/api/generate-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: selectedModel,
+              prompt: prompt,
+              numberOfImages: 1,
+              minimaxAspectRatio: aspectRatio,
+              userId: 'user-123'
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error(`Failed to generate image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+            return []
+          }
+
+          const data = await response.json()
+          return data.imageUrls || []
+        } catch (error) {
+          console.error(`Error generating image ${index + 1} in batch ${batchIndex + 1}:`, error)
+          return []
+        }
+      })
+
+      // Wait for all requests in the batch to complete
+      const results = await Promise.all(requestPromises)
+      const imageUrls = results.flat()
+
+      // Update progress for the entire batch
+      setBatchProgress(prev => ({ 
+        ...prev, 
+        current: prev.current + batchPrompts.length 
+      }))
+
+      return imageUrls
+    }
   }
 
   const handleExtractScenes = async () => {
@@ -135,133 +300,70 @@ export function AIImageGenerator() {
     if (selectedPrompts.length === 0) return
 
     const generationId = uuidv4()
+    const batchSize = MODEL_INFO[selectedModel].batchSize
+    const totalBatches = Math.ceil(selectedPrompts.length / batchSize)
     
-    // Start generation in Redux
     dispatch(startGeneration({ 
       id: generationId, 
-      prompt: `Selected scenes: ${selectedPrompts.join(' | ')}`,
+      prompt: `Selected scenes: ${selectedPrompts.length} images`,
       numberOfImages: selectedPrompts.length
     }))
 
+    // Reset batch progress
+    setBatchProgress({ current: 0, total: selectedPrompts.length, currentBatch: 0, totalBatches })
+
     try {
-      dispatch(updateGenerationInfo(`Generating ${selectedPrompts.length} images from selected scenes...`))
+      dispatch(updateGenerationInfo(`Starting batch processing: ${selectedPrompts.length} images in ${totalBatches} batches...`))
 
-      // Generate images for each selected scene
-      for (let i = 0; i < selectedPrompts.length; i++) {
-        const scenePrompt = selectedPrompts[i]
-        dispatch(updateGenerationInfo(`Generating image ${i + 1} of ${selectedPrompts.length}: Scene ${selectedScenes[i] + 1}`))
+      const allImageUrls: string[] = []
 
-        const response = await fetch('/api/generate-images', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            provider: 'minimax',
-            prompt: scenePrompt,
-            numberOfImages: 1,
-            minimaxAspectRatio: aspectRatio,
-            userId: 'user-123'
-          }),
-        })
+      // Process each batch
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        try {
+          const batchImageUrls = await generateImagesBatch(selectedPrompts, batchIndex, totalBatches)
+          allImageUrls.push(...batchImageUrls)
+          
+          dispatch(updateGenerationInfo(
+            `Completed batch ${batchIndex + 1}/${totalBatches}. Generated ${allImageUrls.length}/${selectedPrompts.length} images.`
+          ))
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error(`Failed to generate image for scene ${i + 1}:`, errorData.error)
-          continue
-        }
-
-        const data = await response.json()
-        
-        // Add the generated images to our result
-        if (data.imageUrls && data.imageUrls.length > 0) {
-          // For now, we'll collect all URLs and complete at the end
-          // In a more advanced implementation, you could update progress incrementally
+          // Wait 60 seconds between flux batches (except for the last batch)
+          if (selectedModel !== 'minimax' && batchIndex < totalBatches - 1) {
+            dispatch(updateGenerationInfo(
+              `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting 60 seconds before next batch...`
+            ))
+            
+            // Show countdown for the wait time
+            for (let countdown = 60; countdown > 0; countdown--) {
+              dispatch(updateGenerationInfo(
+                `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
+              ))
+              await new Promise(resolve => setTimeout(resolve, 1000))
+            }
+          }
+        } catch (error) {
+          console.error(`Error in batch ${batchIndex + 1}:`, error)
+          // Continue with other batches even if one fails
+          dispatch(updateGenerationInfo(
+            `Batch ${batchIndex + 1} failed. Continuing with remaining batches...`
+          ))
         }
       }
 
-      // For simplicity, generate all at once instead of individually
-      const allPrompts = selectedPrompts.join(' ||||||| ')
-      
-      const response = await fetch('/api/generate-images', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: 'minimax',
-          prompt: allPrompts,
-          numberOfImages: selectedPrompts.length,
-          minimaxAspectRatio: aspectRatio,
-          userId: 'user-123'
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate images')
+      if (allImageUrls.length > 0) {
+        dispatch(completeGeneration({ imageUrls: allImageUrls }))
+        setSelectedScenes([])
+        setBatchProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+      } else {
+        throw new Error('No images were successfully generated')
       }
-
-      const data = await response.json()
-      dispatch(completeGeneration({ imageUrls: data.imageUrls }))
       
-      // Clear selections after successful generation
-      setSelectedScenes([])
     } catch (error) {
       console.error('Error generating images from scenes:', error)
       dispatch(failGeneration(
         error instanceof Error ? error.message : 'Failed to generate images from scenes'
       ))
-    }
-  }
-
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return
-
-    const generationId = uuidv4()
-    
-    // Start generation in Redux
-    dispatch(startGeneration({ 
-      id: generationId, 
-      prompt: prompt.trim(),
-      numberOfImages
-    }))
-
-    try {
-      // Update progress info
-      dispatch(updateGenerationInfo(`Generating ${numberOfImages} image${numberOfImages > 1 ? 's' : ''}...`))
-
-      const response = await fetch('/api/generate-images', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: 'minimax',
-          prompt: prompt.trim(),
-          numberOfImages,
-          minimaxAspectRatio: aspectRatio,
-          userId: 'user-123'
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate images')
-      }
-
-      const data = await response.json()
-      
-      // Complete generation with results
-      dispatch(completeGeneration({ imageUrls: data.imageUrls }))
-      
-      // Clear the prompt after successful generation
-      setPrompt('')
-    } catch (error) {
-      console.error('Error generating images:', error)
-      dispatch(failGeneration(
-        error instanceof Error ? error.message : 'Failed to generate images'
-      ))
+      setBatchProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
     }
   }
 
@@ -295,6 +397,8 @@ export function AIImageGenerator() {
   }
 
   const scriptSourceInfo = getScriptSourceInfo()
+  const currentModel = MODEL_INFO[selectedModel]
+  const estimatedBatches = selectedScenes.length > 0 ? Math.ceil(selectedScenes.length / currentModel.batchSize) : 0
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 p-6">
@@ -302,98 +406,295 @@ export function AIImageGenerator() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">AI Image Generator</h1>
         <p className="text-gray-600">
-          Create stunning images using MiniMax AI - extract scenes from scripts or create from custom prompts
+          Extract scenes from scripts and generate images for each scene using multiple AI models with batch processing
         </p>
       </div>
 
-      <Tabs defaultValue="manual" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="manual">Manual Prompts</TabsTrigger>
-          <TabsTrigger value="scenes">Scene Extraction</TabsTrigger>
-        </TabsList>
-
-        {/* Manual Prompt Generation */}
-        <TabsContent value="manual">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5 text-blue-600" />
-                Generate Images
-              </CardTitle>
-              <CardDescription>
-                Describe what you want to see and let MiniMax AI create it for you
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Prompt Input */}
-              <div className="space-y-2">
-                <Label htmlFor="prompt">Image Description</Label>
-                <Textarea
-                  id="prompt"
-                  placeholder="A serene mountain landscape at sunset with a crystal clear lake reflecting the orange and pink sky..."
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  disabled={isGenerating}
-                  className="min-h-[100px]"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Be specific and descriptive for best results. Include details about style, lighting, and composition.
-                </p>
-              </div>
-
-              {/* Settings Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Number of Images */}
-                <div className="space-y-3">
-                  <Label>Number of Images</Label>
-                  <Select
-                    value={numberOfImages.toString()}
-                    onValueChange={(value: string) => dispatch(setNumberOfImages(parseInt(value)))}
-                    disabled={isGenerating}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select number of images" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5].map((num) => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num} image{num > 1 ? 's' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Aspect Ratio */}
-                <div className="space-y-3">
-                  <Label>Aspect Ratio</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { value: '16:9', label: 'Landscape', desc: '16:9' },
-                      { value: '1:1', label: 'Square', desc: '1:1' },
-                      { value: '9:16', label: 'Portrait', desc: '9:16' }
-                    ].map((ratio) => (
-                      <Button
-                        key={ratio.value}
-                        variant={aspectRatio === ratio.value ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => dispatch(setAspectRatio(ratio.value as '16:9' | '1:1' | '9:16'))}
-                        disabled={isGenerating}
-                        className="flex flex-col h-auto py-3"
-                      >
-                        <span className="font-medium">{ratio.label}</span>
-                        <span className="text-xs opacity-70">{ratio.desc}</span>
-                      </Button>
+      {/* Model Selection */}
+      <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="h-5 w-5 text-purple-600" />
+            AI Model Selection
+          </CardTitle>
+          <CardDescription>
+            Choose your preferred AI model for image generation. Each model processes images in optimized batches.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {Object.entries(MODEL_INFO).map(([key, info]) => (
+              <div
+                key={key}
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  selectedModel === key
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+                onClick={() => handleModelChange(key as ImageProvider)}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900">{info.name}</h3>
+                    {selectedModel === key && (
+                      <Badge className="bg-purple-600">Selected</Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600">{info.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {info.features.map((feature, idx) => (
+                      <Badge key={idx} variant="outline" className="text-xs">
+                        {feature}
+                      </Badge>
                     ))}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Batch size: {info.batchSize}
+                    </span>
+                    {info.rateLimit && (
+                      <span>{info.rateLimit}</span>
+                    )}
                   </div>
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Generate Button */}
+          {/* Batch Processing Info */}
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-blue-800">Batch Processing</p>
+                <p className="text-sm text-blue-700">
+                  {currentModel.name} processes images in batches of {currentModel.batchSize}. 
+                  {selectedScenes.length > 0 && (
+                    <span className="font-medium">
+                      {' '}Your {selectedScenes.length} selected scenes will be processed in {estimatedBatches} batch{estimatedBatches !== 1 ? 'es' : ''}.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scene Extraction */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-purple-600" />
+            Scene Extraction & Image Generation
+          </CardTitle>
+          <CardDescription>
+            Extract scenes from scripts and generate images for each scene
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Script Source Information */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-4 w-4 text-gray-600" />
+              <span className="font-medium text-gray-800">Script Source</span>
+            </div>
+            {scriptSourceInfo.source !== 'none' ? (
+              <div className="space-y-1">
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium">{scriptSourceInfo.type}</span> 
+                  <span className="text-muted-foreground"> ({scriptSourceInfo.count.toLocaleString()} characters)</span>
+                </p>
+                {scriptSourceInfo.source === 'sections' && (
+                  <p className="text-xs text-blue-600">Using image generation prompts from script sections</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-amber-700">No script detected. Please paste a custom script below.</p>
+            )}
+          </div>
+
+          {/* Custom Script Input */}
+          <div className="space-y-2">
+            <Label htmlFor="script-input">Custom Script (Optional)</Label>
+            <Textarea
+              id="script-input"
+              placeholder="Paste your script here to override the detected script sources..."
+              value={scriptInput}
+              onChange={(e) => setScriptInput(e.target.value)}
+              disabled={isExtractingScenes}
+              className="min-h-[120px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              This will take priority over the detected script sources above.
+            </p>
+          </div>
+
+          {/* Settings */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Number of Scenes Slider */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label>Number of Scenes to Extract</Label>
+                <Badge variant="outline">{numberOfScenesToExtract}</Badge>
+              </div>
+              <Slider
+                value={[numberOfScenesToExtract]}
+                onValueChange={(value) => dispatch(setNumberOfScenesToExtract(value[0]))}
+                min={1}
+                max={100}
+                step={1}
+                disabled={isExtractingScenes}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1 scene</span>
+                <span>100 scenes</span>
+              </div>
+            </div>
+
+            {/* Aspect Ratio */}
+            <div className="space-y-3">
+              <Label>Aspect Ratio</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: '16:9', label: 'Landscape', desc: '16:9' },
+                  { value: '1:1', label: 'Square', desc: '1:1' },
+                  { value: '9:16', label: 'Portrait', desc: '9:16' }
+                ].map((ratio) => (
+                  <Button
+                    key={ratio.value}
+                    variant={aspectRatio === ratio.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => dispatch(setAspectRatio(ratio.value as '16:9' | '1:1' | '9:16'))}
+                    disabled={isGenerating}
+                    className="flex flex-col h-auto py-3"
+                  >
+                    <span className="font-medium">{ratio.label}</span>
+                    <span className="text-xs opacity-70">{ratio.desc}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Extract Scenes Button */}
+          <Button 
+            className="w-full" 
+            onClick={handleExtractScenes}
+            disabled={isExtractingScenes || scriptSourceInfo.source === 'none'}
+            size="lg"
+          >
+            {isExtractingScenes ? (
+              <>
+                <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                Extracting {numberOfScenesToExtract} Scenes...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5 mr-2" />
+                Extract {numberOfScenesToExtract} Scenes
+              </>
+            )}
+          </Button>
+
+          {/* Scene Extraction Error */}
+          {sceneExtractionError && (
+            <Card className="border-red-200">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-red-800">Scene Extraction Error</p>
+                    <p className="text-sm text-red-600">{sceneExtractionError}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleClearError}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Extracted Scenes */}
+          {extractedScenes.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <Label>Extracted Scenes ({extractedScenes.length})</Label>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setSelectedScenes([])}
+                    disabled={selectedScenes.length === 0}
+                  >
+                    Clear
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setSelectedScenes(Array.from({length: extractedScenes.length}, (_, i) => i))}
+                    disabled={selectedScenes.length === extractedScenes.length}
+                  >
+                    Select All
+                  </Button>
+                </div>
+              </div>
+              
+              <ScrollArea className="h-96 border rounded-md p-4">
+                <div className="space-y-4">
+                  {extractedScenes.map((scene: ExtractedScene, index: number) => (
+                    <div key={index} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox 
+                          id={`scene-${index}`} 
+                          checked={selectedScenes.includes(index)}
+                          onCheckedChange={() => toggleSceneSelection(index)}
+                        />
+                        <Label 
+                          htmlFor={`scene-${index}`} 
+                          className="font-medium cursor-pointer"
+                        >
+                          {scene.summary}
+                        </Label>
+                      </div>
+                      
+                      <div className="text-sm text-muted-foreground">
+                        <div className="italic pl-4 border-l-2 border-muted-foreground/30">{scene.imagePrompt}</div>
+                      </div>
+                      
+                      <details className="text-sm">
+                        <summary className="cursor-pointer font-medium">View Original Text</summary>
+                        <div className="mt-2 p-2 bg-muted/30 rounded text-muted-foreground max-h-32 overflow-y-auto">
+                          {scene.originalText}
+                        </div>
+                      </details>
+                      
+                      {scene.error && (
+                        <div className="text-sm text-red-500">
+                          Error: {scene.error}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              {/* Batch Progress */}
+              {isGenerating && batchProgress.total > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progress: {batchProgress.current}/{batchProgress.total} images</span>
+                    <span>Batch: {batchProgress.currentBatch}/{batchProgress.totalBatches}</span>
+                  </div>
+                  <Progress value={(batchProgress.current / batchProgress.total) * 100} className="w-full" />
+                </div>
+              )}
+              
               <Button 
                 className="w-full" 
-                onClick={handleGenerate}
-                disabled={isGenerating || !prompt.trim()}
+                onClick={handleGenerateFromScenes}
+                disabled={isGenerating || selectedScenes.length === 0}
                 size="lg"
               >
                 {isGenerating ? (
@@ -404,218 +705,29 @@ export function AIImageGenerator() {
                 ) : (
                   <>
                     <ImageIcon className="h-5 w-5 mr-2" />
-                    Generate {numberOfImages} Image{numberOfImages > 1 ? 's' : ''}
+                    Generate Images for {selectedScenes.length} Selected Scene{selectedScenes.length !== 1 ? 's' : ''}
+                    {selectedScenes.length > 0 && (
+                      <Badge className="ml-2 bg-blue-600">
+                        {estimatedBatches} batch{estimatedBatches !== 1 ? 'es' : ''}
+                      </Badge>
+                    )}
                   </>
                 )}
               </Button>
 
               {/* Quick Settings Summary */}
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">MiniMax AI</Badge>
+                <Badge variant="secondary">{currentModel.name}</Badge>
                 <Badge variant="secondary">{aspectRatio} Aspect Ratio</Badge>
-                <Badge variant="secondary">{numberOfImages} Image{numberOfImages > 1 ? 's' : ''}</Badge>
+                <Badge variant="secondary">{selectedScenes.length} Selected Scene{selectedScenes.length !== 1 ? 's' : ''}</Badge>
+                <Badge variant="outline" className="text-blue-700 border-blue-300">
+                  Batch size: {currentModel.batchSize}
+                </Badge>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Scene Extraction */}
-        <TabsContent value="scenes">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-purple-600" />
-                Scene Extraction
-              </CardTitle>
-              <CardDescription>
-                Extract scenes from scripts and generate images for each scene
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Script Source Information */}
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="h-5 w-5 text-gray-600" />
-                  <span className="font-medium text-gray-800">Script Source</span>
-                </div>
-                {scriptSourceInfo.source !== 'none' ? (
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-700">
-                      <span className="font-medium">{scriptSourceInfo.type}</span> 
-                      <span className="text-muted-foreground"> ({scriptSourceInfo.count.toLocaleString()} characters)</span>
-                    </p>
-                    {scriptSourceInfo.source === 'sections' && (
-                      <p className="text-xs text-blue-600">Using image generation prompts from script sections</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-amber-700">No script detected. Please paste a custom script below.</p>
-                )}
-              </div>
-
-              {/* Custom Script Input */}
-              <div className="space-y-2">
-                <Label htmlFor="script-input">Custom Script (Optional)</Label>
-                <Textarea
-                  id="script-input"
-                  placeholder="Paste your script here to override the detected script sources..."
-                  value={scriptInput}
-                  onChange={(e) => setScriptInput(e.target.value)}
-                  disabled={isExtractingScenes}
-                  className="min-h-[120px]"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This will take priority over the detected script sources above.
-                </p>
-              </div>
-
-              {/* Number of Scenes Slider */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <Label>Number of Scenes to Extract</Label>
-                  <Badge variant="outline">{numberOfScenesToExtract}</Badge>
-                </div>
-                <Slider
-                  value={[numberOfScenesToExtract]}
-                  onValueChange={(value) => dispatch(setNumberOfScenesToExtract(value[0]))}
-                  min={1}
-                  max={100}
-                  step={1}
-                  disabled={isExtractingScenes}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>1 scene</span>
-                  <span>100 scenes</span>
-                </div>
-              </div>
-
-              {/* Extract Scenes Button */}
-              <Button 
-                className="w-full" 
-                onClick={handleExtractScenes}
-                disabled={isExtractingScenes || scriptSourceInfo.source === 'none'}
-                size="lg"
-              >
-                {isExtractingScenes ? (
-                  <>
-                    <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                    Extracting {numberOfScenesToExtract} Scenes...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-5 w-5 mr-2" />
-                    Extract {numberOfScenesToExtract} Scenes
-                  </>
-                )}
-              </Button>
-
-              {/* Scene Extraction Error */}
-              {sceneExtractionError && (
-                <Card className="border-red-200">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-red-800">Scene Extraction Error</p>
-                        <p className="text-sm text-red-600">{sceneExtractionError}</p>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={handleClearError}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Extracted Scenes */}
-              {extractedScenes.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <Label>Extracted Scenes ({extractedScenes.length})</Label>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setSelectedScenes([])}
-                        disabled={selectedScenes.length === 0}
-                      >
-                        Clear
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setSelectedScenes(Array.from({length: extractedScenes.length}, (_, i) => i))}
-                        disabled={selectedScenes.length === extractedScenes.length}
-                      >
-                        Select All
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <ScrollArea className="h-96 border rounded-md p-4">
-                    <div className="space-y-4">
-                      {extractedScenes.map((scene: ExtractedScene, index: number) => (
-                        <div key={index} className="border rounded-md p-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Checkbox 
-                              id={`scene-${index}`} 
-                              checked={selectedScenes.includes(index)}
-                              onCheckedChange={() => toggleSceneSelection(index)}
-                            />
-                            <Label 
-                              htmlFor={`scene-${index}`} 
-                              className="font-medium cursor-pointer"
-                            >
-                              {scene.summary}
-                            </Label>
-                          </div>
-                          
-                          <div className="text-sm text-muted-foreground">
-                            <div className="font-medium mb-1">Image Prompt:</div>
-                            <div className="italic pl-4 border-l-2 border-muted-foreground/30">{scene.imagePrompt}</div>
-                          </div>
-                          
-                          <details className="text-sm">
-                            <summary className="cursor-pointer font-medium">View Original Text</summary>
-                            <div className="mt-2 p-2 bg-muted/30 rounded text-muted-foreground max-h-32 overflow-y-auto">
-                              {scene.originalText}
-                            </div>
-                          </details>
-                          
-                          {scene.error && (
-                            <div className="text-sm text-red-500">
-                              Error: {scene.error}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                  
-                  <Button 
-                    className="w-full" 
-                    onClick={handleGenerateFromScenes}
-                    disabled={isGenerating || selectedScenes.length === 0}
-                    size="lg"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                        {generationInfo || 'Generating...'}
-                      </>
-                    ) : (
-                      <>
-                        <ImageIcon className="h-5 w-5 mr-2" />
-                        Generate Images for {selectedScenes.length} Selected Scene{selectedScenes.length !== 1 ? 's' : ''}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Error Display */}
       {error && (
@@ -654,6 +766,7 @@ export function AIImageGenerator() {
                     <CardDescription>
                       Generated {new Date(imageSet.generatedAt).toLocaleString()} • 
                       {imageSet.imageUrls.length} image{imageSet.imageUrls.length > 1 ? 's' : ''} • 
+                      {MODEL_INFO[imageSet.provider as keyof typeof MODEL_INFO]?.name || imageSet.provider} • 
                       {imageSet.aspectRatio}
                     </CardDescription>
                   </div>
@@ -680,7 +793,7 @@ export function AIImageGenerator() {
                           <Button 
                             size="sm" 
                             variant="secondary"
-                            onClick={() => downloadImage(url, `minimax_image_${setIndex + 1}_${imageIndex + 1}.png`)}
+                            onClick={() => downloadImage(url, `${imageSet.provider}_image_${setIndex + 1}_${imageIndex + 1}.png`)}
                           >
                             <Download className="h-4 w-4 mr-2" />
                             Download
@@ -708,7 +821,7 @@ export function AIImageGenerator() {
               <div className="space-y-2">
                 <h3 className="text-lg font-medium text-gray-900">No images generated yet</h3>
                 <p className="text-gray-500">
-                  Use manual prompts or extract scenes from scripts to get started
+                  Choose your AI model, extract scenes from your script, and generate images for selected scenes
                 </p>
               </div>
             </div>
@@ -730,8 +843,16 @@ export function AIImageGenerator() {
                   {generationInfo || 'Generating images...'}
                 </h3>
                 <p className="text-gray-500">
-                  MiniMax AI is creating your images. This usually takes 15-30 seconds.
+                  {selectedModel === 'minimax' 
+                    ? 'MiniMax processes images in batches of 5. Please wait while all batches complete.'
+                    : `${currentModel.name} processes images in batches of 10. Please wait while all batches complete.`
+                  }
                 </p>
+                {batchProgress.total > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Processing batch {batchProgress.currentBatch} of {batchProgress.totalBatches}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

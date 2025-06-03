@@ -69,7 +69,7 @@ export function ScriptGenerator() {
       showMessage('Please enter a video title', 'error')
       return
     }
-
+    
     dispatch(startGeneratingSections())
     showMessage('Generating script sections...', 'info')
 
@@ -128,11 +128,11 @@ export function ScriptGenerator() {
 
     try {
       const response = await fetch('/api/generate-detailed-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
           sectionTitle: section.title,
           writingInstructions: section.writingInstructions,
           videoTitle: sectionedWorkflow.videoTitle,
@@ -147,16 +147,16 @@ export function ScriptGenerator() {
             instructions: s.writingInstructions,
             order: s.order
           }))
-        }),
-      })
+            }),
+          })
 
-      if (!response.ok) {
+          if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to generate detailed script')
-      }
+          }
 
-      const data = await response.json()
-      
+          const data = await response.json()
+          
       dispatch(setDetailedScript({
         sectionId,
         script: data.script,
@@ -164,7 +164,7 @@ export function ScriptGenerator() {
       }))
       
       showMessage(`Generated detailed script for "${section.title}" (${data.wordCount} words)!`, 'success')
-    } catch (error) {
+        } catch (error) {
       const errorMessage = (error as Error).message
       showMessage(`Failed to generate script: ${errorMessage}`, 'error')
     }
@@ -181,11 +181,11 @@ export function ScriptGenerator() {
 
     try {
       const response = await fetch('/api/generate-detailed-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
           sections: sectionedWorkflow.sections.map(s => ({
             title: s.title,
             writingInstructions: s.writingInstructions
@@ -195,16 +195,16 @@ export function ScriptGenerator() {
           targetAudience: sectionedWorkflow.targetAudience,
           selectedModel: sectionedWorkflow.selectedModel,
           uploadedStyle: sectionedWorkflow.uploadedStyle
-        }),
-      })
+              }),
+            })
 
-      if (!response.ok) {
+            if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to generate full script')
-      }
+            }
 
-      const data = await response.json()
-      
+            const data = await response.json()
+            
       // Update the fullScript in Redux
       dispatch(setFullScript(data.fullScript))
       
@@ -356,14 +356,14 @@ ${section.generatedScript}
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">{totalWords.toLocaleString()}</div>
                 <div className="text-sm text-purple-700">Total Words</div>
-              </div>
+            </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">
                   {totalWords > 0 ? `${Math.ceil(totalWords / 150)}` : '0'}
                 </div>
                 <div className="text-sm text-orange-700">Est. Minutes</div>
               </div>
-            </div>
+              </div>
             {totalWords > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge variant="outline" className="text-blue-700 border-blue-300">
@@ -407,14 +407,14 @@ ${section.generatedScript}
               <Target className="h-3 w-3" />
               Video Title *
             </Label>
-            <Input
+              <Input
               id="videoTitle"
               value={sectionedWorkflow.videoTitle}
               onChange={(e) => handleFieldChange('videoTitle', e.target.value)}
               placeholder="Enter your video title..."
               disabled={sectionedWorkflow.isGeneratingSections}
-            />
-          </div>
+              />
+            </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Target Audience */}
@@ -430,10 +430,10 @@ ${section.generatedScript}
                 placeholder="e.g., Young adults, Entrepreneurs..."
                 disabled={sectionedWorkflow.isGeneratingSections}
               />
-            </div>
+          </div>
 
             {/* Word Count */}
-            <div className="space-y-2">
+          <div className="space-y-2">
               <Label htmlFor="wordCount" className="flex items-center gap-1">
                 <FileText className="h-3 w-3" />
                 Target Word Count
@@ -542,26 +542,26 @@ ${section.generatedScript}
             
             {sectionedWorkflow.sections.length > 0 && (
               <>
-                <Button 
+              <Button 
                   onClick={addNewSection}
-                  variant="outline"
+                variant="outline"
                   disabled={sectionedWorkflow.isGeneratingSections}
-                >
+              >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Section
-                </Button>
-                
-                <Button 
+              </Button>
+
+              <Button 
                   onClick={handleClearSections}
-                  variant="outline"
+                variant="outline"
                   disabled={sectionedWorkflow.isGeneratingSections}
-                >
+              >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Clear All
-                </Button>
-              </>
-            )}
-          </div>
+              </Button>
+                      </>
+                    )}
+                </div>
         </CardContent>
       </Card>
 
@@ -595,14 +595,14 @@ ${section.generatedScript}
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   Script Sections ({sectionedWorkflow.sections.length})
-                </CardTitle>
+            </CardTitle>
                 <CardDescription>
                   Edit section titles and instructions, then generate detailed scripts
                 </CardDescription>
-              </div>
+                </div>
               <div className="flex items-center gap-2">
                 {sectionedWorkflow.sections.length > 0 && (
                   <Button
@@ -639,11 +639,11 @@ ${section.generatedScript}
                 >
                   <div className="space-y-3">
                     {/* Section Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs">
                           #{section.order}
-                        </Badge>
+                              </Badge>
                         {editingSectionId === section.id ? (
                           <Input
                             value={editingTitle}
@@ -657,10 +657,10 @@ ${section.generatedScript}
                           <>
                             <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
                               {section.wordCount.toLocaleString()} words
-                            </Badge>
+                              </Badge>
                             <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 border-blue-300">
                               ~{Math.ceil(section.wordCount / 150)} min read
-                            </Badge>
+                              </Badge>
                           </>
                         )}
                       </div>
@@ -670,41 +670,41 @@ ${section.generatedScript}
                           <Badge variant="secondary" className="text-xs">
                             <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                             Generating
-                          </Badge>
-                        )}
-                        
+                              </Badge>
+                            )}
+                            
                         {editingSectionId === section.id ? (
                           <>
-                            <Button
+                                <Button
                               onClick={saveEditingSection}
-                              size="sm"
-                              variant="outline"
+                                  size="sm"
+                                  variant="outline"
                               className="text-green-600 border-green-200 hover:bg-green-50"
-                            >
+                                >
                               <Save className="h-3 w-3" />
-                            </Button>
-                            <Button
+                                </Button>
+                                <Button
                               onClick={cancelEditingSection}
-                              size="sm"
-                              variant="outline"
+                                  size="sm"
+                                  variant="outline"
                               className="text-red-600 border-red-200 hover:bg-red-50"
-                            >
+                                >
                               <X className="h-3 w-3" />
-                            </Button>
+                                </Button>
                           </>
                         ) : (
                           <>
-                            <Button
+                                <Button
                               onClick={() => startEditingSection(section)}
-                              size="sm"
-                              variant="outline"
+                                  size="sm"
+                                  variant="outline"
                               disabled={section.isGenerating}
-                            >
+                                >
                               <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
+                                </Button>
+                                <Button
                               onClick={() => handleGenerateDetailedScript(section.id)}
-                              size="sm"
+                                  size="sm"
                               disabled={section.isGenerating}
                               className="bg-green-600 hover:bg-green-700"
                             >
@@ -716,25 +716,25 @@ ${section.generatedScript}
                                 <FileText className="h-3 w-3" />
                               )}
                             </Button>
-                            <Button
+                                <Button
                               onClick={() => removeSection(section.id)}
-                              size="sm"
-                              variant="outline"
+                                  size="sm"
+                                  variant="outline"
                               disabled={section.isGenerating}
                               className="text-red-600 border-red-200 hover:bg-red-50"
                             >
                               <Trash2 className="h-3 w-3" />
-                            </Button>
+                                </Button>
                           </>
-                        )}
-                      </div>
-                    </div>
-
+                              )}
+                          </div>
+                        </div>
+                        
                     {/* Writing Instructions */}
-                    <div className="space-y-2">
+                              <div className="space-y-2">
                       <Label className="text-xs font-medium text-gray-700">Writing Instructions:</Label>
                       {editingSectionId === section.id ? (
-                        <Textarea
+                                <Textarea
                           value={editingInstructions}
                           onChange={(e) => setEditingInstructions(e.target.value)}
                           rows={2}
@@ -749,7 +749,7 @@ ${section.generatedScript}
 
                     {/* Generated Script */}
                     {section.generatedScript && (
-                      <div className="space-y-2">
+                              <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Label className="text-xs font-medium text-gray-700">Generated Script:</Label>
@@ -763,8 +763,8 @@ ${section.generatedScript}
                               <Badge variant="secondary" className="text-xs">
                                 {section.generatedScript.length.toLocaleString()} chars
                               </Badge>
-                            </div>
-                          </div>
+                                  </div>
+                                  </div>
                           <Button
                             onClick={() => copyScript(section.generatedScript)}
                             size="sm"
@@ -776,13 +776,13 @@ ${section.generatedScript}
                         </div>
                         <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
                           <p className="whitespace-pre-wrap">{section.generatedScript}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                              </div>
               ))}
-            </div>
+                          </div>
           </CardContent>
         </Card>
       )}
@@ -801,23 +801,23 @@ ${section.generatedScript}
                   Complete script generated from all sections
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-purple-700 border-purple-300">
                   {sectionedWorkflow.fullScript.split(/\s+/).length.toLocaleString()} words
                 </Badge>
                 <Badge variant="outline" className="text-blue-700 border-blue-300">
                   ~{Math.ceil(sectionedWorkflow.fullScript.split(/\s+/).length / 150)} min read
                 </Badge>
-                <Button
+                                <Button
                   onClick={() => copyScript(sectionedWorkflow.fullScript)}
                   variant="outline"
-                  size="sm"
+                                  size="sm"
                 >
                   <FileText className="h-3 w-3 mr-1" />
                   Copy Full Script
-                </Button>
-              </div>
-            </div>
+                                </Button>
+                              </div>
+                            </div>
           </CardHeader>
           <CardContent>
             <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">

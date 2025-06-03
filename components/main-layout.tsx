@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { SidebarNavigation } from './sidebar-navigation'
 import { AIImageGenerator } from './ai-image-generator'
-import { AudioGenerator } from './audio-generator'
+import { SimpleAudioGenerator } from './simple-audio-generator'
 import { ScriptGenerator } from './script-generator'
 import { AdminDashboard } from './admin-dashboard'
 
@@ -19,7 +19,7 @@ export function MainLayout() {
       case 'image-generation':
         return <AIImageGenerator />
       case 'audio-generator':
-        return <AudioGenerator />
+        return <SimpleAudioGenerator />
       case 'admin-dashboard':
         return <AdminDashboard />
       default:
