@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, Palette, BarChart3, ChevronRight, Crown } from 'lucide-react'
 
-type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
+type NavigationView = 'script-generator' | 'image-generation' | 'audio-generator' | 'admin-dashboard'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -14,21 +14,11 @@ interface SidebarNavigationProps {
 }
 
 export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigationProps) {
-  const { hasProcessedImages, originalImages, savedImagesCount } = useAppSelector(state => state.images)
   const { hasGeneratedScripts, scripts } = useAppSelector(state => state.scripts)
   const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
-  const { currentGeneration: videoGeneration, generationHistory, isGeneratingVideo } = useAppSelector(state => state.video)
   const user = useAppSelector(state => state.user)
 
   const navigationItems = [
-    {
-      id: 'process-images' as NavigationView,
-      label: 'Process Images',
-      icon: ImageIcon,
-      description: 'Upload and process ZIP files',
-      hasData: hasProcessedImages,
-      dataCount: originalImages.length
-    },
     {
       id: 'script-generator' as NavigationView,
       label: 'Script Generator',
@@ -36,7 +26,16 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       description: 'Generate narration scripts',
       hasData: hasGeneratedScripts,
       dataCount: scripts.filter(s => s.generated).length,
-      disabled: !hasProcessedImages
+      disabled: false
+    },
+    {
+      id: 'image-generation' as NavigationView,
+      label: 'AI Image Generator',
+      icon: Palette,
+      description: 'Generate images with AI',
+      hasData: false, // TODO: Add proper state tracking
+      dataCount: 0,
+      disabled: false
     },
     {
       id: 'audio-generator' as NavigationView,
@@ -46,25 +45,6 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       hasData: !!audioGeneration,
       dataCount: audioGeneration ? 1 : 0,
       disabled: !hasGeneratedScripts
-    },
-    {
-      id: 'video-generator' as NavigationView,
-      label: 'Video Generator',
-      icon: VideoIcon,
-      description: 'Create videos with Shotstack',
-      hasData: !!videoGeneration,
-      dataCount: videoGeneration ? 1 : 0,
-      disabled: !audioGeneration?.audioUrl,
-      isGenerating: isGeneratingVideo
-    },
-    {
-      id: 'video-status' as NavigationView,
-      label: 'Video Status',
-      icon: BarChart3,
-      description: 'Monitor video generations',
-      hasData: generationHistory.length > 0 || !!videoGeneration,
-      dataCount: generationHistory.length + (videoGeneration ? 1 : 0),
-      disabled: false
     },
     ...(user.isAdmin ? [{
       id: 'admin-dashboard' as NavigationView,
@@ -81,7 +61,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
     <div className="w-64 bg-white border-r border-gray-200 h-full">
       <div className="p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Content Creator</h2>
-        <p className="text-sm text-gray-500">Images • Scripts • Audio • Video</p>
+        <p className="text-sm text-gray-500">Scripts • Images • Audio • AI</p>
       </div>
       
       <nav className="p-4 space-y-2">
@@ -122,7 +102,6 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                           : 'text-gray-600'
                       }
                       ${item.isAdmin ? 'text-yellow-600' : ''}
-                      ${item.isGenerating ? 'animate-pulse' : ''}
                     `} 
                   />
                   <div>
@@ -164,11 +143,6 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                       {item.dataCount}
                     </Badge>
                   )}
-                  {item.isGenerating && (
-                    <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
-                      Generating
-                    </Badge>
-                  )}
                   {isActive && (
                     <ChevronRight className={`h-4 w-4 ${item.isAdmin ? 'text-yellow-600' : 'text-blue-600'}`} />
                   )}
@@ -176,21 +150,9 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
               </div>
               
               {/* Helper hints for disabled items */}
-              {item.id === 'script-generator' && !hasProcessedImages && (
-                <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                  Process images first to enable script generation
-                </div>
-              )}
-              
               {item.id === 'audio-generator' && !hasGeneratedScripts && (
                 <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
                   Generate scripts first to enable audio generation
-                </div>
-              )}
-              
-              {item.id === 'video-generator' && !audioGeneration?.audioUrl && (
-                <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                  Generate audio first to enable video creation
                 </div>
               )}
             </Card>
@@ -198,40 +160,21 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
         })}
       </nav>
       
-      {/* Status Summary */}
-      <div className="p-4 border-t border-gray-200 mt-auto">
-        <Card className="p-3 bg-gray-50">
-          <div className="text-sm space-y-2">
-            <div className="font-medium text-gray-700">Status Summary</div>
-            <div className="text-gray-500 space-y-1">
-              <div className="flex justify-between">
-                <span>Images processed:</span>
-                <span className="font-medium">{originalImages.length}</span>
+      {/* User info */}
+      <div className="absolute bottom-4 left-4 right-4">
+        <Card className="p-3 bg-gray-50 border-gray-200">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+              <span className="text-xs font-medium text-blue-600">
+                {user.userMetadata?.name ? user.userMetadata.name.charAt(0).toUpperCase() : 
+                 user.email ? user.email.charAt(0).toUpperCase() : 'U'}
+              </span>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-900">
+                {user.userMetadata?.name || user.email || 'Guest'}
               </div>
-              {savedImagesCount > 0 && (
-                <div className="flex justify-between">
-                  <span>Saved to Supabase:</span>
-                  <span className="font-medium text-green-600">{savedImagesCount}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>Scripts generated:</span>
-                <span className="font-medium">{scripts.filter(s => s.generated).length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Audio generations:</span>
-                <span className="font-medium">{audioGeneration ? 1 : 0}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Video generations:</span>
-                <span className="font-medium">{generationHistory.length + (videoGeneration ? 1 : 0)}</span>
-              </div>
-              {isGeneratingVideo && (
-                <div className="flex justify-between">
-                  <span>Video processing:</span>
-                  <span className="font-medium text-orange-600">Active</span>
-                </div>
-              )}
+              <div className="text-xs text-gray-500">{user.email || 'Not logged in'}</div>
             </div>
           </div>
         </Card>

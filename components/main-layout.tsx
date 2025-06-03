@@ -2,34 +2,28 @@
 
 import { useState } from 'react'
 import { SidebarNavigation } from './sidebar-navigation'
-import { ImageProcessor } from './image-processor'
-import { ScriptGenerator } from './script-generator'
+import { AIImageGenerator } from './ai-image-generator'
 import { AudioGenerator } from './audio-generator'
-import { VideoGenerator } from './video-generator'
-import { VideoStatus } from './video-status'
+import { ScriptGenerator } from './script-generator'
 import { AdminDashboard } from './admin-dashboard'
 
-type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
+type NavigationView = 'script-generator' | 'image-generation' | 'audio-generator' | 'admin-dashboard'
 
 export function MainLayout() {
-  const [activeView, setActiveView] = useState<NavigationView>('process-images')
+  const [activeView, setActiveView] = useState<NavigationView>('script-generator')
 
   const renderContent = () => {
     switch (activeView) {
-      case 'process-images':
-        return <ImageProcessor />
       case 'script-generator':
         return <ScriptGenerator />
+      case 'image-generation':
+        return <AIImageGenerator />
       case 'audio-generator':
         return <AudioGenerator />
-      case 'video-generator':
-        return <VideoGenerator />
-      case 'video-status':
-        return <VideoStatus />
       case 'admin-dashboard':
         return <AdminDashboard />
       default:
-        return <ImageProcessor />
+        return <ScriptGenerator />
     }
   }
 
