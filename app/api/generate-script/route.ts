@@ -39,10 +39,22 @@ export async function POST(request: NextRequest) {
     const maxTokens = Math.min(Math.max(Math.round(targetWordCount * 1.5), 100), 1000) // Min 100, max 1000 tokens
 
     let wordCountInstruction = ""
-    if (targetWordCount > 300) {
+    if (targetWordCount > 800) {
       wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount+200} words. feel free to add some extra words to make it more detailed and engaging.`
-    } else {
+    } else if (targetWordCount > 500) {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount+150} words. feel free to add some extra words to make it more detailed and engaging.`
+    } else if (targetWordCount > 300) {
       wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount+100} words. feel free to add some extra words to make it more detailed and engaging.`
+    } else if (targetWordCount > 100) {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount+30} words. feel free to add some extra words to make it more detailed and engaging.`
+    } else if (targetWordCount > 50) {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount} words. feel free to add some extra words to make it more detailed and engaging.`
+    } else if (targetWordCount > 25) {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount} words. feel free to add some extra words to make it more detailed and engaging.`
+    } else if (targetWordCount > 10) {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount} words. feel free to add some extra words to make it more detailed and engaging.`
+    } else {
+      wordCountInstruction = `Please write a very detailed script approximately ${targetWordCount+300} words. feel free to add some extra words to make it more detailed and engaging.`
     }
     // Create word count instruction
 

@@ -15,7 +15,7 @@ import { Textarea } from './ui/textarea'
 import { FileText, Copy, Download, Mic, Image as ImageIcon, CheckCircle, AlertCircle, Loader2, RotateCcw, Edit, Save, X } from 'lucide-react'
 
 const BATCH_SIZE = 10
-const BATCH_DELAY = 60000 // 60 seconds in milliseconds
+const BATCH_DELAY = 61000 // 61 seconds in milliseconds
 
 
 interface ProgressState {
