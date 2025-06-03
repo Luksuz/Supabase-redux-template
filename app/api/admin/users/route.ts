@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     // Check for API keys (without exposing the actual keys)
     const { data: apiKeys, error: apiKeysError } = await supabase
-      .from('api_keys')
+      .from('user_api_keys')
       .select('user_id')
 
     if (apiKeysError) {

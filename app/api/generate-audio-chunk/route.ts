@@ -5,6 +5,7 @@ import path from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import os from 'os'
+import { createWriteStream } from 'fs'
 
 const execAsync = promisify(exec)
 
@@ -13,8 +14,8 @@ const MAX_RETRIES = 3
 const INITIAL_RETRY_DELAY = 1000 // 1 second
 const RETRY_MULTIPLIER = 2 // Exponential backoff
 
-// Function to split text into chunks under 1000 characters while preserving word boundaries
-function splitTextIntoChunks(text: string, maxLength: number = 950): string[] {
+// Function to split text into chunks under 150 characters while preserving word boundaries
+function splitTextIntoChunks(text: string, maxLength: number = 140): string[] {
   if (text.length <= maxLength) {
     return [text];
   }
@@ -81,14 +82,15 @@ async function withRetry<T>(
   throw lastError
 }
 
-// Generate audio for a single sub-chunk with retry logic
+// Generate audio for a single sub-chunk with retry logic using streaming
 async function generateSubChunkAudio(
   subChunk: string,
   speaker_id: number,
   model: string,
   subChunkIndex: number,
-  totalSubChunks: number
-): Promise<ArrayBuffer> {
+  totalSubChunks: number,
+  outputFilePath: string
+): Promise<void> {
   return withRetry(async () => {
     console.log(`🎵 [Sub-chunk ${subChunkIndex + 1}/${totalSubChunks}] Generating: "${subChunk.substring(0, 50)}..." (${subChunk.length} chars)`)
     
@@ -104,8 +106,7 @@ async function generateSubChunkAudio(
     const wellSaidResponse = await fetch('https://api.wellsaidlabs.com/v1/tts/stream', {
       method: 'POST',
       headers: {
-        'accept': '*/*',
-        'content-type': 'application/json',
+        'Content-Type': 'application/json',
         'X-Api-Key': apiKey
       },
       body: JSON.stringify({
@@ -116,18 +117,68 @@ async function generateSubChunkAudio(
     })
 
     if (!wellSaidResponse.ok) {
-      const errorText = await wellSaidResponse.text()
-      console.error(`WellSaid Labs API error: ${wellSaidResponse.status} ${wellSaidResponse.statusText}`)
+      let errorMessage = "Failed to render"
+      try {
+        const { message } = await wellSaidResponse.json()
+        errorMessage = message
+      } catch (error) {
+        // If JSON parsing fails, fall back to status text
+        errorMessage = wellSaidResponse.statusText || "Failed to render"
+      }
+      
+      console.error(`WellSaid Labs API error: ${wellSaidResponse.status} ${errorMessage}`)
       
       // If API key is invalid, mark it as invalid and throw error to trigger retry with new key
       if (wellSaidResponse.status === 401 || wellSaidResponse.status === 403) {
         console.log(`🚫 Marking API key as invalid due to ${wellSaidResponse.status} error`)
         await markApiKeyAsInvalid(apiKey)
-        throw new Error(`API key invalid (${wellSaidResponse.status}): ${wellSaidResponse.statusText}`)
+        throw new Error(`API key invalid (${wellSaidResponse.status}): ${errorMessage}`)
       }
       
       // For other errors, throw with status for potential retry
-      throw new Error(`WellSaid Labs API error (${wellSaidResponse.status}): ${wellSaidResponse.statusText}`)
+      throw new Error(`WellSaid Labs API error (${wellSaidResponse.status}): ${errorMessage}`)
+    }
+
+    // Stream the response directly to file
+    const storageWriteStream = createWriteStream(outputFilePath)
+    
+    if (!wellSaidResponse.body) {
+      throw new Error('No response body received from WellSaid Labs API')
+    }
+
+    // Convert web stream to Node.js stream and pipe to file
+    const reader = wellSaidResponse.body.getReader()
+    
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const pump = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              
+              if (done) {
+                storageWriteStream.end()
+                break
+              }
+              
+              if (!storageWriteStream.write(value)) {
+                // Wait for drain event if write buffer is full
+                await new Promise<void>(resolveWrite => storageWriteStream.once('drain', () => resolveWrite()))
+              }
+            }
+          } catch (error) {
+            storageWriteStream.destroy()
+            reject(error)
+          }
+        }
+        
+        storageWriteStream.on('finish', resolve)
+        storageWriteStream.on('error', reject)
+        
+        pump().catch(reject)
+      })
+    } finally {
+      reader.releaseLock()
     }
 
     // Increment API key usage after successful generation
@@ -139,8 +190,6 @@ async function generateSubChunkAudio(
         console.log(`📊 API key usage updated: ${usageResult.newCount}/50 uses`)
       }
     }
-
-    return wellSaidResponse.arrayBuffer()
   })
 }
 
@@ -182,14 +231,12 @@ export async function POST(request: NextRequest) {
         const subChunk = textChunks[i]
         
         try {
-          // Generate audio with retry mechanism
-          const audioBuffer = await generateSubChunkAudio(subChunk, speaker_id, model, i, textChunks.length)
-          const audioData = new Uint8Array(audioBuffer)
-          
-          // Save raw audio from WellSaid Labs first
+          // Create raw audio file path
           const rawSubChunkFileName = `chunk-${chunkIndex}-sub-${i}-raw-${Date.now()}.mp3`
           const rawSubChunkFilePath = path.join(tempDir, rawSubChunkFileName)
-          await fs.writeFile(rawSubChunkFilePath, audioData)
+          
+          // Generate audio with streaming and retry mechanism
+          await generateSubChunkAudio(subChunk, speaker_id, model, i, textChunks.length, rawSubChunkFilePath)
           
           // Compress the audio chunk
           const compressedSubChunkFileName = `chunk-${chunkIndex}-sub-${i}-compressed-${Date.now()}.mp3`
@@ -207,7 +254,7 @@ export async function POST(request: NextRequest) {
           await fs.unlink(rawSubChunkFilePath)
           subChunkFiles.push(compressedSubChunkFilePath)
           
-          console.log(`✅ [Sub-chunk ${i + 1}] Audio compressed and saved: ${compressedSubChunkFilePath}`)
+          console.log(`✅ [Sub-chunk ${i + 1}] Audio generated and compressed: ${compressedSubChunkFilePath}`)
           
         } catch (error) {
           console.error(`❌ Sub-chunk ${i + 1} failed after all retry attempts:`, error)
@@ -329,4 +376,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}
