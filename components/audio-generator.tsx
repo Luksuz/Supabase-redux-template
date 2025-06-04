@@ -35,6 +35,22 @@ const wellSaidVoices = [
   { id: 15, name: "Paige L.", accent: "United States", style: "Narration" },
   { id: 16, name: "Tobin A.", accent: "United States", style: "Narration" },
   { id: 18, name: "Tristan F.", accent: "United States", style: "Narration" },
+  { id: 19, name: "Patrick K.", accent: "United States", style: "Narration" },
+  { id: 20, name: "Sofia H.", accent: "United States", style: "Promo" },
+  { id: 21, name: "Damian P.", accent: "Canada", style: "Promo" },
+  { id: 22, name: "Jodi P.", accent: "United States", style: "Promo" },
+  { id: 23, name: "Lee M.", accent: "United States", style: "Promo" },
+  { id: 24, name: "Selene R.", accent: "United States", style: "Promo" },
+  { id: 26, name: "Wade C.", accent: "United States", style: "Promo" },
+  { id: 27, name: "Joe F.", accent: "United States", style: "Narration" },
+  { id: 28, name: "Joe F.", accent: "United States", style: "Promo" },
+  { id: 29, name: "Garry J.", accent: "Canada", style: "Character" },
+  { id: 30, name: "Wade C.", accent: "nan", style: "Narration" },
+  { id: 31, name: "Ava M.", accent: "nan", style: "Narration" },
+  { id: 32, name: "Kai M.", accent: "nan", style: "Narration" },
+  { id: 33, name: "Jude D.", accent: "South Africa", style: "Narration" },
+  { id: 34, name: "Eric S.", accent: "Ireland", style: "Promo" },
+  { id: 35, name: "Chase J.", accent: "United States", style: "Narration" },
 ]
 
 const wellSaidModels = [
