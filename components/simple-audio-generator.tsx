@@ -7,7 +7,8 @@ import { Label } from './ui/label'
 import { Textarea } from './ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Volume2, Play, Pause, Loader2, AlertCircle, CheckCircle, FileText } from 'lucide-react'
+import { Volume2, Play, Pause, Loader2, AlertCircle, CheckCircle, FileText, Clock } from 'lucide-react'
+import { Progress } from './ui/progress'
 import {
   setSelectedProvider,
   setMinimaxVoice,
@@ -95,6 +96,18 @@ const elevenLabsLanguages = [
   { value: 'ru', label: 'Russian' }
 ]
 
+// Character limits based on provider
+const getCharacterLimits = (provider: AudioProvider) => {
+  switch (provider) {
+    case 'elevenlabs':
+      return { maxChars: 1000, batchSize: 5, batchDelay: 60 }
+    case 'minimax':
+      return { maxChars: 2800, batchSize: 5, batchDelay: 60 }
+    default:
+      return { maxChars: 1000, batchSize: 5, batchDelay: 60 }
+  }
+}
+
 export function SimpleAudioGenerator() {
   const dispatch = useAppDispatch()
   const {
@@ -114,6 +127,8 @@ export function SimpleAudioGenerator() {
   const { sectionedWorkflow } = useAppSelector(state => state.scripts)
   
   const [isPlaying, setIsPlaying] = useState(false)
+  const [processingStatus, setProcessingStatus] = useState('')
+  const [estimatedTime, setEstimatedTime] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Auto-populate with full script if available
@@ -122,6 +137,20 @@ export function SimpleAudioGenerator() {
       dispatch(setTextToConvert(sectionedWorkflow.fullScript))
     }
   }, [sectionedWorkflow.fullScript, textToConvert, dispatch])
+
+  // Calculate processing estimates
+  const getProcessingEstimate = () => {
+    if (!textToConvert) return { chunks: 0, batches: 0, estimatedMinutes: 0 }
+    
+    const limits = getCharacterLimits(selectedProvider)
+    const chunks = Math.ceil(textToConvert.length / limits.maxChars)
+    const batches = Math.ceil(chunks / limits.batchSize)
+    const estimatedMinutes = Math.max(1, batches * (limits.batchDelay / 60))
+    
+    return { chunks, batches, estimatedMinutes }
+  }
+
+  const processingEstimate = getProcessingEstimate()
 
   // Get script info for display
   const getScriptInfo = () => {
@@ -175,6 +204,7 @@ export function SimpleAudioGenerator() {
     }
 
     dispatch(startGeneration())
+    setProcessingStatus('Initializing batch processing...')
 
     try {
       const requestBody = {
@@ -183,6 +213,14 @@ export function SimpleAudioGenerator() {
         voice: selectedProvider === 'minimax' ? minimaxVoice : elevenLabsVoice,
         model: selectedProvider === 'minimax' ? minimaxModel : elevenLabsModel,
         language: selectedProvider === 'elevenlabs' ? elevenLabsLanguage : undefined
+      }
+
+      // Update status for batch processing
+      if (processingEstimate.chunks > 1) {
+        setProcessingStatus(`Processing ${processingEstimate.chunks} chunks in ${processingEstimate.batches} batches...`)
+        setEstimatedTime(processingEstimate.estimatedMinutes)
+      } else {
+        setProcessingStatus('Generating audio...')
       }
 
       const response = await fetch('/api/generate-simple-audio', {
@@ -199,10 +237,18 @@ export function SimpleAudioGenerator() {
       }
 
       const data = await response.json()
+      
+      setProcessingStatus('')
       dispatch(completeGeneration(data.audioUrl))
+      
+      // Show success message with processing info
+      if (data.chunksGenerated && data.totalChunks) {
+        console.log(`✅ Successfully generated ${data.chunksGenerated}/${data.totalChunks} chunks`)
+      }
       
     } catch (error) {
       console.error('Error generating audio:', error)
+      setProcessingStatus('')
       dispatch(failGeneration(
         error instanceof Error ? error.message : 'Failed to generate audio'
       ))
@@ -227,6 +273,7 @@ export function SimpleAudioGenerator() {
   const handleClearAudio = () => {
     dispatch(clearAudio())
     setIsPlaying(false)
+    setProcessingStatus('')
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.currentTime = 0
@@ -234,9 +281,10 @@ export function SimpleAudioGenerator() {
   }
 
   const getProviderInfo = () => {
+    const limits = getCharacterLimits(selectedProvider)
     return selectedProvider === 'minimax' 
-      ? { name: 'MiniMax', desc: 'Fast, reliable Chinese AI audio generation' }
-      : { name: 'ElevenLabs', desc: 'High-quality multilingual AI voices' }
+      ? { name: 'MiniMax', desc: `Fast, reliable AI audio (${limits.maxChars} chars/chunk, ${limits.batchSize} requests/min)` }
+      : { name: 'ElevenLabs', desc: `High-quality AI voices (${limits.maxChars} chars/chunk, ${limits.batchSize} requests/min)` }
   }
 
   const providerInfo = getProviderInfo()
@@ -247,7 +295,7 @@ export function SimpleAudioGenerator() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
         <p className="text-gray-600">
-          Convert text to speech using MiniMax or ElevenLabs AI models
+          Convert text to speech using MiniMax or ElevenLabs AI models with automatic batching
         </p>
       </div>
 
@@ -280,6 +328,41 @@ export function SimpleAudioGenerator() {
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">{scriptInfo.source}</div>
                 <div className="text-sm text-orange-700">Source</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Processing Estimate */}
+      {textToConvert && processingEstimate.chunks > 1 && (
+        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-600" />
+              Batch Processing Estimate
+            </CardTitle>
+            <CardDescription>
+              Text will be processed in batches due to length
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{processingEstimate.chunks}</div>
+                <div className="text-sm text-blue-700">Chunks</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{processingEstimate.batches}</div>
+                <div className="text-sm text-purple-700">Batches</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">~{processingEstimate.estimatedMinutes}</div>
+                <div className="text-sm text-orange-700">Est. Minutes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{providerInfo.name}</div>
+                <div className="text-sm text-green-700">Provider</div>
               </div>
             </div>
           </CardContent>
@@ -346,8 +429,8 @@ export function SimpleAudioGenerator() {
                   </div>
                   <p className="text-sm text-gray-600">
                     {provider === 'minimax' 
-                      ? 'Fast, reliable Chinese AI audio generation'
-                      : 'High-quality multilingual AI voices'
+                      ? 'Fast, reliable AI audio (2800 chars/chunk)'
+                      : 'High-quality AI voices (1000 chars/chunk)'
                     }
                   </p>
                 </div>
@@ -507,6 +590,24 @@ export function SimpleAudioGenerator() {
             </div>
           </div>
 
+          {/* Processing Status */}
+          {isGenerating && processingStatus && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {processingStatus}
+                </span>
+                {estimatedTime > 0 && (
+                  <span className="text-muted-foreground">
+                    ~{estimatedTime} min
+                  </span>
+                )}
+              </div>
+              <Progress value={100} className="w-full animate-pulse" />
+            </div>
+          )}
+
           <Button 
             onClick={handleGenerateAudio}
             disabled={isGenerating || !textToConvert.trim()}
@@ -516,7 +617,7 @@ export function SimpleAudioGenerator() {
             {isGenerating ? (
               <>
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Generating Audio...
+                {processingStatus || 'Generating Audio...'}
               </>
             ) : (
               <>
@@ -557,7 +658,7 @@ export function SimpleAudioGenerator() {
               Audio Generated Successfully
             </CardTitle>
             <CardDescription>
-              Generated with {providerInfo.name}
+              Generated with {providerInfo.name} using batch processing
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -618,7 +719,7 @@ export function SimpleAudioGenerator() {
               <div className="space-y-2">
                 <h3 className="text-lg font-medium text-gray-900">Ready to Generate Audio</h3>
                 <p className="text-gray-500">
-                  Choose your provider, configure settings, and enter text to generate speech
+                  Choose your provider, configure settings, and enter text to generate speech with automatic batch processing
                 </p>
               </div>
             </div>
