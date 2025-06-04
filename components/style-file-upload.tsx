@@ -206,14 +206,14 @@ export function StyleFileUpload() {
                   {isExpanded ? 'Collapse' : 'View Full Guide'}
                   {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </Button>
-                <Button
-                  onClick={handleClearStyle}
-                  size="sm"
-                  variant="outline"
-                >
-                  <X className="h-3 w-3 mr-1" />
-                  Clear
-                </Button>
+              <Button
+                onClick={handleClearStyle}
+                size="sm"
+                variant="outline"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
               </div>
             </div>
 

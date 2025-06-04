@@ -22,7 +22,8 @@ import {
   Sparkles,
   Clock,
   Cpu,
-  Info
+  Info,
+  Package
 } from 'lucide-react'
 import { 
   setSelectedModel,
@@ -109,6 +110,7 @@ export function AIImageGenerator() {
   const [selectedScenes, setSelectedScenes] = useState<number[]>([])
   const [scriptInput, setScriptInput] = useState('')
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+  const [downloadingZip, setDownloadingZip] = useState<string | null>(null)
 
   // Get available script sources (prioritized)
   const fullScript = sectionedWorkflow.fullScript || ''
@@ -173,46 +175,46 @@ export function AIImageGenerator() {
     ))
 
     if (selectedModel === 'minimax') {
-      // For MiniMax: send requests sequentially with small delays
-      const imageUrls: string[] = []
-      
-      for (let i = 0; i < batchPrompts.length; i++) {
-        const response = await fetch('/api/generate-images', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            provider: selectedModel,
-            prompt: batchPrompts[i],
-            numberOfImages: 1,
-            minimaxAspectRatio: aspectRatio,
-            userId: 'user-123'
-          }),
-        })
+      // For MiniMax: send requests in parallel (batch size 5)
+      const requestPromises = batchPrompts.map(async (prompt, index) => {
+        try {
+          const response = await fetch('/api/generate-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: selectedModel,
+              prompt: prompt,
+              numberOfImages: 1,
+              minimaxAspectRatio: aspectRatio,
+              userId: 'user-123'
+            }),
+          })
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error(`Failed to generate image ${i + 1} in batch ${batchIndex + 1}:`, errorData.error)
-          continue
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error(`Failed to generate MiniMax image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+            return []
+          }
+
+          const data = await response.json()
+          return data.imageUrls ? data.imageUrls : []
+        } catch (error) {
+          console.error(`Error generating MiniMax image ${index + 1} in batch ${batchIndex + 1}:`, error)
+          return []
         }
+      })
 
-        const data = await response.json()
-        if (data.imageUrls && data.imageUrls.length > 0) {
-          imageUrls.push(...data.imageUrls)
-        }
+      // Wait for all MiniMax requests in the batch to complete
+      const results = await Promise.all(requestPromises)
+      const imageUrls = results.flat()
 
-        // Update progress for each image
-        setBatchProgress(prev => ({ 
-          ...prev, 
-          current: prev.current + 1 
-        }))
-
-        // Small delay between MiniMax requests
-        if (i < batchPrompts.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        }
-      }
+      // Update progress for the entire batch
+      setBatchProgress(prev => ({ 
+        ...prev, 
+        current: prev.current + batchPrompts.length 
+      }))
 
       return imageUrls
     } else if (selectedModel === 'dalle-3') {
@@ -381,7 +383,7 @@ export function AIImageGenerator() {
           if (selectedModel === 'minimax' || selectedModel === 'dalle-3') {
             // MiniMax and DALL-E 3 have different rate limits, shorter wait
             if (batchIndex < totalBatches - 1) {
-              const waitTime = selectedModel === 'dalle-3' ? 10 : 5; // DALL-E 3: 10s, MiniMax: 5s
+              const waitTime = selectedModel === 'dalle-3' ? 10 : 8; // DALL-E 3: 10s, MiniMax: 8s (now parallel)
               dispatch(updateGenerationInfo(
                 `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting ${waitTime} seconds before next batch...`
               ))
@@ -441,6 +443,107 @@ export function AIImageGenerator() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  const downloadAsZip = async (imageSet: GeneratedImageSet) => {
+    try {
+      setDownloadingZip(imageSet.id)
+      
+      // Create a descriptive name for the ZIP file
+      const timestamp = new Date(imageSet.generatedAt).toISOString().slice(0, 16).replace(/:/g, '-')
+      const provider = MODEL_INFO[imageSet.provider as keyof typeof MODEL_INFO]?.name || imageSet.provider
+      const setName = `${provider}_${imageSet.aspectRatio}_${timestamp}_${imageSet.imageUrls.length}images`
+      
+      console.log(`📦 Starting ZIP download for ${imageSet.imageUrls.length} images`)
+      
+      const response = await fetch('/api/download-images-zip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrls: imageSet.imageUrls,
+          setName,
+          provider: imageSet.provider,
+          aspectRatio: imageSet.aspectRatio
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create ZIP file')
+      }
+
+      // Convert response to blob and download
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${setName}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      console.log(`✅ ZIP download completed: ${setName}.zip`)
+    } catch (error) {
+      console.error('Error downloading ZIP:', error)
+      // You could add a toast notification here
+    } finally {
+      setDownloadingZip(null)
+    }
+  }
+
+  const downloadAllAsZip = async () => {
+    try {
+      setDownloadingZip('all')
+      
+      // Combine all image URLs from all sets
+      const allImageUrls = imageSets.flatMap(set => set.imageUrls)
+      
+      // Create a descriptive name for the combined ZIP file
+      const timestamp = new Date().toISOString().slice(0, 16).replace(/:/g, '-')
+      const totalImages = allImageUrls.length
+      const setName = `AllSets_${timestamp}_${totalImages}images`
+      
+      console.log(`📦 Starting combined ZIP download for ${totalImages} images from ${imageSets.length} sets`)
+      
+      const response = await fetch('/api/download-images-zip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrls: allImageUrls,
+          setName,
+          provider: 'multiple',
+          aspectRatio: 'mixed'
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create combined ZIP file')
+      }
+
+      // Convert response to blob and download
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${setName}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      console.log(`✅ Combined ZIP download completed: ${setName}.zip`)
+    } catch (error) {
+      console.error('Error downloading combined ZIP:', error)
+      // You could add a toast notification here
+    } finally {
+      setDownloadingZip(null)
+    }
   }
 
   const handleClearError = () => {
@@ -818,10 +921,32 @@ export function AIImageGenerator() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Generated Images ({imageSets.length} sets)</h2>
-            <Button variant="outline" size="sm" onClick={handleClearAll}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear All
-            </Button>
+            <div className="flex items-center gap-2">
+              {imageSets.length > 1 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={downloadAllAsZip}
+                  disabled={downloadingZip === 'all'}
+                >
+                  {downloadingZip === 'all' ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Creating ZIP...
+                    </>
+                  ) : (
+                    <>
+                      <Package className="h-4 w-4 mr-2" />
+                      Download All ({imageSets.reduce((total, set) => total + set.imageUrls.length, 0)})
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleClearAll}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear All
+              </Button>
+            </div>
           </div>
 
           {imageSets.map((imageSet: GeneratedImageSet, setIndex: number) => (
@@ -837,41 +962,83 @@ export function AIImageGenerator() {
                       {imageSet.aspectRatio}
                     </CardDescription>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => handleRemoveSet(imageSet.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => downloadAsZip(imageSet)}
+                      disabled={downloadingZip === imageSet.id}
+                    >
+                      {downloadingZip === imageSet.id ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Creating ZIP...
+                        </>
+                      ) : (
+                        <>
+                          <Package className="h-4 w-4 mr-2" />
+                          Download ZIP ({imageSet.imageUrls.length})
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleRemoveSet(imageSet.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {imageSet.imageUrls.map((url: string, imageIndex: number) => (
                     <div key={imageIndex} className="relative group">
-                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-300 transition-colors">
                         <img 
                           src={url} 
-                          alt={`Generated image ${imageIndex + 1} for: ${imageSet.originalPrompt}`}
+                          alt={`Image ${imageIndex + 1} of ${imageSet.imageUrls.length}: ${imageSet.originalPrompt}`}
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
                           <Button 
                             size="sm" 
                             variant="secondary"
-                            onClick={() => downloadImage(url, `${imageSet.provider}_image_${setIndex + 1}_${imageIndex + 1}.png`)}
+                            onClick={() => downloadImage(url, `${setIndex + 1}_${imageIndex + 1}_${imageSet.provider}_${imageSet.aspectRatio}.png`)}
                           >
                             <Download className="h-4 w-4 mr-2" />
                             Download
                           </Button>
                         </div>
                       </div>
-                      <Badge className="absolute top-2 left-2 bg-black/70 text-white">
-                        {imageIndex + 1}
-                      </Badge>
+                      {/* Image number badge */}
+                      <div className="absolute top-2 left-2 bg-black/80 text-white text-sm font-bold px-2 py-1 rounded-md">
+                        #{(imageIndex + 1).toString().padStart(2, '0')}
+                      </div>
+                      {/* Image info badge */}
+                      <div className="absolute top-2 right-2 bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-md">
+                        {imageIndex + 1}/{imageSet.imageUrls.length}
+                      </div>
                     </div>
                   ))}
+                </div>
+                
+                {/* Image Set Summary */}
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-4">
+                      <span className="font-medium">Set #{setIndex + 1}</span>
+                      <span className="text-muted-foreground">{imageSet.imageUrls.length} images</span>
+                      <span className="text-muted-foreground">{imageSet.aspectRatio} aspect ratio</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{MODEL_INFO[imageSet.provider as keyof typeof MODEL_INFO]?.name || imageSet.provider}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(imageSet.generatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -911,9 +1078,9 @@ export function AIImageGenerator() {
                 </h3>
                 <p className="text-gray-500">
                   {selectedModel === 'minimax' 
-                    ? 'MiniMax processes images in batches of 5. Please wait while all batches complete.'
+                    ? 'MiniMax processes images in batches of 5 with parallel execution. Please wait while all batches complete.'
                     : selectedModel === 'dalle-3'
-                    ? 'DALL-E 3 processes images in batches of 20 with parallel execution. Please wait while all batches complete.'
+                    ? 'DALL-E 3 processes images in batches of 10 with parallel execution. Please wait while all batches complete.'
                     : `${currentModel.name} processes images in batches of 10. Please wait while all batches complete.`
                   }
                 </p>

@@ -124,24 +124,24 @@ export function AudioGenerator() {
 
       // Generate audio using simple audio generation
       const response = await fetch('/api/generate-simple-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
           text: combinedText,
           provider: 'elevenlabs', // Default to ElevenLabs
           voice: 'Rachel', // Default voice
           model: 'eleven_multilingual_v2',
           language: 'en'
-        })
-      })
+                })
+              })
 
-      if (!response.ok) {
-        const errorData = await response.json()
+              if (!response.ok) {
+                const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to generate audio')
-      }
+              }
 
-      const data = await response.json()
-      
+              const data = await response.json()
+              
       // Calculate approximate duration (rough estimate: 150 words per minute)
       const wordCount = combinedText.split(/\s+/).length
       const estimatedDuration = (wordCount / 150) * 60 // Convert to seconds
@@ -154,9 +154,9 @@ export function AudioGenerator() {
           generatedScripts.slice(0, index).reduce((sum, s) => sum + (s.script.split(/\s+/).length / 150) * 60, 0) : 0
         
         return {
-          scriptId: script.imageId,
-          imageId: script.imageId,
-          imageName: script.imageName,
+                scriptId: script.imageId,
+                imageId: script.imageId,
+                imageName: script.imageName,
           duration: scriptDuration,
           startTime: startTime
         }

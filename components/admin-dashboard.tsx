@@ -205,14 +205,14 @@ export function AdminDashboard() {
                         
                         <div className="flex items-center gap-2">
                           {userProfile.id !== user.id && (
-                            <Button
-                              onClick={() => toggleUserAdminStatus(userProfile.id, userProfile.is_admin)}
-                              size="sm"
-                              variant={userProfile.is_admin ? "destructive" : "default"}
-                            >
+                          <Button
+                            onClick={() => toggleUserAdminStatus(userProfile.id, userProfile.is_admin)}
+                            size="sm"
+                            variant={userProfile.is_admin ? "destructive" : "default"}
+                          >
                               <Shield className="h-3 w-3 mr-1" />
-                              {userProfile.is_admin ? 'Remove Admin' : 'Make Admin'}
-                            </Button>
+                            {userProfile.is_admin ? 'Remove Admin' : 'Make Admin'}
+                          </Button>
                           )}
                         </div>
                       </div>
