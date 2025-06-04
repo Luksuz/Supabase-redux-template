@@ -128,11 +128,11 @@ async function generateSubChunkAudio(
       
       console.error(`WellSaid Labs API error: ${wellSaidResponse.status} ${errorMessage}`)
       
-      // If API key is invalid, mark it as invalid and throw error to trigger retry with new key
-      if (wellSaidResponse.status === 401 || wellSaidResponse.status === 403) {
-        console.log(`🚫 Marking API key as invalid due to ${wellSaidResponse.status} error`)
+      // If API key is invalid, rate limited, or forbidden, mark it as invalid and throw error to trigger retry with new key
+      if (wellSaidResponse.status === 401 || wellSaidResponse.status === 403 || wellSaidResponse.status === 429) {
+        console.log(`🚫 Marking API key as invalid due to ${wellSaidResponse.status} error (${wellSaidResponse.status === 429 ? 'rate limited' : 'unauthorized/forbidden'})`)
         await markApiKeyAsInvalid(apiKey)
-        throw new Error(`API key invalid (${wellSaidResponse.status}): ${errorMessage}`)
+        throw new Error(`API key ${wellSaidResponse.status === 429 ? 'rate limited' : 'invalid'} (${wellSaidResponse.status}): ${errorMessage}`)
       }
       
       // For other errors, throw with status for potential retry
