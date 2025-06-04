@@ -77,6 +77,13 @@ const MODEL_INFO: Record<ImageProvider, {
     batchSize: 10,
     rateLimit: '10/min per batch',
     features: ['Typography', 'Complex prompts', 'Resource efficient']
+  },
+  'dalle-3': {
+    name: 'DALL-E 3',
+    description: 'OpenAI\'s most advanced image generation model',
+    batchSize: 20,
+    rateLimit: '20/min per batch',
+    features: ['High quality', 'Text understanding', 'Creative interpretation', 'Base64 output']
   }
 }
 
@@ -208,6 +215,49 @@ export function AIImageGenerator() {
       }
 
       return imageUrls
+    } else if (selectedModel === 'dalle-3') {
+      // For DALL-E 3: efficient parallel batch processing (batch size 20)
+      const requestPromises = batchPrompts.map(async (prompt, index) => {
+        try {
+          const response = await fetch('/api/generate-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: selectedModel,
+              prompt: prompt,
+              numberOfImages: 1,
+              minimaxAspectRatio: aspectRatio,
+              userId: 'user-123'
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error(`Failed to generate DALL-E 3 image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+            return []
+          }
+
+          const data = await response.json()
+          return data.imageUrls || []
+        } catch (error) {
+          console.error(`Error generating DALL-E 3 image ${index + 1} in batch ${batchIndex + 1}:`, error)
+          return []
+        }
+      })
+
+      // Wait for all DALL-E 3 requests in the batch to complete
+      const results = await Promise.all(requestPromises)
+      const imageUrls = results.flat()
+
+      // Update progress for the entire batch
+      setBatchProgress(prev => ({ 
+        ...prev, 
+        current: prev.current + batchPrompts.length 
+      }))
+
+      return imageUrls
     } else {
       // For Flux models: send all requests in parallel
       const requestPromises = batchPrompts.map(async (prompt, index) => {
@@ -327,8 +377,25 @@ export function AIImageGenerator() {
             `Completed batch ${batchIndex + 1}/${totalBatches}. Generated ${allImageUrls.length}/${selectedPrompts.length} images.`
           ))
 
-          // Wait 60 seconds between flux batches (except for the last batch)
-          if (selectedModel !== 'minimax' && batchIndex < totalBatches - 1) {
+          // Different wait times based on model capabilities
+          if (selectedModel === 'minimax' || selectedModel === 'dalle-3') {
+            // MiniMax and DALL-E 3 have different rate limits, shorter wait
+            if (batchIndex < totalBatches - 1) {
+              const waitTime = selectedModel === 'dalle-3' ? 10 : 5; // DALL-E 3: 10s, MiniMax: 5s
+              dispatch(updateGenerationInfo(
+                `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting ${waitTime} seconds before next batch...`
+              ))
+              
+              // Show countdown for the wait time
+              for (let countdown = waitTime; countdown > 0; countdown--) {
+                dispatch(updateGenerationInfo(
+                  `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
+                ))
+                await new Promise(resolve => setTimeout(resolve, 1000))
+              }
+            }
+          } else if (batchIndex < totalBatches - 1) {
+            // Flux models need longer wait (60 seconds)
             dispatch(updateGenerationInfo(
               `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting 60 seconds before next batch...`
             ))
@@ -845,6 +912,8 @@ export function AIImageGenerator() {
                 <p className="text-gray-500">
                   {selectedModel === 'minimax' 
                     ? 'MiniMax processes images in batches of 5. Please wait while all batches complete.'
+                    : selectedModel === 'dalle-3'
+                    ? 'DALL-E 3 processes images in batches of 20 with parallel execution. Please wait while all batches complete.'
                     : `${currentModel.name} processes images in batches of 10. Please wait while all batches complete.`
                   }
                 </p>

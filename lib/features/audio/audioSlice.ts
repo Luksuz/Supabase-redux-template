@@ -6,7 +6,7 @@ export interface AudioGeneration {
   subtitlesUrl: string | null
   duration: number | null
   generatedAt: string
-  voice: number
+  voice: string
   model: string
   generateSubtitles: boolean
   status: 'idle' | 'generating' | 'completed' | 'error'
@@ -30,7 +30,7 @@ interface AudioState {
     completed: number
     phase: 'chunks' | 'concatenating' | 'subtitles' | 'completed'
   }
-  selectedVoice: number
+  selectedVoice: string
   selectedModel: string
   generateSubtitles: boolean
 }
@@ -45,8 +45,8 @@ const initialState: AudioState = {
     completed: 0,
     phase: 'chunks'
   },
-  selectedVoice: 3,
-  selectedModel: 'caruso',
+  selectedVoice: 'Rachel',
+  selectedModel: 'eleven_multilingual_v2',
   generateSubtitles: false
 }
 
@@ -54,7 +54,7 @@ export const audioSlice = createSlice({
   name: 'audio',
   initialState,
   reducers: {
-    setSelectedVoice: (state, action: PayloadAction<number>) => {
+    setSelectedVoice: (state, action: PayloadAction<string>) => {
       state.selectedVoice = action.payload
     },
     
@@ -78,7 +78,7 @@ export const audioSlice = createSlice({
       state.audioProgress = { ...state.audioProgress, ...action.payload }
     },
     
-    startAudioGeneration: (state, action: PayloadAction<{ id: string; voice: number; model: string; generateSubtitles: boolean }>) => {
+    startAudioGeneration: (state, action: PayloadAction<{ id: string; voice: string; model: string; generateSubtitles: boolean }>) => {
       const { id, voice, model, generateSubtitles } = action.payload
       state.currentGeneration = {
         id,

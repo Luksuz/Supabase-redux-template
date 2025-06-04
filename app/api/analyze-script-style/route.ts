@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type
+    // Validate file type and size
     const fileName = file.name.toLowerCase();
     const isValidType = fileName.endsWith('.txt') || fileName.endsWith('.docx');
     
@@ -26,30 +26,111 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`📄 Analyzing script style from: ${file.name}`);
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "File size too large. Maximum size is 10MB." },
+        { status: 400 }
+      );
+    }
+
+    console.log(`📄 Analyzing script style from: ${file.name} (${file.size} bytes)`);
 
     // Extract text content based on file type
     let textContent: string;
     
     if (fileName.endsWith('.txt')) {
-      // Handle TXT files
-      textContent = await file.text();
+      try {
+        // Handle TXT files
+        textContent = await file.text();
+      } catch (error) {
+        console.error('Error reading TXT file:', error);
+        return NextResponse.json(
+          { error: "Failed to read TXT file. Please ensure the file is not corrupted and uses UTF-8 encoding." },
+          { status: 400 }
+        );
+      }
     } else if (fileName.endsWith('.docx')) {
-      // Handle DOCX files
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const result = await mammoth.extractRawText({ buffer });
-      textContent = result.value;
+      try {
+        console.log('📄 Analyzing DOCX file:', file.name);
+        // Handle DOCX files with better error handling
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Basic validation for DOCX file structure
+        if (arrayBuffer.byteLength < 100) {
+          return NextResponse.json(
+            { error: "DOCX file appears to be too small or corrupted. Please upload a valid DOCX file." },
+            { status: 400 }
+          );
+        }
+        
+        const buffer = Buffer.from(arrayBuffer);
+        
+        // Check if it's a valid ZIP file (DOCX files are ZIP archives)
+        const zipSignature = buffer.subarray(0, 4);
+        const isValidZip = zipSignature[0] === 0x50 && zipSignature[1] === 0x4B && 
+                          (zipSignature[2] === 0x03 || zipSignature[2] === 0x05 || zipSignature[2] === 0x07);
+        console.log('📄 isValidZip:', isValidZip);
+        if (!isValidZip) {
+          return NextResponse.json(
+            { error: "Invalid DOCX file format. The file does not appear to be a valid Microsoft Word document." },
+            { status: 400 }
+          );
+        }
+        
+        const result = await mammoth.extractRawText({ buffer });
+        textContent = result.value;
+        
+        // Check if mammoth found any issues
+        if (result.messages && result.messages.length > 0) {
+          console.warn('Mammoth parsing warnings:', result.messages);
+        }
+        
+      } catch (error: any) {
+        console.error('Error reading DOCX file:', error);
+        
+        // Provide specific error messages based on the error type
+        if (error.message.includes('end of central directory')) {
+          return NextResponse.json(
+            { error: "DOCX file is corrupted or not a valid Microsoft Word document. Please save the file again and try uploading." },
+            { status: 400 }
+          );
+        } else if (error.message.includes('zip')) {
+          return NextResponse.json(
+            { error: "DOCX file format is not supported or corrupted. Please ensure you're uploading a valid .docx file created by Microsoft Word." },
+            { status: 400 }
+          );
+        } else {
+          return NextResponse.json(
+            { error: "Failed to process DOCX file. Please try converting it to TXT format or re-saving as a new DOCX file." },
+            { status: 400 }
+          );
+        }
+      }
     } else {
       throw new Error('Unsupported file type');
     }
 
     // Validate extracted content
-    if (!textContent || textContent.trim().length < 100) {
+    if (!textContent || textContent.trim().length === 0) {
       return NextResponse.json(
-        { error: "File content is too short or empty. Please upload a script with at least 100 characters." },
+        { error: "No text content found in the file. Please ensure the file contains readable text." },
         { status: 400 }
       );
+    }
+
+    if (textContent.trim().length < 100) {
+      return NextResponse.json(
+        { error: "File content is too short. Please upload a script with at least 100 characters for meaningful analysis." },
+        { status: 400 }
+      );
+    }
+
+    // Check for extremely long content that might cause issues
+    if (textContent.length > 50000) {
+      console.warn(`Large file detected: ${textContent.length} characters`);
+      // Truncate if too long, but warn the user
+      textContent = textContent.substring(0, 50000) + '\n\n[Content truncated due to length limits]';
     }
 
     console.log(`📝 Extracted ${textContent.length} characters from ${file.name}`);
@@ -87,7 +168,9 @@ Format your response as a style guide that could be used to train someone to wri
       analyzedStyle,
       meta: {
         analyzedAt: new Date().toISOString(),
-        modelUsed: selectedModel || 'gpt-4o-mini'
+        modelUsed: selectedModel || 'gpt-4o-mini',
+        fileSize: file.size,
+        fileType: fileName.endsWith('.txt') ? 'text/plain' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       }
     });
 
@@ -98,8 +181,10 @@ Format your response as a style guide that could be used to train someone to wri
     if (error instanceof Error) {
       if (error.message.includes('OPENAI_API_KEY') || error.message.includes('ANTHROPIC_API_KEY')) {
         errorMessage = 'AI model API key not configured. Please contact administrator.';
-      } else if (error.message.includes('mammoth')) {
-        errorMessage = 'Failed to parse DOCX file. Please ensure the file is not corrupted.';
+      } else if (error.message.includes('mammoth') || error.message.includes('zip') || error.message.includes('central directory')) {
+        errorMessage = 'Failed to parse DOCX file. The file may be corrupted or not a valid Microsoft Word document. Please try saving it as a TXT file instead.';
+      } else if (error.message.includes('File size') || error.message.includes('too large')) {
+        errorMessage = 'File is too large to process. Please upload a smaller file.';
       } else {
         errorMessage = `Analysis failed: ${error.message}`;
       }

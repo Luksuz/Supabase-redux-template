@@ -1,4 +1,4 @@
-export type ImageProvider = 'minimax' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large'
+export type ImageProvider = 'minimax' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'dalle-3'
 
 export interface GenerateImageRequestBody {
   provider: ImageProvider

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadFileToSupabase } from '@/lib/wellsaid-utils'
+import { uploadFileToSupabase } from '@/lib/supabase-utils'
 import fs from 'fs/promises'
 import path from 'path'
 import { exec } from 'child_process'

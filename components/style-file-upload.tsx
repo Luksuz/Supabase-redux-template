@@ -11,7 +11,7 @@ import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Label } from './ui/label'
 import { Badge } from './ui/badge'
-import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'
 
 export function StyleFileUpload() {
   const dispatch = useAppDispatch()
@@ -19,6 +19,7 @@ export function StyleFileUpload() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [localMessage, setLocalMessage] = useState("")
   const [localMessageType, setLocalMessageType] = useState<'success' | 'error' | 'info'>('info')
+  const [isExpanded, setIsExpanded] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -108,10 +109,15 @@ export function StyleFileUpload() {
 
   const handleClearStyle = () => {
     dispatch(clearUploadedStyle())
+    setIsExpanded(false)
     showMessage('Uploaded style cleared', 'info')
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  const toggleExpanded = () => {
+    setIsExpanded(!isExpanded)
   }
 
   return (
@@ -189,48 +195,83 @@ export function StyleFileUpload() {
                 <CheckCircle className="h-5 w-5 text-green-600" />
                 <span className="font-medium text-green-800">Style Extracted</span>
               </div>
-              <Button
-                onClick={handleClearStyle}
-                size="sm"
-                variant="outline"
-              >
-                <X className="h-3 w-3 mr-1" />
-                Clear
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={toggleExpanded}
+                  size="sm"
+                  variant="outline"
+                  className="flex items-center gap-1"
+                >
+                  <Eye className="h-3 w-3" />
+                  {isExpanded ? 'Collapse' : 'View Full Guide'}
+                  {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </Button>
+                <Button
+                  onClick={handleClearStyle}
+                  size="sm"
+                  variant="outline"
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Clear
+                </Button>
+              </div>
             </div>
 
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <FileText className="h-4 w-4 text-green-600" />
                 <span className="font-medium text-green-800">{sectionedWorkflow.uploadedStyleFileName}</span>
                 <Badge variant="outline" className="text-xs">
                   Style Guide Active
                 </Badge>
+                <Badge variant="outline" className="text-xs text-blue-600">
+                  {sectionedWorkflow.uploadedStyle.length.toLocaleString()} characters
+                </Badge>
               </div>
-              <div className="max-h-40 overflow-y-auto">
-                <p className="text-sm text-green-700 whitespace-pre-wrap">
-                  {sectionedWorkflow.uploadedStyle.substring(0, 300)}
-                  {sectionedWorkflow.uploadedStyle.length > 300 && '...'}
-                </p>
+              
+              <div className={`transition-all duration-200 ${
+                isExpanded ? 'max-h-[600px]' : 'max-h-32'
+              } overflow-y-auto border rounded p-3 bg-white`}>
+                <pre className="text-sm text-green-700 whitespace-pre-wrap font-mono leading-relaxed">
+                  {isExpanded 
+                    ? sectionedWorkflow.uploadedStyle 
+                    : `${sectionedWorkflow.uploadedStyle.substring(0, 300)}${sectionedWorkflow.uploadedStyle.length > 300 ? '...' : ''}`
+                  }
+                </pre>
               </div>
-              <div className="mt-2 text-xs text-green-600">
-                This style guide will be used instead of the default feeder script style for generating sections and scripts.
+
+              {!isExpanded && sectionedWorkflow.uploadedStyle.length > 300 && (
+                <div className="mt-2 text-center">
+                  <Button
+                    onClick={toggleExpanded}
+                    size="sm"
+                    variant="ghost"
+                    className="text-green-600 hover:text-green-700"
+                  >
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    Show {(sectionedWorkflow.uploadedStyle.length - 300).toLocaleString()} more characters
+                  </Button>
+                </div>
+              )}
+
+              <div className="mt-3 text-xs text-green-600 bg-green-100 p-2 rounded">
+                💡 This style guide will be used instead of the default feeder script style for generating sections and scripts.
               </div>
             </div>
           </div>
         )}
 
-        {/* Local Message */}
+        {/* Local Message Display */}
         {localMessage && (
           <div className={`p-3 rounded-lg border ${
-            localMessageType === 'success' ? 'border-green-200 bg-green-50' :
-            localMessageType === 'error' ? 'border-red-200 bg-red-50' :
-            'border-blue-200 bg-blue-50'
+            localMessageType === 'success' ? 'bg-green-50 border-green-200' :
+            localMessageType === 'error' ? 'bg-red-50 border-red-200' :
+            'bg-blue-50 border-blue-200'
           }`}>
             <div className="flex items-center gap-2">
               {localMessageType === 'success' && <CheckCircle className="h-4 w-4 text-green-600" />}
               {localMessageType === 'error' && <AlertCircle className="h-4 w-4 text-red-600" />}
-              {localMessageType === 'info' && <Upload className="h-4 w-4 text-blue-600" />}
+              {localMessageType === 'info' && <Loader2 className="h-4 w-4 text-blue-600" />}
               <span className={`text-sm ${
                 localMessageType === 'success' ? 'text-green-800' :
                 localMessageType === 'error' ? 'text-red-800' :

@@ -7,6 +7,7 @@ import simpleAudioReducer from './features/audio/simpleAudioSlice'
 import videoReducer from './features/video/videoSlice'
 import progressReducer from './features/progress/progressSlice'
 import imageGenerationReducer from './features/imageGeneration/imageGenerationSlice'
+import thumbnailGenerationReducer from './features/thumbnailGeneration/thumbnailGenerationSlice'
 
 // This is our Redux store - the single source of truth for our app's state
 export const store = configureStore({
@@ -20,6 +21,7 @@ export const store = configureStore({
     video: videoReducer,
     progress: progressReducer,
     imageGeneration: imageGenerationReducer,
+    thumbnailGeneration: thumbnailGenerationReducer,
   },
   // Redux Toolkit includes good defaults for middleware
   // (like Redux DevTools and thunk for async actions)
@@ -37,5 +39,6 @@ export type AppDispatch = typeof store.dispatch
 //   audio: { currentGeneration: {...}, isGeneratingAudio: false, selectedVoice: 3, ... },
 //   video: { currentGeneration: {...}, isGeneratingVideo: false, settings: {...}, ... },
 //   progress: { ... },
-//   imageGeneration: { imageSets: [...], isGenerating: false, extractedScenes: [...], ... }
+//   imageGeneration: { imageSets: [...], isGenerating: false, extractedScenes: [...], ... },
+//   thumbnailGeneration: { thumbnails: [...], isGenerating: false, error: null, ... }
 // } 

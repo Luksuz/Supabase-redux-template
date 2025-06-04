@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createModelInstance } from "../../../lib/utils/model-factory";
 import { getModelById } from "../../../types/models";
+import { THEME_OPTIONS } from "../../../lib/features/scripts/scriptsSlice";
 import OpenAI from 'openai';
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -18,7 +19,9 @@ export async function POST(request: NextRequest) {
       targetAudience, 
       forbiddenWords,
       selectedModel,
-      uploadedStyle
+      uploadedStyle,
+      themeId,
+      cta
     } = await request.json();
     
     if (!sections || !Array.isArray(sections) || sections.length === 0) {
@@ -47,24 +50,36 @@ export async function POST(request: NextRequest) {
       console.log('📄 Using default feeder script style for detailed script generation');
     }
 
+    // Get theme instructions if theme is selected
+    const selectedTheme = themeId ? THEME_OPTIONS.find(t => t.id === themeId) : null;
+    const themeInstructions = selectedTheme ? `
+THEME INSTRUCTIONS - ${selectedTheme.name}:
+Hook Strategy: ${selectedTheme.instructions.hook}
+Tone Requirements: ${selectedTheme.instructions.tone}
+Clarity & Accessibility: ${selectedTheme.instructions.clarity}
+Narrative Flow: ${selectedTheme.instructions.narrativeFlow}
+Balancing Elements: ${selectedTheme.instructions.balance}
+Engagement Devices: ${selectedTheme.instructions.engagement}
+Format Requirements: ${selectedTheme.instructions.format}
+Overall Direction: ${selectedTheme.instructions.overall}
+` : '';
+
     const modelId = selectedModel || 'gpt-4o-mini';
     const modelConfig = getModelById(modelId);
     
-    console.log(`🚀 Generating detailed script for ${sections.length} sections: "${title}" using ${modelConfig?.name || modelId}`);
+    console.log(`🚀 Generating detailed script for ${sections.length} sections in parallel: "${title}" using ${modelConfig?.name || modelId}`);
     if (emotionalTone) console.log(`🎭 Emotional tone: ${emotionalTone}`);
     if (targetAudience) console.log(`👥 Target audience: ${targetAudience}`);
     if (forbiddenWords) console.log(`🚫 Forbidden words: ${forbiddenWords}`);
+    if (selectedTheme) console.log(`🎨 Theme: ${selectedTheme.name}`);
+    if (cta?.enabled) console.log(`📢 CTA enabled: ${cta.type} at ${cta.placement} words`);
 
-    // Generate detailed content for each section
-    const detailedSections = [];
-    
-    for (let i = 0; i < sections.length; i++) {
-      const section = sections[i];
-      
+    // Generate detailed content for all sections in parallel
+    const sectionPromises = sections.map(async (section: any, index: number) => {
       try {
-        console.log(`📝 Generating section ${i + 1}/${sections.length}: "${section.title}"`);
+        console.log(`📝 Starting generation for section ${index + 1}/${sections.length}: "${section.title}"`);
         
-        const prompt = `You are writing section ${i + 1} of ${sections.length} for a compelling video script titled "${title}".
+        const prompt = `You are writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}".
 
 SECTION TITLE: "${section.title}"
 WRITING INSTRUCTIONS: ${section.writingInstructions}
@@ -72,6 +87,7 @@ WRITING INSTRUCTIONS: ${section.writingInstructions}
 OVERALL STYLE TO MAINTAIN:
 ${styleContent}
 
+${themeInstructions}
 ${emotionalTone ? `EMOTIONAL TONE: Ensure the content matches this tone: ${emotionalTone}` : ''}
 ${targetAudience ? `TARGET AUDIENCE: Write specifically for: ${targetAudience}` : ''}
 ${forbiddenWords ? `FORBIDDEN WORDS: Avoid using any of these words: ${forbiddenWords}` : ''}
@@ -79,7 +95,7 @@ ${forbiddenWords ? `FORBIDDEN WORDS: Avoid using any of these words: ${forbidden
 Write this section following the provided writing instructions in greatest detail possible. The content should:
 - Follow the style guide provided above
 - Use "you" and "your" to address the viewer directly
-- Build on the previous sections (this is section ${i + 1} of ${sections.length})
+- Build on the previous sections (this is section ${index + 1} of ${sections.length})
 - Transition smoothly into the next section if not the last section
 - Use strong, declarative sentences and rhetorical questions
 - Include specific examples and analogies where appropriate
@@ -123,29 +139,30 @@ Write ONLY the script content for this section. Do not include stage directions,
           throw new Error(`No content generated for section: ${section.title}`);
         }
 
-        detailedSections.push({
+        const wordCount = detailedContent.split(/\s+/).filter(word => word.length > 0).length;
+        console.log(`✅ Completed section ${index + 1}/${sections.length}: "${section.title}" (${wordCount} words)`);
+
+        return {
           ...section,
           detailedContent,
-          wordCount: detailedContent.split(/\s+/).filter(word => word.length > 0).length
-        });
-
-        console.log(`✅ Generated section ${i + 1}/${sections.length}: ${detailedContent.split(/\s+/).length} words`);
+          wordCount,
+          error: false
+        };
 
       } catch (error) {
-        console.error(`❌ Error generating section ${i + 1}:`, error);
-        detailedSections.push({
+        console.error(`❌ Error generating section ${index + 1}:`, error);
+        return {
           ...section,
           detailedContent: `[Error generating content for this section: ${(error as Error).message}]`,
           wordCount: 0,
           error: true
-        });
+        };
       }
+    });
 
-      // Add a small delay between requests to avoid rate limiting
-      if (i < sections.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
+    // Wait for all sections to complete in parallel
+    console.log(`⏳ Processing ${sections.length} sections in parallel...`);
+    const detailedSections = await Promise.all(sectionPromises);
 
     // Concatenate all sections into a complete script
     const fullScript = detailedSections
@@ -154,8 +171,11 @@ Write ONLY the script content for this section. Do not include stage directions,
       .join('\n\n');
 
     const totalWords = detailedSections.reduce((sum, section) => sum + section.wordCount, 0);
+    const successfulSections = detailedSections.filter(s => !s.error).length;
+    const failedSections = detailedSections.filter(s => s.error).length;
 
-    console.log(`✅ Generated complete script: ${totalWords} words across ${detailedSections.length} sections`);
+    console.log(`✅ Generated complete script in parallel: ${totalWords} words across ${detailedSections.length} sections`);
+    console.log(`📊 Success: ${successfulSections}/${detailedSections.length} sections generated successfully`);
 
     return NextResponse.json({
       success: true,
@@ -165,8 +185,18 @@ Write ONLY the script content for this section. Do not include stage directions,
         title,
         totalSections: detailedSections.length,
         totalWords,
-        successfulSections: detailedSections.filter(s => !s.error).length,
-        failedSections: detailedSections.filter(s => s.error).length
+        successfulSections,
+        failedSections,
+        processingMode: 'parallel',
+        theme: selectedTheme ? {
+          id: selectedTheme.id,
+          name: selectedTheme.name
+        } : null,
+        cta: cta?.enabled ? {
+          enabled: true,
+          type: cta.type,
+          placement: cta.placement
+        } : { enabled: false }
       }
     });
 

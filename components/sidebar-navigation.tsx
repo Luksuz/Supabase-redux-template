@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, Palette, BarChart3, ChevronRight, Crown } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, Palette, BarChart3, ChevronRight, Crown, Camera } from 'lucide-react'
 
-type NavigationView = 'script-generator' | 'image-generation' | 'audio-generator' | 'admin-dashboard'
+type NavigationView = 'script-generator' | 'image-generation' | 'thumbnail-generator' | 'audio-generator' | 'admin-dashboard'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -16,6 +16,7 @@ interface SidebarNavigationProps {
 export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigationProps) {
   const { hasGeneratedScripts, scripts } = useAppSelector(state => state.scripts)
   const { generatedAudioUrl } = useAppSelector(state => state.simpleAudio)
+  const { thumbnails } = useAppSelector(state => state.thumbnailGeneration)
   const user = useAppSelector(state => state.user)
 
   const navigationItems = [
@@ -35,6 +36,15 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       description: 'Generate images with AI',
       hasData: false, // TODO: Add proper state tracking
       dataCount: 0,
+      disabled: false
+    },
+    {
+      id: 'thumbnail-generator' as NavigationView,
+      label: 'Thumbnail Generator',
+      icon: Camera,
+      description: 'Leonardo.ai thumbnails',
+      hasData: thumbnails.length > 0,
+      dataCount: thumbnails.length,
       disabled: false
     },
     {
@@ -61,7 +71,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
     <div className="w-64 bg-white border-r border-gray-200 h-full">
       <div className="p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Content Creator</h2>
-        <p className="text-sm text-gray-500">Scripts • Images • Audio • AI</p>
+        <p className="text-sm text-gray-500">Scripts • Images • Thumbnails • Audio • AI</p>
       </div>
       
       <nav className="p-4 space-y-2">

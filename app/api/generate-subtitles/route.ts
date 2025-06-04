@@ -4,7 +4,7 @@ import fsPromises from 'fs/promises';
 import { createReadStream, createWriteStream } from 'fs';
 import os from 'os';
 import path from 'path';
-import { uploadFileToSupabase } from "@/lib/wellsaid-utils";
+import { uploadFileToSupabase } from "@/lib/supabase-utils";
 import { v4 as uuidv4 } from 'uuid';
 
 const openai = new OpenAI({

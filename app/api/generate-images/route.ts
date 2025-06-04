@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GenerateImageRequestBody, GenerateImageResponse } from '@/types/image-generation';
 import { v4 as uuidv4 } from 'uuid';
 import { fal } from "@fal-ai/client";
+import OpenAI from 'openai';
 
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 const FAL_API_KEY = process.env.FAL_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// Initialize OpenAI client
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 // Configure fal.ai
 if (FAL_API_KEY) {
@@ -93,6 +98,32 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
   }
 }
 
+// Generate image using DALL-E 3 via OpenAI
+async function generateDalleImage(prompt: string, size: '1024x1024' | '1792x1024' | '1024x1792' = '1024x1024'): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized - check API key');
+  }
+
+  console.log(`🎨 Generating DALL-E 3 image with size: ${size}`);
+  
+  const response = await openai.images.generate({
+    model: "dall-e-3",
+    prompt: prompt,
+    n: 1,
+    size: size,
+    quality: "standard",
+    response_format: "b64_json"
+  });
+
+  console.log('DALL-E 3 response:', JSON.stringify(response, null, 2));
+  if (!response.data?.[0]?.b64_json) {
+    throw new Error('No image data received from DALL-E 3');
+  }
+
+  // Return as data URL for immediate use
+  return `data:image/png;base64,${response.data[0].b64_json}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateImageRequestBody;
@@ -115,8 +146,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'MiniMax API key is not configured.' }, { status: 500 });
     }
 
-    if (provider !== 'minimax' && !FAL_API_KEY) {
+    if (['flux-dev', 'recraft-v3', 'stable-diffusion-v35-large'].includes(provider) && !FAL_API_KEY) {
       return NextResponse.json({ error: 'FAL API key is not configured for flux models.' }, { status: 500 });
+    }
+
+    if (provider === 'dalle-3' && !OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'OpenAI API key is not configured for DALL-E 3.' }, { status: 500 });
     }
 
     const imageUrls: string[] = [];
@@ -200,6 +235,43 @@ export async function POST(request: NextRequest) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
+    } else if (provider === 'dalle-3') {
+      // DALL-E 3 generation with efficient batch processing
+      console.log(`Generating ${numberOfImages} image(s) with DALL-E 3 in parallel...`);
+      
+      // Determine image size based on aspect ratio
+      let dalleSize: '1024x1024' | '1792x1024' | '1024x1792' = '1024x1024';
+      switch (minimaxAspectRatio) {
+        case '16:9':
+          dalleSize = '1792x1024';
+          break;
+        case '1:1':
+          dalleSize = '1024x1024';
+          break;
+        case '9:16':
+          dalleSize = '1024x1792';
+          break;
+      }
+
+      // Process all DALL-E 3 requests in parallel (batch size 20)
+      const requestPromises = Array.from({ length: numberOfImages }, async (_, index) => {
+        try {
+          console.log(`Starting DALL-E 3 image ${index + 1} of ${numberOfImages}...`);
+          const imageUrl = await generateDalleImage(prompt, dalleSize);
+          console.log(`✅ Successfully generated DALL-E 3 image ${index + 1}`);
+          return imageUrl;
+        } catch (error) {
+          console.error(`❌ Error generating DALL-E 3 image ${index + 1}:`, error);
+          return null;
+        }
+      });
+
+      // Wait for all DALL-E 3 requests to complete
+      const results = await Promise.all(requestPromises);
+      const validImageUrls = results.filter((url): url is string => url !== null);
+      imageUrls.push(...validImageUrls);
+      
+      console.log(`✅ DALL-E 3 batch complete: ${validImageUrls.length}/${numberOfImages} images generated successfully`);
     } else {
       // Flux models using fal.ai
       console.log(`Generating ${numberOfImages} image(s) with ${provider}...`);
@@ -255,5 +327,8 @@ if (process.env.NODE_ENV !== 'test') {
   }
   if (!FAL_API_KEY) {
     console.warn("Warning: FAL_API_KEY environment variable is not set. Flux model generation will fail.");
+  }
+  if (!OPENAI_API_KEY) {
+    console.warn("Warning: OPENAI_API_KEY environment variable is not set. DALL-E 3 image generation will fail.");
   }
 } 

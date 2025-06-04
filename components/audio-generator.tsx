@@ -23,23 +23,23 @@ import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
 import { Volume2, Download, PlayCircle, PauseCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Subtitles } from 'lucide-react'
 
-// WellSaid Labs voice options
-const wellSaidVoices = [
-  { id: 3, name: "Alana B.", accent: "United States", style: "Narration" },
-  { id: 4, name: "Ramona J.", accent: "United States", style: "Narration" },
-  { id: 8, name: "Sofia H.", accent: "United States", style: "Narration" },
-  { id: 10, name: "Vanessa N.", accent: "United States", style: "Narration" },
-  { id: 11, name: "Isabel V.", accent: "United States", style: "Narration" },
-  { id: 13, name: "Jeremy G.", accent: "United States", style: "Narration" },
-  { id: 14, name: "Nicole L.", accent: "United States", style: "Narration" },
-  { id: 15, name: "Paige L.", accent: "United States", style: "Narration" },
-  { id: 16, name: "Tobin A.", accent: "United States", style: "Narration" },
-  { id: 18, name: "Tristan F.", accent: "United States", style: "Narration" },
+// ElevenLabs voice options
+const elevenLabsVoices = [
+  { id: 'Rachel', name: 'Rachel (Female, American)' },
+  { id: 'Adam', name: 'Adam (Male, American)' },
+  { id: 'Antoni', name: 'Antoni (Male, American)' },
+  { id: 'Arnold', name: 'Arnold (Male, American)' },
+  { id: 'Bella', name: 'Bella (Female, American)' },
+  { id: 'Domi', name: 'Domi (Female, American)' },
+  { id: 'Elli', name: 'Elli (Female, American)' },
+  { id: 'Josh', name: 'Josh (Male, American)' },
+  { id: 'Nicole', name: 'Nicole (Female, American)' },
+  { id: 'Sam', name: 'Sam (Male, American)' }
 ]
 
-const wellSaidModels = [
-  { id: "caruso", name: "Caruso (Latest)" },
-  { id: "legacy", name: "Legacy" }
+const elevenLabsModels = [
+  { id: 'eleven_multilingual_v2', name: 'Multilingual V2' },
+  { id: 'eleven_flash_v2_5', name: 'Flash V2.5 (Fast)' }
 ]
 
 export function AudioGenerator() {
@@ -92,7 +92,7 @@ export function AudioGenerator() {
     return chunks.length > 0 ? chunks : [text]
   }
 
-  // Generate audio using WellSaid Labs
+  // Generate audio using simple audio generation (ElevenLabs/MiniMax)
   const handleGenerateAudio = async () => {
     if (generatedScripts.length === 0) {
       showMessage('No generated scripts available for audio generation', 'error')
@@ -100,7 +100,6 @@ export function AudioGenerator() {
     }
 
     const generationId = `audio_${Date.now()}`
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
     try {
       // Start audio generation
@@ -111,158 +110,70 @@ export function AudioGenerator() {
         generateSubtitles: generateSubtitles
       }))
 
-      console.log(`🎵 Starting WellSaid Labs audio generation for ${generatedScripts.length} scripts (with retry mechanism)`)
+      console.log(`🎵 Starting audio generation for ${generatedScripts.length} scripts`)
 
       // Initialize progress
       dispatch(setAudioProgress({ total: generatedScripts.length, completed: 0, phase: 'chunks' }))
 
-      // Track individual script durations
-      const scriptDurations: Array<{
-        scriptId: string
-        imageId: string
-        imageName: string
-        duration: number
-        startTime: number
-        text: string
-      }> = []
+      // Combine all scripts into one text
+      const combinedText = generatedScripts
+        .map(script => script.script.replace(/\[Generated using mock data[^\]]*\]/g, '').trim())
+        .join('\n\n')
 
-      // Generate audio for each script individually with staggered sends and retry handling
-      const scriptPromises = generatedScripts.map((script, index) => {
-        return new Promise((resolve, reject) => {
-          // Delay each request by index * 1000ms (1 second intervals)
-          setTimeout(async () => {
-            try {
-              const cleanedScript = script.script.replace(/\[Generated using mock data[^\]]*\]/g, '').trim()
-              console.log(`🎵 Sending request for script ${index + 1}/${generatedScripts.length}: ${script.imageName}`)
-              
-              const response = await fetch('/api/generate-audio-chunk', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  text: cleanedScript,
-                  speaker_id: selectedVoice,
-                  model: selectedModel,
-                  chunkIndex: index,
-                  userId: 'current_user',
-                  sessionId: sessionId
-                })
-              })
+      console.log(`📝 Combined text length: ${combinedText.length} characters`)
 
-              if (!response.ok) {
-                const errorData = await response.json()
-                
-                // Check if this is a retryable error
-                if (errorData.retryable) {
-                  console.warn(`⚠️ Script ${index + 1} encountered retryable error: ${errorData.error}`)
-                  // Don't show error to user immediately if it's retryable - let backend handle retries
-                  
-                  // Check if we should attempt one more time at frontend level for specific cases
-                  if (errorData.error.includes('No valid WellSaid Labs API keys available')) {
-                    // This is a critical error that retries won't fix
-                    throw new Error(`Script ${index + 1}: ${errorData.error}`)
-                  }
-                  
-                  // For other retryable errors, the backend has already tried multiple times
-                  throw new Error(`Script ${index + 1}: ${errorData.error}`)
-                } else {
-                  // Non-retryable error
-                  throw new Error(`Script ${index + 1}: ${errorData.error || 'Unknown error'}`)
-                }
-              }
-
-              const data = await response.json()
-              
-              const result = {
-                chunkIndex: index,
-                localFilePath: data.localFilePath,
-                text: cleanedScript,
-                duration: data.duration,
-                scriptId: script.imageId, // Use imageId as scriptId for mapping
-                imageId: script.imageId,
-                imageName: script.imageName,
-                retriesUsed: data.retriesUsed || false
-              }
-              
-              // Store script duration info
-              scriptDurations[index] = {
-                scriptId: script.imageId,
-                imageId: script.imageId,
-                imageName: script.imageName,
-                duration: data.duration,
-                startTime: 0, // Will be calculated after sorting
-                text: cleanedScript
-              }
-              
-              // Update progress
-              dispatch(setAudioProgress({ 
-                completed: index + 1 
-              }))
-
-              const retryIndicator = data.retriesUsed ? ' (with retries)' : ''
-              console.log(`✅ Completed script ${index + 1}/${generatedScripts.length} (${data.duration.toFixed(2)}s)${retryIndicator}: ${script.imageName}`)
-              resolve(result)
-              
-            } catch (error: any) {
-              console.error(`❌ Failed to generate script ${index + 1} after all attempts:`, error)
-              reject(error)
-            }
-          }, index * 1000) // Stagger requests by 1 second each
-        })
-      })
-
-      const completedChunks = await Promise.all(scriptPromises)
-      console.log(`✅ All ${completedChunks.length} script audio chunks generated (with retry protection)`)
-
-      // Calculate start times for each script (cumulative durations)
-      let currentStartTime = 0
-      scriptDurations.forEach((scriptDuration, index) => {
-        scriptDuration.startTime = currentStartTime
-        currentStartTime += scriptDuration.duration
-      })
-
-      console.log('📊 Script duration breakdown:')
-      scriptDurations.forEach((sd, i) => {
-        console.log(`  Script ${i + 1} (${sd.imageName}): ${sd.duration.toFixed(2)}s (starts at ${sd.startTime.toFixed(2)}s)`)
-      })
-
-      // Concatenate chunks
-      dispatch(setAudioProgress({ total: 1, completed: 0, phase: 'concatenating' }))
-      
-      const concatenationResponse = await fetch('/api/concatenate-audio-chunks', {
+      // Generate audio using simple audio generation
+      const response = await fetch('/api/generate-simple-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          audioChunks: completedChunks,
-          userId: 'current_user',
-          generateSubtitles: false, // We'll handle subtitles separately
-          sessionId: sessionId // Pass session ID for cleanup
+          text: combinedText,
+          provider: 'elevenlabs', // Default to ElevenLabs
+          voice: 'Rachel', // Default voice
+          model: 'eleven_multilingual_v2',
+          language: 'en'
         })
       })
 
-      if (!concatenationResponse.ok) {
-        throw new Error('Failed to concatenate audio chunks')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate audio')
       }
 
-      const concatenationData = await concatenationResponse.json()
+      const data = await response.json()
       
-      // Complete audio generation with script durations
+      // Calculate approximate duration (rough estimate: 150 words per minute)
+      const wordCount = combinedText.split(/\s+/).length
+      const estimatedDuration = (wordCount / 150) * 60 // Convert to seconds
+
+      // Create script durations (evenly distributed for now)
+      const scriptDurations = generatedScripts.map((script, index) => {
+        const scriptWordCount = script.script.split(/\s+/).length
+        const scriptDuration = (scriptWordCount / 150) * 60
+        const startTime = index > 0 ? 
+          generatedScripts.slice(0, index).reduce((sum, s) => sum + (s.script.split(/\s+/).length / 150) * 60, 0) : 0
+        
+        return {
+          scriptId: script.imageId,
+          imageId: script.imageId,
+          imageName: script.imageName,
+          duration: scriptDuration,
+          startTime: startTime
+        }
+      })
+
+      // Complete audio generation
       dispatch(completeAudioGeneration({
-        audioUrl: concatenationData.finalAudioUrl,
-        duration: concatenationData.finalDuration,
-        scriptDurations: scriptDurations.map(sd => ({
-          scriptId: sd.scriptId,
-          imageId: sd.imageId,
-          imageName: sd.imageName,
-          duration: sd.duration,
-          startTime: sd.startTime
-        }))
+        audioUrl: data.audioUrl,
+        duration: estimatedDuration,
+        scriptDurations: scriptDurations
       }))
 
-      showMessage(`Successfully generated audio from ${generatedScripts.length} scripts with automatic retry protection!`, 'success')
+      showMessage(`Successfully generated audio from ${generatedScripts.length} scripts!`, 'success')
 
       // Generate subtitles if requested
       if (generateSubtitles) {
-        await handleGenerateSubtitles(concatenationData.finalAudioUrl)
+        await handleGenerateSubtitles(data.audioUrl)
       } else {
         // Save to history if no subtitles needed
         dispatch(saveGenerationToHistory())
@@ -272,15 +183,7 @@ export function AudioGenerator() {
       console.error('Audio generation error:', error)
       dispatch(setAudioGenerationError(error.message))
       
-      // Provide more helpful error messages
-      let errorMessage = error.message
-      if (errorMessage.includes('No valid WellSaid Labs API keys available')) {
-        errorMessage = 'No valid API keys available. Please ask an admin to upload new WellSaid Labs API keys.'
-      } else if (errorMessage.includes('Failed to generate audio for script')) {
-        errorMessage = `Audio generation failed: ${errorMessage}. The system attempted automatic retries but was unable to recover.`
-      }
-      
-      showMessage(`Audio generation failed: ${errorMessage}`, 'error')
+      showMessage(`Audio generation failed: ${error.message}`, 'error')
     }
   }
 
@@ -359,7 +262,7 @@ export function AudioGenerator() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
         <p className="text-gray-600">
-          Generate high-quality audio from your scripts using WellSaid Labs AI voices
+          Generate high-quality audio from your scripts using ElevenLabs AI voices
         </p>
       </div>
 
@@ -421,16 +324,16 @@ export function AudioGenerator() {
               <div className="space-y-2">
                 <Label>Voice Speaker</Label>
                 <Select 
-                  value={selectedVoice.toString()} 
-                  onValueChange={(value: string) => dispatch(setSelectedVoice(Number(value)))}
+                  value={selectedVoice} 
+                  onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {wellSaidVoices.map((voice) => (
-                      <SelectItem key={voice.id} value={voice.id.toString()}>
-                        {voice.name} ({voice.accent})
+                    {elevenLabsVoices.map((voice) => (
+                      <SelectItem key={voice.id} value={voice.id}>
+                        {voice.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -447,7 +350,7 @@ export function AudioGenerator() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {wellSaidModels.map((model) => (
+                    {elevenLabsModels.map((model) => (
                       <SelectItem key={model.id} value={model.id}>
                         {model.name}
                       </SelectItem>
@@ -532,7 +435,7 @@ export function AudioGenerator() {
               <div>
                 <span className="text-gray-500">Voice:</span>
                 <p className="font-medium">
-                  {wellSaidVoices.find(v => v.id === currentGeneration.voice)?.name || 'Unknown'}
+                  {elevenLabsVoices.find(v => v.id === currentGeneration.voice)?.name || 'Unknown'}
                 </p>
               </div>
               <div>
@@ -656,7 +559,7 @@ export function AudioGenerator() {
                     </span>
                     <div className="flex gap-2">
                       <Badge variant="outline" className="text-xs">
-                        {wellSaidVoices.find(v => v.id === generation.voice)?.name}
+                        {elevenLabsVoices.find(v => v.id === generation.voice)?.name}
                       </Badge>
                       <Badge variant="outline" className="text-xs">
                         {generation.duration ? `${generation.duration.toFixed(1)}s` : 'N/A'}

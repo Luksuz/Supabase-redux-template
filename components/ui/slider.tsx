@@ -22,9 +22,11 @@ export function Slider({
   className = ""
 }: SliderProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseInt(e.target.value)
+    const newValue = parseFloat(e.target.value)
     onValueChange([newValue])
   }
+
+  const currentValue = value[0] || min
 
   return (
     <div className={`relative ${className}`}>
@@ -33,12 +35,12 @@ export function Slider({
         min={min}
         max={max}
         step={step}
-        value={value[0] || min}
+        value={currentValue}
         onChange={handleChange}
         disabled={disabled}
         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
-          background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((value[0] || min) - min) / (max - min) * 100}%, #e5e7eb ${((value[0] || min) - min) / (max - min) * 100}%, #e5e7eb 100%)`
+          background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((currentValue - min) / (max - min)) * 100}%, #e5e7eb ${((currentValue - min) / (max - min)) * 100}%, #e5e7eb 100%)`
         }}
       />
       <style jsx>{`

@@ -1,14 +1,14 @@
-import { fal } from "@fal-ai/client";
-import dotenv from "dotenv";
+import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
 
-dotenv.config();
+dotenv.config()
 
-fal.config({
-    credentials: process.env.FAL_API_KEY,
-  });
+// Create a single supabase client for interacting with your database
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+console.log(supabaseUrl, supabaseAnonKey)
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-const result = await fal.subscribe("fal-ai/stable-diffusion-v35-large", {
-  input: { prompt: "A crusade of knights riding on horses" },
-});
+const { data, error } = await supabase.from('profiles').select('*')
 
-console.log(JSON.stringify(result, null, 2));
+console.log(data)
