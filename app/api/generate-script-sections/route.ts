@@ -5,6 +5,7 @@ import { createModelInstance } from "../../../lib/utils/model-factory";
 import { THEME_OPTIONS } from "../../../lib/features/scripts/scriptsSlice";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { ScriptSection } from "../../../types/script-section";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +19,8 @@ export async function POST(request: NextRequest) {
       forbiddenWords,
       selectedModel,
       uploadedStyle,
-      cta
+      cta,
+      inspirationalTranscript
     } = await request.json();
     
     if (!title || !wordCount) {
@@ -97,11 +99,94 @@ Overall Direction: ${selectedTheme.instructions.overall}
     // Create a parser based on our Zod schema
     const parser = StructuredOutputParser.fromZodSchema(scriptSectionsSchema);
 
-    // Construct the prompt
-    const prompt = `You are an expert script writer creating a compelling, persuasive video script. Based on the provided title and style guide, create ${numSections} sections for a ${wordCount}-word script.
+    // Build additions to the prompt based on optional parameters
+    let additionalInstructions = "";
+    
+    // Add transcript as inspiration if provided
+    if (inspirationalTranscript && inspirationalTranscript.trim()) {
+      additionalInstructions += `
+    INSPIRATIONAL TRANSCRIPT FOR STYLE REFERENCE ONLY:
+    The following transcript should ONLY be used as inspiration for the tone, style, structure, and format of your script.
+    DO NOT use the content, topic, or subject matter from this transcript.
+    Your script must be about the title "${title}" and theme "${selectedTheme ? selectedTheme.name : 'provided'}", NOT about the topics mentioned in this transcript.
+    
+    Use this transcript to understand:
+    - Writing style and tone
+    - Narrative structure and pacing
+    - How scenes flow and transition
+    - Storytelling techniques and format
+    - Dialogue style (if applicable)
+    
+    TRANSCRIPT FOR STYLE REFERENCE:
+    ${inspirationalTranscript.trim()}
+    
+    IMPORTANT: Create your story about "${title}" using the above transcript's STYLE ONLY, not its content or topic.
+    `;
+    }
+    
+    // Add forbidden words if provided
+    if (forbiddenWords && forbiddenWords.trim()) {
+      const wordsList = forbiddenWords.split(',').map((word: string) => word.trim()).filter(Boolean);
+      if (wordsList.length > 0) {
+        additionalInstructions += `
+    FORBIDDEN WORDS:
+    The following words should be completely avoided in your script outline: ${wordsList.join(', ')}.
+    `;
+      }
+    }
+    
+    // Add any additional custom instructions
+    if (additionalPrompt && additionalPrompt.trim()) {
+      additionalInstructions += `
+    ADDITIONAL INSTRUCTIONS:
+    ${additionalPrompt.trim()}
+    `;
+    }
+
+    // Define batch size for processing
+    const BATCH_SIZE = 20;
+    const totalBatches = Math.ceil(numSections / BATCH_SIZE);
+    let allSections: ScriptSection[] = [];
+    
+    console.log(`Generating ${numSections} sections in ${totalBatches} batch(es) of max ${BATCH_SIZE} each`);
+
+    // Process sections in batches
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const startSection = batchIndex * BATCH_SIZE;
+      const endSection = Math.min((batchIndex + 1) * BATCH_SIZE, numSections);
+      const batchSize = endSection - startSection;
+      
+      console.log(`Processing batch ${batchIndex + 1}/${totalBatches}: sections ${startSection + 1} to ${endSection}`);
+      
+      // Create context from previous sections if this isn't the first batch
+      let contextInstructions = "";
+      if (batchIndex > 0) {
+        // Get the last 3 sections or fewer from the previous batch
+        const contextSections = allSections.slice(-3);
+        contextInstructions = `
+    CONTEXT FROM PREVIOUS SECTIONS:
+    Here are the last ${contextSections.length} sections that were already created to maintain continuity:
+    ${contextSections.map((section, i) => 
+      `Section ${startSection - contextSections.length + i + 1}: "${section.title}"
+      Writing Instructions: ${section.writingInstructions.substring(0, 150)}...`
+    ).join('\n\n')}
+
+    Ensure that your new sections maintain narrative continuity with these previous sections.
+    `;
+      }
+
+      // Adjust CTA section index for current batch
+      let batchCtaSectionIndex = -1;
+      if (cta?.enabled && ctaSectionIndex >= startSection && ctaSectionIndex < endSection) {
+        batchCtaSectionIndex = ctaSectionIndex - startSection;
+      }
+
+      // Create the batch prompt
+      const batchPrompt = `You are an expert script writer creating a compelling, persuasive video script. Based on the provided title and style guide, create ${batchSize} sections (sections ${startSection + 1} to ${endSection}) for a ${wordCount}-word script.
 
 TITLE: "${title}"
-NUMBER OF SECTIONS: ${numSections}
+CURRENT BATCH: Sections ${startSection + 1} to ${endSection} of ${numSections} total sections
+BATCH SIZE: ${batchSize}
 
 STYLE GUIDE TO FOLLOW:
 ${styleContent}
@@ -110,18 +195,19 @@ ${themeInstructions}
 ${emotionalTone ? `EMOTIONAL TONE: ${emotionalTone}` : ''}
 ${targetAudience ? `TARGET AUDIENCE: ${targetAudience}` : ''}
 ${forbiddenWords ? `FORBIDDEN WORDS (avoid these): ${forbiddenWords}` : ''}
-${additionalPrompt ? `ADDITIONAL INSTRUCTIONS: ${additionalPrompt}` : ''}
+${additionalInstructions}
+${contextInstructions}
 
-${cta?.enabled ? `
+${cta?.enabled && batchCtaSectionIndex >= 0 ? `
 CTA PLACEMENT REQUIREMENT:
-- Section ${ctaSectionIndex + 1} of ${numSections} must include the following CTA instructions in its writing instructions:
+- Section ${batchCtaSectionIndex + 1} of this batch (overall section ${ctaSectionIndex + 1}) must include the following CTA instructions in its writing instructions:
 ${getCTAInstructions(cta.type)}
 - All other sections should focus purely on content delivery without any CTAs.
 ` : ''}
 
 For each section, provide:
 1. A compelling title that captures the essence of that part of the script
-2. Detailed writing instructions that specify the emotional tone, key points to cover, rhetorical devices to use, and how it fits into the overall narrative arc${cta?.enabled && ctaSectionIndex >= 0 ? ` (Section ${ctaSectionIndex + 1} must include the CTA requirements specified above)` : ''}
+2. Detailed writing instructions that specify the emotional tone, key points to cover, rhetorical devices to use, and how it fits into the overall narrative arc${cta?.enabled && batchCtaSectionIndex >= 0 ? ` (Section ${batchCtaSectionIndex + 1} of this batch must include the CTA requirements specified above)` : ''}
 3. A visual prompt for image generation that describes the scene, mood, and visual elements that would complement this section (avoid controversial or taboo topics)
 
 The sections should build upon each other to create a cohesive, persuasive narrative that follows the style guide's direct, accusatory, urgent, and revelatory tone. Each section should be approximately ${avgWordsPerSection} words.
@@ -130,21 +216,50 @@ ${forbiddenWords ? `IMPORTANT: Avoid using any of these forbidden words: ${forbi
 
 ${parser.getFormatInstructions()}`;
 
-    console.log(`🚀 Generating ${numSections} script sections for: "${title}"`);
-    if (emotionalTone) console.log(`🎭 Emotional tone: ${emotionalTone}`);
-    if (targetAudience) console.log(`👥 Target audience: ${targetAudience}`);
-    if (forbiddenWords) console.log(`🚫 Forbidden words: ${forbiddenWords}`);
-    if (selectedTheme) console.log(`🎨 Theme: ${selectedTheme.name}`);
-    if (cta?.enabled) console.log(`📢 CTA enabled: ${cta.type} at ${cta.placement} words (Section ${ctaSectionIndex + 1})`);
+      console.log(`🚀 Generating batch ${batchIndex + 1}/${totalBatches}: ${batchSize} sections for: "${title}"`);
 
-    const response = await model.invoke(prompt);
-    const parsedSections = await parser.parse(response.content as string);
+      // Generate the batch of sections
+      const response = await model.invoke(batchPrompt);
+      
+      // Parse the response - ensure we get a string
+      let contentString = "";
+      
+      if (typeof response.content === 'string') {
+        contentString = response.content;
+      } else if (Array.isArray(response.content)) {
+        // Extract text from array of complex message contents
+        contentString = response.content
+          .map(item => {
+            if (typeof item === 'string') return item;
+            // Handle text content if it's a text content object
+            if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
+            return '';
+          })
+          .join('\n');
+      }
+          
+      try {
+        const parsedBatchResponse = await parser.parse(contentString);
+        
+        if (Array.isArray(parsedBatchResponse)) {
+          console.log(`✅ Successfully generated ${parsedBatchResponse.length} sections for batch ${batchIndex + 1}`);
+          allSections = [...allSections, ...parsedBatchResponse];
+        } else {
+          console.error(`❌ Parser returned non-array response for batch ${batchIndex + 1}:`, parsedBatchResponse);
+          throw new Error("Parsing error: Expected array of sections");
+        }
+      } catch (parseError) {
+        console.error(`❌ Failed to parse response for batch ${batchIndex + 1}:`, parseError);
+        console.log("Raw content:", contentString.substring(0, 500) + "...");
+        throw parseError;
+      }
+    }
 
-    console.log(`✅ Generated ${parsedSections.length} script sections for: "${title}"`);
+    console.log(`✅ Generated all ${allSections.length} script sections for: "${title}"`);
 
     return NextResponse.json({
       success: true,
-      sections: parsedSections,
+      sections: allSections,
       meta: {
         title,
         wordCount,
@@ -159,7 +274,12 @@ ${parser.getFormatInstructions()}`;
           type: cta.type,
           placement: cta.placement,
           sectionIndex: ctaSectionIndex + 1
-        } : { enabled: false }
+        } : { enabled: false },
+        batchInfo: {
+          totalBatches,
+          batchSize: BATCH_SIZE,
+          sectionsGenerated: allSections.length
+        }
       }
     });
 

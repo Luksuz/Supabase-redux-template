@@ -79,7 +79,7 @@ Overall Direction: ${selectedTheme.instructions.overall}
       try {
         console.log(`📝 Starting generation for section ${index + 1}/${sections.length}: "${section.title}"`);
         
-        const prompt = `You are writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}".
+        const prompt = `You are writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}". Write it in greatest detail possible- at least 1000+ words.
 
 SECTION TITLE: "${section.title}"
 WRITING INSTRUCTIONS: ${section.writingInstructions}

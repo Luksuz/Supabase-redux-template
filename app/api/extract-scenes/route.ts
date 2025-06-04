@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { ChatAnthropic } from '@langchain/anthropic';
+import { ChatOpenAI } from '@langchain/openai';
 
 // Initialize Anthropic client
-const chatModel = new ChatAnthropic({
-  model: "claude-3-5-sonnet-20241022",
+const chatModel = new ChatOpenAI({
+  model: "gpt-4.1-nano",
   temperature: 0.7,
-  maxTokens: 300,
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  maxTokens: 2000,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 interface ExtractScenesRequestBody {

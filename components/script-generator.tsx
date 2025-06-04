@@ -5,6 +5,7 @@ import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   setSectionedWorkflowField,
   startGeneratingSections,
+  updateSectionsProgress,
   setSections,
   updateSection,
   startGeneratingDetailedScript,
@@ -14,6 +15,13 @@ import {
   setCTAEnabled,
   setCTAPlacement,
   setCTAType,
+  startGeneratingAllDetailedScripts,
+  setAllDetailedScripts,
+  startGeneratingBatch,
+  startDetailedScriptGeneration,
+  updateDetailedScriptProgress,
+  completeDetailedScriptGeneration,
+  setBatchResults,
   THEME_OPTIONS
 } from '../lib/features/scripts/scriptsSlice'
 import type { ScriptSection } from '../lib/features/scripts/scriptsSlice'
@@ -25,6 +33,7 @@ import { Badge } from './ui/badge'
 import { Textarea } from './ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { Progress } from './ui/progress'
 import { 
   FileText, 
   Download, 
@@ -52,6 +61,32 @@ import {
 import { ResearchAssistant } from './research-assistant'
 import { StyleFileUpload } from './style-file-upload'
 import { ScriptTranslator } from './script-translator'
+
+// Progress Bar Component
+interface ProgressBarProps {
+  current: number
+  total: number
+  message: string
+  className?: string
+}
+
+function ProgressBar({ current, total, message, className = '' }: ProgressBarProps) {
+  const percentage = total > 0 ? Math.round((current / total) * 100) : 0
+  
+  return (
+    <div className={`space-y-2 ${className}`}>
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-gray-700">{message}</span>
+        <span className="text-gray-600">{percentage}%</span>
+      </div>
+      <Progress value={percentage} className="h-2" />
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>{current} of {total}</span>
+        <span>{total - current} remaining</span>
+      </div>
+    </div>
+  )
+}
 
 export function ScriptGenerator() {
   const dispatch = useAppDispatch()
@@ -82,52 +117,110 @@ export function ScriptGenerator() {
       return
     }
     
-    dispatch(startGeneratingSections())
-    showMessage('Generating script sections...', 'info')
+    const MAX_RETRIES = 3
+    let success = false
+    let lastError = null
 
-    try {
-      const response = await fetch('/api/generate-script-sections', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          videoTitle: sectionedWorkflow.videoTitle,
-          targetAudience: sectionedWorkflow.targetAudience,
-          themeId: sectionedWorkflow.themeId,
-          wordCount: sectionedWorkflow.wordCount,
-          title: sectionedWorkflow.videoTitle,
-          emotionalTone: sectionedWorkflow.emotionalTone,
-          additionalInstructions: sectionedWorkflow.additionalInstructions,
-          selectedModel: sectionedWorkflow.selectedModel,
-          uploadedStyle: sectionedWorkflow.uploadedStyle,
-          cta: sectionedWorkflow.cta
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate sections')
+    // Retry logic for generating sections
+    for (let attempt = 1; attempt <= MAX_RETRIES && !success; attempt++) {
+      dispatch(startGeneratingSections())
+      
+      // Simulate progress for sections generation
+      const updateProgress = (current: number, message: string) => {
+        dispatch(updateSectionsProgress({ current, total: 100, message }))
       }
 
-      const data = await response.json()
+      updateProgress(10, `Preparing request${attempt > 1 ? ` - Retry ${attempt}/${MAX_RETRIES}` : ''}...`)
       
-      const sections: ScriptSection[] = data.sections.map((section: any, index: number) => ({
-        id: `section-${Date.now()}-${index}`,
-        title: section.title,
-        writingInstructions: section.writingInstructions,
-        image_generation_prompt: section.image_generation_prompt || '',
-        generatedScript: '',
-        isGenerating: false,
-        wordCount: section.wordCount || 0,
-        order: index + 1
-      }))
-      
-      dispatch(setSections(sections))
-      showMessage(`Generated ${sections.length} script sections!`, 'success')
-    } catch (error) {
-      const errorMessage = (error as Error).message
-      showMessage(`Failed to generate sections: ${errorMessage}`, 'error')
+      showMessage(
+        `Generating script sections...${attempt > 1 ? ` - Retry ${attempt}/${MAX_RETRIES}` : ''}`,
+        'info'
+      )
+
+      try {
+        updateProgress(25, 'Sending request to AI model...')
+        
+        const response = await fetch('/api/generate-script-sections', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            videoTitle: sectionedWorkflow.videoTitle,
+            targetAudience: sectionedWorkflow.targetAudience,
+            themeId: sectionedWorkflow.themeId,
+            wordCount: sectionedWorkflow.wordCount,
+            title: sectionedWorkflow.videoTitle,
+            emotionalTone: sectionedWorkflow.emotionalTone,
+            additionalInstructions: sectionedWorkflow.additionalInstructions,
+            selectedModel: sectionedWorkflow.selectedModel,
+            uploadedStyle: sectionedWorkflow.uploadedStyle,
+            cta: sectionedWorkflow.cta
+          }),
+        })
+
+        updateProgress(60, 'Processing AI response...')
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate sections`)
+        }
+
+        updateProgress(80, 'Parsing sections data...')
+        const data = await response.json()
+        
+        // Validate response data
+        if (!data.sections || !Array.isArray(data.sections)) {
+          throw new Error('Invalid response format: missing or invalid sections array')
+        }
+
+        if (data.sections.length === 0) {
+          throw new Error('No sections were generated in the response')
+        }
+        
+        updateProgress(95, 'Finalizing sections...')
+        
+        const sections: ScriptSection[] = data.sections.map((section: any, index: number) => ({
+          id: `section-${Date.now()}-${index}`,
+          title: section.title,
+          writingInstructions: section.writingInstructions,
+          image_generation_prompt: section.image_generation_prompt || '',
+          generatedScript: '',
+          isGenerating: false,
+          wordCount: section.wordCount || 0,
+          order: index + 1
+        }))
+        
+        updateProgress(100, 'Sections generated successfully!')
+        
+        dispatch(setSections(sections))
+        showMessage(
+          `Generated ${sections.length} script sections!${attempt > 1 ? ` (succeeded on retry ${attempt})` : ''}`,
+          'success'
+        )
+        success = true
+
+      } catch (error) {
+        lastError = error as Error
+        const errorMessage = lastError.message
+        
+        if (attempt < MAX_RETRIES) {
+          updateProgress(0, `Attempt ${attempt} failed, preparing retry...`)
+          showMessage(
+            `Section generation attempt ${attempt} failed: ${errorMessage}. Retrying in 5 seconds...`,
+            'error'
+          )
+          // Wait 5 seconds before retry
+          await new Promise(resolve => setTimeout(resolve, 5000))
+        } else {
+          // Clear progress on final failure
+          dispatch(setSections([]))
+          showMessage(
+            `Failed to generate sections after ${MAX_RETRIES} attempts: ${errorMessage}`,
+            'error'
+          )
+        }
+      }
     }
   }
 
@@ -184,50 +277,202 @@ export function ScriptGenerator() {
     }
   }
 
-  // Generate full script based on all sections
+  // Generate full script based on all sections with batching for all models
   const handleGenerateFullScript = async () => {
     if (sectionedWorkflow.sections.length === 0) {
       showMessage('No sections available to generate script from', 'error')
       return
     }
 
-    showMessage('Generating full script based on all sections...', 'info')
+    const modelId = sectionedWorkflow.selectedModel || 'gpt-4o-mini'
+    const isClaudeModel = modelId.includes('claude') || modelId.includes('anthropic')
+    const sectionsToGenerate = sectionedWorkflow.sections.filter(s => !s.generatedScript.trim())
+    
+    if (sectionsToGenerate.length === 0) {
+      showMessage('All sections already have generated scripts', 'info')
+      return
+    }
 
-    try {
-      const response = await fetch('/api/generate-detailed-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sections: sectionedWorkflow.sections.map(s => ({
-            title: s.title,
-            writingInstructions: s.writingInstructions
-          })),
-          title: sectionedWorkflow.videoTitle,
-          emotionalTone: sectionedWorkflow.emotionalTone,
-          targetAudience: sectionedWorkflow.targetAudience,
-          selectedModel: sectionedWorkflow.selectedModel,
-          uploadedStyle: sectionedWorkflow.uploadedStyle,
-          cta: sectionedWorkflow.cta // Include CTA configuration
-        }),
-      })
+    // Use batched processing for all models with different configurations
+    await handleBatchedGeneration(sectionsToGenerate, isClaudeModel)
+  }
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate full script')
+  // Handle batched generation for all models (Claude and OpenAI with different settings)
+  const handleBatchedGeneration = async (sectionsToGenerate: typeof sectionedWorkflow.sections, isClaudeModel: boolean) => {
+    // Different batch settings based on model type
+    const BATCH_SIZE = isClaudeModel ? 15 : 30 // OpenAI can handle larger batches
+    const BATCH_DELAY_MS = isClaudeModel ? 60 * 1000 : 10 * 1000 // 1 min for Claude, 10 sec for OpenAI
+    const MAX_RETRIES = 3
+
+    const totalBatches = Math.ceil(sectionsToGenerate.length / BATCH_SIZE)
+    const modelType = isClaudeModel ? 'Claude' : 'OpenAI'
+    
+    // Initialize progress tracking
+    dispatch(startDetailedScriptGeneration({ 
+      totalBatches, 
+      totalSections: sectionsToGenerate.length 
+    }))
+    
+    showMessage(
+      `Starting batched generation for ${modelType} model: ${sectionsToGenerate.length} sections in ${totalBatches} batch(es) (${BATCH_SIZE} sections per batch)`,
+      'info'
+    )
+
+    let completedSections = 0
+
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const startIdx = batchIndex * BATCH_SIZE
+      const endIdx = Math.min((batchIndex + 1) * BATCH_SIZE, sectionsToGenerate.length)
+      const batchSections = sectionsToGenerate.slice(startIdx, endIdx)
+      
+      let batchSuccess = false
+      let lastError = null
+
+      // Update progress for current batch
+      dispatch(updateDetailedScriptProgress({
+        currentBatch: batchIndex + 1,
+        currentSection: completedSections,
+        message: `Processing batch ${batchIndex + 1}/${totalBatches}...`
+      }))
+
+      // Retry logic for each batch
+      for (let attempt = 1; attempt <= MAX_RETRIES && !batchSuccess; attempt++) {
+        // Start generating for this batch
+        dispatch(startGeneratingBatch(batchSections.map(s => s.id)))
+        
+        const progressMessage = `Processing batch ${batchIndex + 1}/${totalBatches}: sections ${startIdx + 1}-${endIdx} (${batchSections.length} sections)${attempt > 1 ? ` - Retry ${attempt}/${MAX_RETRIES}` : ''}`
+        
+        dispatch(updateDetailedScriptProgress({
+          currentBatch: batchIndex + 1,
+          currentSection: completedSections,
+          message: progressMessage
+        }))
+        
+        showMessage(progressMessage, 'info')
+
+        try {
+          const response = await fetch('/api/generate-detailed-script', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              sections: batchSections.map(s => ({
+                title: s.title,
+                writingInstructions: s.writingInstructions
+              })),
+              title: sectionedWorkflow.videoTitle,
+              emotionalTone: sectionedWorkflow.emotionalTone,
+              targetAudience: sectionedWorkflow.targetAudience,
+              selectedModel: sectionedWorkflow.selectedModel,
+              uploadedStyle: sectionedWorkflow.uploadedStyle,
+              cta: sectionedWorkflow.cta
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate batch`)
+          }
+
+          const data = await response.json()
+          
+          // Validate response data
+          if (!data.detailedSections || !Array.isArray(data.detailedSections)) {
+            throw new Error('Invalid response format: missing or invalid detailedSections array')
+          }
+
+          if (data.detailedSections.length !== batchSections.length) {
+            throw new Error(`Response mismatch: expected ${batchSections.length} sections, got ${data.detailedSections.length}`)
+          }
+          
+          // Update Redux with batch results
+          const batchResults = batchSections.map((section, idx) => ({
+            id: section.id,
+            script: data.detailedSections[idx]?.detailedContent || '[Error: No content generated]',
+            wordCount: data.detailedSections[idx]?.wordCount || 0,
+            error: !data.detailedSections[idx]?.detailedContent
+          }))
+          
+          dispatch(setBatchResults(batchResults))
+          
+          // Update completed sections count
+          completedSections += batchSections.length
+          
+          const successCount = batchResults.filter(r => !r.error).length
+          const completionMessage = `Batch ${batchIndex + 1}/${totalBatches} complete: ${successCount}/${batchSections.length} sections generated successfully${attempt > 1 ? ` (succeeded on retry ${attempt})` : ''}`
+          
+          dispatch(updateDetailedScriptProgress({
+            currentBatch: batchIndex + 1,
+            currentSection: completedSections,
+            message: completionMessage
+          }))
+          
+          showMessage(completionMessage, successCount === batchSections.length ? 'success' : 'error')
+
+          batchSuccess = true
+
+        } catch (error) {
+          lastError = error as Error
+          const errorMessage = lastError.message
+          
+          if (attempt < MAX_RETRIES) {
+            const retryMessage = `Batch ${batchIndex + 1} attempt ${attempt} failed: ${errorMessage}. Retrying in 5 seconds...`
+            dispatch(updateDetailedScriptProgress({
+              currentBatch: batchIndex + 1,
+              currentSection: completedSections,
+              message: retryMessage
+            }))
+            showMessage(retryMessage, 'error')
+            // Wait 5 seconds before retry
+            await new Promise(resolve => setTimeout(resolve, 5000))
+          } else {
+            const failMessage = `Batch ${batchIndex + 1} failed after ${MAX_RETRIES} attempts: ${errorMessage}`
+            dispatch(updateDetailedScriptProgress({
+              currentBatch: batchIndex + 1,
+              currentSection: completedSections,
+              message: failMessage
+            }))
+            showMessage(failMessage, 'error')
+            
+            // Mark all sections in this batch as failed
+            const failedResults = batchSections.map(section => ({
+              id: section.id,
+              script: `[Error generating content after ${MAX_RETRIES} attempts: ${errorMessage}]`,
+              wordCount: 0,
+              error: true
+            }))
+            dispatch(setBatchResults(failedResults))
+          }
+        }
       }
 
-      const data = await response.json()
-      
-      // Update the fullScript in Redux
-      dispatch(setFullScript(data.fullScript))
-      
-      showMessage(`Generated full script (${data.meta.totalWords} words)!`, 'success')
-    } catch (error) {
-      const errorMessage = (error as Error).message
-      showMessage(`Failed to generate full script: ${errorMessage}`, 'error')
+      // Add delay between batches (except for the last batch)
+      if (batchIndex < totalBatches - 1) {
+        const delaySeconds = BATCH_DELAY_MS / 1000
+        const delayMessage = `Waiting ${delaySeconds} seconds before next batch${isClaudeModel ? ' to respect Claude rate limits' : ' for optimal performance'}... (${totalBatches - batchIndex - 1} batches remaining)`
+        
+        dispatch(updateDetailedScriptProgress({
+          currentBatch: batchIndex + 1,
+          currentSection: completedSections,
+          message: delayMessage
+        }))
+        
+        showMessage(delayMessage, 'info')
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS))
+      }
     }
+
+    const allSections = sectionedWorkflow.sections
+    const successfulSections = allSections.filter(s => s.generatedScript.trim() && !s.generatedScript.includes('[Error'))
+    const totalWords = successfulSections.reduce((sum, s) => sum + s.wordCount, 0)
+    
+    const finalMessage = `Batched generation complete! ${successfulSections.length}/${allSections.length} sections generated (${totalWords} total words)`
+    
+    // Complete progress tracking
+    dispatch(completeDetailedScriptGeneration())
+    
+    showMessage(finalMessage, 'success')
   }
 
   // Edit section
@@ -430,6 +675,28 @@ ${section.generatedScript}
 
           {/* Style File Upload */}
           <StyleFileUpload />
+
+          {/* Sections Generation Progress - Show in Setup tab */}
+          {sectionedWorkflow.sectionsProgress.isActive && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                  Generating Script Sections
+                </CardTitle>
+                <CardDescription>
+                  Creating structured sections for your video script...
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ProgressBar
+                  current={sectionedWorkflow.sectionsProgress.current}
+                  total={sectionedWorkflow.sectionsProgress.total}
+                  message={sectionedWorkflow.sectionsProgress.message}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Script Configuration */}
           <Card className="bg-white shadow-sm border border-gray-200">
@@ -689,25 +956,19 @@ ${section.generatedScript}
                   {/* CTA Placement */}
                   <div className="space-y-2">
                     <Label htmlFor="ctaPlacement">CTA Placement (Word Count)</Label>
-                    <Select
-                      value={sectionedWorkflow.cta.placement.toString()}
-                      onValueChange={(value) => dispatch(setCTAPlacement(parseInt(value)))}
+                    <input
+                      type="number"
+                      id="ctaPlacement"
+                      value={sectionedWorkflow.cta.placement}
+                      onChange={(e) => {
+                        const value = Math.min(100000, Math.max(0, parseInt(e.target.value)));
+                        dispatch(setCTAPlacement(value));
+                      }}
                       disabled={sectionedWorkflow.isGeneratingSections}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="300">300 words (Early)</SelectItem>
-                        <SelectItem value="500">500 words</SelectItem>
-                        <SelectItem value="750">750 words</SelectItem>
-                        <SelectItem value="1000">1000 words (Mid)</SelectItem>
-                        <SelectItem value="1500">1500 words</SelectItem>
-                        <SelectItem value="2000">2000 words (Late)</SelectItem>
-                        <SelectItem value="2500">2500 words</SelectItem>
-                        <SelectItem value="3000">3000 words (Very Late)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      className="w-full p-2 border border-gray-300 rounded"
+                      placeholder="Enter word count for CTA placement"
+                      max={100000}
+                    />
                   </div>
 
                   {/* CTA Preview */}
@@ -773,6 +1034,47 @@ ${section.generatedScript}
             </Card>
           )}
 
+          {/* Sections Generation Progress */}
+          {sectionedWorkflow.sectionsProgress.isActive && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-6">
+                <ProgressBar
+                  current={sectionedWorkflow.sectionsProgress.current}
+                  total={sectionedWorkflow.sectionsProgress.total}
+                  message={sectionedWorkflow.sectionsProgress.message}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Detailed Script Generation Progress */}
+          {sectionedWorkflow.detailedScriptProgress.isActive && (
+            <Card className="border-purple-200 bg-purple-50">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 text-purple-600 animate-spin" />
+                    <span className="font-medium text-purple-800">Detailed Script Generation</span>
+                  </div>
+                  
+                  {/* Batch Progress */}
+                  <ProgressBar
+                    current={sectionedWorkflow.detailedScriptProgress.currentBatch}
+                    total={sectionedWorkflow.detailedScriptProgress.totalBatches}
+                    message={`Batch Progress - ${sectionedWorkflow.detailedScriptProgress.message}`}
+                  />
+                  
+                  {/* Section Progress */}
+                  <ProgressBar
+                    current={sectionedWorkflow.detailedScriptProgress.currentSection}
+                    total={sectionedWorkflow.detailedScriptProgress.totalSections}
+                    message="Overall Section Progress"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Script Sections */}
           {sectionedWorkflow.sections.length > 0 ? (
             <Card className="bg-white shadow-sm border border-gray-200">
@@ -795,7 +1097,23 @@ ${section.generatedScript}
                         className="bg-purple-600 hover:bg-purple-700"
                       >
                         <FileText className="h-4 w-4 mr-2" />
-                        Generate Full Script
+                        {(() => {
+                          const modelId = sectionedWorkflow.selectedModel || 'gpt-4o-mini'
+                          const isClaudeModel = modelId.includes('claude') || modelId.includes('anthropic')
+                          const sectionsToGenerate = sectionedWorkflow.sections.filter(s => !s.generatedScript.trim())
+                          
+                          if (sectionsToGenerate.length === 0) {
+                            return 'All Scripts Generated'
+                          }
+                          
+                          const batchSize = isClaudeModel ? 15 : 30
+                          const batches = Math.ceil(sectionsToGenerate.length / batchSize)
+                          const estimatedMinutes = isClaudeModel ? 
+                            batches : // Claude: 1 minute per batch
+                            Math.ceil(batches * 0.17) // OpenAI: ~10 seconds per batch
+                          
+                          return `Generate Scripts (${batches} batches, ~${estimatedMinutes} min)`
+                        })()}
                       </Button>
                     )}
                     {sectionsWithScripts.length > 0 && (
@@ -811,6 +1129,54 @@ ${section.generatedScript}
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Model-specific generation info */}
+                {(() => {
+                  const modelId = sectionedWorkflow.selectedModel || 'gpt-4o-mini'
+                  const isClaudeModel = modelId.includes('claude') || modelId.includes('anthropic')
+                  const sectionsToGenerate = sectionedWorkflow.sections.filter(s => !s.generatedScript.trim())
+                  
+                  if (sectionsToGenerate.length > 0) {
+                    const batchSize = isClaudeModel ? 15 : 30
+                    const batches = Math.ceil(sectionsToGenerate.length / batchSize)
+                    const delayTime = isClaudeModel ? '1 minute' : '10 seconds'
+                    
+                    return (
+                      <Card className={`mb-4 ${isClaudeModel ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                        <CardContent className="pt-4">
+                          <div className="flex items-start gap-3">
+                            <div className={`p-1 rounded-full ${isClaudeModel ? 'bg-amber-100' : 'bg-blue-100'}`}>
+                              {isClaudeModel ? (
+                                <AlertCircle className="h-4 w-4 text-amber-600" />
+                              ) : (
+                                <Zap className="h-4 w-4 text-blue-600" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className={`font-medium text-sm ${isClaudeModel ? 'text-amber-800' : 'text-blue-800'}`}>
+                                {isClaudeModel ? 'Claude Model - Conservative Batching' : 'OpenAI Model - Optimized Batching'}
+                              </h4>
+                              <p className={`text-xs mt-1 ${isClaudeModel ? 'text-amber-700' : 'text-blue-700'}`}>
+                                {isClaudeModel ? (
+                                  <>
+                                    Claude models will process <strong>{batchSize} sections per batch</strong> with {delayTime} delays to respect rate limits. 
+                                    Your {sectionsToGenerate.length} sections will be processed in <strong>{batches} batch(es)</strong> over approximately {batches} minute(s).
+                                  </>
+                                ) : (
+                                  <>
+                                    OpenAI models will process <strong>{batchSize} sections per batch</strong> with {delayTime} delays for optimal performance. 
+                                    Your {sectionsToGenerate.length} sections will be processed in <strong>{batches} batch(es)</strong> over approximately {Math.ceil(batches * 0.17)} minute(s).
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  }
+                  return null
+                })()}
+                
                 <div className="space-y-4">
                   {sectionedWorkflow.sections.map((section, index) => (
                     <div 

@@ -154,9 +154,25 @@ export interface SectionedWorkflowState {
   // Script sections
   sections: ScriptSection[]
   isGeneratingSections: boolean
+  sectionsProgress: {
+    isActive: boolean
+    current: number
+    total: number
+    message: string
+  }
   
   // Generated full script (combined from all sections)
   fullScript: string
+  
+  // Detailed script generation progress
+  detailedScriptProgress: {
+    isActive: boolean
+    currentBatch: number
+    totalBatches: number
+    currentSection: number
+    totalSections: number
+    message: string
+  }
   
   // Uploaded style analysis
   uploadedStyle: string | null
@@ -213,7 +229,21 @@ const initialSectionedWorkflowState: SectionedWorkflowState = {
   selectedModel: 'claude-3-5-sonnet-20241022',
   sections: [],
   isGeneratingSections: false,
+  sectionsProgress: {
+    isActive: false,
+    current: 0,
+    total: 0,
+    message: ''
+  },
   fullScript: '',
+  detailedScriptProgress: {
+    isActive: false,
+    currentBatch: 0,
+    totalBatches: 0,
+    currentSection: 0,
+    totalSections: 0,
+    message: ''
+  },
   uploadedStyle: null,
   uploadedStyleFileName: null,
   isAnalyzingStyle: false,
@@ -358,11 +388,33 @@ export const scriptsSlice = createSlice({
 
     startGeneratingSections: (state) => {
       state.sectionedWorkflow.isGeneratingSections = true
+      state.sectionedWorkflow.sectionsProgress = {
+        isActive: true,
+        current: 0,
+        total: 100,
+        message: 'Initializing sections generation...'
+      }
+    },
+
+    updateSectionsProgress: (state, action: PayloadAction<{ current: number; total: number; message: string }>) => {
+      const { current, total, message } = action.payload
+      state.sectionedWorkflow.sectionsProgress = {
+        isActive: true,
+        current,
+        total,
+        message
+      }
     },
 
     setSections: (state, action: PayloadAction<ScriptSection[]>) => {
       state.sectionedWorkflow.sections = action.payload
       state.sectionedWorkflow.isGeneratingSections = false
+      state.sectionedWorkflow.sectionsProgress = {
+        isActive: false,
+        current: 0,
+        total: 0,
+        message: ''
+      }
     },
 
     updateSection: (state, action: PayloadAction<{ id: string; field: keyof ScriptSection; value: any }>) => {
@@ -513,6 +565,73 @@ export const scriptsSlice = createSlice({
 
     setCTAType: (state, action: PayloadAction<'newsletter' | 'engagement'>) => {
       state.sectionedWorkflow.cta.type = action.payload
+    },
+
+    // New actions for batch processing
+    startGeneratingBatch: (state, action: PayloadAction<string[]>) => {
+      const sectionIds = action.payload
+      sectionIds.forEach(id => {
+        const section = state.sectionedWorkflow.sections.find(s => s.id === id)
+        if (section) {
+          section.isGenerating = true
+        }
+      })
+    },
+
+    startDetailedScriptGeneration: (state, action: PayloadAction<{ totalBatches: number; totalSections: number }>) => {
+      const { totalBatches, totalSections } = action.payload
+      state.sectionedWorkflow.detailedScriptProgress = {
+        isActive: true,
+        currentBatch: 0,
+        totalBatches,
+        currentSection: 0,
+        totalSections,
+        message: 'Starting detailed script generation...'
+      }
+    },
+
+    updateDetailedScriptProgress: (state, action: PayloadAction<{ 
+      currentBatch: number
+      currentSection: number
+      message: string 
+    }>) => {
+      const { currentBatch, currentSection, message } = action.payload
+      if (state.sectionedWorkflow.detailedScriptProgress.isActive) {
+        state.sectionedWorkflow.detailedScriptProgress.currentBatch = currentBatch
+        state.sectionedWorkflow.detailedScriptProgress.currentSection = currentSection
+        state.sectionedWorkflow.detailedScriptProgress.message = message
+      }
+    },
+
+    completeDetailedScriptGeneration: (state) => {
+      state.sectionedWorkflow.detailedScriptProgress = {
+        isActive: false,
+        currentBatch: 0,
+        totalBatches: 0,
+        currentSection: 0,
+        totalSections: 0,
+        message: ''
+      }
+    },
+
+    setBatchResults: (state, action: PayloadAction<Array<{ id: string; script: string; wordCount: number; error?: boolean }>>) => {
+      const batchResults = action.payload
+      
+      batchResults.forEach(({ id, script, wordCount, error }) => {
+        const section = state.sectionedWorkflow.sections.find(s => s.id === id)
+        if (section) {
+          section.generatedScript = script
+          section.wordCount = wordCount
+          section.isGenerating = false
+        }
+      })
+      
+      // Update fullScript with all completed sections
+      state.sectionedWorkflow.fullScript = state.sectionedWorkflow.sections
+        .filter(s => s.generatedScript.trim() && !s.generatedScript.includes('[Error generating content'))
+        .sort((a, b) => a.order - b.order)
+        .map(s => s.generatedScript)
+        .join('\n\n')
     }
   }
 })
@@ -539,6 +658,7 @@ export const {
   // Sectioned workflow actions
   setSectionedWorkflowField,
   startGeneratingSections,
+  updateSectionsProgress,
   setSections,
   updateSection,
   startGeneratingDetailedScript,
@@ -565,7 +685,14 @@ export const {
   setCTAField,
   setCTAEnabled,
   setCTAPlacement,
-  setCTAType
+  setCTAType,
+
+  // New actions for batch processing
+  startGeneratingBatch,
+  startDetailedScriptGeneration,
+  updateDetailedScriptProgress,
+  completeDetailedScriptGeneration,
+  setBatchResults
 } = scriptsSlice.actions
 
 export default scriptsSlice.reducer 

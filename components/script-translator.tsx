@@ -101,14 +101,14 @@ export function ScriptTranslator() {
     showMessage(`Translating script to ${DEEPL_LANGUAGES.find(l => l.code === targetLanguage)?.name}...`, 'info')
 
     try {
-      const response = await fetch('/api/translate-script', {
+      const response = await fetch('/api/translate-document', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           text: scriptToTranslate,
-          targetLanguage: targetLanguage
+          targetLang: targetLanguage
         }),
       })
 
@@ -127,7 +127,7 @@ export function ScriptTranslator() {
       
       const targetLangName = DEEPL_LANGUAGES.find(l => l.code === targetLanguage)?.name || targetLanguage
       showMessage(
-        `Translation completed! Script translated to ${targetLangName} (${data.meta.translatedLength} characters)`, 
+        `Translation completed! Script translated to ${targetLangName} (${data.translatedLength} characters)`, 
         'success'
       )
     } catch (error) {

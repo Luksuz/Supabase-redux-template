@@ -81,8 +81,8 @@ const MODEL_INFO: Record<ImageProvider, {
   'dalle-3': {
     name: 'DALL-E 3',
     description: 'OpenAI\'s most advanced image generation model',
-    batchSize: 20,
-    rateLimit: '20/min per batch',
+    batchSize: 10,
+    rateLimit: '10/min per batch',
     features: ['High quality', 'Text understanding', 'Creative interpretation', 'Base64 output']
   }
 }
