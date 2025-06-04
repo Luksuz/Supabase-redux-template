@@ -100,11 +100,11 @@ const elevenLabsLanguages = [
 const getCharacterLimits = (provider: AudioProvider) => {
   switch (provider) {
     case 'elevenlabs':
-      return { maxChars: 1000, batchSize: 5, batchDelay: 60 }
+      return { maxChars: 10000, batchSize: 5, batchDelay: 60 }
     case 'minimax':
-      return { maxChars: 2800, batchSize: 5, batchDelay: 60 }
+      return { maxChars: 3000, batchSize: 5, batchDelay: 60 }
     default:
-      return { maxChars: 1000, batchSize: 5, batchDelay: 60 }
+      return { maxChars: 3000, batchSize: 5, batchDelay: 60 }
   }
 }
 
@@ -283,8 +283,8 @@ export function SimpleAudioGenerator() {
   const getProviderInfo = () => {
     const limits = getCharacterLimits(selectedProvider)
     return selectedProvider === 'minimax' 
-      ? { name: 'MiniMax', desc: `Fast, reliable AI audio (${limits.maxChars} chars/chunk, ${limits.batchSize} requests/min)` }
-      : { name: 'ElevenLabs', desc: `High-quality AI voices (${limits.maxChars} chars/chunk, ${limits.batchSize} requests/min)` }
+      ? { name: 'MiniMax', desc: `Fast, reliable AI audio (${limits.maxChars} chars/chunk, ${limits.batchSize} chunks/batch)` }
+      : { name: 'ElevenLabs', desc: `High-quality AI voices (${limits.maxChars} chars/chunk, ${limits.batchSize} chunks/batch)` }
   }
 
   const providerInfo = getProviderInfo()
@@ -295,7 +295,7 @@ export function SimpleAudioGenerator() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
         <p className="text-gray-600">
-          Convert text to speech using MiniMax or ElevenLabs AI models with automatic batching
+          Convert text to speech using MiniMax or ElevenLabs AI models with automatic batching and concatenation
         </p>
       </div>
 
@@ -429,8 +429,8 @@ export function SimpleAudioGenerator() {
                   </div>
                   <p className="text-sm text-gray-600">
                     {provider === 'minimax' 
-                      ? 'Fast, reliable AI audio (2800 chars/chunk)'
-                      : 'High-quality AI voices (1000 chars/chunk)'
+                      ? 'Fast, reliable AI audio (3000 chars/chunk)'
+                      : 'High-quality AI voices (10000 chars/chunk)'
                     }
                   </p>
                 </div>
@@ -658,7 +658,7 @@ export function SimpleAudioGenerator() {
               Audio Generated Successfully
             </CardTitle>
             <CardDescription>
-              Generated with {providerInfo.name} using batch processing
+              Generated with {providerInfo.name} using batch processing and automatic concatenation
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -719,7 +719,7 @@ export function SimpleAudioGenerator() {
               <div className="space-y-2">
                 <h3 className="text-lg font-medium text-gray-900">Ready to Generate Audio</h3>
                 <p className="text-gray-500">
-                  Choose your provider, configure settings, and enter text to generate speech with automatic batch processing
+                  Choose your provider, configure settings, and enter text to generate speech with automatic batch processing and concatenation
                 </p>
               </div>
             </div>

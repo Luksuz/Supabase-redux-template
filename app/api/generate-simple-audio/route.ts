@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import "dotenv/config";
+
+const execAsync = promisify(exec);
 
 // Initialize ElevenLabs client
 const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
@@ -25,9 +32,9 @@ const ELEVENLABS_VOICE_IDS: Record<string, string> = {
 };
 
 // Constants for chunking and batching
-const ELEVENLABS_CHUNK_MAX_LENGTH = 1000;
-const MINIMAX_CHUNK_MAX_LENGTH = 2800;
-const BATCH_SIZE = 5; // 5 requests per minute for both providers
+const ELEVENLABS_CHUNK_MAX_LENGTH = 10000;
+const MINIMAX_CHUNK_MAX_LENGTH = 3000;
+const BATCH_SIZE = 5; // 5 requests per batch
 const BATCH_DELAY = 60 * 1000; // 1 minute delay between batches
 
 // Chunking function
@@ -227,7 +234,7 @@ async function processBatches(
   model: string,
   language?: string
 ): Promise<string[]> {
-  const chunkUrls: string[] = [];
+  const chunkUrls: string[] = new Array(textChunks.length);
   const totalBatches = Math.ceil(textChunks.length / BATCH_SIZE);
   
   console.log(`📦 Processing ${textChunks.length} chunks in ${totalBatches} batches`);
@@ -236,38 +243,35 @@ async function processBatches(
     const batchEnd = Math.min(batchStart + BATCH_SIZE, textChunks.length);
     const currentBatchNumber = Math.floor(batchStart / BATCH_SIZE) + 1;
     
-    console.log(`🔄 Processing batch ${currentBatchNumber}/${totalBatches}`);
+    console.log(`🔄 Processing batch ${currentBatchNumber}/${totalBatches} (chunks ${batchStart + 1}-${batchEnd})`);
 
     // Process current batch in parallel
     const batchPromises = [];
     for (let i = batchStart; i < batchEnd; i++) {
-      batchPromises.push(
-        generateSingleChunk(textChunks[i], i, provider, voice, model, language)
-          .then(chunkUrl => ({ chunkIndex: i, chunkUrl, status: 'completed' as const }))
-          .catch(error => {
-            console.error(`❌ Chunk ${i} failed:`, error);
-            return { chunkIndex: i, error: error.message, status: 'failed' as const };
-          })
-      );
+      const promise = generateSingleChunk(textChunks[i], i, provider, voice, model, language)
+        .then(chunkUrl => ({ chunkIndex: i, chunkUrl, status: 'completed' as const }))
+        .catch(error => {
+          console.error(`❌ Chunk ${i + 1} failed:`, error);
+          return { chunkIndex: i, error: error.message, status: 'failed' as const };
+        });
+      batchPromises.push(promise);
     }
 
-    const batchResults = await Promise.allSettled(batchPromises);
+    // Wait for all chunks in this batch to complete
+    const batchResults = await Promise.all(batchPromises);
     
-    // Process results
+    // Process results and store in the correct positions
     for (const result of batchResults) {
-      if (result.status === 'fulfilled') {
-        const chunkResult = result.value;
-        if (chunkResult.status === 'completed' && chunkResult.chunkUrl) {
-          chunkUrls[chunkResult.chunkIndex] = chunkResult.chunkUrl;
-        } else if (chunkResult.status === 'failed') {
-          console.error(`❌ Failed chunk result:`, chunkResult.error);
-          throw new Error(`Chunk processing failed: ${chunkResult.error}`);
-        }
-      } else {
-        console.error(`❌ Promise rejected:`, result.reason);
-        throw new Error(`Chunk processing failed: ${result.reason}`);
+      if (result.status === 'completed' && result.chunkUrl) {
+        chunkUrls[result.chunkIndex] = result.chunkUrl;
+        console.log(`✅ Chunk ${result.chunkIndex + 1} completed successfully`);
+      } else if (result.status === 'failed') {
+        console.error(`❌ Chunk ${result.chunkIndex + 1} failed: ${result.error}`);
+        throw new Error(`Chunk ${result.chunkIndex + 1} processing failed: ${result.error}`);
       }
     }
+
+    console.log(`✅ Batch ${currentBatchNumber}/${totalBatches} completed successfully`);
 
     // Wait between batches (except for the last batch)
     if (batchEnd < textChunks.length) {
@@ -276,25 +280,97 @@ async function processBatches(
     }
   }
 
-  return chunkUrls.filter(url => url); // Filter out any undefined values
+  // Filter out any undefined values and return only completed chunks
+  const completedChunks = chunkUrls.filter(url => url);
+  console.log(`🎉 All batches completed! Generated ${completedChunks.length}/${textChunks.length} chunks successfully`);
+  
+  return completedChunks;
 }
 
-// Simple concatenation (for this demo, we'll just return the first chunk or implement basic joining)
-function concatenateAudioUrls(chunkUrls: string[]): string {
-  // For data URLs, we can't easily concatenate them without complex audio processing
-  // For now, return the first chunk or implement a simple solution
-  // In production, you'd want to decode, concatenate audio buffers, and re-encode
-  
+// Audio concatenation using ffmpeg
+async function concatenateAudioUrls(chunkUrls: string[]): Promise<string> {
   if (chunkUrls.length === 1) {
     return chunkUrls[0];
   }
   
-  // For multiple chunks, we'd need to implement actual audio concatenation
-  // This is a simplified approach - in practice you'd need ffmpeg or audio processing
-  console.log(`⚠️ Multiple chunks detected (${chunkUrls.length}). Returning first chunk for now.`);
-  console.log(`🔗 In production, implement proper audio concatenation here.`);
+  console.log(`🔗 Starting audio concatenation for ${chunkUrls.length} chunks`);
   
-  return chunkUrls[0]; // Simplified - return first chunk
+  // Create temporary directory for processing
+  const tempDir = path.join(os.tmpdir(), 'audio-concat', `session-${Date.now()}`);
+  await fs.mkdir(tempDir, { recursive: true });
+  
+  try {
+    // Convert base64 data URLs to temporary files
+    const tempFiles: string[] = [];
+    
+    for (let i = 0; i < chunkUrls.length; i++) {
+      const chunkUrl = chunkUrls[i];
+      console.log(`📄 Processing chunk ${i + 1}/${chunkUrls.length}`);
+      
+      // Extract base64 data from data URL (format: data:audio/mp3;base64,<base64data>)
+      const base64Match = chunkUrl.match(/^data:audio\/mp3;base64,(.+)$/);
+      if (!base64Match) {
+        throw new Error(`Invalid base64 data URL format for chunk ${i + 1}`);
+      }
+      
+      const base64Data = base64Match[1];
+      const audioBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Write to temporary file
+      const tempFileName = `chunk_${i.toString().padStart(3, '0')}.mp3`;
+      const tempFilePath = path.join(tempDir, tempFileName);
+      await fs.writeFile(tempFilePath, audioBuffer);
+      
+      tempFiles.push(tempFilePath);
+      console.log(`✅ Chunk ${i + 1} written to: ${tempFilePath} (${audioBuffer.length} bytes)`);
+    }
+    
+    // Create ffmpeg concat file
+    console.log(`📝 Creating ffmpeg concat file for ${tempFiles.length} chunks`);
+    const concatFileName = 'concat_list.txt';
+    const concatFilePath = path.join(tempDir, concatFileName);
+    
+    const concatContent = tempFiles.map(filePath => `file '${filePath}'`).join('\n');
+    await fs.writeFile(concatFilePath, concatContent);
+    
+    console.log(`📝 Concat file created with content:\n${concatContent}`);
+    
+    // Run ffmpeg concatenation
+    const outputFileName = 'concatenated_output.mp3';
+    const outputFilePath = path.join(tempDir, outputFileName);
+    
+    const ffmpegCommand = `ffmpeg -f concat -safe 0 -i "${concatFilePath}" -c copy "${outputFilePath}"`;
+    console.log(`🎬 Running ffmpeg concatenation: ${ffmpegCommand}`);
+    
+    await execAsync(ffmpegCommand);
+    console.log(`✅ Audio concatenation completed: ${outputFilePath}`);
+    
+    // Read the concatenated file and convert back to base64
+    const concatenatedBuffer = await fs.readFile(outputFilePath);
+    const base64Result = concatenatedBuffer.toString('base64');
+    const dataUrl = `data:audio/mp3;base64,${base64Result}`;
+    
+    console.log(`🎉 Successfully concatenated ${chunkUrls.length} chunks into single audio (${concatenatedBuffer.length} bytes)`);
+    
+    return dataUrl;
+    
+  } catch (error: any) {
+    console.error(`❌ Error during audio concatenation:`, error);
+    throw new Error(`Audio concatenation failed: ${error.message}`);
+  } finally {
+    // Clean up temporary files
+    try {
+      console.log(`🧹 Cleaning up temporary directory: ${tempDir}`);
+      const files = await fs.readdir(tempDir);
+      for (const file of files) {
+        await fs.unlink(path.join(tempDir, file));
+      }
+      await fs.rmdir(tempDir);
+      console.log(`🧹 Cleanup completed successfully`);
+    } catch (cleanupError) {
+      console.warn(`⚠️ Cleanup failed:`, cleanupError);
+    }
+  }
 }
 
 export async function POST(request: Request) {
@@ -335,7 +411,7 @@ export async function POST(request: Request) {
     }
 
     // Concatenate chunks (simplified for now)
-    const finalAudioUrl = concatenateAudioUrls(chunkUrls);
+    const finalAudioUrl = await concatenateAudioUrls(chunkUrls);
 
     console.log(`✅ Batch audio generation completed successfully!`);
 
@@ -357,4 +433,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
