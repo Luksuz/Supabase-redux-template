@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
       targetLanguage as deepl.TargetLanguageCode
     );
 
-    const translatedText = result.text;
-    const detectedSourceLanguage = result.detectedSourceLang || sourceLanguage || 'auto-detected';
+    const translatedText = Array.isArray(result) ? result[0].text : result.text;
+    const detectedSourceLanguage = Array.isArray(result) ? result[0].detectedSourceLang : result.detectedSourceLang;
 
     console.log(`✅ Translation completed: ${translatedText.length} characters`);
     console.log(`📊 Detected source language: ${detectedSourceLanguage}`);
