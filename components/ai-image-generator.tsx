@@ -116,6 +116,8 @@ export function AIImageGenerator() {
   // Add state for selected images - format: "setId:imageIndex"
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [showImageSelection, setShowImageSelection] = useState(false)
+  // Add state for image style selection
+  const [selectedImageStyle, setSelectedImageStyle] = useState<string>('realistic')
 
   // Get available script sources (prioritized)
   const fullScript = sectionedWorkflow.fullScript || ''
@@ -206,6 +208,32 @@ export function AIImageGenerator() {
     setSelectedImages(allImageIds)
   }
 
+  // Define available image styles
+  const IMAGE_STYLES = [
+    { value: 'none', label: 'No specific style' },
+    { value: 'ancient-beige-paper-ink', label: 'Ancient beige paper ink illustration style' },
+    { value: 'ancient-beige-paper-book', label: 'Ancient beige paper ink illustration from an ancient book' },
+    { value: 'esoteric-1400s', label: 'Esoteric 1400s drawing style' },
+    { value: 'medieval', label: 'Medieval drawing style' },
+    { value: 'oil-painting', label: 'Oil painting style' },
+    { value: 'ary-scheffer', label: "Ary Scheffer's painting depicting style" },
+    { value: 'pieter-jansz', label: 'Pieter-Jansz van Asch painting style' },
+    { value: 'black-white', label: 'Black & White' },
+    { value: 'ancient-egyptian', label: 'Ancient Egyptian art style' },
+    { value: 'modern-symbolist', label: 'Modern Symbolist/Esoteric Art style' },
+    { value: 'northern-renaissance', label: 'Northern Renaissance engraving style' }
+  ]
+
+  // Helper function to apply image style to prompt
+  const applyImageStyle = (basePrompt: string) => {
+    if (!selectedImageStyle || selectedImageStyle === 'none') return basePrompt
+    
+    const styleLabel = IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.label
+    if (!styleLabel) return basePrompt
+    
+    return `${basePrompt}, in ${styleLabel.toLowerCase()}`
+  }
+
   // Generate images with batch processing
   const generateImagesBatch = async (prompts: string[], batchIndex: number, totalBatches: number) => {
     const batchSize = MODEL_INFO[selectedModel].batchSize
@@ -226,6 +254,7 @@ export function AIImageGenerator() {
       // For MiniMax: send requests in parallel (batch size 5)
       const requestPromises = batchPrompts.map(async (prompt, index) => {
         try {
+          const styledPrompt = applyImageStyle(prompt)
           const response = await fetch('/api/generate-images', {
             method: 'POST',
             headers: {
@@ -233,7 +262,7 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: prompt,
+              prompt: styledPrompt,
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
               userId: 'user-123'
@@ -269,6 +298,7 @@ export function AIImageGenerator() {
       // For DALL-E 3: efficient parallel batch processing (batch size 20)
       const requestPromises = batchPrompts.map(async (prompt, index) => {
         try {
+          const styledPrompt = applyImageStyle(prompt)
           const response = await fetch('/api/generate-images', {
             method: 'POST',
             headers: {
@@ -276,7 +306,7 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: prompt,
+              prompt: styledPrompt,
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
               userId: 'user-123'
@@ -312,6 +342,7 @@ export function AIImageGenerator() {
       // For Flux models: send all requests in parallel
       const requestPromises = batchPrompts.map(async (prompt, index) => {
         try {
+          const styledPrompt = applyImageStyle(prompt)
           const response = await fetch('/api/generate-images', {
             method: 'POST',
             headers: {
@@ -319,7 +350,7 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: prompt,
+              prompt: styledPrompt,
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
               userId: 'user-123'
@@ -823,7 +854,7 @@ export function AIImageGenerator() {
           </div>
 
           {/* Settings */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Number of Scenes Slider */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -843,6 +874,30 @@ export function AIImageGenerator() {
                 <span>1 scene</span>
                 <span>100 scenes</span>
               </div>
+            </div>
+
+            {/* Image Style Selection */}
+            <div className="space-y-3">
+              <Label htmlFor="image-style">Image Style</Label>
+              <Select
+                value={selectedImageStyle}
+                onValueChange={setSelectedImageStyle}
+                disabled={isGenerating || isExtractingScenes}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose an image style..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {IMAGE_STYLES.map((style) => (
+                    <SelectItem key={style.value} value={style.value}>
+                      {style.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Style will be applied to all generated images
+              </p>
             </div>
 
             {/* Aspect Ratio */}
@@ -1010,6 +1065,11 @@ export function AIImageGenerator() {
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">{currentModel.name}</Badge>
                 <Badge variant="secondary">{aspectRatio} Aspect Ratio</Badge>
+                {selectedImageStyle && selectedImageStyle !== 'none' && (
+                  <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                    {IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.label || 'Custom Style'}
+                  </Badge>
+                )}
                 <Badge variant="secondary">{selectedScenes.length} Selected Scene{selectedScenes.length !== 1 ? 's' : ''}</Badge>
                 <Badge variant="outline" className="text-blue-700 border-blue-300">
                   Batch size: {currentModel.batchSize}
