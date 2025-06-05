@@ -137,6 +137,7 @@ export interface ScriptSection {
   image_generation_prompt: string
   generatedScript: string
   isGenerating: boolean
+  isRegenerating: boolean
   wordCount: number
   order: number
 }
@@ -150,6 +151,7 @@ export interface SectionedWorkflowState {
   additionalInstructions: string
   selectedModel: string
   wordCount: number
+  forbiddenWords: string
   
   // Script sections
   sections: ScriptSection[]
@@ -248,6 +250,7 @@ const initialSectionedWorkflowState: SectionedWorkflowState = {
   uploadedStyleFileName: null,
   isAnalyzingStyle: false,
   wordCount: 0,
+  forbiddenWords: '',
   cta: {
     enabled: true,
     placement: 1000,
@@ -407,7 +410,10 @@ export const scriptsSlice = createSlice({
     },
 
     setSections: (state, action: PayloadAction<ScriptSection[]>) => {
-      state.sectionedWorkflow.sections = action.payload
+      state.sectionedWorkflow.sections = action.payload.map(section => ({
+        ...section,
+        isRegenerating: false // Initialize regeneration state
+      }))
       state.sectionedWorkflow.isGeneratingSections = false
       state.sectionedWorkflow.sectionsProgress = {
         isActive: false,
@@ -430,6 +436,23 @@ export const scriptsSlice = createSlice({
       const section = state.sectionedWorkflow.sections.find(s => s.id === sectionId)
       if (section) {
         section.isGenerating = true
+      }
+    },
+
+    // Add regeneration actions
+    startRegeneratingSection: (state, action: PayloadAction<string>) => {
+      const sectionId = action.payload
+      const section = state.sectionedWorkflow.sections.find(s => s.id === sectionId)
+      if (section) {
+        section.isRegenerating = true
+      }
+    },
+
+    stopRegeneratingSection: (state, action: PayloadAction<string>) => {
+      const sectionId = action.payload
+      const section = state.sectionedWorkflow.sections.find(s => s.id === sectionId)
+      if (section) {
+        section.isRegenerating = false
       }
     },
 
@@ -662,6 +685,8 @@ export const {
   setSections,
   updateSection,
   startGeneratingDetailedScript,
+  startRegeneratingSection,
+  stopRegeneratingSection,
   startGeneratingAllDetailedScripts,
   setAllDetailedScripts,
   setDetailedScript,

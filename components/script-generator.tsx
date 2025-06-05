@@ -22,6 +22,8 @@ import {
   updateDetailedScriptProgress,
   completeDetailedScriptGeneration,
   setBatchResults,
+  startRegeneratingSection,
+  stopRegeneratingSection,
   THEME_OPTIONS
 } from '../lib/features/scripts/scriptsSlice'
 import type { ScriptSection } from '../lib/features/scripts/scriptsSlice'
@@ -97,6 +99,8 @@ export function ScriptGenerator() {
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [editingInstructions, setEditingInstructions] = useState("")
+  const [editingScriptId, setEditingScriptId] = useState<string | null>(null)
+  const [editingScript, setEditingScript] = useState("")
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -155,7 +159,8 @@ export function ScriptGenerator() {
           additionalInstructions: sectionedWorkflow.additionalInstructions,
           selectedModel: sectionedWorkflow.selectedModel,
             uploadedStyle: sectionedWorkflow.uploadedStyle,
-            cta: sectionedWorkflow.cta
+            cta: sectionedWorkflow.cta,
+            forbiddenWords: sectionedWorkflow.forbiddenWords
         }),
       })
 
@@ -250,7 +255,8 @@ export function ScriptGenerator() {
           additionalInstructions: sectionedWorkflow.additionalInstructions,
           selectedModel: sectionedWorkflow.selectedModel,
           uploadedStyle: sectionedWorkflow.uploadedStyle,
-          cta: sectionedWorkflow.cta // Include CTA configuration
+          cta: sectionedWorkflow.cta, // Include CTA configuration
+              forbiddenWords: sectionedWorkflow.forbiddenWords
             }),
           })
 
@@ -366,7 +372,8 @@ export function ScriptGenerator() {
           targetAudience: sectionedWorkflow.targetAudience,
           selectedModel: sectionedWorkflow.selectedModel,
               uploadedStyle: sectionedWorkflow.uploadedStyle,
-              cta: sectionedWorkflow.cta
+              cta: sectionedWorkflow.cta,
+              forbiddenWords: sectionedWorkflow.forbiddenWords
               }),
             })
 
@@ -498,6 +505,94 @@ export function ScriptGenerator() {
     setEditingInstructions("")
   }
 
+  // Script editing functions
+  const startEditingScript = (section: ScriptSection) => {
+    setEditingScriptId(section.id)
+    setEditingScript(section.generatedScript)
+  }
+
+  const saveEditingScript = () => {
+    if (!editingScriptId) return
+    
+    dispatch(updateSection({ 
+      id: editingScriptId, 
+      field: 'generatedScript', 
+      value: editingScript 
+    }))
+    
+    // Update word count for the edited script
+    const wordCount = editingScript.split(/\s+/).filter(word => word.length > 0).length
+    dispatch(updateSection({ 
+      id: editingScriptId, 
+      field: 'wordCount', 
+      value: wordCount 
+    }))
+    
+    cancelEditingScript()
+    showMessage('Script updated successfully!', 'success')
+  }
+
+  const cancelEditingScript = () => {
+    setEditingScriptId(null)
+    setEditingScript("")
+  }
+
+  // Regenerate section outline (writing instructions)
+  const handleRegenerateOutline = async (sectionId: string) => {
+    const section = sectionedWorkflow.sections.find(s => s.id === sectionId)
+    if (!section) return
+
+    dispatch(startRegeneratingSection(sectionId))
+    showMessage(`Regenerating outline for: ${section.title}...`, 'info')
+
+    try {
+      const response = await fetch('/api/generate-script-sections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoTitle: sectionedWorkflow.videoTitle,
+          targetAudience: sectionedWorkflow.targetAudience,
+          themeId: sectionedWorkflow.themeId,
+          wordCount: sectionedWorkflow.wordCount,
+          title: sectionedWorkflow.videoTitle,
+          emotionalTone: sectionedWorkflow.emotionalTone,
+          additionalInstructions: sectionedWorkflow.additionalInstructions,
+          selectedModel: sectionedWorkflow.selectedModel,
+          uploadedStyle: sectionedWorkflow.uploadedStyle,
+          cta: sectionedWorkflow.cta,
+          forbiddenWords: sectionedWorkflow.forbiddenWords,
+          regenerateSection: {
+            sectionId: sectionId,
+            currentTitle: section.title
+          }
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to regenerate outline')
+      }
+
+      const data = await response.json()
+      
+      if (data.sections && data.sections.length > 0) {
+        const newSection = data.sections[0]
+        dispatch(updateSection({ id: sectionId, field: 'title', value: newSection.title }))
+        dispatch(updateSection({ id: sectionId, field: 'writingInstructions', value: newSection.writingInstructions }))
+        dispatch(updateSection({ id: sectionId, field: 'image_generation_prompt', value: newSection.image_generation_prompt || '' }))
+        
+        showMessage(`Regenerated outline for "${newSection.title}"!`, 'success')
+      }
+    } catch (error) {
+      const errorMessage = (error as Error).message
+      showMessage(`Failed to regenerate outline: ${errorMessage}`, 'error')
+    } finally {
+      dispatch(stopRegeneratingSection(sectionId))
+    }
+  }
+
   // Remove section
   const removeSection = (sectionId: string) => {
     const updatedSections = sectionedWorkflow.sections.filter(s => s.id !== sectionId)
@@ -514,6 +609,7 @@ export function ScriptGenerator() {
       image_generation_prompt: 'Describe the visual scene for this section...',
       generatedScript: '',
       isGenerating: false,
+      isRegenerating: false,
       wordCount: 0,
       order: sectionedWorkflow.sections.length + 1
     }
@@ -846,6 +942,25 @@ ${section.generatedScript}
               rows={3}
               disabled={sectionedWorkflow.isGeneratingSections}
             />
+          </div>
+
+          {/* Forbidden Words */}
+          <div className="space-y-2">
+            <Label htmlFor="forbiddenWords" className="flex items-center gap-1">
+              <X className="h-3 w-3" />
+              Forbidden Words
+            </Label>
+            <Textarea
+              id="forbiddenWords"
+              value={sectionedWorkflow.forbiddenWords}
+              onChange={(e) => handleFieldChange('forbiddenWords', e.target.value)}
+              placeholder="Enter words or phrases to avoid in the script (comma-separated)..."
+              rows={2}
+              disabled={sectionedWorkflow.isGeneratingSections}
+            />
+            <p className="text-xs text-gray-500">
+              These words will be excluded from the generated script content. Separate multiple words with commas.
+            </p>
           </div>
 
           {/* Generate Sections Button */}
@@ -1238,6 +1353,12 @@ ${section.generatedScript}
                               </Badge>
                             )}
                             
+                        {section.isRegenerating && (
+                          <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 border-purple-300">
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Regenerating Outline
+                          </Badge>
+                        )}
                         {editingSectionId === section.id ? (
                           <>
                                 <Button
@@ -1263,15 +1384,31 @@ ${section.generatedScript}
                               onClick={() => startEditingSection(section)}
                                   size="sm"
                                   variant="outline"
-                              disabled={section.isGenerating}
+                              disabled={section.isGenerating || section.isRegenerating}
+                              title="Edit outline"
                                 >
                               <Edit className="h-3 w-3" />
                                 </Button>
+                            <Button
+                              onClick={() => handleRegenerateOutline(section.id)}
+                              size="sm"
+                              variant="outline"
+                              disabled={section.isGenerating || section.isRegenerating}
+                              className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                              title="Regenerate outline"
+                            >
+                              {section.isRegenerating ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RotateCcw className="h-3 w-3" />
+                              )}
+                            </Button>
                                 <Button
                               onClick={() => handleGenerateDetailedScript(section.id)}
                                   size="sm"
                               disabled={section.isGenerating}
                               className="bg-green-600 hover:bg-green-700"
+                            title={section.generatedScript ? "Regenerate script" : "Generate script"}
                             >
                               {section.isGenerating ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1287,6 +1424,7 @@ ${section.generatedScript}
                                   variant="outline"
                               disabled={section.isGenerating}
                               className="text-red-600 border-red-200 hover:bg-red-50"
+                            title="Remove section"
                             >
                               <Trash2 className="h-3 w-3" />
                                 </Button>
@@ -1330,18 +1468,81 @@ ${section.generatedScript}
                               </Badge>
                                   </div>
                                   </div>
-                          <Button
-                            onClick={() => copyScript(section.generatedScript)}
-                            size="sm"
-                            variant="outline"
-                          >
-                            <FileText className="h-3 w-3 mr-1" />
-                            Copy
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            {editingScriptId === section.id ? (
+                              <>
+                                <Button
+                                  onClick={saveEditingScript}
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-600 border-green-200 hover:bg-green-50"
+                                  title="Save script changes"
+                                >
+                                  <Save className="h-3 w-3 mr-1" />
+                                  Save
+                                </Button>
+                                <Button
+                                  onClick={cancelEditingScript}
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 border-red-200 hover:bg-red-50"
+                                  title="Cancel editing"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  onClick={() => startEditingScript(section)}
+                                  size="sm"
+                                  variant="outline"
+                                  title="Edit script"
+                                >
+                                  <Edit className="h-3 w-3 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  onClick={() => handleGenerateDetailedScript(section.id)}
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                                  disabled={section.isGenerating}
+                                  title="Regenerate script"
+                                >
+                                  {section.isGenerating ? (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="h-3 w-3 mr-1" />
+                                  )}
+                                  {section.isGenerating ? 'Regen...' : 'Regen'}
+                                </Button>
+                            <Button
+                              onClick={() => copyScript(section.generatedScript)}
+                              size="sm"
+                              variant="outline"
+                              title="Copy script"
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              Copy
+                            </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
+                        {editingScriptId === section.id ? (
+                          <Textarea
+                            value={editingScript}
+                            onChange={(e) => setEditingScript(e.target.value)}
+                            rows={8}
+                            className="text-sm font-mono"
+                            placeholder="Edit your script content..."
+                          />
+                        ) : (
                         <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
                           <p className="whitespace-pre-wrap">{section.generatedScript}</p>
                                 </div>
+                        )}
                               </div>
                             )}
                           </div>

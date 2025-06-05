@@ -23,7 +23,9 @@ import {
   Clock,
   Cpu,
   Info,
-  Package
+  Package,
+  CheckSquare,
+  Square
 } from 'lucide-react'
 import { 
   setSelectedModel,
@@ -111,6 +113,9 @@ export function AIImageGenerator() {
   const [scriptInput, setScriptInput] = useState('')
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
   const [downloadingZip, setDownloadingZip] = useState<string | null>(null)
+  // Add state for selected images - format: "setId:imageIndex"
+  const [selectedImages, setSelectedImages] = useState<string[]>([])
+  const [showImageSelection, setShowImageSelection] = useState(false)
 
   // Get available script sources (prioritized)
   const fullScript = sectionedWorkflow.fullScript || ''
@@ -156,6 +161,49 @@ export function AIImageGenerator() {
       batches.push(array.slice(i, i + batchSize))
     }
     return batches
+  }
+
+  // Helper functions for image selection
+  const getImageId = (setId: string, imageIndex: number) => `${setId}:${imageIndex}`
+  
+  const toggleImageSelection = (setId: string, imageIndex: number) => {
+    const imageId = getImageId(setId, imageIndex)
+    setSelectedImages(prev => 
+      prev.includes(imageId) 
+        ? prev.filter(id => id !== imageId)
+        : [...prev, imageId]
+    )
+  }
+
+  const selectAllImagesInSet = (setId: string, imageCount: number) => {
+    const setImageIds = Array.from({ length: imageCount }, (_, i) => getImageId(setId, i))
+    setSelectedImages(prev => {
+      const otherImages = prev.filter(id => !id.startsWith(`${setId}:`))
+      return [...otherImages, ...setImageIds]
+    })
+  }
+
+  const clearImagesInSet = (setId: string) => {
+    setSelectedImages(prev => prev.filter(id => !id.startsWith(`${setId}:`)))
+  }
+
+  const getSelectedImagesInSet = (setId: string) => {
+    return selectedImages.filter(id => id.startsWith(`${setId}:`))
+  }
+
+  const clearAllSelectedImages = () => {
+    setSelectedImages([])
+    setShowImageSelection(false)
+  }
+
+  const selectAllImages = () => {
+    const allImageIds: string[] = []
+    imageSets.forEach(set => {
+      set.imageUrls.forEach((_, index) => {
+        allImageIds.push(getImageId(set.id, index))
+      })
+    })
+    setSelectedImages(allImageIds)
   }
 
   // Generate images with batch processing
@@ -546,6 +594,79 @@ export function AIImageGenerator() {
     }
   }
 
+  const downloadSelectedAsZip = async () => {
+    if (selectedImages.length === 0) return
+
+    try {
+      setDownloadingZip('selected')
+      
+      // Get the actual image URLs for selected images
+      const selectedImageUrls: string[] = []
+      const selectedImageDetails: Array<{ setName: string; imageIndex: number; provider: string }> = []
+      
+      selectedImages.forEach(imageId => {
+        const [setId, imageIndexStr] = imageId.split(':')
+        const imageIndex = parseInt(imageIndexStr)
+        const imageSet = imageSets.find(set => set.id === setId)
+        
+        if (imageSet && imageSet.imageUrls[imageIndex]) {
+          selectedImageUrls.push(imageSet.imageUrls[imageIndex])
+          selectedImageDetails.push({
+            setName: imageSet.originalPrompt.slice(0, 30).replace(/[^a-z0-9]/gi, '_'),
+            imageIndex: imageIndex + 1,
+            provider: imageSet.provider
+          })
+        }
+      })
+      
+      // Create a descriptive name for the selected images ZIP file
+      const timestamp = new Date().toISOString().slice(0, 16).replace(/:/g, '-')
+      const setName = `Selected_${timestamp}_${selectedImageUrls.length}images`
+      
+      console.log(`📦 Starting ZIP download for ${selectedImageUrls.length} selected images`)
+      
+      const response = await fetch('/api/download-images-zip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrls: selectedImageUrls,
+          setName,
+          provider: 'selected',
+          aspectRatio: 'mixed',
+          selectedImageDetails // Pass details for better file naming
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create selected images ZIP file')
+      }
+
+      // Convert response to blob and download
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${setName}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      console.log(`✅ Selected images ZIP download completed: ${setName}.zip`)
+      
+      // Clear selection after successful download
+      clearAllSelectedImages()
+    } catch (error) {
+      console.error('Error downloading selected images ZIP:', error)
+      // You could add a toast notification here
+    } finally {
+      setDownloadingZip(null)
+    }
+  }
+
   const handleClearError = () => {
     dispatch(clearError())
   }
@@ -922,7 +1043,66 @@ export function AIImageGenerator() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Generated Images ({imageSets.length} sets)</h2>
             <div className="flex items-center gap-2">
-              {imageSets.length > 1 && (
+              {/* Selection Controls */}
+              <Button 
+                variant={showImageSelection ? "default" : "outline"}
+                size="sm" 
+                onClick={() => setShowImageSelection(!showImageSelection)}
+              >
+                {showImageSelection ? (
+                  <>
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    Exit Selection
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 mr-2" />
+                    Select Images
+                  </>
+                )}
+              </Button>
+              
+              {showImageSelection && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={selectAllImages}
+                    disabled={selectedImages.length === imageSets.reduce((total, set) => total + set.imageUrls.length, 0)}
+                  >
+                    Select All ({imageSets.reduce((total, set) => total + set.imageUrls.length, 0)})
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={clearAllSelectedImages}
+                    disabled={selectedImages.length === 0}
+                  >
+                    Clear Selection
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    onClick={downloadSelectedAsZip}
+                    disabled={selectedImages.length === 0 || downloadingZip === 'selected'}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {downloadingZip === 'selected' ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Creating ZIP...
+                      </>
+                    ) : (
+                      <>
+                        <Package className="h-4 w-4 mr-2" />
+                        Download Selected ({selectedImages.length})
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+              
+              {imageSets.length > 1 && !showImageSelection && (
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -963,24 +1143,46 @@ export function AIImageGenerator() {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => downloadAsZip(imageSet)}
-                      disabled={downloadingZip === imageSet.id}
-                    >
-                      {downloadingZip === imageSet.id ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Creating ZIP...
-                        </>
-                      ) : (
-                        <>
-                          <Package className="h-4 w-4 mr-2" />
-                          Download ZIP ({imageSet.imageUrls.length})
-                        </>
-                      )}
-                    </Button>
+                    {showImageSelection && (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => selectAllImagesInSet(imageSet.id, imageSet.imageUrls.length)}
+                          disabled={getSelectedImagesInSet(imageSet.id).length === imageSet.imageUrls.length}
+                        >
+                          Select All ({imageSet.imageUrls.length})
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => clearImagesInSet(imageSet.id)}
+                          disabled={getSelectedImagesInSet(imageSet.id).length === 0}
+                        >
+                          Clear ({getSelectedImagesInSet(imageSet.id).length})
+                        </Button>
+                      </>
+                    )}
+                    {!showImageSelection && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => downloadAsZip(imageSet)}
+                        disabled={downloadingZip === imageSet.id}
+                      >
+                        {downloadingZip === imageSet.id ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Creating ZIP...
+                          </>
+                        ) : (
+                          <>
+                            <Package className="h-4 w-4 mr-2" />
+                            Download ZIP ({imageSet.imageUrls.length})
+                          </>
+                        )}
+                      </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -995,31 +1197,64 @@ export function AIImageGenerator() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {imageSet.imageUrls.map((url: string, imageIndex: number) => (
                     <div key={imageIndex} className="relative group">
-                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-300 transition-colors">
+                      {/* Selection checkbox */}
+                      {showImageSelection && (
+                        <div className="absolute top-2 left-2 z-10">
+                          <Checkbox 
+                            id={`image-${imageSet.id}-${imageIndex}`}
+                            checked={selectedImages.includes(getImageId(imageSet.id, imageIndex))}
+                            onCheckedChange={() => toggleImageSelection(imageSet.id, imageIndex)}
+                            className="bg-white/90 border-2"
+                          />
+                        </div>
+                      )}
+                      
+                      <div 
+                        className={`aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 transition-colors ${
+                          showImageSelection && selectedImages.includes(getImageId(imageSet.id, imageIndex))
+                            ? 'border-blue-500 bg-blue-50' 
+                            : showImageSelection 
+                            ? 'border-gray-300 hover:border-blue-300' 
+                            : 'border-transparent hover:border-blue-300'
+                        }`}
+                        onClick={showImageSelection ? () => toggleImageSelection(imageSet.id, imageIndex) : undefined}
+                        style={{ cursor: showImageSelection ? 'pointer' : 'default' }}
+                      >
                         <img 
                           src={url} 
                           alt={`Image ${imageIndex + 1} of ${imageSet.imageUrls.length}: ${imageSet.originalPrompt}`}
                           className="w-full h-full object-cover"
                         />
-                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
-                          <Button 
-                            size="sm" 
-                            variant="secondary"
-                            onClick={() => downloadImage(url, `${setIndex + 1}_${imageIndex + 1}_${imageSet.provider}_${imageSet.aspectRatio}.png`)}
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </Button>
-                        </div>
+                        {!showImageSelection && (
+                          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              onClick={() => downloadImage(url, `${setIndex + 1}_${imageIndex + 1}_${imageSet.provider}_${imageSet.aspectRatio}.png`)}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </Button>
+                          </div>
+                        )}
                       </div>
+                      
                       {/* Image number badge */}
-                      <div className="absolute top-2 left-2 bg-black/80 text-white text-sm font-bold px-2 py-1 rounded-md">
+                      <div className={`absolute top-2 ${showImageSelection ? 'right-2' : 'left-2'} bg-black/80 text-white text-sm font-bold px-2 py-1 rounded-md`}>
                         #{(imageIndex + 1).toString().padStart(2, '0')}
                       </div>
+                      
                       {/* Image info badge */}
-                      <div className="absolute top-2 right-2 bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-md">
+                      <div className={`absolute ${showImageSelection ? 'bottom-2 right-2' : 'top-2 right-2'} bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-md`}>
                         {imageIndex + 1}/{imageSet.imageUrls.length}
                       </div>
+                      
+                      {/* Selection indicator overlay */}
+                      {showImageSelection && selectedImages.includes(getImageId(imageSet.id, imageIndex)) && (
+                        <div className="absolute inset-0 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                          <CheckSquare className="h-8 w-8 text-blue-600" />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1031,6 +1266,11 @@ export function AIImageGenerator() {
                       <span className="font-medium">Set #{setIndex + 1}</span>
                       <span className="text-muted-foreground">{imageSet.imageUrls.length} images</span>
                       <span className="text-muted-foreground">{imageSet.aspectRatio} aspect ratio</span>
+                      {showImageSelection && (
+                        <span className="text-blue-600 font-medium">
+                          {getSelectedImagesInSet(imageSet.id).length} selected
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">{MODEL_INFO[imageSet.provider as keyof typeof MODEL_INFO]?.name || imageSet.provider}</Badge>

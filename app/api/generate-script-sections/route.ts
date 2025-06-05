@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       selectedModel,
       uploadedStyle,
       cta,
-      inspirationalTranscript
+      inspirationalTranscript,
+      regenerateSection
     } = await request.json();
     
     if (!title || !wordCount) {
@@ -141,6 +142,94 @@ Overall Direction: ${selectedTheme.instructions.overall}
     ADDITIONAL INSTRUCTIONS:
     ${additionalPrompt.trim()}
     `;
+    }
+
+    // Check if this is a single section regeneration
+    if (regenerateSection && regenerateSection.sectionId && regenerateSection.currentTitle) {
+      console.log(`🔄 Regenerating single section: "${regenerateSection.currentTitle}"`);
+      
+      // For single section regeneration, we only generate 1 section
+      const singleSectionPrompt = `You are an expert script writer creating a compelling, persuasive video script. Regenerate a single section for a ${wordCount}-word script.
+
+TITLE: "${title}"
+CURRENT SECTION TO REGENERATE: "${regenerateSection.currentTitle}"
+TOTAL SECTIONS IN SCRIPT: ${numSections}
+
+STYLE GUIDE TO FOLLOW:
+${styleContent}
+
+${themeInstructions}
+${emotionalTone ? `EMOTIONAL TONE: ${emotionalTone}` : ''}
+${targetAudience ? `TARGET AUDIENCE: ${targetAudience}` : ''}
+${forbiddenWords ? `FORBIDDEN WORDS (avoid these): ${forbiddenWords}` : ''}
+${additionalInstructions}
+
+Create a NEW version of this section with:
+1. A compelling title that captures the essence of that part of the script (can be different from the current title)
+2. Detailed writing instructions that specify the emotional tone, key points to cover, rhetorical devices to use, and how it fits into the overall narrative arc
+3. A visual prompt for image generation that describes the scene, mood, and visual elements that would complement this section (avoid controversial or taboo topics)
+
+The section should be approximately ${avgWordsPerSection} words and follow the style guide's direct, accusatory, urgent, and revelatory tone.
+
+${forbiddenWords ? `IMPORTANT: Avoid using any of these forbidden words: ${forbiddenWords}` : ''}
+
+${parser.getFormatInstructions()}`;
+
+      console.log(`🚀 Regenerating single section: "${regenerateSection.currentTitle}"`);
+
+      // Generate the single section
+      const response = await model.invoke(singleSectionPrompt);
+      
+      // Parse the response
+      let contentString = "";
+      
+      if (typeof response.content === 'string') {
+        contentString = response.content;
+      } else if (Array.isArray(response.content)) {
+        contentString = response.content
+          .map(item => {
+            if (typeof item === 'string') return item;
+            if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
+            return '';
+          })
+          .join('\n');
+      }
+          
+      try {
+        const parsedResponse = await parser.parse(contentString);
+        let regeneratedSections: any[] = [];
+        
+        if (Array.isArray(parsedResponse)) {
+          regeneratedSections = parsedResponse;
+        } else {
+          regeneratedSections = [parsedResponse];
+        }
+
+        console.log(`✅ Successfully regenerated section: "${regeneratedSections[0]?.title || 'Untitled'}"`);
+
+        return NextResponse.json({
+          success: true,
+          sections: regeneratedSections,
+          meta: {
+            title,
+            wordCount,
+            numSections: 1,
+            avgWordsPerSection,
+            theme: selectedTheme ? {
+              id: selectedTheme.id,
+              name: selectedTheme.name
+            } : null,
+            regeneration: {
+              originalTitle: regenerateSection.currentTitle,
+              newTitle: regeneratedSections[0]?.title
+            }
+          }
+        });
+
+      } catch (parseError) {
+        console.error(`❌ Failed to parse regenerated section:`, parseError);
+        throw parseError;
+      }
     }
 
     // Define batch size for processing
