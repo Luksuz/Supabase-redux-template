@@ -166,7 +166,6 @@ export async function POST(request: NextRequest) {
     // Create Shotstack output configuration with custom size and low quality
     const output = {
       format: outputFormat,
-      resolution: resolution,
       size: {
         width: 1280,
         height: 720
