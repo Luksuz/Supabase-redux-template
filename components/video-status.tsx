@@ -474,7 +474,7 @@ export function VideoStatus() {
                           <span className="text-blue-600">
                             {isCheckingStatus ? 'Checking with Shotstack...' : 'Processing with Shotstack...'}
                           </span>
-                          <span className="text-blue-600">Estimated: 2-5 minutes</span>
+                          <span className="text-blue-600">Estimated: 10-15 minutes</span>
                         </div>
                         <Progress value={undefined} className="h-2" />
                         <div className="text-xs text-blue-500">

@@ -94,47 +94,19 @@ export async function POST(request: NextRequest) {
       tracks.push(captionTrack);
     }
 
-    // Track for the main video - Create multiple clips for looping
-    const videoClips = [];
-    
-    if (loopCount && videoDuration && audioDuration) {
-      // Create multiple video clips to achieve looping
-      console.log(`🔄 Creating ${loopCount} video clips for looping`);
-      
-      let currentStart = 0;
-      for (let i = 0; i < loopCount; i++) {
-        const remainingDuration = audioDuration - currentStart;
-        const clipLength = Math.min(videoDuration, remainingDuration);
-        
-        if (clipLength > 0) {
-          videoClips.push({
-            asset: {
-              type: "video",
-              src: videoUrl
-            },
-            start: currentStart,
-            length: clipLength,
-            fit: "cover"
-          });
-          
-          currentStart += clipLength;
-        }
-      }
-    } else {
-      // Fallback to single video clip
-      videoClips.push({
-        asset: {
-          type: "video",
-          src: videoUrl
-        },
-        start: 0,
-        length: audioDuration || 300,
-        fit: "cover"
-      });
-    }
-
+    // Track for the main video - Use the pre-looped video as-is
     const videoTrack = {
-      clips: videoClips
+      clips: [
+        {
+          asset: {
+            type: "video",
+            src: videoUrl
+          },
+          start: 0,
+          length: audioDuration || 300,
+          fit: "cover"
+        }
+      ]
     };
     tracks.push(videoTrack);
 
@@ -155,10 +127,6 @@ export async function POST(request: NextRequest) {
 
     // Create Shotstack timeline
     const timeline = {
-      soundtrack: {
-        src: audioUrl,
-        effect: "fadeInFadeOut"
-      },
       background: "#000000",
       tracks: tracks
     };
@@ -199,7 +167,7 @@ export async function POST(request: NextRequest) {
       console.warn(`⚠️ Could not save payload for inspection:`, saveError);
     }
 
-    console.log(`🎬 Sending request to Shotstack API with ${videoClips.length} video clips...`);
+    console.log(`🎬 Sending request to Shotstack API with ${videoTrack.clips.length} video clips...`);
     
     // Send request to Shotstack
     const shotstackResponse = await fetch(`${SHOTSTACK_ENDPOINT}/render`, {

@@ -143,7 +143,13 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
 
       const data = await response.json()
       dispatch(setUploadedVideo(data))
-      showMessage(`Video uploaded successfully! Size: ${(data.fileSize / 1024 / 1024).toFixed(1)}MB`, 'success')
+      
+      // Show appropriate message based on whether looped video was created
+      if (data.loopedVideoUrl) {
+        showMessage(`Video uploaded and 10x looped version created! Size: ${(data.fileSize / 1024 / 1024).toFixed(1)}MB`, 'success')
+      } else {
+        showMessage(`Video uploaded successfully! Size: ${(data.fileSize / 1024 / 1024).toFixed(1)}MB${data.loopedVideoError ? ` (Loop creation failed: ${data.loopedVideoError})` : ''}`, 'error')
+      }
     } catch (error) {
       showMessage('Error uploading video: ' + (error as Error).message, 'error')
     } finally {
@@ -204,7 +210,7 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          videoUrl: uploadedVideo.videoUrl,
+          videoUrl: uploadedVideo.loopedVideoUrl || uploadedVideo.originalVideoUrl,
           audioUrl: uploadedAudio.audioUrl,
           audioDuration: uploadedAudio.duration,
           subtitlesUrl: subtitles?.subtitlesUrl,
@@ -522,6 +528,16 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                 <div>
                   <p className="font-medium text-green-800">{uploadedVideo.originalFileName}</p>
                   <p className="text-sm text-green-600">Size: {(uploadedVideo.fileSize / 1024 / 1024).toFixed(1)}MB</p>
+                  {uploadedVideo.videoDuration && (
+                    <p className="text-sm text-green-600">Duration: {uploadedVideo.videoDuration.toFixed(1)}s</p>
+                  )}
+                  {uploadedVideo.loopedVideoUrl ? (
+                    <p className="text-sm text-blue-600">✅ 10x looped version created</p>
+                  ) : uploadedVideo.loopedVideoError ? (
+                    <p className="text-sm text-red-600">❌ Looped version failed: {uploadedVideo.loopedVideoError}</p>
+                  ) : (
+                    <p className="text-sm text-gray-600">⏳ Creating 10x looped version...</p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -532,7 +548,7 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                     Remove
                   </Button>
                   <video controls className="h-20 w-32">
-                    <source src={uploadedVideo.videoUrl} type="video/mp4" />
+                    <source src={uploadedVideo.loopedVideoUrl || uploadedVideo.originalVideoUrl} type="video/mp4" />
                   </video>
                 </div>
               </div>

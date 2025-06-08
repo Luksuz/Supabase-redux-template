@@ -63,11 +63,14 @@ export interface AudioUpload {
 }
 
 export interface VideoUpload {
-  videoUrl: string
+  originalVideoUrl: string
+  loopedVideoUrl?: string | null
+  loopedVideoError?: string | null
   fileName: string
   originalFileName: string
   filePath: string
   fileSize: number
+  videoDuration?: number
 }
 
 export interface SubtitlesGeneration {
