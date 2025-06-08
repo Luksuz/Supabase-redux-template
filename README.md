@@ -140,3 +140,149 @@ The audio generation system has been optimized to minimize Supabase storage usag
 │   └── concat-final-1234567890.txt
 └── [cleaned up after completion]
 ```
+
+# Video Generator
+
+A modern video generation application that allows users to upload audio and video files, generate subtitles, and create professional videos with cloud rendering.
+
+## Features
+
+### Core Functionality
+- **Audio Upload**: Upload audio files with automatic compression and duration detection
+- **Video Upload**: Upload video files that will be looped to match audio duration
+- **Subtitle Generation**: AI-powered subtitle generation from audio using OpenAI Whisper
+- **Video Processing**: Local video processing with ffmpeg to combine audio, video, and subtitles
+- **Cloud Rendering**: Professional video rendering using Shotstack API
+- **Quality Options**: HD (1920x1080) and SD (1280x720) output options
+- **Font Selection**: Multiple font options for subtitles
+
+### Technical Stack
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **State Management**: Redux Toolkit
+- **Backend**: Next.js API routes
+- **Database**: Supabase (PostgreSQL)
+- **Storage**: Supabase Storage
+- **Video Processing**: FFmpeg
+- **AI Transcription**: OpenAI Whisper API
+- **Cloud Rendering**: Shotstack API
+
+## Workflow
+
+1. **Upload Audio** - Upload your audio file (MP3, WAV, M4A, etc.)
+   - Automatic compression to MP3 format
+   - Duration detection using ffprobe
+   - Upload to Supabase storage
+
+2. **Upload Video** - Upload your video file (MP4, MOV, AVI, etc.)
+   - Direct upload to Supabase storage
+   - Shotstack will handle looping to match audio duration
+
+3. **Generate Subtitles** (Optional)
+   - AI-powered transcription using OpenAI Whisper
+   - Generates SRT subtitle files
+   - Stored in Supabase storage
+
+4. **Configure Settings**
+   - Video quality (HD/SD)
+   - Subtitle font selection
+   - Include/exclude subtitles option
+
+5. **Process Video Metadata**
+   - Analyze video duration using ffprobe
+   - Calculate required loop count for audio synchronization
+   - Prepare metadata for cloud rendering
+
+6. **Cloud Rendering with Shotstack**
+   - Professional video rendering using Shotstack API
+   - Shotstack handles video looping by creating multiple video clips
+   - High-quality output with optimized processing
+   - Subtitle overlay and audio synchronization
+
+## Database Schema
+
+### video_records table
+```sql
+create table public.video_records (
+  id uuid not null default gen_random_uuid (),
+  user_id text not null,
+  image_urls jsonb not null,
+  audio_url text not null,
+  status text null default 'pending'::text,
+  final_video_url text null,
+  error_message text null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  subtitles_url text null,
+  thumbnail_url text null,
+  constraint video_records_pkey primary key (id)
+);
+```
+
+## Storage Structure
+
+### Supabase Storage Bucket: `video-generator`
+```
+{userId}/
+├── audio/
+│   └── {timestamp}_{filename}.mp3
+├── videos/
+│   └── {timestamp}_{filename}.mp4
+├── processed-videos/
+│   └── processed_{timestamp}_{quality}.mp4
+└── subtitles/
+    └── subtitles_{timestamp}.srt
+```
+
+## API Routes
+
+- `POST /api/upload-audio` - Upload and compress audio files
+- `POST /api/upload-video` - Upload video files
+- `POST /api/generate-subtitles` - Generate subtitles from audio
+- `POST /api/process-video` - Analyze video metadata and calculate looping requirements
+- `POST /api/create-video` - Create video with Shotstack (handles looping and rendering)
+- `GET /api/get-videos` - Get user's video history
+- `GET /api/check-video-status` - Check Shotstack rendering status
+
+## Environment Variables
+
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# OpenAI (for subtitle generation)
+OPENAI_API_KEY=your_openai_api_key
+
+# Shotstack (for cloud rendering)
+SHOTSTACK_API_KEY=your_shotstack_api_key
+SHOTSTACK_ENDPOINT=https://api.shotstack.io/edit/stage
+```
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Set up environment variables
+4. Run the development server: `npm run dev`
+5. Open [http://localhost:3000](http://localhost:3000)
+
+## Requirements
+
+- Node.js 18+
+- FFmpeg installed on the system
+- Supabase project
+- OpenAI API key (for subtitles)
+- Shotstack API key (for cloud rendering)
+
+## Features Removed
+
+This version has been streamlined to focus on the core video generation workflow. The following features have been removed:
+
+- Image processing and ZIP file handling
+- Script generation from images
+- WellSaid Labs audio generation
+- API key management
+- Complex timing configurations
+
+The new workflow is simpler and more focused on practical video creation needs.

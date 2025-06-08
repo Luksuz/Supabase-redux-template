@@ -1,13 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
+  setIsUploading,
+  setUploadedAudio,
+  clearUploadedAudio,
+  setIsGeneratingSubtitles,
+  setSubtitles,
+  clearSubtitles
+} from '../lib/features/audio/audioSlice'
+import {
   setVideoSettings,
-  startVideoGeneration,
-  setVideoGenerationError,
-  saveVideoToHistory,
-  setIsGeneratingVideo
+  setIsUploadingVideo,
+  setUploadedVideo,
+  clearUploadedVideo,
+  setIsProcessingVideo,
+  setIsCreatingVideo,
+  setProcessingMetadata,
+  clearProcessingMetadata,
+  startVideoGeneration
 } from '../lib/features/video/videoSlice'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
@@ -16,769 +28,901 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
 import { Input } from './ui/input'
-import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Image as ImageIcon, Volume2, Subtitles, Settings } from 'lucide-react'
-import { CreateVideoRequestBody, VideoRecord, SegmentTiming } from '@/types/video-generation'
+import { Progress } from './ui/progress'
+import { 
+  VideoIcon, 
+  Upload, 
+  Volume2, 
+  Subtitles, 
+  Settings, 
+  PlayCircle, 
+  Download,
+  CheckCircle, 
+  AlertCircle, 
+  Loader2,
+  FileText,
+  Palette,
+  Cloud,
+  BarChart3
+} from 'lucide-react'
 
-export function VideoGenerator() {
+interface VideoGeneratorProps {
+  onNavigate?: (view: 'video-generator' | 'video-status' | 'settings') => void
+}
+
+export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
   const dispatch = useAppDispatch()
-  const { originalImages } = useAppSelector(state => state.images)
-  const { scripts } = useAppSelector(state => state.scripts)
-  const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
+  const user = useAppSelector(state => state.user)
   const { 
-    currentGeneration, 
-    isGeneratingVideo,
-    settings
+    uploadedAudio, 
+    subtitles, 
+    isUploading: isUploadingAudio, 
+    isGeneratingSubtitles 
+  } = useAppSelector(state => state.audio)
+  const { 
+    uploadedVideo, 
+    processingMetadata,
+    isUploadingVideo, 
+    isProcessingVideo,
+    isCreatingVideo,
+    settings 
   } = useAppSelector(state => state.video)
   
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
-  const [customSegmentTimings, setCustomSegmentTimings] = useState<SegmentTiming[]>([])
+  const [isDragActive, setIsDragActive] = useState(false)
+  const [dragType, setDragType] = useState<'audio' | 'video' | null>(null)
+  const [showSuccessCard, setShowSuccessCard] = useState(false)
+  const [createdVideoId, setCreatedVideoId] = useState<string | null>(null)
+  
+  const audioInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
   }
 
-  // Initialize custom segment timings when images or audio change
-  useEffect(() => {
-    if (originalImages.length > 0 && audioGeneration?.audioUrl) {
-      if (audioGeneration.duration) {
-        // Use actual duration if available
-        const equalDuration = audioGeneration.duration / originalImages.length
-        const timings = originalImages.map(() => ({ duration: equalDuration }))
-        setCustomSegmentTimings(timings)
-      } else {
-        // Fallback to default timing if duration is missing
-        console.warn('🎵 Audio duration not available, using default 3s per image')
-        const defaultDuration = 3 // 3 seconds per image as fallback
-        const timings = originalImages.map(() => ({ duration: defaultDuration }))
-        setCustomSegmentTimings(timings)
-      }
-    }
-  }, [originalImages.length, audioGeneration?.audioUrl, audioGeneration?.duration])
-
-  // Debug logging for audio generation state
-  useEffect(() => {
-    console.log('🎵 Audio generation state:', audioGeneration)
-    if (audioGeneration) {
-      console.log('🎵 Audio URL:', audioGeneration.audioUrl)
-      console.log('🎵 Audio duration:', audioGeneration.duration)
-      console.log('🎵 Audio status:', audioGeneration.status)
-    }
-  }, [audioGeneration])
-
-  // Get image URLs from Supabase storage
-  const getImageUrls = () => {
-    const urls = []
-    
-    for (const img of originalImages) {
-      // Only use images that have been uploaded to Supabase
-      if (img.supabasePath && img.savedToSupabase) {
-        // Convert Supabase path to public URL - bucket name is 'images'
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${img.supabasePath}`
-        urls.push(url)
-      } else {
-        // Image hasn't been uploaded to Supabase - this would cause base64 in payload
-        console.warn(`Image ${img.name} hasn't been uploaded to Supabase storage yet`)
-      }
-    }
-    
-    return urls
-  }
-
-  // Check if all images are uploaded to Supabase
-  const allImagesUploaded = originalImages.length > 0 && originalImages.every(img => img.supabasePath && img.savedToSupabase)
-
-  // Check if we have all prerequisites for video generation
-  const hasPrerequisites = originalImages.length > 0 && audioGeneration?.audioUrl && allImagesUploaded
-
-  // Update segment timing duration
-  const updateSegmentTiming = (index: number, duration: number) => {
-    const updatedTimings = [...customSegmentTimings]
-    updatedTimings[index] = { duration }
-    setCustomSegmentTimings(updatedTimings)
-  }
-
-  // Distribute total duration equally across all segments
-  const distributeEquallyAcrossSegments = async () => {
-    if (originalImages.length === 0) {
-      showMessage('No images available for timing distribution', 'error')
+  // Handle audio file upload
+  const handleAudioUpload = async (file: File) => {
+    if (!user.isLoggedIn || !user.id) {
+      showMessage('Please log in to upload audio', 'error')
       return
     }
 
-    let duration = audioGeneration?.duration
-    
-    // If duration is not available in Redux, try to fetch it
-    if (!duration) {
-      showMessage('Fetching audio duration...', 'info')
-      duration = await getAudioDuration()
-      
-      if (!duration) {
-        showMessage('Audio duration not available. Please regenerate audio first.', 'error')
-        console.warn('🎵 Audio duration missing from state:', audioGeneration)
-        return
-      }
-    }
-    
-    const equalDuration = duration / originalImages.length
-    const equalTimings = originalImages.map(() => ({ duration: equalDuration }))
-    setCustomSegmentTimings(equalTimings)
-    showMessage(`Distributed ${duration.toFixed(1)}s equally across ${originalImages.length} images`, 'success')
-  }
-
-  // Get audio duration with fallback to fetch from audio file
-  const getAudioDuration = async (): Promise<number | null> => {
-    if (audioGeneration?.duration) {
-      return audioGeneration.duration
-    }
-    
-    // If no duration is available in Redux, try to get it from the audio file
-    if (audioGeneration?.audioUrl) {
-      try {
-        console.log('🎵 Fetching audio duration from file:', audioGeneration.audioUrl)
-        return new Promise((resolve) => {
-          const audio = new Audio(audioGeneration.audioUrl!)
-          audio.addEventListener('loadedmetadata', () => {
-            console.log('🎵 Audio duration fetched:', audio.duration)
-            resolve(audio.duration)
-          })
-          audio.addEventListener('error', () => {
-            console.warn('🎵 Failed to load audio metadata')
-            resolve(null)
-          })
-          // Set timeout to avoid hanging
-          setTimeout(() => resolve(null), 5000)
-        })
-      } catch (error) {
-        console.warn('🎵 Error fetching audio duration:', error)
-      }
-    }
-    
-    console.warn('🎵 No audio duration available')
-    return null
-  }
-
-  // Convert script durations to segment timings for video generation
-  const getScriptBasedTimings = (): SegmentTiming[] => {
-    if (!audioGeneration?.scriptDurations || !originalImages.length) {
-      return []
-    }
-
-    // Map images to their corresponding script durations
-    const timings: SegmentTiming[] = []
-    
-    originalImages.forEach((image, index) => {
-      const scriptDuration = audioGeneration.scriptDurations?.find(sd => sd.imageId === image.id)
-      if (scriptDuration) {
-        timings.push({ duration: scriptDuration.duration })
-      } else {
-        // Fallback to equal timing if no script duration found
-        const fallbackDuration = audioGeneration.duration ? audioGeneration.duration / originalImages.length : 3
-        timings.push({ duration: fallbackDuration })
-        console.warn(`No script duration found for image ${image.id}, using fallback: ${fallbackDuration}s`)
-      }
-    })
-
-    return timings
-  }
-
-  // Check if script-based timing is available
-  const scriptBasedTimingAvailable = audioGeneration?.scriptDurations && audioGeneration.scriptDurations.length > 0
-
-  // Handle video generation
-  const handleGenerateVideo = async () => {
-    if (!hasPrerequisites) {
-      showMessage('Please ensure you have processed images and generated audio first', 'error')
-      return
-    }
-
-    if (!audioGeneration?.audioUrl) {
-      showMessage('Audio generation required before creating video', 'error')
-      return
-    }
-
-    if (!allImagesUploaded) {
-      showMessage('All images must be uploaded to Supabase storage before creating video', 'error')
-      return
-    }
+    dispatch(setIsUploading(true))
+    showMessage('Uploading and compressing audio...', 'info')
 
     try {
-      dispatch(setIsGeneratingVideo(true))
+      const formData = new FormData()
+      formData.append('audio', file)
+      formData.append('userId', user.id)
 
-      const imageUrls = getImageUrls()
-      
-      // Additional validation to ensure we have URLs
-      if (imageUrls.length === 0) {
-        throw new Error('No valid image URLs available. Please upload images to Supabase storage.')
-      }
-
-      if (imageUrls.length !== originalImages.length) {
-        throw new Error(`Only ${imageUrls.length} of ${originalImages.length} images are uploaded to Supabase. Please upload all images first.`)
-      }
-      
-      // Determine which timing mode to use and prepare segment timings
-      let segmentTimings: SegmentTiming[] | undefined = undefined
-      let videoType: 'traditional' | 'segmented' | 'script-based' = 'traditional'
-
-      if (settings.useSegmentedTiming) {
-        // Custom segmented timing (manual user input)
-        segmentTimings = customSegmentTimings
-        videoType = 'segmented'
-      } else if (settings.useScriptBasedTiming && scriptBasedTimingAvailable) {
-        // Script-based timing (automatic from audio generation)
-        segmentTimings = getScriptBasedTimings()
-        videoType = 'script-based'
-      }
-      // Otherwise, use traditional equal timing (no segmentTimings)
-
-      // Prepare request body
-      const requestBody: CreateVideoRequestBody = {
-        imageUrls: imageUrls,
-        audioUrl: audioGeneration.audioUrl,
-        subtitlesUrl: settings.includeSubtitles && audioGeneration.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
-        userId: 'current_user',
-        thumbnailUrl: imageUrls[0],
-        segmentTimings: segmentTimings
-      }
-
-      console.log('🎬 Starting video generation with:', requestBody)
-      showMessage(`Starting ${videoType} video generation...`, 'info')
-
-      // Call video creation API
-      const response = await fetch('/api/create-video', {
+      const response = await fetch('/api/upload-audio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: formData,
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP ${response.status}`)
+        throw new Error('Failed to upload audio')
       }
 
       const data = await response.json()
-      
-      if (data.video_id) {
-        // Show immediate success feedback about Shotstack accepting the job
-        showMessage(`🎬 Video rendering started! Shotstack is processing your ${videoType} video...`, 'success')
-        
-        // Create video record for Redux state
-        const videoRecord: VideoRecord = {
-          id: data.video_id,
-          user_id: 'current_user',
-          status: 'processing',
-          shotstack_id: data.shotstack_id || '',
-          image_urls: imageUrls,
-          audio_url: audioGeneration.audioUrl,
-          subtitles_url: settings.includeSubtitles && audioGeneration.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
-          thumbnail_url: imageUrls[0],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          metadata: segmentTimings ? {
-            type: videoType,
-            segment_timings: segmentTimings,
-            total_duration: segmentTimings.reduce((sum, timing) => sum + timing.duration, 0),
-            scenes_count: originalImages.length
-          } : {
-            type: 'traditional',
-            scenes_count: originalImages.length,
-            total_duration: audioGeneration.duration || 0
-          }
-        }
-
-        dispatch(startVideoGeneration(videoRecord))
-        dispatch(saveVideoToHistory(videoRecord))
-        
-        // Reset generating state since the request was successful
-        dispatch(setIsGeneratingVideo(false))
-
-        // Additional detailed message after a short delay
-        setTimeout(() => {
-          const shotstackInfo = data.shotstack_id ? ` | Shotstack Job: ${data.shotstack_id}` : ''
-          showMessage(
-            `Video ID: ${data.video_id}${shotstackInfo} | Processing typically takes 2-5 minutes. You'll be notified when complete.`,
-            'info'
-          )
-        }, 2000)
-        
-      } else {
-        throw new Error('No video ID returned from API')
-      }
-
-    } catch (error: any) {
-      console.error('Video generation error:', error)
-      dispatch(setVideoGenerationError({ 
-        videoId: currentGeneration?.id || 'unknown',
-        error: error.message 
-      }))
-      dispatch(setIsGeneratingVideo(false))
-      showMessage(`Video generation failed: ${error.message}`, 'error')
+      dispatch(setUploadedAudio(data))
+      showMessage(`Audio uploaded successfully! Duration: ${data.duration.toFixed(1)}s`, 'success')
+    } catch (error) {
+      showMessage('Error uploading audio: ' + (error as Error).message, 'error')
+    } finally {
+      dispatch(setIsUploading(false))
     }
   }
 
-  // Download video
-  const handleDownloadVideo = (videoUrl: string, filename: string = 'generated-video.mp4') => {
-    const link = document.createElement('a')
-    link.href = videoUrl
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  // Handle video file upload
+  const handleVideoUpload = async (file: File) => {
+    if (!user.isLoggedIn || !user.id) {
+      showMessage('Please log in to upload video', 'error')
+      return
+    }
+
+    dispatch(setIsUploadingVideo(true))
+    showMessage('Uploading video...', 'info')
+
+    try {
+      const formData = new FormData()
+      formData.append('video', file)
+      formData.append('userId', user.id)
+
+      const response = await fetch('/api/upload-video', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to upload video')
+      }
+
+      const data = await response.json()
+      dispatch(setUploadedVideo(data))
+      showMessage(`Video uploaded successfully! Size: ${(data.fileSize / 1024 / 1024).toFixed(1)}MB`, 'success')
+    } catch (error) {
+      showMessage('Error uploading video: ' + (error as Error).message, 'error')
+    } finally {
+      dispatch(setIsUploadingVideo(false))
+    }
   }
 
-  // Calculate total duration for segmented timing
-  const totalSegmentDuration = customSegmentTimings.reduce((sum, timing) => sum + timing.duration, 0)
+  // Generate subtitles from audio
+  const handleGenerateSubtitles = async () => {
+    if (!uploadedAudio) {
+      showMessage('Please upload audio first', 'error')
+      return
+    }
+
+    dispatch(setIsGeneratingSubtitles(true))
+    showMessage('Generating subtitles from audio...', 'info')
+
+    try {
+      const response = await fetch('/api/generate-subtitles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audioUrl: uploadedAudio.audioUrl,
+          userId: user.id
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate subtitles')
+      }
+
+      const data = await response.json()
+      dispatch(setSubtitles(data))
+      showMessage('Subtitles generated successfully!', 'success')
+    } catch (error) {
+      showMessage('Error generating subtitles: ' + (error as Error).message, 'error')
+    } finally {
+      dispatch(setIsGeneratingSubtitles(false))
+    }
+  }
+
+  // Process video metadata for Shotstack
+  const handleProcessVideoMetadata = async () => {
+    if (!uploadedAudio || !uploadedVideo) {
+      showMessage('Please upload both audio and video first', 'error')
+      return
+    }
+
+    dispatch(setIsProcessingVideo(true))
+    showMessage('Processing video metadata...', 'info')
+
+    try {
+      const response = await fetch('/api/process-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoUrl: uploadedVideo.videoUrl,
+          audioUrl: uploadedAudio.audioUrl,
+          audioDuration: uploadedAudio.duration,
+          subtitlesUrl: subtitles?.subtitlesUrl,
+          fontFamily: settings.fontFamily,
+          fontColor: settings.fontColor,
+          fontSize: settings.fontSize,
+          strokeWidth: settings.strokeWidth,
+          quality: settings.videoQuality,
+          userId: user.id
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to process video metadata')
+      }
+
+      const data = await response.json()
+      dispatch(setProcessingMetadata(data))
+      showMessage(`Metadata processed! Video will loop ${data.loopCount} times for Shotstack.`, 'success')
+    } catch (error) {
+      showMessage('Error processing video metadata: ' + (error as Error).message, 'error')
+    } finally {
+      dispatch(setIsProcessingVideo(false))
+    }
+  }
+
+  // Render final video with Shotstack
+  const handleRenderWithShotstack = async () => {
+    if (!processingMetadata || !uploadedAudio) {
+      showMessage('Please process video metadata first', 'error')
+      return
+    }
+
+    dispatch(setIsCreatingVideo(true))
+    showMessage('Starting cloud rendering with Shotstack...', 'info')
+
+    try {
+      const response = await fetch('/api/create-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoUrl: processingMetadata.videoUrl,
+          audioUrl: processingMetadata.audioUrl,
+          subtitlesUrl: settings.includeSubtitles ? processingMetadata.subtitlesUrl : undefined,
+          quality: processingMetadata.quality,
+          fontFamily: processingMetadata.fontFamily,
+          fontColor: processingMetadata.fontColor,
+          fontSize: processingMetadata.fontSize,
+          strokeWidth: processingMetadata.strokeWidth,
+          videoDuration: processingMetadata.originalVideoDuration,
+          audioDuration: processingMetadata.targetDuration,
+          loopCount: processingMetadata.loopCount,
+          userId: user.id
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to start video rendering')
+      }
+
+      const data = await response.json()
+      setCreatedVideoId(data.video_id)
+      setShowSuccessCard(true)
+      setMessage('')
+      
+      // Track the rendering job
+      if (data.video_id) {
+        const videoRecord = {
+          id: data.video_id,
+          user_id: user.id!,
+          status: 'processing' as const,
+          image_urls: [],
+          audio_url: processingMetadata.audioUrl,
+          subtitles_url: processingMetadata.subtitlesUrl || null,
+          final_video_url: null,
+          thumbnail_url: null,
+          shotstack_id: data.shotstack_id || null,
+          error_message: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        dispatch(startVideoGeneration(videoRecord))
+      }
+      
+    } catch (error) {
+      showMessage('Error starting cloud rendering: ' + (error as Error).message, 'error')
+    } finally {
+      dispatch(setIsCreatingVideo(false))
+    }
+  }
+
+  // Handle drag and drop
+  const handleDragEnter = (e: React.DragEvent, type: 'audio' | 'video') => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(true)
+    setDragType(type)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(false)
+    setDragType(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: React.DragEvent, type: 'audio' | 'video') => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(false)
+    setDragType(null)
+
+    const files = Array.from(e.dataTransfer.files)
+    const file = files[0]
+
+    if (!file) return
+
+    if (type === 'audio') {
+      if (file.type.startsWith('audio/')) {
+        handleAudioUpload(file)
+      } else {
+        showMessage('Please drop an audio file', 'error')
+      }
+    } else {
+      if (file.type.startsWith('video/')) {
+        handleVideoUpload(file)
+      } else {
+        showMessage('Please drop a video file', 'error')
+      }
+    }
+  }
+
+  // Handle file input changes
+  const handleAudioInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleAudioUpload(file)
+    }
+  }
+
+  const handleVideoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleVideoUpload(file)
+    }
+  }
 
   return (
-    <div className="flex-1 p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Video Generator</h1>
-        <p className="text-gray-600">
-          Create professional videos from your images and audio using Shotstack with dynamic slide effects
-        </p>
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Video Generator</h1>
+        <p className="text-gray-600">Upload audio and video, generate subtitles, and create your final video</p>
       </div>
 
-      {/* Prerequisites Check */}
-      <Card className="bg-white shadow-sm border border-gray-200">
+      {/* Success Card */}
+      {showSuccessCard && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex-shrink-0">
+                <CheckCircle className="h-12 w-12 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-green-800 mb-2">
+                  Video Rendering Started Successfully! 🎉
+                </h3>
+                <p className="text-green-700 mb-4">
+                  Your video is now being processed in the cloud. Video ID: <code className="bg-green-100 px-2 py-1 rounded text-sm">{createdVideoId}</code>
+                </p>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={() => onNavigate?.('video-status')}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Go to Video Status
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowSuccessCard(false)}
+                    className="border-green-300 text-green-700 hover:bg-green-100"
+                  >
+                    Continue Creating
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Message Display */}
+      {message && (
+        <div className={`p-4 rounded-lg ${
+          messageType === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+          messageType === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+          'bg-blue-50 text-blue-800 border border-blue-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {messageType === 'success' && <CheckCircle className="h-5 w-5" />}
+            {messageType === 'error' && <AlertCircle className="h-5 w-5" />}
+            {messageType === 'info' && <Loader2 className="h-5 w-5 animate-spin" />}
+            {message}
+          </div>
+        </div>
+      )}
+
+      {/* Step 1: Audio Upload */}
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5" />
-            Prerequisites Status
+            <Volume2 className="h-5 w-5" />
+            Step 1: Upload Audio
           </CardTitle>
           <CardDescription>
-            Ensure all required components are ready for video generation
+            Upload your audio file. It will be compressed and optimized automatically.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Images Status */}
-          <div className={`p-3 rounded-lg border ${
-            originalImages.length > 0 && allImagesUploaded 
-              ? 'border-green-200 bg-green-50' 
-              : originalImages.length > 0 
-                ? 'border-orange-200 bg-orange-50'
-                : 'border-orange-200 bg-orange-50'
-          }`}>
-            <div className="flex items-center gap-2 mb-2">
-              <ImageIcon className={`h-4 w-4 ${
-                originalImages.length > 0 && allImagesUploaded 
-                  ? 'text-green-600' 
-                  : 'text-orange-600'
-              }`} />
-              <span className="font-medium">Images</span>
+        <CardContent>
+          {uploadedAudio ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div>
+                  <p className="font-medium text-green-800">{uploadedAudio.originalFileName}</p>
+                  <p className="text-sm text-green-600">Duration: {uploadedAudio.duration.toFixed(1)}s</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => dispatch(clearUploadedAudio())}
+                  >
+                    Remove
+                  </Button>
+                  <audio controls className="h-8">
+                    <source src={uploadedAudio.audioUrl} type="audio/mpeg" />
+                  </audio>
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-gray-600">
-              {originalImages.length} images processed
-              {originalImages.length > 0 && (
-                <span className="block">
-                  {originalImages.filter(img => img.savedToSupabase).length} uploaded to Supabase
-                </span>
-              )}
-            </p>
-            {originalImages.length === 0 && (
-              <p className="text-xs text-orange-600 mt-1">Process images first</p>
-            )}
-            {originalImages.length > 0 && !allImagesUploaded && (
-              <p className="text-xs text-orange-600 mt-1">
-                Upload all images to Supabase storage first
+          ) : (
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragActive && dragType === 'audio'
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+              onDragEnter={(e) => handleDragEnter(e, 'audio')}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, 'audio')}
+            >
+              <Volume2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-lg font-medium text-gray-900 mb-2">
+                {isUploadingAudio ? 'Uploading audio...' : 'Upload Audio File'}
               </p>
-            )}
+              <p className="text-gray-500 mb-4">
+                Drag and drop an audio file here, or click to browse
+              </p>
+              <Button
+                onClick={() => audioInputRef.current?.click()}
+                disabled={isUploadingAudio}
+                className="mb-2"
+              >
+                {isUploadingAudio ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Choose Audio File
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-gray-400">
+                Supports MP3, WAV, M4A and other audio formats
+              </p>
+              <input
+                ref={audioInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleAudioInputChange}
+                className="hidden"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Step 2: Video Upload */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <VideoIcon className="h-5 w-5" />
+            Step 2: Upload Video
+          </CardTitle>
+          <CardDescription>
+            Upload your video file. Shotstack will loop it to match the audio duration.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {uploadedVideo ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div>
+                  <p className="font-medium text-green-800">{uploadedVideo.originalFileName}</p>
+                  <p className="text-sm text-green-600">Size: {(uploadedVideo.fileSize / 1024 / 1024).toFixed(1)}MB</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => dispatch(clearUploadedVideo())}
+                  >
+                    Remove
+                  </Button>
+                  <video controls className="h-20 w-32">
+                    <source src={uploadedVideo.videoUrl} type="video/mp4" />
+                  </video>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragActive && dragType === 'video'
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+              onDragEnter={(e) => handleDragEnter(e, 'video')}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, 'video')}
+            >
+              <VideoIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-lg font-medium text-gray-900 mb-2">
+                {isUploadingVideo ? 'Uploading video...' : 'Upload Video File'}
+              </p>
+              <p className="text-gray-500 mb-4">
+                Drag and drop a video file here, or click to browse
+              </p>
+              <Button
+                onClick={() => videoInputRef.current?.click()}
+                disabled={isUploadingVideo}
+                className="mb-2"
+              >
+                {isUploadingVideo ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Choose Video File
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-gray-400">
+                Supports MP4, MOV, AVI and other video formats
+              </p>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                onChange={handleVideoInputChange}
+                className="hidden"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Step 3: Generate Subtitles (Optional) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Subtitles className="h-5 w-5" />
+            Step 3: Generate Subtitles (Optional)
+          </CardTitle>
+          <CardDescription>
+            Generate subtitles from your audio using AI transcription.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {subtitles ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div>
+                  <p className="font-medium text-green-800">Subtitles generated successfully</p>
+                  <p className="text-sm text-green-600">Ready to be added to video</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => dispatch(clearSubtitles())}
+                  >
+                    Remove
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(subtitles.subtitlesUrl, '_blank')}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    View
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Button
+                onClick={handleGenerateSubtitles}
+                disabled={!uploadedAudio || isGeneratingSubtitles}
+                className="w-full"
+              >
+                {isGeneratingSubtitles ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating Subtitles...
+                  </>
+                ) : (
+                  <>
+                    <Subtitles className="h-4 w-4 mr-2" />
+                    Generate Subtitles
+                  </>
+                )}
+              </Button>
+              {!uploadedAudio && (
+                <p className="text-sm text-gray-500 text-center">
+                  Upload audio first to generate subtitles
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Step 4: Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Step 4: Video Settings
+          </CardTitle>
+          <CardDescription>
+            Configure your video output settings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="quality">Video Quality</Label>
+              <Select
+                value={settings.videoQuality}
+                onValueChange={(value: 'hd' | 'sd') => 
+                  dispatch(setVideoSettings({ videoQuality: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hd">HD (1920x1080)</SelectItem>
+                  <SelectItem value="sd">SD (1280x720)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="font">Subtitle Font</Label>
+              <Select
+                value={settings.fontFamily}
+                onValueChange={(value: string) => 
+                  dispatch(setVideoSettings({ fontFamily: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Arial">Arial</SelectItem>
+                  <SelectItem value="Helvetica">Helvetica</SelectItem>
+                  <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+                  <SelectItem value="Courier New">Courier New</SelectItem>
+                  <SelectItem value="Verdana">Verdana</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Audio Status */}
-          <div className={`p-3 rounded-lg border ${audioGeneration?.audioUrl ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Volume2 className={`h-4 w-4 ${audioGeneration?.audioUrl ? 'text-green-600' : 'text-orange-600'}`} />
-              <span className="font-medium">Audio</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="fontColor">Subtitle Color</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  id="fontColor"
+                  value={settings.fontColor}
+                  onChange={(e) => dispatch(setVideoSettings({ fontColor: e.target.value }))}
+                  className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                />
+                <Input
+                  type="text"
+                  value={settings.fontColor}
+                  onChange={(e) => dispatch(setVideoSettings({ fontColor: e.target.value }))}
+                  placeholder="#ffffff"
+                  className="flex-1"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Choose subtitle text color</p>
             </div>
-            <p className="text-sm text-gray-600">
-              {audioGeneration?.audioUrl ? (
-                audioGeneration.duration ? 
-                  `${audioGeneration.duration.toFixed(1)}s audio ready` : 
-                  'Audio ready (duration unknown)'
-              ) : 'No audio generated'}
-            </p>
-            {!audioGeneration?.audioUrl && (
-              <p className="text-xs text-orange-600 mt-1">Generate audio first</p>
-            )}
-            {audioGeneration?.audioUrl && !audioGeneration.duration && (
-              <p className="text-xs text-orange-600 mt-1">Duration missing - may need to regenerate audio</p>
-            )}
+
+            <div>
+              <Label htmlFor="fontSize">Font Size</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  id="fontSize"
+                  min="12"
+                  max="100"
+                  step="2"
+                  value={settings.fontSize}
+                  onChange={(e) => dispatch(setVideoSettings({ fontSize: parseInt(e.target.value) }))}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  min="12"
+                  max="100"
+                  value={settings.fontSize}
+                  onChange={(e) => dispatch(setVideoSettings({ fontSize: parseInt(e.target.value) || 24 }))}
+                  className="w-20"
+                />
+                <span className="text-sm text-gray-500">px</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Subtitle text size (12-100px)</p>
+            </div>
           </div>
 
-          {/* Subtitles Status */}
-          <div className={`p-3 rounded-lg border ${audioGeneration?.subtitlesUrl ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Subtitles className={`h-4 w-4 ${audioGeneration?.subtitlesUrl ? 'text-green-600' : 'text-gray-400'}`} />
-              <span className="font-medium">Subtitles</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="strokeWidth">Stroke Width</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  id="strokeWidth"
+                  min="0"
+                  max="8"
+                  step="1"
+                  value={settings.strokeWidth}
+                  onChange={(e) => dispatch(setVideoSettings({ strokeWidth: parseInt(e.target.value) }))}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  max="8"
+                  value={settings.strokeWidth}
+                  onChange={(e) => dispatch(setVideoSettings({ strokeWidth: parseInt(e.target.value) || 2 }))}
+                  className="w-20"
+                />
+                <span className="text-sm text-gray-500">px</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Text outline width (0-8px)</p>
             </div>
-            <p className="text-sm text-gray-600">
-              {audioGeneration?.subtitlesUrl ? 'Subtitles available' : 'Optional subtitles'}
-            </p>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="includeSubtitles"
+                checked={settings.includeSubtitles}
+                onCheckedChange={(checked) => 
+                  dispatch(setVideoSettings({ includeSubtitles: !!checked }))
+                }
+              />
+              <Label htmlFor="includeSubtitles">Include subtitles in video</Label>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Video Settings */}
-      {hasPrerequisites && (
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Video Generation Settings
-            </CardTitle>
-            <CardDescription>
-              Configure timing, quality, and subtitle options
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Basic Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Video Quality</Label>
-                <Select 
-                  value={settings.videoQuality} 
-                  onValueChange={(value: 'hd' | 'sd') => dispatch(setVideoSettings({ videoQuality: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hd">HD (1280x720)</SelectItem>
-                    <SelectItem value="sd">SD (854x480)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm">Timing Mode</Label>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="segmented-timing"
-                      checked={settings.useSegmentedTiming}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          dispatch(setVideoSettings({ useSegmentedTiming: true, useScriptBasedTiming: false }))
-                        } else {
-                          dispatch(setVideoSettings({ useSegmentedTiming: false }))
-                        }
-                      }}
-                    />
-                    <Label htmlFor="segmented-timing" className="text-sm">Custom segment timing</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="script-based-timing"
-                      checked={settings.useScriptBasedTiming}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          dispatch(setVideoSettings({ useScriptBasedTiming: true, useSegmentedTiming: false }))
-                        } else {
-                          dispatch(setVideoSettings({ useScriptBasedTiming: false }))
-                        }
-                      }}
-                      disabled={!scriptBasedTimingAvailable}
-                    />
-                    <Label htmlFor="script-based-timing" className="text-sm">
-                      Script-based timing {!scriptBasedTimingAvailable && '(not available)'}
-                    </Label>
-                  </div>
-                  {!scriptBasedTimingAvailable && (
-                    <p className="text-xs text-gray-500 ml-6">
-                      Script-based timing requires audio generation with individual script durations
+      {/* Step 5: Process Video Metadata */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PlayCircle className="h-5 w-5" />
+            Step 5: Process Video Metadata
+          </CardTitle>
+          <CardDescription>
+            Prepare video metadata for cloud rendering with Shotstack.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {processingMetadata ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="font-medium text-green-800">Metadata processed successfully!</p>
+                    <p className="text-sm text-green-600">
+                      Video will loop {processingMetadata.loopCount} times to match {processingMetadata.targetDuration.toFixed(1)}s audio
                     </p>
+                  </div>
+                  <Badge variant="secondary">{processingMetadata.quality.toUpperCase()}</Badge>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Original Video Duration:</p>
+                    <p className="font-medium">{processingMetadata.originalVideoDuration.toFixed(1)}s</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Target Duration:</p>
+                    <p className="font-medium">{processingMetadata.targetDuration.toFixed(1)}s</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Loop Count:</p>
+                    <p className="font-medium">{processingMetadata.loopCount}x</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Font & Color:</p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{processingMetadata.fontFamily}</span>
+                      <span className="text-sm text-gray-500">({processingMetadata.fontSize}px)</span>
+                      <div 
+                        className="w-4 h-4 border border-gray-300 rounded" 
+                        style={{ backgroundColor: processingMetadata.fontColor }}
+                        title={processingMetadata.fontColor}
+                      ></div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Stroke Width:</p>
+                    <p className="font-medium">{processingMetadata.strokeWidth}px</p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2 justify-center mt-4">
+                  <Button 
+                    onClick={handleRenderWithShotstack}
+                    disabled={isCreatingVideo}
+                    className="min-w-[180px]"
+                  >
+                    {isCreatingVideo ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating Video...
+                      </>
+                    ) : (
+                      <>
+                        <Cloud className="h-4 w-4 mr-2" />
+                        Render with Shotstack
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => dispatch(clearProcessingMetadata())}
+                    disabled={isCreatingVideo}
+                  >
+                    Process Again
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Button
+                onClick={handleProcessVideoMetadata}
+                disabled={!uploadedAudio || !uploadedVideo || isProcessingVideo}
+                className="w-full"
+                size="lg"
+              >
+                {isProcessingVideo ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing Metadata...
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="h-4 w-4 mr-2" />
+                    Process Video Metadata
+                  </>
+                )}
+              </Button>
+              
+              {(!uploadedAudio || !uploadedVideo) && (
+                <p className="text-sm text-gray-500 text-center">
+                  Upload both audio and video files to process
+                </p>
+              )}
+              
+              {uploadedAudio && uploadedVideo && (
+                <div className="text-sm text-gray-600 text-center space-y-1">
+                  <p>✓ Audio: {uploadedAudio.originalFileName} ({uploadedAudio.duration.toFixed(1)}s)</p>
+                  <p>✓ Video: {uploadedVideo.originalFileName}</p>
+                  {subtitles && <p>✓ Subtitles: Generated</p>}
+                  {settings.includeSubtitles && !subtitles && (
+                    <p className="text-amber-600">⚠ Subtitles will be skipped (not generated)</p>
                   )}
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm">Subtitles</Label>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="include-subtitles"
-                    checked={settings.includeSubtitles}
-                    onCheckedChange={(checked) => dispatch(setVideoSettings({ includeSubtitles: checked as boolean }))}
-                    disabled={!audioGeneration?.subtitlesUrl}
-                  />
-                  <Label htmlFor="include-subtitles" className="text-sm">
-                    Include subtitles {!audioGeneration?.subtitlesUrl && '(not available)'}
-                  </Label>
-                </div>
-              </div>
-            </div>
-
-            {/* Segment Timing Configuration */}
-            {settings.useSegmentedTiming && (
-              <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Custom Segment Timing</h4>
-                    <p className="text-sm text-gray-600">
-                      Adjust how long each image appears in the video
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      Total: {totalSegmentDuration.toFixed(1)}s
-                    </div>
-                    {audioGeneration?.duration && (
-                      <div className={`text-xs ${
-                        Math.abs(totalSegmentDuration - audioGeneration.duration) < 0.5 
-                          ? 'text-green-600' 
-                          : 'text-orange-600'
-                      }`}>
-                        Audio: {audioGeneration.duration.toFixed(1)}s
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={distributeEquallyAcrossSegments}
-                  size="sm"
-                  variant="outline"
-                  disabled={!audioGeneration?.audioUrl}
-                >
-                  Distribute Equally
-                </Button>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {originalImages.map((image, index) => (
-                    <div key={image.id} className="flex items-center gap-2 p-2 bg-white rounded border">
-                      <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
-                        <img
-                          src={image.dataUrl}
-                          alt={`Image ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500">Image {index + 1}</div>
-                        <Input
-                          type="number"
-                          value={customSegmentTimings[index]?.duration.toFixed(1) || '0.0'}
-                          onChange={(e) => updateSegmentTiming(index, parseFloat(e.target.value) || 0)}
-                          className="h-6 text-xs"
-                          step="0.1"
-                          min="0.1"
-                        />
-                        <div className="text-xs text-gray-400">seconds</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Script-Based Timing Preview */}
-            {settings.useScriptBasedTiming && scriptBasedTimingAvailable && (
-              <div className="space-y-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Script-Based Timing Preview</h4>
-                    <p className="text-sm text-gray-600">
-                      Each image will show for the duration of its script's audio
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      Total: {getScriptBasedTimings().reduce((sum, timing) => sum + timing.duration, 0).toFixed(1)}s
-                    </div>
-                    <div className="text-xs text-green-600">
-                      Matches audio duration
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {originalImages.map((image, index) => {
-                    const scriptDuration = audioGeneration?.scriptDurations?.find(sd => sd.imageId === image.id)
-                    return (
-                      <div key={image.id} className="flex items-center gap-2 p-2 bg-white rounded border">
-                        <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
-                          <img
-                            src={image.dataUrl}
-                            alt={`Image ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-xs text-gray-500">{scriptDuration?.imageName || `Image ${index + 1}`}</div>
-                          <div className="text-sm font-medium">
-                            {scriptDuration ? `${scriptDuration.duration.toFixed(1)}s` : 'No timing'}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {scriptDuration ? `Starts at ${scriptDuration.startTime.toFixed(1)}s` : 'Missing script'}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Generate Button */}
-            <Button
-              onClick={handleGenerateVideo}
-              disabled={isGeneratingVideo || !hasPrerequisites}
-              className="w-full bg-purple-600 hover:bg-purple-700"
-              size="lg"
-            >
-              {isGeneratingVideo ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating Video...
-                </>
-              ) : (
-                <>
-                  <VideoIcon className="h-4 w-4 mr-2" />
-                  Generate Video ({
-                    settings.useSegmentedTiming ? 'Custom Timing' :
-                    settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
-                    'Traditional'
-                  })
-                </>
               )}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Current Generation Status */}
-      {currentGeneration && (
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <VideoIcon className="h-5 w-5" />
-              Current Video Generation
-            </CardTitle>
-            <CardDescription>
-              Generated on {new Date(currentGeneration.created_at).toLocaleString()}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Generation Details */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Type:</span>
-                <p className="font-medium">{currentGeneration.metadata?.type || 'traditional'}</p>
-              </div>
-              <div>
-                <span className="text-gray-500">Images:</span>
-                <p className="font-medium">{currentGeneration.image_urls.length}</p>
-              </div>
-              <div>
-                <span className="text-gray-500">Duration:</span>
-                <p className="font-medium">
-                  {currentGeneration.metadata?.total_duration?.toFixed(1) || 'Unknown'}s
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Status:</span>
-                <Badge 
-                  variant={currentGeneration.status === 'completed' ? 'default' : 'secondary'}
-                  className={
-                    currentGeneration.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    currentGeneration.status === 'failed' ? 'bg-red-100 text-red-800' :
-                    'bg-blue-100 text-blue-800'
-                  }
-                >
-                  {currentGeneration.status}
-                </Badge>
-              </div>
             </div>
-
-            {/* Processing Status */}
-            {currentGeneration.status === 'processing' && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                  <span className="font-medium text-blue-800">Video is being processed by Shotstack</span>
-                </div>
-                <p className="text-sm text-blue-700">
-                  This may take several minutes depending on video length and complexity. The page will update automatically when complete.
-                </p>
-              </div>
-            )}
-
-            {/* Completed Video */}
-            {currentGeneration.status === 'completed' && currentGeneration.final_video_url && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-800">Video Generated Successfully!</span>
-                </div>
-                <video controls className="w-full mb-3 rounded">
-                  <source src={currentGeneration.final_video_url} type="video/mp4" />
-                  Your browser does not support the video element.
-                </video>
-                <Button
-                  onClick={() => handleDownloadVideo(currentGeneration.final_video_url!, `video-${currentGeneration.id}.mp4`)}
-                  variant="outline"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Video
-                </Button>
-              </div>
-            )}
-
-            {/* Error */}
-            {currentGeneration.status === 'failed' && currentGeneration.error_message && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-red-600" />
-                  <span className="font-medium text-red-800">Generation Error:</span>
-                </div>
-                <p className="text-red-700 mt-1">{currentGeneration.error_message}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Status Message */}
-      {message && (
-        <Card className={`border ${
-          messageType === 'success' ? 'border-green-200 bg-green-50' :
-          messageType === 'error' ? 'border-red-200 bg-red-50' :
-          'border-blue-200 bg-blue-50'
-        }`}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              {messageType === 'success' && <CheckCircle className="h-4 w-4 text-green-600" />}
-              {messageType === 'error' && <AlertCircle className="h-4 w-4 text-red-600" />}
-              {messageType === 'info' && <VideoIcon className="h-4 w-4 text-blue-600" />}
-              <span className={`text-sm ${
-                messageType === 'success' ? 'text-green-800' :
-                messageType === 'error' ? 'text-red-800' :
-                'text-blue-800'
-              }`}>
-                {message}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Empty State */}
-      {!hasPrerequisites && (
-        <Card className="bg-gray-50 border border-gray-200">
-          <CardContent className="pt-6 text-center py-12">
-            <VideoIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Ready to Create Videos</h3>
-            <p className="text-gray-600 mb-4">
-              Complete the prerequisite steps to generate professional videos
-            </p>
-            <div className="space-y-2 text-sm text-gray-500">
-              {originalImages.length === 0 && <div>1. Process images</div>}
-              {!audioGeneration?.audioUrl && <div>2. Generate audio from scripts</div>}
-              <div>3. Configure video settings and generate</div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 } 

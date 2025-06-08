@@ -4,15 +4,24 @@ import { VideoRecord } from '@/types/video-generation';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || 'current_user';
-    
-    console.log(`📋 Fetching videos for user: ${userId}`);
-
     const supabase = await createClient();
     
+    // Get the authenticated user from Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    const userId = user.id;
+    console.log(`📋 Fetching videos for authenticated user: ${userId}`);
+    
     const { data: videos, error } = await supabase
-      .from('video_records_rezu')
+      .from('video_records')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });

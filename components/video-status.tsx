@@ -16,10 +16,11 @@ import { VideoRecord } from '@/types/video-generation'
 
 export function VideoStatus() {
   const dispatch = useAppDispatch()
+  const user = useAppSelector(state => state.user)
   const { 
     currentGeneration, 
     generationHistory,
-    isGeneratingVideo
+    isCreatingVideo
   } = useAppSelector(state => state.video)
   
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -37,6 +38,11 @@ export function VideoStatus() {
 
   // Fetch videos from database
   const fetchVideos = async (isInitial = false) => {
+    if (!user.isLoggedIn) {
+      showMessage('Please log in to view videos', 'error')
+      return
+    }
+
     if (isInitial) {
       setIsInitialLoading(true)
     } else {
@@ -45,7 +51,7 @@ export function VideoStatus() {
     
     try {
       console.log('🔄 Fetching videos from database...')
-      const response = await fetch('/api/get-videos?userId=current_user')
+      const response = await fetch('/api/get-videos')
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
@@ -248,6 +254,23 @@ export function VideoStatus() {
     showMessage('Current generation cleared', 'info')
   }
 
+  // Show login message if user is not logged in
+  if (!user.isLoggedIn) {
+    return (
+      <div className="flex-1 p-6">
+        <Card className="bg-yellow-50 border border-yellow-200">
+          <CardContent className="pt-6 text-center py-12">
+            <AlertCircle className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-yellow-900 mb-2">Please Log In</h3>
+            <p className="text-yellow-700">
+              You need to be logged in to view your video generation history.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 p-6 space-y-6">
       {/* Header */}
@@ -378,28 +401,21 @@ export function VideoStatus() {
                           </Badge>
                         </div>
                         
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600 mb-2">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600 mb-2">
                           <div>
-                            <span className="font-medium">Type:</span> {video.metadata?.type || 'traditional'}
+                            <span className="font-medium">Audio:</span> {video.audio_url ? 'Yes' : 'No'}
                           </div>
                           <div>
-                            <span className="font-medium">Images:</span> {video.image_urls.length}
-                          </div>
-                          <div>
-                            <span className="font-medium">Duration:</span> {
-                              video.metadata?.total_duration 
-                                ? formatDuration(video.metadata.total_duration)
-                                : 'Unknown'
-                            }
+                            <span className="font-medium">Subtitles:</span> {video.subtitles_url ? 'Yes' : 'No'}
                           </div>
                           <div>
                             <span className="font-medium">Created:</span> {formatRelativeTime(video.created_at)}
                           </div>
                         </div>
 
-                        {video.subtitles_url && (
+                        {video.shotstack_id && (
                           <div className="text-xs text-gray-500">
-                            ✓ Includes subtitles
+                            Shotstack ID: <code className="bg-gray-100 px-1 rounded">{video.shotstack_id.slice(0, 8)}...</code>
                           </div>
                         )}
                       </div>
@@ -464,7 +480,7 @@ export function VideoStatus() {
                         <video 
                           controls 
                           className="w-full max-w-md rounded"
-                          poster={video.thumbnail_url}
+                          poster={video.thumbnail_url || undefined}
                         >
                           <source src={video.final_video_url} type="video/mp4" />
                           Your browser does not support the video element.
@@ -490,7 +506,7 @@ export function VideoStatus() {
             <VideoIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Video Generations Yet</h3>
             <p className="text-gray-600 mb-4">
-              Start creating videos from your images and audio
+              Start creating videos from your audio and video files
             </p>
             <Badge variant="outline">
               Go to Video Generator to get started

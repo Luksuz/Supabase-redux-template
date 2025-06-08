@@ -2,34 +2,29 @@
 
 import { useState } from 'react'
 import { SidebarNavigation } from './sidebar-navigation'
-import { ImageProcessor } from './image-processor'
-import { ScriptGenerator } from './script-generator'
-import { AudioGenerator } from './audio-generator'
 import { VideoGenerator } from './video-generator'
 import { VideoStatus } from './video-status'
-import { ApiKeyManager } from './api-key-manager'
 
-type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'api-keys'
+type NavigationView = 'video-generator' | 'video-status' | 'settings'
 
 export function MainLayout() {
-  const [activeView, setActiveView] = useState<NavigationView>('process-images')
+  const [activeView, setActiveView] = useState<NavigationView>('video-generator')
 
   const renderContent = () => {
     switch (activeView) {
-      case 'process-images':
-        return <ImageProcessor />
-      case 'script-generator':
-        return <ScriptGenerator />
-      case 'audio-generator':
-        return <AudioGenerator />
       case 'video-generator':
-        return <VideoGenerator />
+        return <VideoGenerator onNavigate={setActiveView} />
       case 'video-status':
         return <VideoStatus />
-      case 'api-keys':
-        return <ApiKeyManager />
+      case 'settings':
+        return (
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Settings</h1>
+            <p className="text-gray-600">Settings panel coming soon...</p>
+          </div>
+        )
       default:
-        return <ImageProcessor />
+        return <VideoGenerator onNavigate={setActiveView} />
     }
   }
 
@@ -42,7 +37,7 @@ export function MainLayout() {
       />
       
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto p-6">
         {renderContent()}
       </div>
     </div>

@@ -1,23 +1,48 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { VideoRecord, VideoGenerationSettings } from '@/types/video-generation'
+import { VideoRecord, VideoGenerationSettings, VideoUpload } from '@/types/video-generation'
+
+// Updated interface for video processing metadata
+interface VideoProcessingMetadata {
+  videoUrl: string
+  audioUrl: string
+  subtitlesUrl?: string
+  originalVideoDuration: number
+  targetDuration: number
+  loopCount: number
+  quality: 'hd' | 'sd'
+  fontFamily: string
+  fontColor: string
+  fontSize: number
+  strokeWidth: number
+}
 
 interface VideoState {
+  uploadedVideo: VideoUpload | null
   currentGeneration: VideoRecord | null
   generationHistory: VideoRecord[]
-  isGeneratingVideo: boolean
+  isUploadingVideo: boolean
+  isProcessingVideo: boolean
+  isCreatingVideo: boolean
+  processingMetadata: VideoProcessingMetadata | null
   settings: VideoGenerationSettings
   statusRefreshInterval: number | null
 }
 
 const initialState: VideoState = {
+  uploadedVideo: null,
   currentGeneration: null,
   generationHistory: [],
-  isGeneratingVideo: false,
+  isUploadingVideo: false,
+  isProcessingVideo: false,
+  isCreatingVideo: false,
+  processingMetadata: null,
   settings: {
-    useSegmentedTiming: false,
-    useScriptBasedTiming: false,
     videoQuality: 'hd',
-    includeSubtitles: true
+    includeSubtitles: true,
+    fontFamily: 'Arial',
+    fontColor: '#ffffff',
+    fontSize: 24,
+    strokeWidth: 2
   },
   statusRefreshInterval: null
 }
@@ -30,13 +55,36 @@ export const videoSlice = createSlice({
       state.settings = { ...state.settings, ...action.payload }
     },
     
-    setIsGeneratingVideo: (state, action: PayloadAction<boolean>) => {
-      state.isGeneratingVideo = action.payload
+    setIsUploadingVideo: (state, action: PayloadAction<boolean>) => {
+      state.isUploadingVideo = action.payload
+    },
+    
+    setUploadedVideo: (state, action: PayloadAction<VideoUpload>) => {
+      state.uploadedVideo = action.payload
+    },
+    
+    clearUploadedVideo: (state) => {
+      state.uploadedVideo = null
+    },
+    
+    setIsProcessingVideo: (state, action: PayloadAction<boolean>) => {
+      state.isProcessingVideo = action.payload
+    },
+    
+    setIsCreatingVideo: (state, action: PayloadAction<boolean>) => {
+      state.isCreatingVideo = action.payload
+    },
+    
+    setProcessingMetadata: (state, action: PayloadAction<VideoProcessingMetadata>) => {
+      state.processingMetadata = action.payload
+    },
+    
+    clearProcessingMetadata: (state) => {
+      state.processingMetadata = null
     },
     
     startVideoGeneration: (state, action: PayloadAction<VideoRecord>) => {
       state.currentGeneration = action.payload
-      state.isGeneratingVideo = true
     },
     
     updateVideoStatus: (state, action: PayloadAction<{ videoId: string; status: VideoRecord['status']; videoUrl?: string; errorMessage?: string }>) => {
@@ -53,11 +101,6 @@ export const videoSlice = createSlice({
         
         if (errorMessage) {
           state.currentGeneration.error_message = errorMessage
-        }
-        
-        // If completed or failed, stop generating flag
-        if (status === 'completed' || status === 'failed') {
-          state.isGeneratingVideo = false
         }
       }
       
@@ -85,8 +128,6 @@ export const videoSlice = createSlice({
         state.currentGeneration.final_video_url = videoUrl
         state.currentGeneration.updated_at = new Date().toISOString()
       }
-      
-      state.isGeneratingVideo = false
     },
     
     setVideoGenerationError: (state, action: PayloadAction<{ videoId: string; error: string }>) => {
@@ -97,8 +138,6 @@ export const videoSlice = createSlice({
         state.currentGeneration.error_message = error
         state.currentGeneration.updated_at = new Date().toISOString()
       }
-      
-      state.isGeneratingVideo = false
     },
     
     saveVideoToHistory: (state, action: PayloadAction<VideoRecord>) => {
@@ -124,7 +163,6 @@ export const videoSlice = createSlice({
     
     clearCurrentGeneration: (state) => {
       state.currentGeneration = null
-      state.isGeneratingVideo = false
     },
     
     setStatusRefreshInterval: (state, action: PayloadAction<number | null>) => {
@@ -132,9 +170,13 @@ export const videoSlice = createSlice({
     },
     
     clearAllVideoData: (state) => {
+      state.uploadedVideo = null
       state.currentGeneration = null
       state.generationHistory = []
-      state.isGeneratingVideo = false
+      state.isUploadingVideo = false
+      state.isProcessingVideo = false
+      state.isCreatingVideo = false
+      state.processingMetadata = null
       if (state.statusRefreshInterval) {
         clearInterval(state.statusRefreshInterval)
         state.statusRefreshInterval = null
@@ -145,7 +187,13 @@ export const videoSlice = createSlice({
 
 export const {
   setVideoSettings,
-  setIsGeneratingVideo,
+  setIsUploadingVideo,
+  setUploadedVideo,
+  clearUploadedVideo,
+  setIsProcessingVideo,
+  setIsCreatingVideo,
+  setProcessingMetadata,
+  clearProcessingMetadata,
   startVideoGeneration,
   updateVideoStatus,
   completeVideoGeneration,
