@@ -146,7 +146,19 @@ export function VideoStatus() {
   const allVideos = [
     ...(currentGeneration ? [{ ...currentGeneration, isCurrent: true }] : []),
     ...generationHistory.map(video => ({ ...video, isCurrent: false }))
-  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  ]
+    .reduce((acc, video) => {
+      // Deduplicate by video ID - currentGeneration takes priority
+      const existingIndex = acc.findIndex(v => v.id === video.id)
+      if (existingIndex === -1) {
+        acc.push(video)
+      } else if (video.isCurrent) {
+        // Replace with current generation if it's the current one
+        acc[existingIndex] = video
+      }
+      return acc
+    }, [] as (VideoRecord & { isCurrent: boolean })[])
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   const processingCount = allVideos.filter(v => v.status === 'processing').length
   const completedCount = allVideos.filter(v => v.status === 'completed').length
