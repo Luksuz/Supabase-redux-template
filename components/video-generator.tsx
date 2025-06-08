@@ -330,10 +330,10 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
     if (!file) return
 
     if (type === 'audio') {
-      if (file.type.startsWith('audio/')) {
+      if (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.webm')) {
         handleAudioUpload(file)
       } else {
-        showMessage('Please drop an audio file', 'error')
+        showMessage('Please drop an audio file (MP3, WAV, M4A, WEBM, etc.)', 'error')
       }
     } else {
       if (file.type.startsWith('video/')) {
@@ -448,7 +448,7 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                     Remove
                   </Button>
                   <audio controls className="h-8">
-                    <source src={uploadedAudio.audioUrl} type="audio/mpeg" />
+                    <source src={uploadedAudio.audioUrl} type={uploadedAudio.audioUrl.endsWith('.webm') ? 'audio/webm' : 'audio/mpeg'} />
                   </audio>
                 </div>
               </div>
@@ -490,12 +490,12 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                 )}
               </Button>
               <p className="text-xs text-gray-400">
-                Supports MP3, WAV, M4A and other audio formats
+                Supports MP3, WAV, M4A, WEBM and other audio formats
               </p>
               <input
                 ref={audioInputRef}
                 type="file"
-                accept="audio/*"
+                accept="audio/*,.webm"
                 onChange={handleAudioInputChange}
                 className="hidden"
               />

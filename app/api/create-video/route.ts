@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     console.log(`Starting Shotstack video creation with ID: ${videoId} for user: ${userId}`);
 
     // Set quality parameters for Shotstack
-    const resolution = quality === 'hd' ? 'hd' : 'sd';
+    const resolution = 'sd'; // Always use SD as requested
     const outputFormat = 'mp4';
 
     // Initialize tracks array for Shotstack
@@ -163,11 +163,17 @@ export async function POST(request: NextRequest) {
       tracks: tracks
     };
 
-    // Create Shotstack output configuration
+    // Create Shotstack output configuration with custom size and low quality
     const output = {
       format: outputFormat,
       resolution: resolution,
-      aspectRatio: "16:9"
+      size: {
+        width: 1280,
+        height: 720
+      },
+      fps: 25,
+      quality: "low",
+      aspectRatio: "16:9" // Note: 1080x720 is actually 3:2 ratio, but keeping 16:9 for compatibility
     };
 
     // Create Shotstack edit
