@@ -9,6 +9,23 @@ import { spawn } from 'child_process'
 const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY || 'ovtvkcufDaBDRJnsTLHkMB3eLG6ytwlRoUAPAHPq';
 const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT || 'https://api.shotstack.io/edit/stage';
 
+// Function to sanitize filename for Supabase storage
+function sanitizeFilename(filename: string): string {
+  // Extract file extension
+  const ext = path.extname(filename)
+  const nameWithoutExt = path.basename(filename, ext)
+  
+  // Replace invalid characters with underscores and remove non-ASCII characters
+  const sanitized = nameWithoutExt
+    .normalize('NFD') // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
+    .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+    .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
+  
+  return `${sanitized}${ext}`
+}
+
 // Function to get video duration using ffprobe
 async function getVideoDuration(filePath: string): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -228,7 +245,8 @@ export async function POST(request: NextRequest) {
       const supabase = await createClient()
       const videoData = await fs.readFile(tempFilePath)
       
-      const fileName = `${Date.now()}_${videoFile.name}`
+      const sanitizedName = sanitizeFilename(videoFile.name)
+      const fileName = `${Date.now()}_${sanitizedName}`
       const filePath = `${userId}/videos/${fileName}`
 
       console.log(`☁️ Uploading original video to Supabase: ${filePath}`)
@@ -289,6 +307,7 @@ export async function POST(request: NextRequest) {
         loopedVideoUrl: loopedVideoUrl,
         loopedVideoError: loopedVideoError,
         fileName: fileName,
+        sanitizedFileName: sanitizedName,
         originalFileName: videoFile.name,
         filePath: filePath,
         fileSize: videoFile.size,
