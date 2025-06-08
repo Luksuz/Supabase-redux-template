@@ -27,13 +27,13 @@ jobs:
 
     - name: Deploy to VM
       run: |
-        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST_JIRI }} << EOF
+        ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST_JIRI }} << 'EOF'
           set -e
-          cd $DEPLOY_PATH
-          git pull origin $BRANCH
+          cd ${{ env.DEPLOY_PATH }}
+          git pull origin ${{ env.BRANCH }}
           npm install
           npm run build
-          pm2 delete $PM2_APP_NAME || true
-          pm2 start npm --name "$PM2_APP_NAME" -- start
+          pm2 delete ${{ env.PM2_APP_NAME }} || true
+          pm2 start npm --name "${{ env.PM2_APP_NAME }}" -- start
           pm2 save
         EOF
