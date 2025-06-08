@@ -79,11 +79,7 @@ export async function POST(request: NextRequest) {
               stroke: {
                 color: "#000000",
                 width: strokeWidth
-              },
-              background: {
-                color: "#000000",
-                opacity: 0.2,
-              },
+              }
             },
             start: 0,
             length: audioDuration || 300, // Use audio duration if available
