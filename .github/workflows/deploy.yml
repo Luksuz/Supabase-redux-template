@@ -21,13 +21,13 @@ jobs:
     - name: Set up SSH
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
+        echo "${{ secrets.DEPLOY_SSH_KEY_JIRI }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+        ssh-keyscan -H ${{ secrets.DEPLOY_HOST_JIRI }} >> ~/.ssh/known_hosts
 
     - name: Deploy to VM
       run: |
-        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << EOF
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST_JIRI }} << EOF
           set -e
           cd $DEPLOY_PATH
           git pull origin $BRANCH
