@@ -10,7 +10,7 @@ import {
   setSubtitles,
   clearSubtitles
 } from '../lib/features/audio/audioSlice'
-import {
+import { 
   setVideoSettings,
   setIsUploadingVideo,
   setUploadedVideo,
@@ -65,7 +65,7 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
     isUploadingVideo, 
     isProcessingVideo,
     isCreatingVideo,
-    settings 
+    settings
   } = useAppSelector(state => state.video)
   
   const [message, setMessage] = useState("")
@@ -78,12 +78,16 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
   const audioInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
 
+  // Add state for audio upload progress
+  const [audioUploadProgress, setAudioUploadProgress] = useState(0)
+  const [audioUploadMessage, setAudioUploadMessage] = useState('')
+
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
   }
 
-  // Handle audio file upload
+  // Handle audio file upload with SSE
   const handleAudioUpload = async (file: File) => {
     if (!user.isLoggedIn || !user.id) {
       showMessage('Please log in to upload audio', 'error')
@@ -91,29 +95,75 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
     }
 
     dispatch(setIsUploading(true))
-    showMessage('Uploading and compressing audio...', 'info')
+    setAudioUploadProgress(0)
+    setAudioUploadMessage('Starting upload...')
+    setMessage('')
 
     try {
       const formData = new FormData()
       formData.append('audio', file)
       formData.append('userId', user.id)
 
-      const response = await fetch('/api/upload-audio', {
+      // Use regular fetch with SSE URL parameter for progress updates
+      const response = await fetch('/api/upload-audio?sse=true', {
         method: 'POST',
         body: formData,
       })
 
       if (!response.ok) {
-        throw new Error('Failed to upload audio')
+        throw new Error('Failed to start audio upload')
       }
 
-      const data = await response.json()
-      dispatch(setUploadedAudio(data))
-      showMessage(`Audio uploaded successfully! Duration: ${data.duration.toFixed(1)}s`, 'success')
-    } catch (error) {
-      showMessage('Error uploading audio: ' + (error as Error).message, 'error')
-    } finally {
+      // Create SSE connection for progress updates
+      if (response.body) {
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+
+        try {
+          while (true) {
+            const { value, done } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n')
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+                  
+                  if (data.type === 'progress') {
+                    setAudioUploadProgress(data.progress || 0)
+                    setAudioUploadMessage(data.message || '')
+                  } else if (data.type === 'success') {
+                    dispatch(setUploadedAudio(data))
+                    setAudioUploadProgress(100)
+                    setAudioUploadMessage('Upload completed!')
+                    showMessage(`Audio uploaded successfully! Duration: ${data.duration.toFixed(1)}s`, 'success')
+                    dispatch(setIsUploading(false))
+                    return
+                  } else if (data.type === 'error') {
+                    throw new Error(data.message || 'Upload failed')
+                  }
+                } catch (parseError) {
+                  console.error('Error parsing SSE data:', parseError)
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock()
+        }
+      }
+
       dispatch(setIsUploading(false))
+
+    } catch (error) {
+      console.error('Audio upload error:', error)
+      showMessage('Error uploading audio: ' + (error as Error).message, 'error')
+      dispatch(setIsUploading(false))
+      setAudioUploadProgress(0)
+      setAudioUploadMessage('')
     }
   }
 
@@ -459,6 +509,33 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                 </div>
               </div>
             </div>
+          ) : isUploadingAudio ? (
+            <div className="space-y-4">
+              <div className="p-6 border border-blue-200 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  <span className="font-medium text-blue-800">Uploading Audio</span>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-700">{audioUploadMessage || 'Processing...'}</span>
+                    <span className="text-blue-600 font-medium">{audioUploadProgress}%</span>
+                  </div>
+                  
+                  <Progress 
+                    value={audioUploadProgress} 
+                    className="w-full h-2 bg-blue-100"
+                  />
+                  
+                  <div className="text-xs text-blue-600 space-y-1">
+                    <p>• Audio compression and optimization in progress</p>
+                    <p>• This process ensures best quality within file size limits</p>
+                    <p>• Connection is kept alive with real-time updates</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -686,8 +763,8 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="quality">Video Quality</Label>
-              <Select
-                value={settings.videoQuality}
+              <Select 
+                value={settings.videoQuality} 
                 onValueChange={(value: 'hd' | 'sd') => 
                   dispatch(setVideoSettings({ videoQuality: value }))
                 }
@@ -701,7 +778,7 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
               <Label htmlFor="font">Subtitle Font</Label>
               <Select
@@ -848,7 +925,7 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                   </div>
                   <Badge variant="secondary">{processingMetadata.quality.toUpperCase()}</Badge>
                 </div>
-                
+
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Original Video Duration:</p>
@@ -879,9 +956,9 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                     <p className="font-medium">{processingMetadata.strokeWidth}px</p>
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 justify-center mt-4">
-                  <Button 
+                  <Button
                     onClick={handleRenderWithShotstack}
                     disabled={isCreatingVideo}
                     className="min-w-[180px]"

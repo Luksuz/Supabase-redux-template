@@ -120,10 +120,10 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                 <span>Metadata processed:</span>
                 <span className="font-medium">{processingMetadata ? '✓' : '✗'}</span>
               </div>
-              <div className="flex justify-between">
+                <div className="flex justify-between">
                 <span>Total videos:</span>
                 <span className="font-medium">{generationHistory.length + (currentGeneration ? 1 : 0)}</span>
-              </div>
+                </div>
             </div>
           </div>
         </Card>
