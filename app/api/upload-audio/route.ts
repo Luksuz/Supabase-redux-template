@@ -11,6 +11,7 @@ const execAsync = promisify(exec)
 // SSE helper function
 function createSSEResponse() {
   const encoder = new TextEncoder()
+  let isClosed = false
   
   let controller: ReadableStreamDefaultController<Uint8Array>
   
@@ -21,12 +22,29 @@ function createSSEResponse() {
   })
   
   const sendEvent = (data: any, event?: string) => {
-    const message = `${event ? `event: ${event}\n` : ''}data: ${JSON.stringify(data)}\n\n`
-    controller.enqueue(encoder.encode(message))
+    if (isClosed) {
+      console.warn('Attempted to send event on closed SSE controller')
+      return
+    }
+    
+    try {
+      const message = `${event ? `event: ${event}\n` : ''}data: ${JSON.stringify(data)}\n\n`
+      controller.enqueue(encoder.encode(message))
+    } catch (error) {
+      console.error('Error sending SSE event:', error)
+      isClosed = true
+    }
   }
   
   const close = () => {
-    controller.close()
+    if (!isClosed) {
+      isClosed = true
+      try {
+        controller.close()
+      } catch (error) {
+        console.warn('Error closing SSE controller:', error)
+      }
+    }
   }
   
   return {
@@ -40,7 +58,8 @@ function createSSEResponse() {
       },
     }),
     sendEvent,
-    close
+    close,
+    isClosed: () => isClosed
   }
 }
 
@@ -56,14 +75,16 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleSSEUpload(request: NextRequest) {
-  const { response, sendEvent, close } = createSSEResponse()
+  const { response, sendEvent, close, isClosed } = createSSEResponse()
   
   // Start processing in the background
-  processAudioWithSSE(request, sendEvent, close).catch((error) => {
-    sendEvent({ 
-      type: 'error', 
-      message: error.message 
-    }, 'error')
+  processAudioWithSSE(request, sendEvent, close, isClosed).catch((error) => {
+    if (!isClosed()) {
+      sendEvent({ 
+        type: 'error', 
+        message: error.message 
+      }, 'error')
+    }
     close()
   })
   
@@ -73,7 +94,8 @@ async function handleSSEUpload(request: NextRequest) {
 async function processAudioWithSSE(
   request: NextRequest, 
   sendEvent: (data: any, event?: string) => void,
-  close: () => void
+  close: () => void,
+  isClosed: () => boolean
 ) {
   try {
     sendEvent({ type: 'progress', message: 'Starting audio upload...', progress: 0 }, 'progress')
@@ -93,6 +115,8 @@ async function processAudioWithSSE(
     console.log(`🎵 Starting audio upload for user: ${userId}`)
     console.log(`📁 File: ${audioFile.name}, Size: ${(audioFile.size / 1024 / 1024).toFixed(2)}MB`)
 
+    if (isClosed()) return
+
     sendEvent({ 
       type: 'progress', 
       message: `Processing ${audioFile.name} (${(audioFile.size / 1024 / 1024).toFixed(2)}MB)...`, 
@@ -104,6 +128,7 @@ async function processAudioWithSSE(
     await fs.mkdir(tempDir, { recursive: true })
 
     try {
+      if (isClosed()) return
       sendEvent({ type: 'progress', message: 'Saving uploaded file...', progress: 20 }, 'progress')
       
       // Save uploaded file to temp directory
@@ -113,6 +138,7 @@ async function processAudioWithSSE(
       
       console.log(`📁 Saved original file: ${originalFilePath}`)
 
+      if (isClosed()) return
       sendEvent({ type: 'progress', message: 'Analyzing audio duration...', progress: 30 }, 'progress')
 
       // Get duration using ffprobe
@@ -126,6 +152,7 @@ async function processAudioWithSSE(
       
       console.log(`✅ Audio duration: ${duration.toFixed(2)}s`)
 
+      if (isClosed()) return
       sendEvent({ 
         type: 'progress', 
         message: `Duration: ${duration.toFixed(1)}s. Calculating compression settings...`, 
@@ -160,6 +187,7 @@ async function processAudioWithSSE(
       console.log(`🎯 Target Opus bitrate: ${targetBitrate}k (max affordable: ${maxAffordableBitrate}k)`)
       console.log(`📊 Estimated final size: ${estimatedSizeMB.toFixed(1)}MB (targeting ${targetSizeMB}MB)`)
 
+      if (isClosed()) return
       sendEvent({ 
         type: 'progress', 
         message: `Compressing with Opus at ${targetBitrate}k bitrate...`, 
@@ -175,6 +203,7 @@ async function processAudioWithSSE(
       
       await execAsync(compressionCommand)
       
+      if (isClosed()) return
       sendEvent({ type: 'progress', message: 'Compression complete. Verifying output...', progress: 70 }, 'progress')
 
       // Check compressed file size
@@ -182,11 +211,15 @@ async function processAudioWithSSE(
       const compressedSizeMB = compressedStats.size / (1024 * 1024)
       console.log(`✅ Audio compressed with Opus: ${compressedFilePath}`)
       console.log(`📊 Final compressed size: ${compressedSizeMB.toFixed(2)}MB (${((1 - compressedSizeMB/originalSizeMB) * 100).toFixed(1)}% reduction)`)
+      console.log(`🎯 Target achieved: ${compressedSizeMB <= 24 ? '✅' : '⚠️'} (${compressedSizeMB.toFixed(1)}MB / 24MB limit)`)
       
       if (compressedSizeMB > 25) {
         console.warn(`⚠️ Compressed file exceeds 25MB - this should be very rare with our calculations!`)
+      } else if (compressedSizeMB > 24) {
+        console.warn(`⚠️ Compressed file is close to limit (${compressedSizeMB.toFixed(1)}MB) but should be fine`)
       }
 
+      if (isClosed()) return
       sendEvent({ 
         type: 'progress', 
         message: `Uploading to cloud storage (${compressedSizeMB.toFixed(1)}MB)...`, 
@@ -214,6 +247,7 @@ async function processAudioWithSSE(
         throw new Error(`Failed to upload audio: ${error.message}`)
       }
 
+      if (isClosed()) return
       sendEvent({ type: 'progress', message: 'Getting public URL...', progress: 90 }, 'progress')
 
       // Get public URL
@@ -225,6 +259,7 @@ async function processAudioWithSSE(
       
       console.log(`✅ Audio uploaded successfully: ${publicUrl}`)
 
+      if (isClosed()) return
       sendEvent({ type: 'progress', message: 'Cleaning up temporary files...', progress: 95 }, 'progress')
 
       // Cleanup temp files
@@ -235,16 +270,18 @@ async function processAudioWithSSE(
       console.log(`🧹 Cleaned up temporary files`)
 
       // Send success event
-      sendEvent({
-        type: 'success',
-        audioUrl: publicUrl,
-        duration: duration,
-        fileName: fileName,
-        originalFileName: audioFile.name,
-        filePath: filePath,
-        message: 'Audio uploaded and compressed successfully',
-        progress: 100
-      }, 'success')
+      if (!isClosed()) {
+        sendEvent({
+          type: 'success',
+          audioUrl: publicUrl,
+          duration: duration,
+          fileName: fileName,
+          originalFileName: audioFile.name,
+          filePath: filePath,
+          message: 'Audio uploaded and compressed successfully',
+          progress: 100
+        }, 'success')
+      }
 
     } catch (error: any) {
       console.error(`❌ Error processing audio:`, error)
@@ -263,7 +300,10 @@ async function processAudioWithSSE(
     console.error(`❌ Error in upload-audio route:`, error)
     throw error
   } finally {
-    close()
+    // Only close if not already closed
+    if (!isClosed()) {
+      close()
+    }
   }
 }
 
@@ -439,4 +479,4 @@ async function handleRegularUpload(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}
