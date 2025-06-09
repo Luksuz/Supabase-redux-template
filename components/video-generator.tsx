@@ -714,11 +714,21 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Arial">Arial</SelectItem>
-                  <SelectItem value="Helvetica">Helvetica</SelectItem>
-                  <SelectItem value="Times New Roman">Times New Roman</SelectItem>
-                  <SelectItem value="Courier New">Courier New</SelectItem>
-                  <SelectItem value="Verdana">Verdana</SelectItem>
+                  <SelectItem value="Arial Bold">Arial Bold</SelectItem>
+                  <SelectItem value="Helvetica Bold">Helvetica Bold</SelectItem>
+                  <SelectItem value="Times New Roman Bold">Times New Roman Bold</SelectItem>
+                  <SelectItem value="Courier New Bold">Courier New Bold</SelectItem>
+                  <SelectItem value="Verdana Bold">Verdana Bold</SelectItem>
+                  <SelectItem value="Roboto Bold">Roboto Bold</SelectItem>
+                  <SelectItem value="Montserrat Bold">Montserrat Bold</SelectItem>
+                  <SelectItem value="Open Sans Bold">Open Sans Bold</SelectItem>
+                  <SelectItem value="Lato Bold">Lato Bold</SelectItem>
+                  <SelectItem value="Oswald Bold">Oswald Bold</SelectItem>
+                  <SelectItem value="Poppins Bold">Poppins Bold</SelectItem>
+                  <SelectItem value="Source Sans Pro Bold">Source Sans Pro Bold</SelectItem>
+                  <SelectItem value="PT Sans Bold">PT Sans Bold</SelectItem>
+                  <SelectItem value="Noto Sans Bold">Noto Sans Bold</SelectItem>
+                  <SelectItem value="Merriweather Bold">Merriweather Bold</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -73,8 +73,9 @@ export async function POST(request: NextRequest) {
               src: subtitlesUrl,
               font: {
                 family: fontFamily,
+                weight: 1000,
                 size: fontSize,
-                color: fontColor
+                color: fontColor,
               },
               stroke: {
                 color: "#000000",

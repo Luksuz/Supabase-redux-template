@@ -20,7 +20,23 @@ interface GenerateSubtitlesRequestBody {
 function reformatSrtContent(srt: string): string {
     return srt
         .split('\n')
-        .map(line => line.trim())
+        .map(line => {
+            const trimmedLine = line.trim();
+            
+            // Skip empty lines
+            if (trimmedLine.length === 0) return trimmedLine;
+            
+            // Skip sequence numbers (lines with only digits)
+            if (/^\d+$/.test(trimmedLine)) return trimmedLine;
+            
+            // Skip timestamp lines (format: 00:00:00,000 --> 00:00:00,000)
+            if (/^\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}$/.test(trimmedLine)) {
+                return trimmedLine;
+            }
+            
+            // Convert subtitle text to uppercase
+            return trimmedLine.toUpperCase();
+        })
         .filter(line => line.length > 0)
         .join('\n') + '\n';
 }
