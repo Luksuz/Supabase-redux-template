@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import fs from 'fs/promises'
 import path from 'path'
-import { exec } from 'child_process'
+import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import os from 'os'
 
@@ -199,9 +199,23 @@ async function processAudioWithSSE(
       const compressedFilePath = path.join(tempDir, compressedFileName)
       
       console.log(`🗜️ Compressing audio with Opus codec at ${targetBitrate}k bitrate (maximizing quality)`)
-      const compressionCommand = `ffmpeg -i "${originalFilePath}" -vn -map_metadata -1 -ac 1 -c:a libopus -b:a ${targetBitrate}k -application voip "${compressedFilePath}"`
       
-      await execAsync(compressionCommand)
+      // Use the helper function with real-time progress monitoring
+      await compressAudioWithProgress(
+        originalFilePath,
+        compressedFilePath,
+        targetBitrate,
+        duration,
+        (currentTime: number, progressPercent: number) => {
+          if (!isClosed()) {
+            sendEvent({
+              type: 'progress',
+              message: `Compressing audio... ${currentTime.toFixed(1)}s / ${duration.toFixed(1)}s`,
+              progress: progressPercent
+            }, 'progress')
+          }
+        }
+      )
       
       if (isClosed()) return
       sendEvent({ type: 'progress', message: 'Compression complete. Verifying output...', progress: 70 }, 'progress')
@@ -392,9 +406,15 @@ async function handleRegularUpload(request: NextRequest) {
       const compressedFilePath = path.join(tempDir, compressedFileName)
       
       console.log(`🗜️ Compressing audio with Opus codec at ${targetBitrate}k bitrate (maximizing quality)`)
-      const compressionCommand = `ffmpeg -i "${originalFilePath}" -vn -map_metadata -1 -ac 1 -c:a libopus -b:a ${targetBitrate}k -application voip "${compressedFilePath}"`
       
-      await execAsync(compressionCommand)
+      // Use the helper function for compression (without progress monitoring for regular uploads)
+      await compressAudioWithProgress(
+        originalFilePath,
+        compressedFilePath,
+        targetBitrate,
+        duration
+        // No progress callback for regular uploads
+      )
       
       // Check compressed file size
       const compressedStats = await fs.stat(compressedFilePath)
@@ -478,5 +498,156 @@ async function handleRegularUpload(request: NextRequest) {
       { error: `Server error: ${error.message}` },
       { status: 500 }
     )
+  }
+}
+
+// Helper function for audio compression with optional progress monitoring
+async function compressAudioWithProgress(
+  originalFilePath: string,
+  compressedFilePath: string,
+  targetBitrate: number,
+  duration: number,
+  onProgress?: (currentTime: number, progressPercent: number) => void
+) {
+  console.log(`🎵 Starting FFmpeg compression with spawn and stdout streaming`)
+  
+  // Use spawn for real-time progress streaming
+  const ffmpegArgs = [
+    '-i', originalFilePath,
+    '-vn',
+    '-map_metadata', '-1',
+    '-ac', '1',
+    '-c:a', 'libopus',
+    '-b:a', `${targetBitrate}k`,
+    '-application', 'voip',
+    '-progress', '-',        // Stream progress to stdout
+    '-nostats',              // Suppress noisy output
+    '-y',                    // Overwrite output file
+    compressedFilePath
+  ]
+  
+  console.log(`🔧 FFmpeg command: ffmpeg ${ffmpegArgs.join(' ')}`)
+  
+  const ffmpegProcess = spawn('ffmpeg', ffmpegArgs)
+  
+  let lastProgressTime = Date.now()
+  let lastProcessedTime = 0
+  let progressStuckCount = 0
+
+  // Handle real-time progress from stdout
+  if (onProgress) {
+    ffmpegProcess.stdout.setEncoding('utf8')
+    
+    ffmpegProcess.stdout.on('data', (data) => {
+      // FFmpeg emits progress in blocks, so split by line
+      const lines = data.trim().split('\n')
+      let currentTime = 0
+      let progressStatus = 'unknown'
+      
+      lines.forEach((line: string) => {
+        const trimmedLine = line.trim()
+        if (trimmedLine.includes('=')) {
+          const [key, value] = trimmedLine.split('=')
+          
+          if (key === 'out_time') {
+            // Parse time format: HH:MM:SS.mmm
+            const timeParts = value.split(':')
+            if (timeParts.length === 3) {
+              const hours = parseFloat(timeParts[0])
+              const minutes = parseFloat(timeParts[1])
+              const seconds = parseFloat(timeParts[2])
+              currentTime = hours * 3600 + minutes * 60 + seconds
+            }
+          } else if (key === 'out_time_ms') {
+            // Alternative: microseconds format
+            currentTime = parseInt(value) / 1000000
+          } else if (key === 'progress') {
+            progressStatus = value
+          }
+        }
+      })
+      
+      if (currentTime > 0 && currentTime <= duration) {
+        // Check if progress is stuck (same time for more than 10 seconds)
+        if (Math.abs(currentTime - lastProcessedTime) < 0.1) {
+          progressStuckCount++
+          if (progressStuckCount > 10) { // 10 data events without progress (~10 seconds)
+            console.log(`📊 FFmpeg steady at: ${currentTime.toFixed(1)}s / ${duration.toFixed(1)}s (${progressStatus}) - heavy processing`)
+            progressStuckCount = 0 // Reset to avoid spam
+          }
+        } else {
+          progressStuckCount = 0
+          lastProcessedTime = currentTime
+          console.log(`📊 FFmpeg progress: ${currentTime.toFixed(1)}s / ${duration.toFixed(1)}s (${progressStatus})`)
+        }
+        
+        const progressPercent = Math.min(95, 50 + Math.round((currentTime / duration) * 20)) // 50-70% range
+        onProgress(currentTime, progressPercent)
+        lastProgressTime = Date.now()
+      } else if (progressStatus === 'end') {
+        console.log('✅ FFmpeg compression completed via progress=end')
+        onProgress(duration, 70)
+      }
+    })
+  }
+
+  // Handle stderr for debugging
+  ffmpegProcess.stderr.setEncoding('utf8')
+  ffmpegProcess.stderr.on('data', (data) => {
+    // Log important stderr messages (errors, warnings)
+    const stderrStr = data.toString()
+    if (stderrStr.includes('Error') || stderrStr.includes('Warning') || stderrStr.includes('error')) {
+      console.log(`⚠️ FFmpeg stderr: ${stderrStr.trim()}`)
+    }
+  })
+
+  // Add timeout mechanism for very long files
+  const timeoutDuration = Math.max(300000, duration * 1000 * 3) // At least 5 minutes, or 3x the audio duration
+  const timeoutHandle = setTimeout(() => {
+    console.warn(`⚠️ FFmpeg timeout after ${timeoutDuration/1000}s - killing process`)
+    ffmpegProcess.kill('SIGTERM')
+    
+    // Force kill if SIGTERM doesn't work
+    setTimeout(() => {
+      if (!ffmpegProcess.killed) {
+        console.warn(`🔥 Force killing FFmpeg process`)
+        ffmpegProcess.kill('SIGKILL')
+      }
+    }, 5000)
+  }, timeoutDuration)
+
+  // Wait for ffmpeg to complete
+  try {
+    await new Promise<void>((resolve, reject) => {
+      ffmpegProcess.on('close', (code, signal) => {
+        clearTimeout(timeoutHandle)
+        
+        console.log(`🏁 FFmpeg process exited with code: ${code}, signal: ${signal}`)
+        
+        if (code === 0) {
+          if (onProgress) {
+            onProgress(duration, 70) // Ensure we reach 70% on success
+          }
+          resolve()
+        } else if (signal === 'SIGTERM' || signal === 'SIGKILL') {
+          reject(new Error(`FFmpeg process was terminated (${signal}) - likely due to timeout`))
+        } else {
+          reject(new Error(`FFmpeg process exited with code ${code}`))
+        }
+      })
+      
+      ffmpegProcess.on('error', (error) => {
+        clearTimeout(timeoutHandle)
+        console.error('FFmpeg process error:', error)
+        reject(error)
+      })
+    })
+  } finally {
+    clearTimeout(timeoutHandle)
+    
+    // Ensure process is cleaned up
+    if (!ffmpegProcess.killed) {
+      ffmpegProcess.kill('SIGTERM')
+    }
   }
 }

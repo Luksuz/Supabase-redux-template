@@ -532,6 +532,12 @@ export function VideoGenerator({ onNavigate }: VideoGeneratorProps) {
                     <p>• Audio compression and optimization in progress</p>
                     <p>• This process ensures best quality within file size limits</p>
                     <p>• Connection is kept alive with real-time updates</p>
+                    {audioUploadProgress >= 50 && audioUploadProgress < 70 && (
+                      <p>• Large files may take several minutes to compress</p>
+                    )}
+                    {audioUploadMessage.includes('stuck') && (
+                      <p className="text-amber-600">• FFmpeg processing detected - please wait</p>
+                    )}
                   </div>
                 </div>
               </div>
