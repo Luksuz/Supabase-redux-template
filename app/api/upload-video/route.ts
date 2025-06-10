@@ -66,16 +66,21 @@ async function getVideoDuration(filePath: string): Promise<number> {
 async function createLoopedVideo(videoUrl: string, duration: number, loopCount: number = 20) {
   console.log(`🔄 Creating ${loopCount}x looped video from: ${videoUrl}`)
   
-  // Create video clips for looping
+  // Create video clips for looping with slight overlaps to prevent gaps
   const videoClips = []
+  const overlapDuration = 0.1 // 100ms overlap to prevent gaps
+  
   for (let i = 0; i < loopCount; i++) {
+    const startTime = i * duration
     videoClips.push({
       asset: {
         type: "video",
-        src: videoUrl
+        src: videoUrl,
+        // Ensure consistent quality settings
+        volume: 1.0
       },
-      start: i * duration,
-      length: duration,
+      start: startTime,
+      length: duration + (i < loopCount - 1 ? overlapDuration : 0), // Add overlap except for last clip
       fit: "cover"
     })
   }
@@ -94,7 +99,6 @@ async function createLoopedVideo(videoUrl: string, duration: number, loopCount: 
       height: 720
     },
     fps: 25,
-    quality: "low",
     aspectRatio: "16:9"
   }
 
@@ -103,7 +107,7 @@ async function createLoopedVideo(videoUrl: string, duration: number, loopCount: 
     output: output
   }
 
-  console.log(`🎬 Sending looped video request to Shotstack...`)
+  console.log(`🎬 Sending looped video request to Shotstack with ${loopCount} clips and ${overlapDuration}s overlaps...`)
   
   const response = await fetch(`${SHOTSTACK_ENDPOINT}/render`, {
     method: 'POST',

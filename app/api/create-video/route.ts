@@ -91,19 +91,51 @@ export async function POST(request: NextRequest) {
       tracks.push(captionTrack);
     }
 
-    // Track for the main video - Use the pre-looped video as-is
-    const videoTrack = {
-      clips: [
-        {
+    // Track for the main video - Use the pre-looped video carefully with proper timing
+    // If audio duration is longer than video duration, create multiple clips with overlaps
+    const targetDuration = audioDuration || 300
+    const videoClips = []
+    const overlapDuration = 0.1 // 100ms overlap to prevent gaps
+    
+    if (videoDuration && targetDuration > videoDuration) {
+      // Need to loop the video multiple times to match audio duration
+      const loopsNeeded = Math.ceil(targetDuration / videoDuration)
+      console.log(`🔄 Creating ${loopsNeeded} video clips with overlaps to match ${targetDuration}s audio`)
+      
+      for (let i = 0; i < loopsNeeded; i++) {
+        const startTime = i * videoDuration
+        const clipLength = Math.min(videoDuration, targetDuration - startTime)
+        const needsOverlap = i < loopsNeeded - 1 && startTime + clipLength < targetDuration
+        
+        videoClips.push({
           asset: {
             type: "video",
-            src: videoUrl
+            src: videoUrl,
+            // Ensure audio from video doesn't interfere with our audio track
+            volume: 0
           },
-          start: 0,
-          length: audioDuration || 300,
+          start: startTime,
+          length: clipLength + (needsOverlap ? overlapDuration : 0),
           fit: "cover"
-        }
-      ]
+        })
+      }
+    } else {
+      // Single clip is sufficient
+      videoClips.push({
+        asset: {
+          type: "video",
+          src: videoUrl,
+          // Ensure audio from video doesn't interfere with our audio track
+          volume: 0
+        },
+        start: 0,
+        length: targetDuration,
+        fit: "cover"
+      })
+    }
+    
+    const videoTrack = {
+      clips: videoClips
     };
     tracks.push(videoTrack);
 
