@@ -3,18 +3,21 @@
 import { useState } from 'react'
 import { SidebarNavigation } from './sidebar-navigation'
 import { ScriptGenerator } from './script-generator'
+import YouTubeSearch from '../app/components/youtube-search'
 
-type NavigationView = 'script-generator'
+type NavigationView = 'youtube-search' | 'script-generator'
 
 export function MainLayout() {
-  const [activeView, setActiveView] = useState<NavigationView>('script-generator')
+  const [activeView, setActiveView] = useState<NavigationView>('youtube-search')
 
   const renderContent = () => {
     switch (activeView) {
+      case 'youtube-search':
+        return <YouTubeSearch />
       case 'script-generator':
         return <ScriptGenerator />
       default:
-        return <ScriptGenerator />
+        return <YouTubeSearch />
     }
   }
 

@@ -3,7 +3,7 @@
 import React from 'react'
 import { useAppSelector } from '@/lib/hooks'
 import { Button } from '@/components/ui/button'
-import { FileText, Star, BarChart3 } from 'lucide-react'
+import { FileText, Star, BarChart3, Youtube } from 'lucide-react'
 
 interface SidebarNavigationProps {
   currentView: string
@@ -23,6 +23,13 @@ export default function SidebarNavigation({ currentView, onViewChange }: Sidebar
       sectionTotal + (section.texts?.filter(text => !text.is_validated).length || 0), 0), 0)
 
   const menuItems = [
+    {
+      id: 'youtube-search',
+      label: 'YouTube Search',
+      icon: Youtube,
+      description: 'Search YouTube videos and access caption information',
+      badge: null
+    },
     {
       id: 'script-generator',
       label: 'Script Generator',

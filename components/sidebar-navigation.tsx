@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { FileText, ChevronRight } from 'lucide-react'
+import { FileText, ChevronRight, Youtube } from 'lucide-react'
 
-type NavigationView = 'script-generator'
+type NavigationView = 'youtube-search' | 'script-generator'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -17,6 +17,15 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
   const { currentJob } = useAppSelector(state => state.scripts)
 
   const navigationItems = [
+    {
+      id: 'youtube-search' as NavigationView,
+      label: 'YouTube Search',
+      icon: Youtube,
+      description: 'Search YouTube videos and access caption information',
+      hasData: false,
+      dataCount: 0,
+      disabled: false
+    },
     {
       id: 'script-generator' as NavigationView,
       label: 'Script Generator',
@@ -31,8 +40,8 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
   return (
     <div className="w-64 bg-white border-r border-gray-200 h-full">
       <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Script Generator</h2>
-        <p className="text-sm text-gray-500">AI-powered script generation</p>
+        <h2 className="text-lg font-semibold text-gray-900">Content Generation</h2>
+        <p className="text-sm text-gray-500">YouTube search & script generation</p>
       </div>
       
       <nav className="p-4 space-y-2">

@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit'
 import userReducer from './features/user/userSlice'
 import scriptsReducer from './features/scripts/scriptsSlice'
+import youtubeReducer from './features/youtube/youtubeSlice'
 
 // This is our Redux store - the single source of truth for our app's state
 export const store = configureStore({
@@ -8,6 +9,7 @@ export const store = configureStore({
     // User authentication state management
     user: userReducer,
     scripts: scriptsReducer,
+    youtube: youtubeReducer,
   },
   // Redux Toolkit includes good defaults for middleware
   // (like Redux DevTools and thunk for async actions)
@@ -20,5 +22,6 @@ export type AppDispatch = typeof store.dispatch
 // Example of what our state structure looks like:
 // {
 //   user: { id: 'abc123', email: 'user@example.com', isLoggedIn: true, ... },
-//   scripts: { prompt: '...', scripts: [...], hasGeneratedScripts: true, ... }
+//   scripts: { prompt: '...', scripts: [...], hasGeneratedScripts: true, ... },
+//   youtube: { searchQuery: '...', videos: [...], subtitleFiles: [...], ... }
 // } 

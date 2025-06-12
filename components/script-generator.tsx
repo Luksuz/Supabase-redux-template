@@ -149,7 +149,7 @@ export function ScriptGenerator() {
     showMessage('Generating script sections...', 'info')
 
     try {
-      const response = await fetch('/api/generate-sections', {
+      const response = await fetch('/api/script/generate-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -221,7 +221,7 @@ export function ScriptGenerator() {
     dispatch(startGeneratingScript(section.id))
     
     try {
-      const response = await fetch('/api/generate-full-script', {
+      const response = await fetch('/api/script/generate-full-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -301,7 +301,7 @@ export function ScriptGenerator() {
 
     const promises = currentJob.sections.map(async (section: FineTuningSection) => {
       try {
-        const response = await fetch('/api/generate-full-script', {
+        const response = await fetch('/api/script/generate-full-script', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

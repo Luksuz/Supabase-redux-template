@@ -18,7 +18,7 @@ const ScriptSectionsResponseSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  console.log('=== POST /api/generate-sections ===')
+  console.log('=== POST /api/script/generate-sections ===')
   
   try {
     console.log('Parsing request body...')

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { ReduxProvider } from "../lib/providers/redux-provider";
+import { AuthSessionProvider } from "../lib/providers/session-provider";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -28,6 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
+        <AuthSessionProvider>
         <ReduxProvider>
         <ThemeProvider
           attribute="class"
@@ -38,6 +40,7 @@ export default function RootLayout({
           {children}
         </ThemeProvider>
         </ReduxProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

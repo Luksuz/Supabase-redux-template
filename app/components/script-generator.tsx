@@ -106,7 +106,7 @@ export default function ScriptGenerator() {
       dispatch(startGeneratingSections())
 
       // Generate sections using OpenAI
-      const response = await fetch('/api/generate-sections', {
+      const response = await fetch('/api/script/generate-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -179,7 +179,7 @@ export default function ScriptGenerator() {
     try {
       dispatch(startGeneratingScript(section.id))
 
-      const response = await fetch('/api/generate-full-script', {
+      const response = await fetch('/api/script/generate-full-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

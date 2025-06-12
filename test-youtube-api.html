@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Videos Search Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #cc0000;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .auth-btn {
+            background-color: #4285f4;
+        }
+        .auth-btn:hover {
+            background-color: #3367d6;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        .caption-btn {
+            background-color: #1976d2;
+            padding: 8px 16px;
+            font-size: 12px;
+            margin-top: 8px;
+            margin-right: 10px;
+        }
+        .caption-btn:hover {
+            background-color: #1565c0;
+        }
+        .auth-section {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #1976d2;
+        }
+        .auth-status {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .auth-status.authenticated {
+            color: #2e7d32;
+        }
+        .auth-status.not-authenticated {
+            color: #d32f2f;
+        }
+        .input-section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: #ff0000;
+            outline: none;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .search-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .video-item {
+            background: white;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ff0000;
+        }
+        .video-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .video-description {
+            color: #666;
+            margin-bottom: 8px;
+            max-height: 60px;
+            overflow: hidden;
+        }
+        .video-date {
+            color: #999;
+            font-size: 12px;
+        }
+        .video-link {
+            color: #ff0000;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .video-link:hover {
+            text-decoration: underline;
+        }
+        .video-channel {
+            color: #888;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .video-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .search-stats {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .caption-content {
+            line-height: 1.6;
+            font-size: 14px;
+        }
+        .caption-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .caption-info {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            background-color: #e3f2fd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .caption-language {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 10px;
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+        .caption-track-kind {
+            color: #666;
+            font-size: 11px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>YouTube Videos Search Tool</h1>
+    <p>Search for videos by channel, keyword, or both! Click "Get Captions" to view available caption tracks.</p>
+    
+    <!-- OAuth2 Authentication Section -->
+    <div class="auth-section">
+        <div id="authStatus" class="auth-status not-authenticated">Not authenticated - Caption access unavailable</div>
+        <div class="help-text">
+            To access video captions, you need to sign in with Google. This allows the app to use YouTube's caption API on your behalf.
+        </div>
+        <button id="authButton" class="auth-btn" onclick="handleAuthClick()">Sign in with Google</button>
+        <button id="signoutButton" class="logout-btn" onclick="handleSignoutClick()" style="display:none;">Sign Out</button>
+    </div>
+    
+    <div class="input-section">
+        <div class="input-group">
+            <label for="searchQuery">Search Query (optional):</label>
+            <input type="text" id="searchQuery" placeholder="Enter keywords to search for...">
+            <div class="help-text">
+                Leave empty to get all recent videos from a channel, or enter keywords to search for specific content.
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="channelUrl">Channel URL or Channel ID (optional):</label>
+            <input type="text" id="channelUrl" placeholder="https://www.youtube.com/@channelname or UC_x5XG1OV2P6uZZ5FSM9Ttw">
+            <div class="help-text">
+                Leave empty to search all of YouTube, or specify a channel to search within that channel only.<br>
+                Supported formats: @handle, /channel/ID, /c/name, /user/name, or just the channel ID
+            </div>
+        </div>
+
+        <div class="search-options">
+            <div class="input-group">
+                <label for="maxResults">Number of Results:</label>
+                <input type="number" id="maxResults" value="50" min="1" max="50">
+            </div>
+            
+            <div class="input-group">
+                <label for="sortOrder">Sort Order:</label>
+                <select id="sortOrder">
+                    <option value="date">Most Recent</option>
+                    <option value="relevance">Most Relevant</option>
+                    <option value="viewCount">Most Viewed</option>
+                    <option value="rating">Highest Rated</option>
+                </select>
+            </div>
+        </div>
+        
+        <button onclick="loadClient()">1. Load API Client</button>
+        <button onclick="execute()">2. Search Videos</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <!-- Caption Modal -->
+    <div id="captionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Video Captions</div>
+                <span class="close" onclick="closeCaptionModal()">&times;</span>
+            </div>
+            <div id="captionContent"></div>
+        </div>
+    </div>
+
+    <!-- Load the Google APIs JavaScript library -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    
+    <script>
+        // Replace with your actual API key
+        const API_KEY = 'AIzaSyBZxCR32V4JAWYUF0dZmh1lNAPqlW1e-Ew';
+        const CLIENT_ID = 'YOUR_OAUTH_CLIENT_ID'; // You need to set this up in Google Cloud Console
+        const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest';
+        const SCOPES = 'https://www.googleapis.com/auth/youtube.readonly';
+
+        let tokenClient;
+        let gapi_inited = false;
+        let gis_inited = false;
+
+        // Initialize GAPI
+        function gapiLoaded() {
+          gapi.load('client', initializeGapiClient);
+        }
+
+        async function initializeGapiClient() {
+          await gapi.client.init({
+            apiKey: API_KEY,
+            discoveryDocs: [DISCOVERY_DOC],
+          });
+          gapi_inited = true;
+          maybeEnableButtons();
+        }
+
+        // Initialize Google Identity Services
+        function gisLoaded() {
+          tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: '', // defined later
+          });
+          gis_inited = true;
+          maybeEnableButtons();
+        }
+
+        function maybeEnableButtons() {
+          if (gapi_inited && gis_inited) {
+            document.getElementById('authButton').disabled = false;
+            updateAuthStatus();
+          }
+        }
+
+        // Handle authorization
+        function handleAuthClick() {
+          tokenClient.callback = async (resp) => {
+            if (resp.error !== undefined) {
+              throw (resp);
+            }
+            updateAuthStatus();
+          };
+
+          if (gapi.client.getToken() === null) {
+            tokenClient.requestAccessToken({prompt: 'consent'});
+          } else {
+            tokenClient.requestAccessToken({prompt: ''});
+          }
+        }
+
+        // Handle sign out
+        function handleSignoutClick() {
+          const token = gapi.client.getToken();
+          if (token !== null) {
+            google.accounts.oauth2.revoke(token.access_token);
+            gapi.client.setToken('');
+            updateAuthStatus();
+          }
+        }
+
+        // Update authentication status display
+        function updateAuthStatus() {
+          const authStatus = document.getElementById('authStatus');
+          const authButton = document.getElementById('authButton');
+          const signoutButton = document.getElementById('signoutButton');
+          
+          if (gapi.client.getToken()) {
+            authStatus.textContent = 'Authenticated - Caption access available';
+            authStatus.className = 'auth-status authenticated';
+            authButton.style.display = 'none';
+            signoutButton.style.display = 'inline-block';
+          } else {
+            authStatus.textContent = 'Not authenticated - Caption access unavailable';
+            authStatus.className = 'auth-status not-authenticated';
+            authButton.style.display = 'inline-block';
+            signoutButton.style.display = 'none';
+          }
+        }
+
+        // Loads the GAPI client and YouTube Data API v3 discovery document.
+        function loadClient() {
+          const resultsDiv = document.getElementById('results');
+          resultsDiv.textContent = 'Loading API client...';
+          
+          if (typeof gapi === 'undefined') {
+            resultsDiv.textContent = 'Error: GAPI script not loaded. Please refresh the page.';
+            return;
+          }
+          
+          gapi.client.setApiKey(API_KEY);
+          return gapi.client.load("https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest")
+            .then(function() { 
+              console.log("GAPI client loaded for API");
+              resultsDiv.textContent = 'API client loaded successfully! You can now search for videos.';
+            },
+            function(err) { 
+              console.error("Error loading GAPI client for API", err);
+              resultsDiv.textContent = 'Error loading API client: ' + JSON.stringify(err, null, 2);
+            });
+        }
+
+        // Extract channel ID from various YouTube URL formats
+        function extractChannelId(url) {
+          if (!url) return null;
+          
+          // If it's already a channel ID (starts with UC and is 24 characters)
+          if (url.match(/^UC[\w-]{22}$/)) {
+            return url;
+          }
+          
+          // Remove any trailing slashes and query parameters
+          url = url.split('?')[0].replace(/\/$/, '');
+          
+          // Extract from different URL formats
+          const patterns = [
+            /youtube\.com\/channel\/(UC[\w-]{22})/,
+            /youtube\.com\/c\/([\w-]+)/,
+            /youtube\.com\/@([\w-]+)/,
+            /youtube\.com\/user\/([\w-]+)/
+          ];
+          
+          for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match) {
+              if (pattern.source.includes('channel')) {
+                return match[1]; // Direct channel ID
+              } else {
+                return match[1]; // Username/handle - will need to resolve
+              }
+            }
+          }
+          
+          return null;
+        }
+
+        // Resolve username/handle to channel ID
+        async function resolveChannelId(usernameOrHandle, urlType) {
+          try {
+            let response;
+            
+            if (urlType === 'handle') {
+              // For @handles, we need to search
+              response = await gapi.client.youtube.search.list({
+                part: 'snippet',
+                q: usernameOrHandle,
+                type: 'channel',
+                maxResults: 1
+              });
+              
+              if (response.result.items && response.result.items.length > 0) {
+                return response.result.items[0].snippet.channelId;
+              }
+            } else {
+              // For usernames and custom URLs, try channels endpoint
+              response = await gapi.client.youtube.channels.list({
+                part: 'id',
+                forUsername: usernameOrHandle
+              });
+              
+              if (response.result.items && response.result.items.length > 0) {
+                return response.result.items[0].id;
+              }
+            }
+            
+            return null;
+          } catch (error) {
+            console.error('Error resolving channel ID:', error);
+            return null;
+          }
+        }
+
+        // Main search function
+        async function execute() {
+          const resultsDiv = document.getElementById('results');
+          const searchQuery = document.getElementById('searchQuery').value.trim();
+          const channelInput = document.getElementById('channelUrl').value.trim();
+          const maxResults = parseInt(document.getElementById('maxResults').value) || 50;
+          const sortOrder = document.getElementById('sortOrder').value;
+          
+          if (!searchQuery && !channelInput) {
+            resultsDiv.innerHTML = '<div class="error">Please enter either a search query or a channel URL (or both).</div>';
+            return;
+          }
+          
+          if (typeof gapi === 'undefined' || !gapi.client || !gapi.client.youtube) {
+            resultsDiv.innerHTML = '<div class="error">GAPI client not loaded. Please load the API client first.</div>';
+            return;
+          }
+          
+          resultsDiv.textContent = 'Processing search...';
+          
+          let channelId = null;
+          
+          // If channel URL is provided, resolve it to channel ID
+          if (channelInput) {
+            resultsDiv.textContent = 'Processing channel URL...';
+            
+            channelId = extractChannelId(channelInput);
+            
+            if (!channelId) {
+              resultsDiv.innerHTML = '<div class="error">Could not extract channel ID from the provided URL. Please check the format.</div>';
+              return;
+            }
+            
+            // If it's not a direct channel ID, try to resolve it
+            if (!channelId.match(/^UC[\w-]{22}$/)) {
+              resultsDiv.textContent = 'Resolving channel ID...';
+              
+              const urlType = channelInput.includes('@') ? 'handle' : 'username';
+              const resolvedId = await resolveChannelId(channelId, urlType);
+              
+              if (!resolvedId) {
+                resultsDiv.innerHTML = '<div class="error">Could not find channel. Please verify the URL is correct.</div>';
+                return;
+              }
+              
+              channelId = resolvedId;
+            }
+          }
+          
+          resultsDiv.textContent = 'Searching for videos...';
+          
+          try {
+            // Build search parameters
+            const searchParams = {
+              part: 'snippet,id',
+              order: sortOrder,
+              maxResults: maxResults,
+              type: 'video'
+            };
+            
+            // Add search query if provided
+            if (searchQuery) {
+              searchParams.q = searchQuery;
+            }
+            
+            // Add channel ID if provided
+            if (channelId) {
+              searchParams.channelId = channelId;
+            }
+            
+            console.log('Search parameters:', searchParams);
+            
+            const response = await gapi.client.youtube.search.list(searchParams);
+            
+            console.log('Response', response.result);
+            displayVideos(response.result, searchQuery, channelId, maxResults);
+          } catch (err) {
+            console.error('Execute error', err);
+            resultsDiv.innerHTML = `<div class="error">Error searching for videos: ${JSON.stringify(err, null, 2)}</div>`;
+          }
+        }
+
+        // Get captions for a video (using API key only)
+        async function getCaptions(videoId, videoTitle) {
+          const modal = document.getElementById('captionModal');
+          const modalTitle = document.getElementById('modalTitle');
+          const captionContent = document.getElementById('captionContent');
+          
+          modalTitle.textContent = `Captions for: ${videoTitle}`;
+          captionContent.innerHTML = '<div class="loading">Loading available captions...</div>';
+          modal.style.display = 'block';
+          
+          try {
+            // Get the list of available captions using API key only
+            const captionsResponse = await gapi.client.youtube.captions.list({
+              part: 'snippet',
+              videoId: videoId
+            });
+            
+            console.log('Captions response:', captionsResponse.result);
+            
+            if (!captionsResponse.result.items || captionsResponse.result.items.length === 0) {
+              captionContent.innerHTML = '<div class="error">No captions available for this video.</div>';
+              return;
+            }
+            
+            // Display available caption information
+            displayCaptionInfo(captionsResponse.result.items, videoId, videoTitle);
+            
+          } catch (error) {
+            console.error('Error getting captions:', error);
+            captionContent.innerHTML = `<div class="error">Error loading captions: ${error.result?.error?.message || error.message || 'Unknown error'}</div>`;
+          }
+        }
+        
+        // Display available caption tracks information
+        function displayCaptionInfo(captionTracks, videoId, videoTitle) {
+          const captionContent = document.getElementById('captionContent');
+          
+          let html = `
+            <div class="info">
+              <strong>Found ${captionTracks.length} caption track(s) for this video:</strong>
+            </div>
+          `;
+          
+          captionTracks.forEach((track, index) => {
+            const snippet = track.snippet;
+            const isAutoGenerated = snippet.trackKind === 'asr';
+            const language = snippet.language;
+            const name = snippet.name || `${language} captions`;
+            
+            html += `
+              <div class="caption-item">
+                <div class="caption-info">
+                  <strong>Track ${index + 1}:</strong> ${name}
+                  <br><span class="caption-language">${language}</span>
+                  <span class="caption-track-kind">${isAutoGenerated ? '(Auto-generated)' : '(Manual)'}</span>
+                </div>
+                <div><strong>Status:</strong> ${snippet.status}</div>
+                <div><strong>Type:</strong> ${snippet.trackKind}</div>
+                ${snippet.failureReason ? `<div><strong>Failure Reason:</strong> ${snippet.failureReason}</div>` : ''}
+              </div>
+            `;
+          });
+          
+          html += `
+            <div class="info">
+              <strong>Note:</strong> Caption content download requires additional authentication (OAuth2). 
+              This tool shows available caption tracks using API key authentication.
+              <br><br>
+              <strong>To view actual captions:</strong>
+              <br>• Visit the video on YouTube and enable captions
+              <br>• Use YouTube's built-in caption features
+              <br><br>
+              <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" class="video-link">
+                Watch video with captions on YouTube →
+              </a>
+            </div>
+          `;
+          
+          captionContent.innerHTML = html;
+        }
+        
+        // Close caption modal
+        function closeCaptionModal() {
+          document.getElementById('captionModal').style.display = 'none';
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+          const modal = document.getElementById('captionModal');
+          if (event.target === modal) {
+            modal.style.display = 'none';
+          }
+        }
+
+        // Display videos in a nice format
+        function displayVideos(data, searchQuery, channelId, maxResults) {
+          const resultsDiv = document.getElementById('results');
+          
+          if (!data.items || data.items.length === 0) {
+            resultsDiv.innerHTML = '<div class="error">No videos found for your search criteria.</div>';
+            return;
+          }
+
+          let searchInfo = '';
+          if (searchQuery && channelId) {
+            searchInfo = `"${searchQuery}" in channel (${channelId})`;
+          } else if (searchQuery) {
+            searchInfo = `"${searchQuery}" across YouTube`;
+          } else if (channelId) {
+            searchInfo = `recent videos from channel (${channelId})`;
+          }
+
+          let html = `
+            <div class="search-stats">
+              Found ${data.items.length} videos for ${searchInfo}
+              <br>Requested: ${maxResults} results | Total available: ${data.pageInfo?.totalResults || 'Unknown'}
+            </div>
+          `;
+          
+          data.items.forEach((video, index) => {
+            const snippet = video.snippet;
+            const videoId = video.id.videoId;
+            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            const publishDate = new Date(snippet.publishedAt).toLocaleDateString();
+            
+            html += `
+              <div class="video-item">
+                <div class="video-title">${snippet.title}</div>
+                <div class="video-description">${snippet.description}</div>
+                <div class="video-channel">Channel: ${snippet.channelTitle}</div>
+                <div class="video-date">Published: ${publishDate}</div>
+                <div class="video-actions">
+                  <a href="${videoUrl}" target="_blank" class="video-link">Watch on YouTube</a>
+                  <button class="caption-btn" onclick="getCaptions('${videoId}', '${snippet.title.replace(/'/g, "\\'")}')">
+                    Get Captions Info
+                  </button>
+                </div>
+              </div>
+            `;
+          });
+          
+          resultsDiv.innerHTML = html;
+        }
+
+        // Auto-load the client when the page loads
+        gapi.load("client");
+    </script>
+</body>
+</html> 
