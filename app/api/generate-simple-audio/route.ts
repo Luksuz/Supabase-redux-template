@@ -380,7 +380,9 @@ export async function POST(request: Request) {
       provider, 
       voice, 
       model, 
-      language 
+      language,
+      scriptTitle,
+      customFilename
     } = await request.json();
 
     console.log(`📥 Received batch audio generation request: provider=${provider}, voice=${voice}, model=${model}, language=${language}`);
@@ -413,11 +415,36 @@ export async function POST(request: Request) {
     // Concatenate chunks (simplified for now)
     const finalAudioUrl = await concatenateAudioUrls(chunkUrls);
 
+    // Generate proper filename - use custom filename if provided, otherwise generate from script title
+    let filename: string;
+    
+    if (customFilename && customFilename.trim()) {
+      // Use custom filename, ensure it has .mp3 extension
+      const cleanCustomFilename = customFilename.trim()
+        .replace(/[^a-zA-Z0-9\s-_@]/g, '') // Allow @ symbol for the generator suffix
+        .replace(/\s+/g, '-');
+      
+      filename = cleanCustomFilename.endsWith('.mp3') 
+        ? cleanCustomFilename 
+        : `${cleanCustomFilename}.mp3`;
+    } else {
+      // Generate filename from script title and language
+      const languageCode = language || 'en';
+      const cleanTitle = (scriptTitle || 'untitled-script')
+        .replace(/[^a-zA-Z0-9\s-_]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .toLowerCase()
+        .substring(0, 50); // Limit length
+      
+      filename = `${languageCode.toUpperCase()}_${cleanTitle}.mp3`;
+    }
+
     console.log(`✅ Batch audio generation completed successfully!`);
 
     return NextResponse.json({
       success: true,
       audioUrl: finalAudioUrl,
+      filename: filename,
       provider,
       voice,
       model: model || (provider === 'minimax' ? 'speech-02-hd' : 'eleven_multilingual_v2'),

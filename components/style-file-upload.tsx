@@ -5,13 +5,15 @@ import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   startAnalyzingUploadedStyle,
   setUploadedStyle,
-  clearUploadedStyle
+  clearUploadedStyle,
+  setSectionedWorkflowField
 } from '../lib/features/scripts/scriptsSlice'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Label } from './ui/label'
 import { Badge } from './ui/badge'
-import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'
+import { Textarea } from './ui/textarea'
+import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp, Eye, Type, FileUp } from 'lucide-react'
 
 export function StyleFileUpload() {
   const dispatch = useAppDispatch()
@@ -20,6 +22,8 @@ export function StyleFileUpload() {
   const [localMessage, setLocalMessage] = useState("")
   const [localMessageType, setLocalMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [inputMode, setInputMode] = useState<'file' | 'text'>('file')
+  const [textInput, setTextInput] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -27,6 +31,61 @@ export function StyleFileUpload() {
     setLocalMessageType(type)
     // Clear message after 5 seconds
     setTimeout(() => setLocalMessage(""), 5000)
+  }
+
+  const handleTextAnalysis = async (text: string, source: string = 'pasted text') => {
+    // Validate text content
+    if (!text || text.trim().length === 0) {
+      showMessage('Please enter some text to analyze', 'error')
+      return
+    }
+
+    if (text.trim().length < 100) {
+      showMessage('Text is too short. Please enter at least 100 characters for meaningful analysis.', 'error')
+      return
+    }
+
+    dispatch(startAnalyzingUploadedStyle())
+    showMessage(`Analyzing writing style from ${source}...`, 'info')
+
+    try {
+      const response = await fetch('/api/analyze-script-style', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          selectedModel: sectionedWorkflow.selectedModel,
+          source: source
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to analyze script style')
+      }
+
+      const data = await response.json()
+      
+      dispatch(setUploadedStyle({
+        style: data.analyzedStyle,
+        fileName: data.fileName || source
+      }))
+      
+      dispatch(setSectionedWorkflowField({
+        field: 'selectedStyle',
+        value: null
+      }))
+      
+      showMessage(
+        `Style analysis completed! Extracted style guide from ${data.fileName || source}`, 
+        'success'
+      )
+    } catch (error) {
+      const errorMessage = (error as Error).message
+      showMessage(`Analysis failed: ${errorMessage}`, 'error')
+    }
   }
 
   const handleFileUpload = async (file: File) => {
@@ -70,6 +129,11 @@ export function StyleFileUpload() {
         fileName: data.fileName
       }))
       
+      dispatch(setSectionedWorkflowField({
+        field: 'selectedStyle',
+        value: null
+      }))
+      
       showMessage(
         `Style analysis completed! Extracted style guide from ${data.fileName}`, 
         'success'
@@ -110,6 +174,7 @@ export function StyleFileUpload() {
   const handleClearStyle = () => {
     dispatch(clearUploadedStyle())
     setIsExpanded(false)
+    setTextInput('')
     showMessage('Uploaded style cleared', 'info')
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -120,6 +185,10 @@ export function StyleFileUpload() {
     setIsExpanded(!isExpanded)
   }
 
+  const handleAnalyzeText = () => {
+    handleTextAnalysis(textInput, 'pasted text')
+  }
+
   return (
     <Card className="bg-white shadow-sm border border-gray-200">
       <CardHeader>
@@ -128,12 +197,38 @@ export function StyleFileUpload() {
           Script Style Analyzer
         </CardTitle>
         <CardDescription>
-          Upload a script file (.txt or .docx) to extract and analyze its writing style
+          Upload a script file or paste text directly to extract and analyze its writing style
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Upload Area */}
+        {/* Input Mode Toggle */}
         {!sectionedWorkflow.uploadedStyle && (
+          <div className="flex items-center justify-center space-x-1 bg-gray-100 rounded-lg p-1">
+            <Button
+              variant={inputMode === 'file' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setInputMode('file')}
+              disabled={sectionedWorkflow.isAnalyzingStyle}
+              className="flex items-center gap-2"
+            >
+              <FileUp className="h-4 w-4" />
+              Upload File
+            </Button>
+            <Button
+              variant={inputMode === 'text' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setInputMode('text')}
+              disabled={sectionedWorkflow.isAnalyzingStyle}
+              className="flex items-center gap-2"
+            >
+              <Type className="h-4 w-4" />
+              Paste Text
+            </Button>
+          </div>
+        )}
+
+        {/* File Upload Mode */}
+        {!sectionedWorkflow.uploadedStyle && inputMode === 'file' && (
           <div className="space-y-4">
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -184,6 +279,49 @@ export function StyleFileUpload() {
               onChange={handleFileInputChange}
               className="hidden"
             />
+          </div>
+        )}
+
+        {/* Text Input Mode */}
+        {!sectionedWorkflow.uploadedStyle && inputMode === 'text' && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="text-input">Paste Your Script Text</Label>
+              <Textarea
+                id="text-input"
+                placeholder="Paste your script or reference text here... (minimum 100 characters for meaningful analysis)"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                disabled={sectionedWorkflow.isAnalyzingStyle}
+                className="min-h-[200px] resize-y"
+              />
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{textInput.length} characters</span>
+                <span className={textInput.length >= 100 ? 'text-green-600' : 'text-orange-600'}>
+                  {textInput.length >= 100 ? '✓ Ready for analysis' : `Need ${100 - textInput.length} more characters`}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <Button
+                onClick={handleAnalyzeText}
+                disabled={sectionedWorkflow.isAnalyzingStyle || textInput.trim().length < 100}
+                className="flex items-center gap-2"
+              >
+                {sectionedWorkflow.isAnalyzingStyle ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing Style...
+                  </>
+                ) : (
+                  <>
+                    <Type className="h-4 w-4" />
+                    Analyze Writing Style
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
 

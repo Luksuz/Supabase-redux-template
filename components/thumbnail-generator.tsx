@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -45,6 +45,10 @@ export function ThumbnailGenerator() {
   const [prompt, setPrompt] = useState('')
   const [selectedReferenceId, setSelectedReferenceId] = useState<string>('')
   const [guidanceStrength, setGuidanceStrength] = useState(0.5)
+  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'leonardo' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax'>('openai')
+  const [stylePrefix, setStylePrefix] = useState<string>('')
+  const [customStylePrefix, setCustomStylePrefix] = useState('')
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1' | '9:16' | '4:3'>('16:9')
 
   const generateFinalPrompt = () => {
     const parts: string[] = []
@@ -84,7 +88,7 @@ export function ThumbnailGenerator() {
     }))
 
     try {
-      dispatch(updateGenerationInfo('Generating thumbnail with Leonardo.ai...'))
+      dispatch(updateGenerationInfo(`Generating thumbnail with ${selectedProvider.toUpperCase()}...`))
 
       const response = await fetch('/api/generate-thumbnail', {
         method: 'POST',
@@ -95,6 +99,10 @@ export function ThumbnailGenerator() {
           prompt: finalPrompt,
           referenceImageId: selectedReferenceId || undefined,
           guidanceStrength: guidanceStrength,
+          provider: selectedProvider,
+          stylePrefix: stylePrefix || undefined,
+          customStylePrefix: customStylePrefix || undefined,
+          aspectRatio: aspectRatio,
         }),
       })
 
@@ -137,7 +145,7 @@ export function ThumbnailGenerator() {
     }))
 
     try {
-      dispatch(updateGenerationInfo('Regenerating thumbnail with new prompt...'))
+      dispatch(updateGenerationInfo(`Regenerating thumbnail with ${selectedProvider.toUpperCase()}...`))
 
       const response = await fetch('/api/generate-thumbnail', {
         method: 'POST',
@@ -148,6 +156,10 @@ export function ThumbnailGenerator() {
           prompt: newPrompt,
           referenceImageId: thumbnail.referenceImageId,
           guidanceStrength: thumbnail.guidanceStrength || 0.5,
+          provider: selectedProvider,
+          stylePrefix: stylePrefix || undefined,
+          customStylePrefix: customStylePrefix || undefined,
+          aspectRatio: aspectRatio,
         }),
       })
 
@@ -196,13 +208,17 @@ export function ThumbnailGenerator() {
     dispatch(removeThumbnail(thumbnailId))
   }
 
+  useEffect(() => {
+    setSelectedReferenceId('')
+  }, [selectedProvider])
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 p-6">
       {/* Header */}
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Thumbnail Generator</h1>
         <p className="text-gray-600">
-          Create compelling thumbnails using Leonardo.ai with titles, custom prompts, and reference images
+          Create compelling thumbnails using multiple AI models including OpenAI DALL-E 3, Leonardo.ai, Flux, and more
         </p>
       </div>
 
@@ -234,6 +250,87 @@ export function ThumbnailGenerator() {
             </p>
           </div>
 
+          {/* Model Selection */}
+          <div className="space-y-2">
+            <Label>AI Model</Label>
+            <Select value={selectedProvider} onValueChange={(value) => setSelectedProvider(value as any)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select AI model..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openai">OpenAI DALL-E 3 (Recommended)</SelectItem>
+                <SelectItem value="leonardo">Leonardo.ai</SelectItem>
+                <SelectItem value="flux-dev">Flux Dev</SelectItem>
+                <SelectItem value="recraft-v3">Recraft V3</SelectItem>
+                <SelectItem value="stable-diffusion-v35-large">Stable Diffusion 3.5 Large</SelectItem>
+                <SelectItem value="minimax">MiniMax</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              OpenAI DALL-E 3 provides the highest quality results for thumbnails
+            </p>
+          </div>
+
+          {/* Aspect Ratio Selection */}
+          <div className="space-y-2">
+            <Label>Aspect Ratio</Label>
+            <Select value={aspectRatio} onValueChange={(value) => setAspectRatio(value as any)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select aspect ratio..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="16:9">16:9 (YouTube Thumbnail)</SelectItem>
+                <SelectItem value="1:1">1:1 (Square)</SelectItem>
+                <SelectItem value="9:16">9:16 (Vertical)</SelectItem>
+                <SelectItem value="4:3">4:3 (Classic)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              16:9 is recommended for YouTube thumbnails
+            </p>
+          </div>
+
+          {/* Style Prefix Selection */}
+          <div className="space-y-2">
+            <Label>Style Preset (Optional)</Label>
+            <Select value={stylePrefix || "none"} onValueChange={(value) => setStylePrefix(value === "none" ? "" : value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a style preset..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No style preset</SelectItem>
+                <SelectItem value="youtube-thumbnail">YouTube Thumbnail Style</SelectItem>
+                <SelectItem value="cinematic">Cinematic Movie Poster</SelectItem>
+                <SelectItem value="esoteric-medieval">Esoteric Medieval</SelectItem>
+                <SelectItem value="dark-demonic">Dark Demonic</SelectItem>
+                <SelectItem value="renaissance">Renaissance Classical</SelectItem>
+                <SelectItem value="gothic">Gothic Dark</SelectItem>
+                <SelectItem value="mystical">Mystical Ethereal</SelectItem>
+                <SelectItem value="ancient">Ancient Manuscript</SelectItem>
+                <SelectItem value="occult">Occult Symbolic</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Style presets automatically enhance your prompt with specific artistic directions
+            </p>
+          </div>
+
+          {/* Custom Style Prefix */}
+          <div className="space-y-2">
+            <Label htmlFor="customStylePrefix">Custom Style Prefix (Optional)</Label>
+            <Input
+              id="customStylePrefix"
+              placeholder="e.g., 'Vibrant neon cyberpunk style, futuristic design'"
+              value={customStylePrefix}
+              onChange={(e) => setCustomStylePrefix(e.target.value)}
+              disabled={isGenerating}
+              className="text-base"
+            />
+            <p className="text-xs text-muted-foreground">
+              Custom style instructions that will be added before your prompt. Overrides style presets.
+            </p>
+          </div>
+
           {/* Additional Prompt */}
           <div className="space-y-2">
             <Label htmlFor="prompt">Additional Prompt (Optional)</Label>
@@ -252,13 +349,45 @@ export function ThumbnailGenerator() {
 
           {/* Reference Image Selection */}
           <div className="space-y-2">
-            <Label>Reference Thumbnail (Optional)</Label>
+            <Label>Reference Image (Optional)</Label>
             <div className="space-y-3">
-              {thumbnails.length > 0 ? (
+              {/* Provider-specific reference image info */}
+              {selectedProvider === 'leonardo' && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800 font-medium">Leonardo.ai: Style Reference</p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Use previous thumbnails to guide the style and composition of new generations.
+                  </p>
+                </div>
+              )}
+              
+              {selectedProvider === 'minimax' && (
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <p className="text-sm text-purple-800 font-medium">MiniMax: Character Reference</p>
+                  <p className="text-xs text-purple-600 mt-1">
+                    Upload a front-facing person photo to use as character reference. Best with clear face photos.
+                  </p>
+                </div>
+              )}
+
+              {!['leonardo', 'minimax'].includes(selectedProvider) && (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="text-sm text-gray-600">
+                    Reference images are not supported with {selectedProvider.toUpperCase()}. 
+                    Switch to Leonardo.ai (style reference) or MiniMax (character reference) to use this feature.
+                  </p>
+                </div>
+              )}
+
+              {/* Reference image selection for Leonardo */}
+              {selectedProvider === 'leonardo' && thumbnails.length > 0 && (
                 <div className="space-y-3">
-                  <Select value={selectedReferenceId || 'none'} onValueChange={(value) => setSelectedReferenceId(value === 'none' ? '' : value)}>
+                  <Select 
+                    value={selectedReferenceId || 'none'} 
+                    onValueChange={(value) => setSelectedReferenceId(value === 'none' ? '' : value)}
+                  >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a previous thumbnail as reference..." />
+                      <SelectValue placeholder="Select a previous thumbnail as style reference..." />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No reference image</SelectItem>
@@ -290,20 +419,74 @@ export function ThumbnailGenerator() {
                     </div>
                   )}
                 </div>
-              ) : (
+              )}
+
+              {/* File upload for MiniMax character reference */}
+              {selectedProvider === 'minimax' && (
+                <div className="space-y-3">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 mb-2">Upload Character Reference Image</p>
+                    <p className="text-xs text-gray-500 mb-4">
+                      JPG, JPEG, PNG • Max 10MB • Front-facing person photos work best
+                    </p>
+                    <Input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          // Convert to base64 for MiniMax
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const base64 = event.target?.result as string;
+                            setSelectedReferenceId(base64);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      disabled={isGenerating}
+                      className="max-w-xs"
+                    />
+                  </div>
+                  
+                  {selectedReferenceId && selectedReferenceId.startsWith('data:image') && (
+                    <div className="relative inline-block">
+                      <div className="w-32 h-32 border-2 border-gray-300 rounded-lg overflow-hidden">
+                        <img 
+                          src={selectedReferenceId} 
+                          alt="Character Reference" 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="absolute -top-2 -right-2 rounded-full w-6 h-6 p-0"
+                        onClick={() => setSelectedReferenceId('')}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Empty state for Leonardo when no thumbnails */}
+              {selectedProvider === 'leonardo' && thumbnails.length === 0 && (
                 <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
                   <ImageIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600">Generate your first thumbnail to use as reference</p>
+                  <p className="text-sm text-gray-600">Generate your first thumbnail to use as style reference</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Previously generated thumbnails can be used to guide new generations
+                    Previous thumbnails can guide the style of new generations
                   </p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Guidance Strength Slider */}
-          {selectedReferenceId && (
+          {/* Guidance Strength Slider - Only for Leonardo */}
+          {selectedReferenceId && selectedProvider === 'leonardo' && (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label>Reference Image Strength</Label>
@@ -336,13 +519,28 @@ export function ThumbnailGenerator() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-blue-800">Generated Prompt Preview</p>
                   <p className="text-sm text-blue-700">"{generateFinalPrompt()}"</p>
-                  {selectedReferenceId && (
-                    <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2">
+                    {selectedReferenceId && selectedProvider === 'leonardo' && (
                       <Badge variant="outline" className="text-xs">
-                        Reference Image: {Math.round(guidanceStrength * 100)}% strength
+                        Style Reference: {Math.round(guidanceStrength * 100)}% strength
                       </Badge>
-                    </div>
-                  )}
+                    )}
+                    {selectedReferenceId && selectedProvider === 'minimax' && (
+                      <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                        Character Reference: Uploaded
+                      </Badge>
+                    )}
+                    {stylePrefix && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                        Style: {stylePrefix}
+                      </Badge>
+                    )}
+                    {customStylePrefix && (
+                      <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700">
+                        Custom Style
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -363,7 +561,7 @@ export function ThumbnailGenerator() {
             ) : (
               <>
                 <ImageIcon className="h-5 w-5 mr-2" />
-                Generate Thumbnail (16:9)
+                Generate Thumbnail ({aspectRatio}) with {selectedProvider.toUpperCase()}
               </>
             )}
           </Button>
@@ -452,7 +650,7 @@ export function ThumbnailGenerator() {
                   {generationInfo || 'Generating thumbnail...'}
                 </h3>
                 <p className="text-gray-500">
-                  Leonardo.ai is creating your custom thumbnail. This may take 30-60 seconds.
+                  {selectedProvider.toUpperCase()} is creating your custom thumbnail. This may take 30-60 seconds.
                 </p>
               </div>
             </div>

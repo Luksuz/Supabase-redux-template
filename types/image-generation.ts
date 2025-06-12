@@ -8,6 +8,8 @@ export interface GenerateImageRequestBody {
   minimaxAspectRatio?: '16:9' | '1:1' | '9:16'
   fluxImageSize?: { width: number; height: number }
   userId?: string
+  stylePrefix?: 'esoteric-medieval' | 'dark-demonic' | 'renaissance' | 'gothic' | 'mystical' | 'ancient' | 'occult' | 'none' | ''
+  customStylePrefix?: string
 }
 
 export interface GenerateImageResponse {

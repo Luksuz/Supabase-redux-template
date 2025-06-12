@@ -142,6 +142,16 @@ export interface ScriptSection {
   order: number
 }
 
+// CTA (Call To Action) interface
+export interface CTA {
+  id: string
+  type: 'newsletter' | 'engagement' | 'custom'
+  content?: string // For custom CTAs
+  placement: 'beginning' | 'middle' | 'end' | 'custom'
+  customPosition?: number // For custom placement (section index)
+  enabled: boolean
+}
+
 export interface SectionedWorkflowState {
   // Main parameters
   videoTitle: string
@@ -152,6 +162,25 @@ export interface SectionedWorkflowState {
   selectedModel: string
   wordCount: number
   forbiddenWords: string
+  
+  // Style selection
+  selectedStyle: string | null
+  
+  // Quote functionality
+  quote: {
+    text: string
+    author: string
+    enabled: boolean
+  }
+  
+  // Workflow navigation state
+  currentStep: number
+  completedSteps: number[]
+  
+  // Outline generation state
+  outlineMethod: 'standard' | 'title-only' | 'script-extractor' | 'custom-info'
+  scriptContent: string // For script extractor method
+  customInformation: string // For custom info method
   
   // Script sections
   sections: ScriptSection[]
@@ -181,12 +210,8 @@ export interface SectionedWorkflowState {
   uploadedStyleFileName: string | null
   isAnalyzingStyle: boolean
   
-  // CTA (Call To Action) configuration
-  cta: {
-    enabled: boolean
-    placement: number // Word count where CTA should be placed
-    type: 'newsletter' | 'engagement' // CTA type
-  }
+  // Multiple CTAs configuration
+  ctas: CTA[]
   
   // Translation state
   translation: {
@@ -229,6 +254,22 @@ const initialSectionedWorkflowState: SectionedWorkflowState = {
   emotionalTone: '',
   additionalInstructions: '',
   selectedModel: 'claude-3-5-sonnet-20241022',
+  selectedStyle: null,
+  quote: {
+    text: '',
+    author: '',
+    enabled: false
+  },
+  
+  // Workflow navigation state
+  currentStep: 0,
+  completedSteps: [],
+  
+  // Outline generation state
+  outlineMethod: 'standard',
+  scriptContent: '',
+  customInformation: '',
+  
   sections: [],
   isGeneratingSections: false,
   sectionsProgress: {
@@ -251,11 +292,7 @@ const initialSectionedWorkflowState: SectionedWorkflowState = {
   isAnalyzingStyle: false,
   wordCount: 0,
   forbiddenWords: '',
-  cta: {
-    enabled: true,
-    placement: 1000,
-    type: 'newsletter'
-  },
+  ctas: [],
   translation: {
     originalScript: '',
     translatedScript: '',
@@ -387,6 +424,36 @@ export const scriptsSlice = createSlice({
     setSectionedWorkflowField: (state, action: PayloadAction<{ field: keyof SectionedWorkflowState; value: any }>) => {
       const { field, value } = action.payload
       ;(state.sectionedWorkflow as any)[field] = value
+    },
+
+    // Workflow navigation actions
+    setCurrentStep: (state, action: PayloadAction<number>) => {
+      state.sectionedWorkflow.currentStep = action.payload
+    },
+
+    markStepCompleted: (state, action: PayloadAction<number>) => {
+      const step = action.payload
+      if (!state.sectionedWorkflow.completedSteps.includes(step)) {
+        state.sectionedWorkflow.completedSteps.push(step)
+      }
+    },
+
+    resetWorkflowProgress: (state) => {
+      state.sectionedWorkflow.currentStep = 0
+      state.sectionedWorkflow.completedSteps = []
+    },
+
+    // Outline generation actions
+    setOutlineMethod: (state, action: PayloadAction<'standard' | 'title-only' | 'script-extractor' | 'custom-info'>) => {
+      state.sectionedWorkflow.outlineMethod = action.payload
+    },
+
+    setScriptContent: (state, action: PayloadAction<string>) => {
+      state.sectionedWorkflow.scriptContent = action.payload
+    },
+
+    setCustomInformation: (state, action: PayloadAction<string>) => {
+      state.sectionedWorkflow.customInformation = action.payload
     },
 
     startGeneratingSections: (state) => {
@@ -573,21 +640,72 @@ export const scriptsSlice = createSlice({
     },
 
     // CTA configuration reducers
-    setCTAField: (state, action: PayloadAction<{ field: keyof SectionedWorkflowState['cta']; value: any }>) => {
+    addCTA: (state, action: PayloadAction<CTA>) => {
+      state.sectionedWorkflow.ctas.push(action.payload)
+    },
+
+    removeCTA: (state, action: PayloadAction<string>) => {
+      state.sectionedWorkflow.ctas = state.sectionedWorkflow.ctas.filter(cta => cta.id !== action.payload)
+    },
+
+    updateCTA: (state, action: PayloadAction<{ id: string; updates: Partial<CTA> }>) => {
+      const { id, updates } = action.payload
+      const ctaIndex = state.sectionedWorkflow.ctas.findIndex(cta => cta.id === id)
+      if (ctaIndex !== -1) {
+        state.sectionedWorkflow.ctas[ctaIndex] = { ...state.sectionedWorkflow.ctas[ctaIndex], ...updates }
+      }
+    },
+
+    setCTAField: (state, action: PayloadAction<{ field: keyof CTA; value: any }>) => {
       const { field, value } = action.payload
-      ;(state.sectionedWorkflow.cta as any)[field] = value
+      // This is a legacy action - we'll keep it for backward compatibility but it's not ideal
+      state.sectionedWorkflow.ctas.forEach(cta => {
+        ;(cta as any)[field] = value
+      })
     },
 
-    setCTAEnabled: (state, action: PayloadAction<boolean>) => {
-      state.sectionedWorkflow.cta.enabled = action.payload
+    setCTAEnabled: (state, action: PayloadAction<{ id: string; enabled: boolean }>) => {
+      const { id, enabled } = action.payload
+      const cta = state.sectionedWorkflow.ctas.find(cta => cta.id === id)
+      if (cta) {
+        cta.enabled = enabled
+      }
     },
 
-    setCTAPlacement: (state, action: PayloadAction<number>) => {
-      state.sectionedWorkflow.cta.placement = action.payload
+    setCTAPlacement: (state, action: PayloadAction<{ id: string; placement: CTA['placement'] }>) => {
+      const { id, placement } = action.payload
+      const cta = state.sectionedWorkflow.ctas.find(cta => cta.id === id)
+      if (cta) {
+        cta.placement = placement
+      }
     },
 
-    setCTAType: (state, action: PayloadAction<'newsletter' | 'engagement'>) => {
-      state.sectionedWorkflow.cta.type = action.payload
+    setCTAType: (state, action: PayloadAction<{ id: string; type: CTA['type'] }>) => {
+      const { id, type } = action.payload
+      const cta = state.sectionedWorkflow.ctas.find(cta => cta.id === id)
+      if (cta) {
+        cta.type = type
+      }
+    },
+
+    // Quote configuration reducers
+    setQuote: (state, action: PayloadAction<{ text: string; author: string }>) => {
+      const { text, author } = action.payload
+      state.sectionedWorkflow.quote.text = text
+      state.sectionedWorkflow.quote.author = author
+      state.sectionedWorkflow.quote.enabled = true
+    },
+
+    setQuoteEnabled: (state, action: PayloadAction<boolean>) => {
+      state.sectionedWorkflow.quote.enabled = action.payload
+    },
+
+    clearQuote: (state) => {
+      state.sectionedWorkflow.quote = {
+        text: '',
+        author: '',
+        enabled: false
+      }
     },
 
     // New actions for batch processing
@@ -707,17 +825,35 @@ export const {
   setTranslationError,
 
   // CTA configuration actions
+  addCTA,
+  removeCTA,
+  updateCTA,
   setCTAField,
   setCTAEnabled,
   setCTAPlacement,
   setCTAType,
+
+  // Quote configuration actions
+  setQuote,
+  setQuoteEnabled,
+  clearQuote,
 
   // New actions for batch processing
   startGeneratingBatch,
   startDetailedScriptGeneration,
   updateDetailedScriptProgress,
   completeDetailedScriptGeneration,
-  setBatchResults
+  setBatchResults,
+
+  // Workflow navigation actions
+  setCurrentStep,
+  markStepCompleted,
+  resetWorkflowProgress,
+
+  // Outline generation actions
+  setOutlineMethod,
+  setScriptContent,
+  setCustomInformation
 } = scriptsSlice.actions
 
 export default scriptsSlice.reducer 

@@ -132,7 +132,9 @@ export async function POST(request: NextRequest) {
       prompt,
       numberOfImages = 1,
       minimaxAspectRatio = "16:9",
-      userId = "unknown_user"
+      userId = "unknown_user",
+      stylePrefix = "",
+      customStylePrefix = ""
     } = body;
 
     console.log(`🖼️ Received ${provider} image generation request: userId=${userId}, images=${numberOfImages}, prompt=${prompt.substring(0, 50)}...`);
@@ -140,6 +142,32 @@ export async function POST(request: NextRequest) {
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
+
+    // Define style prefixes
+    const stylePrefixes = {
+      'esoteric-medieval': "Esoteric 1400s medieval style drawing, ",
+      'dark-demonic': "Esoteric Dark Demonic ancient drawing style, ",
+      'renaissance': "Renaissance classical painting style, ",
+      'gothic': "Gothic dark atmospheric style, ",
+      'mystical': "Mystical ethereal spiritual art style, ",
+      'ancient': "Ancient manuscript illumination style, ",
+      'occult': "Occult symbolic esoteric artwork style, ",
+      'none': ""
+    };
+
+    // Build the final prompt with style prefix
+    let finalPrompt = prompt;
+    
+    // Apply custom style prefix if provided
+    if (customStylePrefix.trim()) {
+      finalPrompt = `${customStylePrefix.trim()}, ${prompt}`;
+    }
+    // Apply predefined style prefix if selected
+    else if (stylePrefix && stylePrefixes[stylePrefix as keyof typeof stylePrefixes]) {
+      finalPrompt = `${stylePrefixes[stylePrefix as keyof typeof stylePrefixes]}${prompt}`;
+    }
+
+    console.log(`🎨 Final prompt with style: ${finalPrompt.substring(0, 100)}...`);
 
     // Check API keys based on provider
     if (provider === 'minimax' && !MINIMAX_API_KEY) {
@@ -165,7 +193,7 @@ export async function POST(request: NextRequest) {
         const attemptGeneration = async (): Promise<string | null> => {
           const payload = {
             model: "image-01",
-            prompt: prompt,
+            prompt: finalPrompt,
             aspect_ratio: minimaxAspectRatio,
             response_format: "base64",
             width: 1536,
@@ -257,7 +285,7 @@ export async function POST(request: NextRequest) {
       const requestPromises = Array.from({ length: numberOfImages }, async (_, index) => {
         try {
           console.log(`Starting DALL-E 3 image ${index + 1} of ${numberOfImages}...`);
-          const imageUrl = await generateDalleImage(prompt, dalleSize);
+          const imageUrl = await generateDalleImage(finalPrompt, dalleSize);
           console.log(`✅ Successfully generated DALL-E 3 image ${index + 1}`);
           return imageUrl;
         } catch (error) {
@@ -286,7 +314,7 @@ export async function POST(request: NextRequest) {
         console.log(`Generating flux image ${i + 1} of ${numberOfImages}...`);
         
         try {
-          const imageUrl = await generateFluxImage(provider, prompt, dimensions);
+          const imageUrl = await generateFluxImage(provider, finalPrompt, dimensions);
           imageUrls.push(imageUrl);
           console.log(`✅ Successfully generated flux image ${i + 1}`);
         } catch (error) {

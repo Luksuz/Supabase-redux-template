@@ -20,8 +20,11 @@ export async function POST(request: NextRequest) {
       selectedModel,
       uploadedStyle,
       cta,
+      ctas,
       inspirationalTranscript,
-      regenerateSection
+      regenerateSection,
+      researchData,
+      generateQuote
     } = await request.json();
     
     if (!title || !wordCount) {
@@ -42,14 +45,91 @@ export async function POST(request: NextRequest) {
     const numSections = Math.max(1, Math.floor(wordCount / 800));
     const avgWordsPerSection = Math.round(wordCount / numSections);
 
-    // Determine which section should contain the CTA based on placement
-    let ctaSectionIndex = -1;
-    if (cta?.enabled && cta?.placement > 0) {
-      // Calculate which section the CTA placement falls into
-      ctaSectionIndex = Math.floor(cta.placement / avgWordsPerSection);
-      // Ensure it's within bounds
-      ctaSectionIndex = Math.min(ctaSectionIndex, numSections - 1);
-      console.log(`📢 CTA placement: ${cta.placement} words -> Section ${ctaSectionIndex + 1}/${numSections}`);
+    // Handle multiple CTAs
+    const activeCTAs = ctas && Array.isArray(ctas) ? ctas.filter((c: any) => c.enabled) : (cta?.enabled ? [cta] : []);
+    
+    // Determine which sections should contain CTAs
+    const ctaSectionIndices: number[] = [];
+    activeCTAs.forEach((ctaItem: any) => {
+      let ctaSectionIndex = -1;
+      if (ctaItem.placement === 'beginning') {
+        ctaSectionIndex = 0;
+      } else if (ctaItem.placement === 'middle') {
+        ctaSectionIndex = Math.floor(numSections / 2);
+      } else if (ctaItem.placement === 'end') {
+        ctaSectionIndex = numSections - 1;
+      } else if (ctaItem.placement === 'custom' && ctaItem.customPosition !== undefined) {
+        ctaSectionIndex = Math.min(ctaItem.customPosition, numSections - 1);
+      }
+      
+      if (ctaSectionIndex >= 0) {
+        ctaSectionIndices.push(ctaSectionIndex);
+      }
+    });
+
+    console.log(`📢 CTA placements: sections ${ctaSectionIndices.join(', ')} of ${numSections} total`);
+
+    // Get theme instructions if theme is selected (moved up for quote generation)
+    const selectedTheme = themeId ? THEME_OPTIONS.find(t => t.id === themeId) : null;
+    const themeInstructions = selectedTheme ? `
+THEME INSTRUCTIONS - ${selectedTheme.name}:
+Hook Strategy: ${selectedTheme.instructions.hook}
+Tone Requirements: ${selectedTheme.instructions.tone}
+Clarity & Accessibility: ${selectedTheme.instructions.clarity}
+Narrative Flow: ${selectedTheme.instructions.narrativeFlow}
+Balancing Elements: ${selectedTheme.instructions.balance}
+Engagement Devices: ${selectedTheme.instructions.engagement}
+Format Requirements: ${selectedTheme.instructions.format}
+Overall Direction: ${selectedTheme.instructions.overall}
+` : '';
+
+    // Generate quote if requested
+    let generatedQuote = null;
+    if (generateQuote) {
+      console.log('📜 Generating relevant quote...');
+      try {
+        const quoteModel = createModelInstance(selectedModel || 'gpt-4o-mini', 0.7);
+        const quotePrompt = `Generate a powerful, relevant quote for a video about "${title}". 
+
+Requirements:
+- Must be from a real, credible figure (philosopher, scientist, author, historical figure, etc.)
+- Should be directly relevant to the topic and theme
+- Must be inspiring, thought-provoking, or wisdom-filled
+- Verify the quote is authentic and properly attributed
+
+${themeInstructions ? `Theme context: ${themeInstructions}` : ''}
+${researchData ? `Research context: ${JSON.stringify(researchData).substring(0, 500)}...` : ''}
+
+Return ONLY the quote text and author in this exact format:
+"Quote text here" - Author Name`;
+
+        const quoteResponse = await quoteModel.invoke(quotePrompt);
+        let quoteContent = "";
+        if (typeof quoteResponse.content === 'string') {
+          quoteContent = quoteResponse.content;
+        } else if (Array.isArray(quoteResponse.content)) {
+          quoteContent = quoteResponse.content
+            .map(item => {
+              if (typeof item === 'string') return item;
+              if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
+              return '';
+            })
+            .join('\n');
+        }
+
+        // Parse quote and author
+        const quoteMatch = quoteContent.match(/"([^"]+)"\s*-\s*(.+)/);
+        if (quoteMatch) {
+          generatedQuote = {
+            text: quoteMatch[1].trim(),
+            author: quoteMatch[2].trim()
+          };
+          console.log(`✅ Generated quote: "${generatedQuote.text}" - ${generatedQuote.author}`);
+        }
+      } catch (quoteError) {
+        console.error('❌ Quote generation failed:', quoteError);
+        // Continue without quote if generation fails
+      }
     }
 
     // Define CTA instructions based on type
@@ -79,20 +159,6 @@ IMPORTANT CTA REQUIREMENT: You must incorporate this engagement CTA smoothly int
       styleContent = readFileSync(stylePath, 'utf-8');
       console.log('📄 Using default feeder script style');
     }
-
-    // Get theme instructions if theme is selected
-    const selectedTheme = themeId ? THEME_OPTIONS.find(t => t.id === themeId) : null;
-    const themeInstructions = selectedTheme ? `
-THEME INSTRUCTIONS - ${selectedTheme.name}:
-Hook Strategy: ${selectedTheme.instructions.hook}
-Tone Requirements: ${selectedTheme.instructions.tone}
-Clarity & Accessibility: ${selectedTheme.instructions.clarity}
-Narrative Flow: ${selectedTheme.instructions.narrativeFlow}
-Balancing Elements: ${selectedTheme.instructions.balance}
-Engagement Devices: ${selectedTheme.instructions.engagement}
-Format Requirements: ${selectedTheme.instructions.format}
-Overall Direction: ${selectedTheme.instructions.overall}
-` : '';
 
     // Initialize the model using the factory
     const model = createModelInstance(selectedModel || 'gpt-4o-mini', 0.7);
@@ -266,8 +332,8 @@ ${parser.getFormatInstructions()}`;
 
       // Adjust CTA section index for current batch
       let batchCtaSectionIndex = -1;
-      if (cta?.enabled && ctaSectionIndex >= startSection && ctaSectionIndex < endSection) {
-        batchCtaSectionIndex = ctaSectionIndex - startSection;
+      if (cta?.enabled && ctaSectionIndices.includes(startSection)) {
+        batchCtaSectionIndex = ctaSectionIndices.indexOf(startSection);
       }
 
       // Create the batch prompt
@@ -283,23 +349,66 @@ ${styleContent}
 ${themeInstructions}
 ${emotionalTone ? `EMOTIONAL TONE: ${emotionalTone}` : ''}
 ${targetAudience ? `TARGET AUDIENCE: ${targetAudience}` : ''}
+
+${researchData ? `
+RESEARCH INSIGHTS TO INCORPORATE:
+Use the following research data to create more detailed, informative, and engaging content:
+
+Research Analysis: ${JSON.stringify(researchData.analysis || {}, null, 2)}
+Key Search Results: ${researchData.searchResults ? researchData.searchResults.slice(0, 5).map((result: any) => `- ${result.title}: ${result.description}`).join('\n') : 'No search results available'}
+
+IMPORTANT: Use this research to:
+- Add specific facts, statistics, or insights to make sections more authoritative
+- Include relevant examples or case studies mentioned in the research
+- Reference current trends or popular discussions around the topic
+- Make each section more detailed and value-packed for viewers
+- Ensure content is backed by research-driven insights
+` : ''}
+
 ${forbiddenWords ? `FORBIDDEN WORDS (avoid these): ${forbiddenWords}` : ''}
 ${additionalInstructions}
 ${contextInstructions}
 
-${cta?.enabled && batchCtaSectionIndex >= 0 ? `
-CTA PLACEMENT REQUIREMENT:
-- Section ${batchCtaSectionIndex + 1} of this batch (overall section ${ctaSectionIndex + 1}) must include the following CTA instructions in its writing instructions:
-${getCTAInstructions(cta.type)}
+${activeCTAs.length > 0 && ctaSectionIndices.some(idx => idx >= startSection && idx < endSection) ? `
+CTA PLACEMENT REQUIREMENTS:
+${activeCTAs.map((ctaItem: any, ctaIndex: number) => {
+  const ctaSectionIndex = ctaSectionIndices[ctaIndex];
+  if (ctaSectionIndex >= startSection && ctaSectionIndex < endSection) {
+    const batchPosition = ctaSectionIndex - startSection + 1;
+    return `- Section ${batchPosition} of this batch (overall section ${ctaSectionIndex + 1}) must include the following CTA:
+${getCTAInstructions(ctaItem.type)}${ctaItem.type === 'custom' && ctaItem.content ? `\nCustom CTA Content: ${ctaItem.content}` : ''}`;
+  }
+  return '';
+}).filter(Boolean).join('\n')}
 - All other sections should focus purely on content delivery without any CTAs.
 ` : ''}
 
-For each section, provide:
-1. A compelling title that captures the essence of that part of the script
-2. Detailed writing instructions that specify the emotional tone, key points to cover, rhetorical devices to use, and how it fits into the overall narrative arc${cta?.enabled && batchCtaSectionIndex >= 0 ? ` (Section ${batchCtaSectionIndex + 1} of this batch must include the CTA requirements specified above)` : ''}
-3. A visual prompt for image generation that describes the scene, mood, and visual elements that would complement this section (avoid controversial or taboo topics)
+SECTION DETAIL REQUIREMENTS:
+Each section must be highly detailed and comprehensive. The writing instructions should specify:
+- Exact emotional tone and psychological triggers to use
+- Specific key points, facts, or insights to cover (use research data when available)
+- Rhetorical devices and persuasion techniques to employ
+- How this section connects to and builds upon previous sections
+- Transition strategies to maintain narrative flow
+- Specific examples, analogies, or metaphors to include
+- Target word count and pacing guidelines
+- Any special formatting or emphasis requirements
 
-The sections should build upon each other to create a cohesive, persuasive narrative that follows the style guide's direct, accusatory, urgent, and revelatory tone. Each section should be approximately ${avgWordsPerSection} words.
+For each section, provide:
+1. A compelling, descriptive title that captures the essence and emotional hook of that part of the script
+2. Extremely detailed writing instructions (minimum 100 words per section) that specify:
+   - The exact emotional journey the viewer should experience
+   - Specific content points to cover with supporting details from research
+   - Rhetorical techniques and persuasion strategies to use
+   - How this section fits into the overall narrative arc and connects to other sections
+   - Transition elements to maintain smooth flow
+   - Any special emphasis, pacing, or delivery notes
+3. A detailed visual prompt for image generation that describes the scene, mood, lighting, composition, and visual elements that would complement this section (avoid controversial or taboo topics)
+
+The sections should build upon each other to create a cohesive, persuasive narrative that follows the style guide's tone. Each section should be approximately ${avgWordsPerSection} words and packed with value for the viewer.
+
+INTRODUCTION SECTION REQUIREMENT:
+If this batch includes the first section (introduction), ensure it is limited to 160 words maximum to avoid being too lengthy while still being engaging and hook-focused.
 
 ${forbiddenWords ? `IMPORTANT: Avoid using any of these forbidden words: ${forbiddenWords}` : ''}
 
@@ -349,6 +458,7 @@ ${parser.getFormatInstructions()}`;
     return NextResponse.json({
       success: true,
       sections: allSections,
+      quote: generatedQuote,
       meta: {
         title,
         wordCount,
@@ -358,12 +468,18 @@ ${parser.getFormatInstructions()}`;
           id: selectedTheme.id,
           name: selectedTheme.name
         } : null,
-        cta: cta?.enabled ? {
+        ctas: activeCTAs.length > 0 ? {
           enabled: true,
-          type: cta.type,
-          placement: cta.placement,
-          sectionIndex: ctaSectionIndex + 1
+          count: activeCTAs.length,
+          placements: ctaSectionIndices.map(idx => idx + 1),
+          types: activeCTAs.map((cta: any) => cta.type)
         } : { enabled: false },
+        quote: generatedQuote ? {
+          generated: true,
+          text: generatedQuote.text,
+          author: generatedQuote.author
+        } : { generated: false },
+        researchUsed: !!researchData,
         batchInfo: {
           totalBatches,
           batchSize: BATCH_SIZE,
@@ -379,4 +495,6 @@ ${parser.getFormatInstructions()}`;
       { status: 500 }
     );
   }
-} 
+}
+
+// Create new file for Option 1: Title only outline generation 

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Volume2, Play, Pause, Loader2, AlertCircle, CheckCircle, FileText, Clock } from 'lucide-react'
 import { Progress } from './ui/progress'
+import { Input } from './ui/input'
 import {
   setSelectedProvider,
   setMinimaxVoice,
@@ -25,16 +26,20 @@ import {
   type AudioProvider
 } from '../lib/features/audio/simpleAudioSlice'
 
-// Voice options for MiniMax
+// Voice options for MiniMax - Updated with channel voices
 const minimaxVoices = [
-  { value: 'English_radiant_girl', label: 'Radiant Girl' },
-  { value: 'English_captivating_female1', label: 'Captivating Female' },
-  { value: 'English_Steady_Female_1', label: 'Steady Women' },
-  { value: 'English_CaptivatingStoryteller', label: 'Captivating Storyteller' },
-  { value: 'English_Deep-VoicedGentleman', label: 'Man With Deep Voice' },
-  { value: 'English_magnetic_voiced_man', label: 'Magnetic-voiced Male' },
-  { value: 'English_ReservedYoungMan', label: 'Reserved Young Man' },
-  { value: 'English_expressive_narrator', label: 'Expressive Narrator' },
+  // Your channel voices (add your specific voice IDs here)
+  { value: 'moss_audio_daa84003-205b-11f0-9892-fe0442d6b67f', label: 'Law Of Insights (Channel Voice)' },
+  { value: 'moss_audio_92ac26e3-2059-11f0-8444-ae62a3be7263', label: 'Library of Thoth (Channel Voice)' },
+  { value: 'English_radiant_girl', label: 'Radiant Girl (Channel Voice)' },
+  { value: 'English_captivating_female1', label: 'Captivating Female (Channel Voice)' },
+  { value: 'English_Steady_Female_1', label: 'Steady Women (Channel Voice)' },
+  { value: 'English_CaptivatingStoryteller', label: 'Captivating Storyteller (Channel Voice)' },
+  { value: 'English_Deep-VoicedGentleman', label: 'Man With Deep Voice (Channel Voice)' },
+  { value: 'English_magnetic_voiced_man', label: 'Magnetic-voiced Male (Channel Voice)' },
+  { value: 'English_ReservedYoungMan', label: 'Reserved Young Man (Channel Voice)' },
+  { value: 'English_expressive_narrator', label: 'Expressive Narrator (Channel Voice)' },
+  // Add more of your custom MiniMax voices here
   { value: 'English_compelling_lady1', label: 'Compelling Lady' },
   { value: 'English_CalmWoman', label: 'Calm Woman' },
   { value: 'English_Graceful_Lady', label: 'Graceful Lady' },
@@ -51,24 +56,29 @@ const minimaxVoices = [
 
 // Model options for MiniMax
 const minimaxModels = [
-  { value: 'speech-02-hd', label: 'Speech 02 HD' },
-  { value: 'speech-02-turbo', label: 'Speech 02 Turbo' },
+  { value: 'speech-02-hd', label: 'Speech 02 HD (Recommended)' },
+  { value: 'speech-02-turbo', label: 'Speech 02 Turbo (Fast)' },
   { value: 'speech-01-hd', label: 'Speech 01 HD' },
   { value: 'speech-01-turbo', label: 'Speech 01 Turbo' }
 ]
 
-// Voice options for ElevenLabs (common ones)
+// Voice options for ElevenLabs - Updated with channel voices
 const elevenLabsVoices = [
-  { value: 'Rachel', label: 'Rachel' },
-  { value: 'Adam', label: 'Adam' },
-  { value: 'Antoni', label: 'Antoni' },
-  { value: 'Arnold', label: 'Arnold' },
-  { value: 'Bella', label: 'Bella' },
-  { value: 'Domi', label: 'Domi' },
-  { value: 'Elli', label: 'Elli' },
-  { value: 'Josh', label: 'Josh' },
-  { value: 'Nicole', label: 'Nicole' },
-  { value: 'Sam', label: 'Sam' }
+  // Your channel voices (replace with your actual voice IDs and names)
+  { value: 'moss_audio_daa84003-205b-11f0-9892-fe0442d6b67f', label: 'Law Of Insights (Channel Voice)' },
+  { value: 'moss_audio_92ac26e3-2059-11f0-8444-ae62a3be7263', label: 'Library of Thoth (Channel Voice)' },
+  { value: 'your_custom_voice_id_1', label: 'Your Channel Voice 1' },
+  { value: 'your_custom_voice_id_2', label: 'Your Channel Voice 2' },
+  { value: 'your_custom_voice_id_3', label: 'Your Channel Voice 3' },
+  // Keep some popular defaults as backup
+  { value: 'Rachel', label: 'Rachel (Default)' },
+  { value: 'Adam', label: 'Adam (Default)' },
+  { value: 'Antoni', label: 'Antoni (Default)' },
+  { value: 'Arnold', label: 'Arnold (Default)' },
+  { value: 'Bella', label: 'Bella (Default)' },
+  { value: 'Josh', label: 'Josh (Default)' },
+  { value: 'Nicole', label: 'Nicole (Default)' },
+  { value: 'Sam', label: 'Sam (Default)' }
 ]
 
 // Model options for ElevenLabs
@@ -113,6 +123,7 @@ export function SimpleAudioGenerator() {
   const {
     isGenerating,
     generatedAudioUrl,
+    generatedFilename,
     error,
     selectedProvider,
     minimaxVoice,
@@ -129,6 +140,7 @@ export function SimpleAudioGenerator() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [processingStatus, setProcessingStatus] = useState('')
   const [estimatedTime, setEstimatedTime] = useState(0)
+  const [customFilename, setCustomFilename] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Auto-populate with full script if available
@@ -137,6 +149,23 @@ export function SimpleAudioGenerator() {
       dispatch(setTextToConvert(sectionedWorkflow.fullScript))
     }
   }, [sectionedWorkflow.fullScript, textToConvert, dispatch])
+
+  // Auto-populate filename when script title or language changes
+  useEffect(() => {
+    const languageCode = selectedProvider === 'elevenlabs' ? elevenLabsLanguage : 'en'
+    const scriptTitle = sectionedWorkflow.videoTitle
+    
+    if (scriptTitle || languageCode !== 'en') {
+      const cleanTitle = (scriptTitle || 'untitled-script')
+        .replace(/[^a-zA-Z0-9\s-_]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .toLowerCase()
+        .substring(0, 50) // Limit length
+      
+      const suggestedFilename = `${languageCode.toUpperCase()}_${cleanTitle}`
+      setCustomFilename(suggestedFilename)
+    }
+  }, [sectionedWorkflow.videoTitle, elevenLabsLanguage, selectedProvider])
 
   // Calculate processing estimates
   const getProcessingEstimate = () => {
@@ -212,7 +241,9 @@ export function SimpleAudioGenerator() {
         provider: selectedProvider,
         voice: selectedProvider === 'minimax' ? minimaxVoice : elevenLabsVoice,
         model: selectedProvider === 'minimax' ? minimaxModel : elevenLabsModel,
-        language: selectedProvider === 'elevenlabs' ? elevenLabsLanguage : undefined
+        language: selectedProvider === 'elevenlabs' ? elevenLabsLanguage : undefined,
+        scriptTitle: sectionedWorkflow.videoTitle || 'untitled-script',
+        customFilename: customFilename.trim() || undefined
       }
 
       // Update status for batch processing
@@ -239,7 +270,10 @@ export function SimpleAudioGenerator() {
       const data = await response.json()
       
       setProcessingStatus('')
-      dispatch(completeGeneration(data.audioUrl))
+      dispatch(completeGeneration({
+        audioUrl: data.audioUrl,
+        filename: data.filename
+      }))
       
       // Show success message with processing info
       if (data.chunksGenerated && data.totalChunks) {
@@ -277,6 +311,17 @@ export function SimpleAudioGenerator() {
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.currentTime = 0
+    }
+  }
+
+  const handleDownloadAudio = () => {
+    if (generatedAudioUrl && generatedFilename) {
+      const link = document.createElement('a')
+      link.href = generatedAudioUrl
+      link.download = generatedFilename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 
@@ -590,6 +635,42 @@ export function SimpleAudioGenerator() {
             </div>
           </div>
 
+          {/* Filename Input */}
+          <div className="space-y-2">
+            <Label htmlFor="filename">Audio Filename (Optional)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="filename"
+                placeholder="e.g., EN_my-awesome-video"
+                value={customFilename}
+                onChange={(e) => setCustomFilename(e.target.value)}
+                disabled={isGenerating}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const languageCode = selectedProvider === 'elevenlabs' ? elevenLabsLanguage : 'en'
+                  const scriptTitle = sectionedWorkflow.videoTitle
+                  const cleanTitle = (scriptTitle || 'untitled-script')
+                    .replace(/[^a-zA-Z0-9\s-_]/g, '')
+                    .replace(/\s+/g, '-')
+                    .toLowerCase()
+                    .substring(0, 50)
+                  const suggestedFilename = `${languageCode.toUpperCase()}_${cleanTitle}`
+                  setCustomFilename(suggestedFilename)
+                }}
+                disabled={isGenerating}
+              >
+                Auto-fill
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave empty to auto-generate from script title and language. The .mp3 extension will be added automatically.
+            </p>
+          </div>
+
           {/* Processing Status */}
           {isGenerating && processingStatus && (
             <div className="space-y-2">
@@ -659,6 +740,11 @@ export function SimpleAudioGenerator() {
             </CardTitle>
             <CardDescription>
               Generated with {providerInfo.name} using batch processing and automatic concatenation
+              {generatedFilename && (
+                <span className="block mt-1 text-sm font-mono text-blue-600">
+                  📁 {generatedFilename}
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -687,6 +773,16 @@ export function SimpleAudioGenerator() {
                     Play
                   </>
                 )}
+              </Button>
+              
+              <Button
+                onClick={handleDownloadAudio}
+                variant="outline"
+                size="lg"
+                className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+              >
+                <Volume2 className="h-5 w-5 mr-2" />
+                Download Audio
               </Button>
               
               <Button

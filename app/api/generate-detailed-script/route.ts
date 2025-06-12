@@ -21,7 +21,10 @@ export async function POST(request: NextRequest) {
       selectedModel,
       uploadedStyle,
       themeId,
-      cta
+      cta,
+      ctas,
+      quote,
+      researchData
     } = await request.json();
     
     if (!sections || !Array.isArray(sections) || sections.length === 0) {
@@ -72,17 +75,68 @@ Overall Direction: ${selectedTheme.instructions.overall}
     if (targetAudience) console.log(`👥 Target audience: ${targetAudience}`);
     if (forbiddenWords) console.log(`🚫 Forbidden words: ${forbiddenWords}`);
     if (selectedTheme) console.log(`🎨 Theme: ${selectedTheme.name}`);
-    if (cta?.enabled) console.log(`📢 CTA enabled: ${cta.type} at ${cta.placement} words`);
+    if (quote) console.log(`📜 Quote included: "${quote.text}" - ${quote.author}`);
+
+    // Handle multiple CTAs
+    const activeCTAs = ctas && Array.isArray(ctas) ? ctas.filter((c: any) => c.enabled) : (cta?.enabled ? [cta] : []);
+    if (activeCTAs.length > 0) {
+      console.log(`📢 ${activeCTAs.length} CTAs enabled: ${activeCTAs.map((c: any) => c.type).join(', ')}`);
+    }
 
     // Generate detailed content for all sections in parallel
     const sectionPromises = sections.map(async (section: any, index: number) => {
       try {
         console.log(`📝 Starting generation for section ${index + 1}/${sections.length}: "${section.title}"`);
         
-        const prompt = `You are writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}". Write it in greatest detail possible- at least 1000+ words.
+        // Build context from previous sections for coherence
+        let contextInstructions = "";
+        if (index > 0) {
+          const previousSections = sections.slice(Math.max(0, index - 2), index);
+          contextInstructions = `
+CONTEXT FROM PREVIOUS SECTIONS (for narrative continuity):
+${previousSections.map((prevSection: any, prevIndex: number) => 
+  `Section ${index - previousSections.length + prevIndex + 1}: "${prevSection.title}"
+  Key points covered: ${prevSection.writingInstructions.substring(0, 200)}...`
+).join('\n\n')}
+
+IMPORTANT: Build upon these previous sections naturally. Reference concepts, themes, or insights from earlier sections where appropriate to create a cohesive narrative flow.
+`;
+        }
+
+        // Check if this section should include a CTA
+        let ctaInstructions = "";
+        const sectionCTAs = activeCTAs.filter((ctaItem: any) => {
+          if (ctaItem.placement === 'beginning' && index === 0) return true;
+          if (ctaItem.placement === 'middle' && index === Math.floor(sections.length / 2)) return true;
+          if (ctaItem.placement === 'end' && index === sections.length - 1) return true;
+          if (ctaItem.placement === 'custom' && ctaItem.customPosition === index) return true;
+          return false;
+        });
+
+        if (sectionCTAs.length > 0) {
+          ctaInstructions = `
+CTA REQUIREMENTS FOR THIS SECTION:
+${sectionCTAs.map((ctaItem: any) => {
+  if (ctaItem.type === 'newsletter') {
+    return `Include a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube. Mention that the viewer will receive a free ebook copy of "The Kybalion" upon signing up for a limited time only. The CTA must be incorporated smoothly and naturally into the content flow and can only be 2 sentences max. Make it persuasive and create urgency.`;
+  } else if (ctaItem.type === 'engagement') {
+    return `Include this engagement CTA naturally: "If this video resonated with you, let us know by commenting, 'I understood it.'" Integrate it seamlessly with the surrounding content.`;
+  } else if (ctaItem.type === 'custom' && ctaItem.content) {
+    return `Include this custom CTA naturally: ${ctaItem.content}`;
+  }
+  return '';
+}).filter(Boolean).join('\n')}
+
+CRITICAL: CTAs must be integrated naturally into the content flow. Do NOT use transition phrases like "[TRANSITION TO CTA]" or similar - these will be spoken by the voice-over. Instead, make the CTA feel like a natural part of the narrative. Bold or emphasize the CTA content for visual distinction.
+`;
+        }
+
+        const prompt = `You are writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}". Write it in greatest detail possible.
 
 SECTION TITLE: "${section.title}"
 WRITING INSTRUCTIONS: ${section.writingInstructions}
+
+${contextInstructions}
 
 OVERALL STYLE TO MAINTAIN:
 ${styleContent}
@@ -92,19 +146,34 @@ ${emotionalTone ? `EMOTIONAL TONE: Ensure the content matches this tone: ${emoti
 ${targetAudience ? `TARGET AUDIENCE: Write specifically for: ${targetAudience}` : ''}
 ${forbiddenWords ? `FORBIDDEN WORDS: Avoid using any of these words: ${forbiddenWords}` : ''}
 
-Write this section following the provided writing instructions in greatest detail possible. The content should:
-- Follow the style guide provided above
+${researchData ? `
+RESEARCH CONTEXT TO INCORPORATE:
+Use insights from this research to make your content more detailed and authoritative:
+${JSON.stringify(researchData, null, 2).substring(0, 1000)}...
+
+Include specific facts, examples, or insights from the research where relevant to enhance the content's value and credibility.
+` : ''}
+
+${ctaInstructions}
+
+FORMATTING REQUIREMENTS:
+- Write ONLY the script content for this section
+- Do NOT include stage directions, titles, or meta-commentary
+- Do NOT use transition phrases like "[TRANSITION TO CTA]", "[PAUSE]", "[EMPHASIS]" etc.
+- If including CTAs, make them **bold** for visual emphasis but integrate them naturally
 - Use "you" and "your" to address the viewer directly
-- Build on the previous sections (this is section ${index + 1} of ${sections.length})
-- Transition smoothly into the next section if not the last section
+- Build on previous sections naturally (this is section ${index + 1} of ${sections.length})
 - Use strong, declarative sentences and rhetorical questions
 - Include specific examples and analogies where appropriate
 ${emotionalTone ? `- Maintain the ${emotionalTone} emotional tone throughout` : ''}
 ${targetAudience ? `- Speak directly to ${targetAudience} with relevant examples and language` : ''}
 
+INTRODUCTION SECTION SPECIAL REQUIREMENT:
+${index === 0 ? 'This is the introduction section - keep it to 160 words maximum while still being engaging and hook-focused.' : ''}
+
 ${forbiddenWords ? `IMPORTANT: Do not use any of these forbidden words: ${forbiddenWords}` : ''}
 
-Write ONLY the script content for this section. Do not include stage directions, titles, or meta-commentary.`;
+Write the script content now:`;
 
         let detailedContent: string;
 
@@ -164,11 +233,24 @@ Write ONLY the script content for this section. Do not include stage directions,
     console.log(`⏳ Processing ${sections.length} sections in parallel...`);
     const detailedSections = await Promise.all(sectionPromises);
 
-    // Concatenate all sections into a complete script
-    const fullScript = detailedSections
+    // Build the complete script with proper formatting
+    let fullScript = '';
+    
+    // Add quote at the top if provided
+    if (quote && quote.text && quote.author) {
+      fullScript += `"${quote.text}" - ${quote.author}\n\n`;
+      console.log(`📜 Added quote to script: "${quote.text}" - ${quote.author}`);
+    }
+    
+    // Add sections with headlines
+    const scriptSections = detailedSections
       .filter(section => !section.error)
-      .map(section => section.detailedContent)
-      .join('\n\n');
+      .map((section, index) => {
+        // Format section with bold headline
+        return `**${section.title}**\n\n${section.detailedContent}`;
+      });
+    
+    fullScript += scriptSections.join('\n\n');
 
     const totalWords = detailedSections.reduce((sum, section) => sum + section.wordCount, 0);
     const successfulSections = detailedSections.filter(s => !s.error).length;
@@ -176,11 +258,13 @@ Write ONLY the script content for this section. Do not include stage directions,
 
     console.log(`✅ Generated complete script in parallel: ${totalWords} words across ${detailedSections.length} sections`);
     console.log(`📊 Success: ${successfulSections}/${detailedSections.length} sections generated successfully`);
+    if (quote) console.log(`📜 Quote included at top of script`);
 
     return NextResponse.json({
       success: true,
       detailedSections,
       fullScript,
+      quote: quote || null, // Include quote in response
       meta: {
         title,
         totalSections: detailedSections.length,
@@ -188,14 +272,15 @@ Write ONLY the script content for this section. Do not include stage directions,
         successfulSections,
         failedSections,
         processingMode: 'parallel',
+        hasQuote: !!(quote && quote.text),
         theme: selectedTheme ? {
           id: selectedTheme.id,
           name: selectedTheme.name
         } : null,
-        cta: cta?.enabled ? {
+        ctas: activeCTAs.length > 0 ? {
           enabled: true,
-          type: cta.type,
-          placement: cta.placement
+          count: activeCTAs.length,
+          types: activeCTAs.map((cta: any) => cta.type)
         } : { enabled: false }
       }
     });

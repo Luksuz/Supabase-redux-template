@@ -6,6 +6,7 @@ export interface SimpleAudioState {
   // Audio generation state
   isGenerating: boolean
   generatedAudioUrl: string | null
+  generatedFilename: string | null
   error: string | null
   
   // Provider settings
@@ -27,6 +28,7 @@ export interface SimpleAudioState {
 const initialState: SimpleAudioState = {
   isGenerating: false,
   generatedAudioUrl: null,
+  generatedFilename: null,
   error: null,
   
   selectedProvider: 'minimax',
@@ -81,9 +83,10 @@ export const simpleAudioSlice = createSlice({
       state.generatedAudioUrl = null
     },
     
-    completeGeneration: (state, action: PayloadAction<string>) => {
+    completeGeneration: (state, action: PayloadAction<{ audioUrl: string; filename: string }>) => {
       state.isGenerating = false
-      state.generatedAudioUrl = action.payload
+      state.generatedAudioUrl = action.payload.audioUrl
+      state.generatedFilename = action.payload.filename
       state.error = null
     },
     
@@ -91,6 +94,7 @@ export const simpleAudioSlice = createSlice({
       state.isGenerating = false
       state.error = action.payload
       state.generatedAudioUrl = null
+      state.generatedFilename = null
     },
     
     clearError: (state) => {
@@ -99,6 +103,7 @@ export const simpleAudioSlice = createSlice({
     
     clearAudio: (state) => {
       state.generatedAudioUrl = null
+      state.generatedFilename = null
       state.error = null
     },
     
