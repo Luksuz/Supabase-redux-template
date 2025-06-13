@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { createClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(request: NextRequest) {
   console.log('=== POST /api/generate-full-script ===')
@@ -20,6 +26,8 @@ export async function POST(request: NextRequest) {
       targetAudience,
       tone,
       stylePreferences,
+      promptId, // New parameter for using stored prompts
+      customPrompt: customPromptParam, // New parameter for edited prompt content
       // Legacy parameter names for backward compatibility
       sectionTitle, 
       projectTheme, 
@@ -30,7 +38,33 @@ export async function POST(request: NextRequest) {
     // Use new parameter names, fallback to legacy ones
     const finalTitle = title || sectionTitle
     const finalTheme = theme || projectTheme
-    const finalInstructions = writingInstructions
+    let finalInstructions = writingInstructions
+    let finalPrompt = null
+
+    // If customPrompt is provided, use it directly (edited prompt from frontend)
+    if (customPromptParam) {
+      finalPrompt = customPromptParam
+      console.log('Using edited prompt from frontend')
+    } else if (promptId) {
+      // Otherwise, if promptId is provided, fetch the stored prompt
+      console.log(`Fetching stored prompt with ID: ${promptId}`)
+      const { data: storedPrompt, error } = await supabase
+        .from('prompts')
+        .select('*')
+        .eq('id', promptId)
+        .single()
+
+      if (error) {
+        console.error('Error fetching stored prompt:', error)
+        return NextResponse.json(
+          { error: 'Stored prompt not found' },
+          { status: 404 }
+        )
+      }
+
+      finalPrompt = storedPrompt.prompt
+      console.log(`Using stored prompt: ${storedPrompt.title}`)
+    }
 
     console.log('Extracted parameters:', {
       finalTitle,
@@ -39,7 +73,8 @@ export async function POST(request: NextRequest) {
       targetAudience,
       tone,
       stylePreferences,
-      additionalContext
+      additionalContext,
+      usingStoredPrompt: !!finalPrompt
     })
 
     if (!finalTitle || !finalInstructions) {
@@ -75,9 +110,68 @@ export async function POST(request: NextRequest) {
     console.log(`🚀 Generating full script for section: ${finalTitle}`)
 
     try {
-      const styleGuide = `SCRIPTWRITING STYLE GUIDE:\n\nFollow these style rules for every script and section you write.\n\n- Intros: Short (30-50 words), in medias res, simple, straight to the point, and appealing to the ear. Avoid long sentences and complex words. Fit the what, who, how, and when.\n- Attach sources: For every article, video, tweet, or photo referenced, attach the link in the script for the editor.\n- Conversational writing: Write like you talk, for voiceover. Use short sentences, active voice, simple words, and natural transitions. Avoid filler like 'uhh'/'umm', but add personal narrator comments when appropriate.\n- Use dates at the start of sentences when applicable, but never write 'On May 15th'—just 'May 15th'.\n- Use in medias res often, especially for intros and top 10/5 entries.\n- Vary entry structure: Don't follow the same format for every entry.\n- Remain unbiased, especially on sensitive topics.\n- For top 5/10 scripts about people, use only the person's name as the subheading.\n- Grammar must be perfect.\n- The best trick is knowing what to leave out—avoid unnecessary details.\n\nEXAMPLES (summarized):\n- July 7th, 2022, a Tiktoker shut down a bridge in Mexico... Here are five times TikTokers messed with the wrong cartel. (49 words, all key info, in medias res)\n- Attach links for all sources and visuals.\n- Conversational, but not overdone.\n- Use personal narrator comments for emphasis.\n\nALWAYS follow these rules. If unsure, ask for clarification.\n`;
+      // Use custom prompt if provided, otherwise use the default style guide
+      const prompt = finalPrompt || `CRIME DYNASTY SCRIPTWRITING STYLE GUIDE:
 
-      const prompt = `${styleGuide}\n\nYou are a professional script writer. Write a complete script section based on the following specifications:\n\nPROJECT CONTEXT:\n- Overall Theme: ${finalTheme || 'General content'}\n- Target Audience: ${targetAudience || 'General audience'}\n- Tone: ${tone || 'Professional'}\n- Style Preferences: ${stylePreferences || 'Clear and engaging'}\n- Additional Context: ${additionalContext || 'None provided'}\n\nSECTION DETAILS:\n- Section Title: ${finalTitle}\n- Writing Instructions: ${finalInstructions}\n\nREQUIREMENTS:\n- Write a complete, polished script for this specific section\n- Follow the writing instructions precisely\n- Target the specified audience with the appropriate tone\n- Ensure the content fits naturally within the overall project theme\n- Make it engaging, professional, and ready for production use\n- Use natural, conversational language appropriate for voiceover\n- Include proper pacing and flow\n- Do not include stage directions or formatting - just the pure script content\n\nWrite the script now:`
+Follow these style rules for every script and section you write.
+
+INTROS:
+- Keep intros short (30-50 words max), in medias res, simple, and straight to the point
+- Avoid long sentences and complex words - if a 5th grader can't understand it, it's too complex
+- Fit the "what", "who", "how", and "when" without being verbose
+- Dive straight into action instead of lengthy introductions
+- Make it appealing to the ear for voiceover
+
+CONVERSATIONAL WRITING:
+- Write like you talk, for voiceover narration
+- Use short sentences, active voice, simple words, and natural transitions
+- Avoid filler like 'uhh'/'umm', but add personal narrator comments when appropriate
+- Read your script out loud - it should sound like talking, not writing
+- Use transitional words/devices to improve flow
+
+DATES AND STRUCTURE:
+- Use dates at the start of sentences when applicable, but never write 'On May 15th' - just 'May 15th'
+- Use in medias res often, especially for intros and top 10/5 entries
+- Vary entry structure - don't follow the same format for every entry
+- For top 5/10 scripts about people, use only the person's name as the subheading
+
+GENERAL PRINCIPLES:
+- Remain unbiased, especially on sensitive topics
+- Use adverbs to sensationalize main events, but don't overdo it
+- The best trick is knowing what to leave out - avoid unnecessary details
+- Stay on topic and pick the most interesting, valuable, and exciting information
+
+EXAMPLES:
+- "July 7th, 2022, a Tiktoker shut down a bridge in Mexico... Here are five times TikTokers messed with the wrong cartel." (49 words, all key info, in medias res)
+- Add personal narrator comments for emphasis when appropriate
+- Keep background stories brief to maintain engagement
+
+ALWAYS follow these rules. Focus on creating engaging, conversational content that flows naturally when spoken aloud.
+
+You are a professional script writer. Write a complete script section based on the following specifications:
+
+PROJECT CONTEXT:
+- Overall Theme: ${finalTheme || 'General content'}
+- Target Audience: ${targetAudience || 'General audience'}
+- Tone: ${tone || 'Professional'}
+- Style Preferences: ${stylePreferences || 'Clear and engaging'}
+- Additional Context: ${additionalContext || 'None provided'}
+
+SECTION DETAILS:
+- Section Title: ${finalTitle}
+- Writing Instructions: ${finalInstructions}
+
+REQUIREMENTS:
+- Write a complete and detalied(at least 1000 words), polished script for this specific section
+- Follow the writing instructions precisely
+- Target the specified audience with the appropriate tone
+- Ensure the content fits naturally within the overall project theme
+- Make it engaging, professional, and ready for production use
+- Use natural, conversational language appropriate for voiceover
+- Include proper pacing and flow
+- Do not include stage directions or formatting - just the pure script content
+
+Write the script now:`
 
       console.log('Sending request to OpenAI...')
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
@@ -111,7 +205,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         script: script,
-        usingMock: false
+        usingMock: false,
+        usingStoredPrompt: !!finalPrompt
       })
 
     } catch (openaiError: any) {

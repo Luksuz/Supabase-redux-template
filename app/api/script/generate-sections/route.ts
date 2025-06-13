@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { z } from "zod";
+import { createClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 // Zod schema for structured output
 const ScriptSectionSchema = z.object({
@@ -32,6 +38,8 @@ export async function POST(request: NextRequest) {
       target_audience,
       tone,
       style_preferences,
+      promptId,
+      customPrompt: customPromptParam,
     } = requestBody;
 
     console.log("Extracted values:", {
@@ -41,11 +49,40 @@ export async function POST(request: NextRequest) {
       target_audience,
       tone,
       style_preferences,
+      promptId,
+      customPrompt: customPromptParam ? `${customPromptParam.substring(0, 100)}...` : null,
     });
 
     if (!theme) {
       console.log("Validation failed: theme is missing");
       return NextResponse.json({ error: "Theme is required" }, { status: 400 });
+    }
+
+    let finalPrompt = null;
+
+    // If customPrompt is provided, use it directly (edited prompt from frontend)
+    if (customPromptParam) {
+      finalPrompt = customPromptParam;
+      console.log("Using edited prompt from frontend");
+    } else if (promptId) {
+      // Otherwise, if promptId is provided, fetch the stored prompt
+      console.log(`Fetching stored prompt with ID: ${promptId}`)
+      const { data: storedPrompt, error } = await supabase
+        .from('prompts')
+        .select('*')
+        .eq('id', promptId)
+        .single()
+
+      if (error) {
+        console.error('Error fetching stored prompt:', error)
+        return NextResponse.json(
+          { error: 'Stored prompt not found' },
+          { status: 404 }
+        )
+      }
+
+      finalPrompt = storedPrompt.prompt
+      console.log(`Using stored prompt: ${storedPrompt.title}`)
     }
 
     console.log("Checking OpenAI API key...");
@@ -68,9 +105,64 @@ export async function POST(request: NextRequest) {
     console.log(`🚀 Generating script sections for theme: ${theme}`);
 
     try {
-      const styleGuide = `SCRIPTWRITING STYLE GUIDE:\n\nFollow these style rules for every script and section you write.\n\n- Intros: Short (30-50 words), in medias res, simple, straight to the point, and appealing to the ear. Avoid long sentences and complex words. Fit the what, who, how, and when.\n- Attach sources: For every article, video, tweet, or photo referenced, attach the link in the script for the editor.\n- Conversational writing: Write like you talk, for voiceover. Use short sentences, active voice, simple words, and natural transitions. Avoid filler like 'uhh'/'umm', but add personal narrator comments when appropriate.\n- Use dates at the start of sentences when applicable, but never write 'On May 15th'—just 'May 15th'.\n- Use in medias res often, especially for intros and top 10/5 entries.\n- Vary entry structure: Don't follow the same format for every entry.\n- Remain unbiased, especially on sensitive topics.\n- For top 5/10 scripts about people, use only the person's name as the subheading.\n- Grammar must be perfect.\n- The best trick is knowing what to leave out—avoid unnecessary details.\n\nEXAMPLES (summarized):\n- July 7th, 2022, a Tiktoker shut down a bridge in Mexico... Here are five times TikTokers messed with the wrong cartel. (49 words, all key info, in medias res)\n- Attach links for all sources and visuals.\n- Conversational, but not overdone.\n- Use personal narrator comments for emphasis.\n\nALWAYS follow these rules. If unsure, ask for clarification.\n`;
+      const prompt = finalPrompt || `CRIME DYNASTY SCRIPTWRITING STYLE GUIDE:
 
-      const prompt = `${styleGuide}\n\nYou are a professional script writer. Create a detailed outline for a script with the following specifications:\n\nTheme: ${theme}\nTarget Audience: ${target_audience || 'General audience'}\nTone: ${tone || 'Professional'}\nStyle Preferences: ${style_preferences || 'Clear and engaging'}\nAdditional Context: ${additionalContext || 'None provided'}\n\nGenerate 4-6 script sections that would make up a complete script. Each section should have:\n1. A clear, descriptive title\n2. Detailed writing instructions that specify the tone, content, style, and purpose of that section, and that follow the Scriptwriting Style Guide above.\n\nThe sections should flow logically and cover the complete narrative or content structure. Make the writing instructions specific and actionable - they will be used to generate the actual script content later.\n\nReturn the response in the exact JSON format specified.`;
+Follow these style rules for every script and section you write.
+
+INTROS:
+- Keep intros short (30-50 words max), in medias res, simple, and straight to the point
+- Avoid long sentences and complex words - if a 5th grader can't understand it, it's too complex
+- Fit the "what", "who", "how", and "when" without being verbose
+- Dive straight into action instead of lengthy introductions
+- Make it appealing to the ear for voiceover
+
+CONVERSATIONAL WRITING:
+- Write like you talk, for voiceover narration
+- Use short sentences, active voice, simple words, and natural transitions
+- Avoid filler like 'uhh'/'umm', but add personal narrator comments when appropriate
+- Read your script out loud - it should sound like talking, not writing
+- Use transitional words/devices to improve flow
+
+DATES AND STRUCTURE:
+- Use dates at the start of sentences when applicable, but never write 'On May 15th' - just 'May 15th'
+- Use in medias res often, especially for intros and top 10/5 entries
+- Vary entry structure - don't follow the same format for every entry
+- For top 5/10 scripts about people, use only the person's name as the subheading
+
+SOURCES AND CLIPS:
+- For every article, video, tweet, or photo referenced, attach the link in the script for the editor
+- When adding clips, write "(Play this)" and include timestamp links
+- Don't spoil clips or repeat what's shown unless it truly adds value
+
+GENERAL PRINCIPLES:
+- Remain unbiased, especially on sensitive topics
+- Grammar must be perfect
+- Use adverbs to sensationalize main events, but don't overdo it
+- The best trick is knowing what to leave out - avoid unnecessary details
+- Stay on topic and pick the most interesting, valuable, and exciting information
+
+EXAMPLES:
+- "July 7th, 2022, a Tiktoker shut down a bridge in Mexico... Here are five times TikTokers messed with the wrong cartel." (49 words, all key info, in medias res)
+- Add personal narrator comments for emphasis when appropriate
+- Keep background stories brief to maintain engagement
+
+ALWAYS follow these rules. Focus on creating engaging, conversational content that flows naturally when spoken aloud.
+
+You are a professional script writer. Create a detailed outline for a script with the following specifications:
+
+Theme: ${theme}
+Target Audience: ${target_audience || 'General audience'}
+Tone: ${tone || 'Professional'}
+Style Preferences: ${style_preferences || 'Clear and engaging'}
+Additional Context: ${additionalContext || 'None provided'}
+
+Generate 4-6 script sections that would make up a complete script. Each section should have:
+1. A clear, descriptive title
+2. Detailed writing instructions that specify the tone, content, style, and purpose of that section, and that follow the Scriptwriting Style Guide above.
+
+The sections should flow logically and cover the complete narrative or content structure. Make the writing instructions specific and actionable - they will be used to generate the actual script content later.
+
+Return the response in the exact JSON format specified.`;
 
       console.log("Sending request to OpenAI...");
       console.log("Prompt preview:", prompt.substring(0, 200) + "...");

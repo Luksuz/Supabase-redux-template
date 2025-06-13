@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { FileText, ChevronRight, Youtube } from 'lucide-react'
+import { FileText, ChevronRight, Youtube, Settings, Database } from 'lucide-react'
 
-type NavigationView = 'youtube-search' | 'script-generator'
+type NavigationView = 'youtube-search' | 'script-generator' | 'prompt-manager' | 'fine-tuning-export'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -33,6 +33,24 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       description: 'Generate structured scripts',
       hasData: !!currentJob,
       dataCount: currentJob?.sections.filter(s => s.texts.length > 0).length || 0,
+      disabled: false
+    },
+    {
+      id: 'prompt-manager' as NavigationView,
+      label: 'Prompt Manager',
+      icon: Settings,
+      description: 'Create and manage custom script generation prompts',
+      hasData: false,
+      dataCount: 0,
+      disabled: false
+    },
+    {
+      id: 'fine-tuning-export' as NavigationView,
+      label: 'Fine-Tuning Export',
+      icon: Database,
+      description: 'Export training data in JSONL format for OpenAI fine-tuning',
+      hasData: false,
+      dataCount: 0,
       disabled: false
     }
   ]

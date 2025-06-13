@@ -15,7 +15,14 @@ import {
   updateSectionRating,
   updateTextRating,
   type FineTuningSection,
-  setCurrentJob
+  setCurrentJob,
+  type Prompt,
+  fetchPromptsThunk,
+  handlePromptSelectionThunk,
+  savePromptChangesThunk,
+  setSelectedPromptContent,
+  setShowPromptEditor,
+  mergeYouTubeDataWithPromptThunk
 } from '../lib/features/scripts/scriptsSlice'
 import { initializeAuth, loginUser, logoutUser } from '../lib/features/user/userSlice'
 import { Button } from './ui/button'
@@ -25,12 +32,27 @@ import { Label } from './ui/label'
 import { Badge } from './ui/badge'
 import { Textarea } from './ui/textarea'
 import { RatingComponent } from './ui/rating'
-import { FileText, Loader2, Edit3, Play, Download, Copy, CheckCircle, AlertCircle, User, LogOut, Lock } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { FileText, Loader2, Edit3, Play, Download, Copy, CheckCircle, AlertCircle, User, LogOut, Lock, Settings } from 'lucide-react'
 
 export function ScriptGenerator() {
   const dispatch = useAppDispatch()
   const { currentJob } = useAppSelector(state => state.scripts)
   const user = useAppSelector(state => state.user)
+  
+  // Get prompt state from Redux
+  const {
+    prompts,
+    selectedPromptId,
+    selectedPromptContent,
+    showPromptEditor,
+    promptsLoading,
+    promptContentLoading,
+    mergingData
+  } = useAppSelector(state => state.scripts)
+  
+  // Get YouTube data from Redux
+  const youtubeState = useAppSelector(state => state.youtube)
   
   // Form inputs
   const [name, setName] = useState('')
@@ -56,10 +78,118 @@ export function ScriptGenerator() {
     }
   }, [dispatch, user.initialized])
 
+  // Fetch available prompts on mount
+  useEffect(() => {
+    dispatch(fetchPromptsThunk())
+  }, [dispatch])
+
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
     setTimeout(() => setMessage(''), 5000)
+  }
+
+  // Handle prompt selection
+  const handlePromptSelection = (promptId: string) => {
+    dispatch(handlePromptSelectionThunk(promptId))
+  }
+
+  // Save prompt changes
+  const savePromptChanges = async () => {
+    const result = await dispatch(savePromptChangesThunk())
+    if (result?.success) {
+      showMessage('Prompt updated successfully!', 'success')
+    } else {
+      showMessage(result?.error || 'Failed to save prompt', 'error')
+    }
+  }
+
+  // Merge YouTube data with current prompt
+  const handleMergeYouTubeData = async () => {
+    if (!selectedPromptContent) {
+      showMessage('Please select a prompt first', 'error')
+      return
+    }
+
+    // Collect YouTube data from various sources
+    const youtubeData = []
+
+    // Add video summaries if available
+    if (youtubeState.videosSummary) {
+      youtubeData.push({
+        type: 'summary',
+        title: 'Video Collection Summary',
+        summary: youtubeState.videosSummary.overallTheme,
+        keyInsights: youtubeState.videosSummary.keyInsights,
+        narrativeThemes: youtubeState.videosSummary.narrativeThemes,
+        characterInsights: youtubeState.videosSummary.characterInsights,
+        conflictElements: youtubeState.videosSummary.conflictElements,
+        storyIdeas: youtubeState.videosSummary.storyIdeas,
+        creativePrompt: youtubeState.videosSummary.creativePrompt
+      })
+
+      // Add individual video summaries
+      youtubeState.videosSummary.videoSummaries.forEach(video => {
+        youtubeData.push({
+          type: 'video_summary',
+          title: video.title,
+          summary: `Main Topic: ${video.mainTopic}. Emotional Tone: ${video.emotionalTone}`,
+          keyInsights: video.keyPoints,
+          narrativeElements: video.narrativeElements,
+          timestamp: video.timestamp
+        })
+      })
+    }
+
+    // Add transcript analysis results
+    youtubeState.analysisResults.forEach(result => {
+      youtubeData.push({
+        type: 'analysis',
+        title: `Analysis: "${result.query}"`,
+        analysis: result.analysis.summary,
+        relevantContent: result.analysis.relevantContent,
+        timestamp: result.analysis.timestamp,
+        confidence: result.analysis.confidence
+      })
+    })
+
+    // Add subtitle content (first few for context)
+    youtubeState.subtitleFiles.slice(0, 3).forEach(subtitle => {
+      if (subtitle.status === 'completed') {
+        // Extract first few lines of subtitle for context
+        const lines = subtitle.srtContent.split('\n').slice(0, 20).join('\n')
+        youtubeData.push({
+          type: 'transcript',
+          title: subtitle.title,
+          summary: 'Video transcript content',
+          relevantContent: lines
+        })
+      }
+    })
+
+    if (youtubeData.length === 0) {
+      showMessage('No YouTube research data found. Please search for videos and generate summaries or analysis first.', 'error')
+      return
+    }
+
+    try {
+      const result = await dispatch(mergeYouTubeDataWithPromptThunk(youtubeData, currentJob?.theme || theme))
+      if (result?.success) {
+        const mockMessage = result.usingMock ? ' (Using mock data - Set OPENAI_API_KEY for AI-powered merging)' : ''
+        showMessage(`Successfully merged ${youtubeData.length} research items with prompt!${mockMessage}`, 'success')
+      } else {
+        showMessage(result?.error || 'Failed to merge YouTube data with prompt', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to merge YouTube data with prompt', 'error')
+    }
+  }
+
+  // Check if YouTube data is available for merging
+  const hasYouTubeData = () => {
+    return youtubeState.videosSummary || 
+           youtubeState.analysisResults.length > 0 || 
+           youtubeState.subtitleFiles.some(sf => sf.status === 'completed')
   }
 
   // Handle authentication
@@ -149,29 +279,56 @@ export function ScriptGenerator() {
     showMessage('Generating script sections...', 'info')
 
     try {
+      const requestBody: any = {
+        theme: currentJob.theme,
+        target_audience: targetAudience,
+        tone: tone,
+        style_preferences: stylePreferences
+      }
+
+      // Add promptId if a custom prompt is selected
+      if (selectedPromptId && selectedPromptId !== 'default') {
+        requestBody.promptId = selectedPromptId
+      }
+
+      // Add custom prompt content if it has been edited
+      if (selectedPromptId && selectedPromptId !== 'default' && selectedPromptContent) {
+        requestBody.customPrompt = selectedPromptContent
+      }
+
       const response = await fetch('/api/script/generate-sections', {
-            method: 'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-          theme: currentJob.theme,
-          target_audience: targetAudience,
-          tone: tone,
-          style_preferences: stylePreferences
-        })
-          })
+        body: JSON.stringify(requestBody)
+      })
 
-          if (!response.ok) {
+      if (!response.ok) {
         throw new Error('Failed to generate sections')
-          }
+      }
 
-          const data = await response.json()
-          
+      const data = await response.json()
+      
+      // Determine which prompt was used for tracking
+      let promptUsed = 'Default Crime Dynasty Prompt'
+      if (selectedPromptId && selectedPromptId !== 'default') {
+        if (selectedPromptContent) {
+          promptUsed = selectedPromptContent
+        } else {
+          // Find the prompt title from the prompts array
+          const selectedPrompt = prompts.find(p => p.id === selectedPromptId)
+          if (selectedPrompt) {
+            promptUsed = `${selectedPrompt.title}: ${selectedPrompt.prompt}`
+          }
+        }
+      }
+      
       // Save sections to database
       const sectionsResponse = await fetch('/api/fine-tuning/sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_id: currentJob.id,
+          promptUsed: promptUsed, // Include the prompt that was used
           sections: data.sections.map((section: any) => ({
             ...section,
             target_audience: targetAudience,
@@ -189,8 +346,9 @@ export function ScriptGenerator() {
           texts: []
         }))))
         
+        const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
         showMessage(
-          `Generated ${sectionsData.sections.length} sections successfully! ${data.usingMock ? '(Using mock data - Set OPENAI_API_KEY for AI generation)' : ''}`,
+          `Generated ${sectionsData.sections.length} sections successfully!${promptMessage} ${data.usingMock ? '(Using mock data - Set OPENAI_API_KEY for AI generation)' : ''}`,
           'success'
         )
       } else {
@@ -198,17 +356,17 @@ export function ScriptGenerator() {
           showMessage('Session expired. Please log in again.', 'error')
           setShowAuthForm(true)
         } else {
-          dispatch(setError(sectionsData.error || 'Failed to save sections'))
           showMessage(sectionsData.error || 'Failed to save sections', 'error')
         }
       }
-        } catch (error) {
-      dispatch(setError('Failed to generate sections'))
-      showMessage(`Failed to generate sections: ${(error as Error).message}`, 'error')
+    } catch (error) {
+      showMessage('Failed to generate sections', 'error')
+    } finally {
+      dispatch(setLoading(false))
     }
   }
 
-  // Generate full script for a single section (requires authentication)
+  // Generate script for individual section
   const handleGenerateScript = async (section: FineTuningSection) => {
     if (!user.isLoggedIn) {
       showMessage('Please log in to generate scripts', 'error')
@@ -216,39 +374,48 @@ export function ScriptGenerator() {
       return
     }
 
-    if (!currentJob) return
-
     dispatch(startGeneratingScript(section.id))
-    
+
     try {
+      const requestBody: any = {
+        title: section.title,
+        writingInstructions: section.writing_instructions,
+        theme: currentJob?.theme,
+        targetAudience: targetAudience,
+        tone: tone,
+        stylePreferences: stylePreferences
+      }
+
+      // Add promptId if a custom prompt is selected
+      if (selectedPromptId && selectedPromptId !== 'default') {
+        requestBody.promptId = selectedPromptId
+      }
+
+      // Add custom prompt content if it has been edited
+      if (selectedPromptId && selectedPromptId !== 'default' && selectedPromptContent) {
+        requestBody.customPrompt = selectedPromptContent
+      }
+
       const response = await fetch('/api/script/generate-full-script', {
-              method: 'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-          title: section.title,
-          writingInstructions: section.writing_instructions,
-          theme: currentJob.theme,
-          targetAudience: section.target_audience,
-          tone: section.tone,
-          stylePreferences: section.style_preferences
-        })
-            })
+        body: JSON.stringify(requestBody)
+      })
 
-            if (!response.ok) {
+      if (!response.ok) {
         throw new Error('Failed to generate script')
-            }
+      }
 
-            const data = await response.json()
-            
-      // Save text to database
+      const data = await response.json()
+
+      // Save generated text to database
       const textResponse = await fetch('/api/fine-tuning/texts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           outline_section_id: section.id,
-          input_text: `Theme: ${currentJob.theme}\nTitle: ${section.title}\nInstructions: ${section.writing_instructions}`,
-          generated_script: data.script,
-          text_order: section.texts?.length || 0
+          input_text: section.writing_instructions,
+          generated_script: data.script
         })
       })
 
@@ -257,32 +424,16 @@ export function ScriptGenerator() {
       if (textResponse.ok) {
         dispatch(addGeneratedText({
           sectionId: section.id,
-          text: {
-            input_text: textData.text.input_text,
-            generated_script: textData.text.generated_script,
-            text_order: textData.text.text_order,
-            is_validated: false,
-            character_count: textData.text.generated_script.length,
-            word_count: textData.text.generated_script.split(' ').length
-          }
+          text: textData.text
         }))
-        
-        showMessage(
-          `Generated script for "${section.title}"! ${data.usingMock ? '(Mock data)' : ''}`,
-          'success'
-        )
-          } else {
-        if (textResponse.status === 401) {
-          showMessage('Session expired. Please log in again.', 'error')
-          setShowAuthForm(true)
-        } else {
-          dispatch(setError(textData.error || 'Failed to save generated text'))
-          showMessage(textData.error || 'Failed to save generated text', 'error')
-        }
+
+        const promptMessage = selectedPromptId ? ' (Using custom prompt)' : ''
+        showMessage(`Script generated successfully!${promptMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
+      } else {
+        showMessage(textData.error || 'Failed to save generated script', 'error')
       }
     } catch (error) {
-      dispatch(setError('Failed to generate script'))
-      showMessage(`Failed to generate script: ${(error as Error).message}`, 'error')
+      showMessage('Failed to generate script', 'error')
     }
   }
 
@@ -301,34 +452,45 @@ export function ScriptGenerator() {
 
     const promises = currentJob.sections.map(async (section: FineTuningSection) => {
       try {
+        const requestBody: any = {
+          title: section.title,
+          writingInstructions: section.writing_instructions,
+          theme: currentJob.theme,
+          targetAudience: targetAudience,
+          tone: tone,
+          stylePreferences: stylePreferences
+        }
+
+        // Add promptId if a custom prompt is selected
+        if (selectedPromptId && selectedPromptId !== 'default') {
+          requestBody.promptId = selectedPromptId
+        }
+
+        // Add custom prompt content if it has been edited
+        if (selectedPromptId && selectedPromptId !== 'default' && selectedPromptContent) {
+          requestBody.customPrompt = selectedPromptContent
+        }
+
         const response = await fetch('/api/script/generate-full-script', {
-        method: 'POST',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            title: section.title,
-            writingInstructions: section.writing_instructions,
-            theme: currentJob.theme,
-            targetAudience: section.target_audience,
-            tone: section.tone,
-            stylePreferences: section.style_preferences
-          })
-      })
+          body: JSON.stringify(requestBody)
+        })
 
-      if (!response.ok) {
+        if (!response.ok) {
           throw new Error(`Failed to generate script for ${section.title}`)
-      }
+        }
 
-      const data = await response.json()
-      
-        // Save text to database
+        const data = await response.json()
+        
+        // Save generated text to database
         const textResponse = await fetch('/api/fine-tuning/texts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             outline_section_id: section.id,
-            input_text: `Theme: ${currentJob.theme}\nTitle: ${section.title}\nInstructions: ${section.writing_instructions}`,
-            generated_script: data.script,
-            text_order: section.texts?.length || 0
+            input_text: section.writing_instructions,
+            generated_script: data.script
           })
         })
 
@@ -337,20 +499,13 @@ export function ScriptGenerator() {
         if (textResponse.ok) {
           dispatch(addGeneratedText({
             sectionId: section.id,
-            text: {
-              input_text: textData.text.input_text,
-              generated_script: textData.text.generated_script,
-              text_order: textData.text.text_order,
-              is_validated: false,
-              character_count: textData.text.generated_script.length,
-              word_count: textData.text.generated_script.split(' ').length
-            }
+            text: textData.text
           }))
           return { sectionId: section.id, success: true }
         } else {
           return { sectionId: section.id, error: textData.error, success: false }
-      }
-    } catch (error) {
+        }
+      } catch (error) {
         return { sectionId: section.id, error: (error as Error).message, success: false }
       }
     })
@@ -364,8 +519,9 @@ export function ScriptGenerator() {
       }
     })
 
+    const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
     showMessage(
-      `Generated ${successCount}/${results.length} scripts successfully!`,
+      `Generated ${successCount}/${results.length} scripts successfully!${promptMessage}`,
       successCount === results.length ? 'success' : 'error'
     )
   }
@@ -685,6 +841,15 @@ export function ScriptGenerator() {
                 <div>
                   <CardTitle>{currentJob.name}</CardTitle>
                   <CardDescription>Theme: {currentJob.theme}</CardDescription>
+                  {currentJob.prompt_used && (
+                    <div className="mt-2">
+                      <Badge variant="outline" className="text-xs">
+                        Prompt: {currentJob.prompt_used.length > 50 
+                          ? currentJob.prompt_used.substring(0, 50) + '...' 
+                          : currentJob.prompt_used}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
                   <div className="flex items-center gap-2">
                   {currentJob.sectionsGenerated && (
@@ -748,6 +913,99 @@ export function ScriptGenerator() {
                     />
             </div>
                             </div>
+
+                {/* Merge YouTube Data Button */}
+                {hasYouTubeData() && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">YouTube Research Integration</Label>
+                    <Button
+                      onClick={handleMergeYouTubeData}
+                      disabled={!selectedPromptContent || mergingData}
+                      variant="outline"
+                      className="w-full flex items-center justify-center gap-2 border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800"
+                    >
+                      {mergingData ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Merging Research Data...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4" />
+                          Merge YouTube Research with Prompt
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Enhance your prompt with YouTube video summaries, analysis results, and transcript data using AI
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="selectedPrompt">Select Prompt (Optional)</Label>
+                  <Select
+                    value={selectedPromptId}
+                    onValueChange={handlePromptSelection}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={promptsLoading ? "Loading prompts..." : "Use default prompt or select custom"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default Crime Dynasty Prompt</SelectItem>
+                      {prompts.map((prompt) => (
+                        <SelectItem key={prompt.id} value={prompt.id}>
+                          {prompt.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose a custom prompt from your library or use the default Crime Dynasty style guide
+                  </p>
+                </div>
+
+                {/* Prompt Editor */}
+                {showPromptEditor && (
+                  <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">
+                        Edit Prompt Content
+                        {promptContentLoading && (
+                          <Loader2 className="h-3 w-3 animate-spin inline ml-2" />
+                        )}
+                      </Label>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={savePromptChanges}
+                          size="sm"
+                          variant="outline"
+                          disabled={!selectedPromptContent.trim()}
+                        >
+                          <Settings className="h-3 w-3 mr-1" />
+                          Save Changes
+                        </Button>
+                        <Button
+                          onClick={() => dispatch(setShowPromptEditor(false))}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Hide
+                        </Button>
+                      </div>
+                    </div>
+                    <Textarea
+                      value={selectedPromptContent}
+                      onChange={(e) => dispatch(setSelectedPromptContent(e.target.value))}
+                      placeholder="Edit your prompt content here..."
+                      className="min-h-[200px] bg-white"
+                      disabled={promptContentLoading}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Modifications will be used for script generation. Click "Save Changes" to update the original prompt in your library.
+                    </p>
+                  </div>
+                )}
 
                 <Button 
                   onClick={handleGenerateSections}

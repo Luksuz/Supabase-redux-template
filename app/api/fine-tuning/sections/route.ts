@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { job_id, sections } = requestBody
+    const { job_id, sections, promptUsed } = requestBody
 
     if (!job_id || !sections || !Array.isArray(sections)) {
       console.log('Validation failed:', { job_id: !!job_id, sections: Array.isArray(sections), sectionsLength: sections?.length })
@@ -78,17 +78,25 @@ export async function POST(request: NextRequest) {
 
     console.log('Sections created successfully:', insertedSections?.length)
 
-    // Update job section count
-    console.log('Updating job section count...')
+    // Update job section count and prompt used
+    console.log('Updating job section count and prompt used...')
+    const updateData: any = { 
+      total_sections: insertedSections.length
+    }
+    
+    // Add prompt_used if provided
+    if (promptUsed) {
+      updateData.prompt_used = promptUsed
+      console.log('Setting prompt_used to:', promptUsed.substring(0, 100) + '...')
+    }
+    
     const { error: updateError } = await supabase
       .from('fine_tuning_jobs')
-      .update({ 
-        total_sections: insertedSections.length
-      })
+      .update(updateData)
       .eq('id', job_id)
 
     if (updateError) {
-      console.error('Error updating job section count:', updateError)
+      console.error('Error updating job section count and prompt:', updateError)
     }
 
     console.log('Returning sections')

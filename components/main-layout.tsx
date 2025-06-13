@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { SidebarNavigation } from './sidebar-navigation'
 import { ScriptGenerator } from './script-generator'
+import { FineTuningExport } from './fine-tuning-export'
+import PromptManager from './prompt-manager'
 import YouTubeSearch from '../app/components/youtube-search'
 
-type NavigationView = 'youtube-search' | 'script-generator'
+type NavigationView = 'youtube-search' | 'script-generator' | 'prompt-manager' | 'fine-tuning-export'
 
 export function MainLayout() {
   const [activeView, setActiveView] = useState<NavigationView>('youtube-search')
@@ -16,6 +18,14 @@ export function MainLayout() {
         return <YouTubeSearch />
       case 'script-generator':
         return <ScriptGenerator />
+      case 'prompt-manager':
+        return (
+          <div className="p-6">
+            <PromptManager />
+          </div>
+        )
+      case 'fine-tuning-export':
+        return <FineTuningExport />
       default:
         return <YouTubeSearch />
     }
