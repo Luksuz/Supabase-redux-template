@@ -193,7 +193,7 @@ export function ScriptGenerator() {
       case 0: // Script Style
         return sectionedWorkflow.selectedStyle || sectionedWorkflow.uploadedStyle
       case 1: // Configuration  
-        return sectionedWorkflow.videoTitle.trim() && sectionedWorkflow.targetAudience.trim()
+        return sectionedWorkflow.videoTitle.trim()
       case 2: // Research
         return true // Research is optional
       case 3: // Outline
@@ -397,7 +397,7 @@ export function ScriptGenerator() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="target-audience">Target Audience</Label>
+                <Label htmlFor="target-audience">Target Audience (Optional)</Label>
                 <Input
                   id="target-audience"
                   value={sectionedWorkflow.targetAudience}
