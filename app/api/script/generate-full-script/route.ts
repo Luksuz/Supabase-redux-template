@@ -75,36 +75,15 @@ export async function POST(request: NextRequest) {
     console.log(`🚀 Generating full script for section: ${finalTitle}`)
 
     try {
-      const prompt = `You are a professional script writer. Write a complete script section based on the following specifications:
+      const styleGuide = `SCRIPTWRITING STYLE GUIDE:\n\nFollow these style rules for every script and section you write.\n\n- Intros: Short (30-50 words), in medias res, simple, straight to the point, and appealing to the ear. Avoid long sentences and complex words. Fit the what, who, how, and when.\n- Attach sources: For every article, video, tweet, or photo referenced, attach the link in the script for the editor.\n- Conversational writing: Write like you talk, for voiceover. Use short sentences, active voice, simple words, and natural transitions. Avoid filler like 'uhh'/'umm', but add personal narrator comments when appropriate.\n- Use dates at the start of sentences when applicable, but never write 'On May 15th'—just 'May 15th'.\n- Use in medias res often, especially for intros and top 10/5 entries.\n- Vary entry structure: Don't follow the same format for every entry.\n- Remain unbiased, especially on sensitive topics.\n- For top 5/10 scripts about people, use only the person's name as the subheading.\n- Grammar must be perfect.\n- The best trick is knowing what to leave out—avoid unnecessary details.\n\nEXAMPLES (summarized):\n- July 7th, 2022, a Tiktoker shut down a bridge in Mexico... Here are five times TikTokers messed with the wrong cartel. (49 words, all key info, in medias res)\n- Attach links for all sources and visuals.\n- Conversational, but not overdone.\n- Use personal narrator comments for emphasis.\n\nALWAYS follow these rules. If unsure, ask for clarification.\n`;
 
-PROJECT CONTEXT:
-- Overall Theme: ${finalTheme || 'General content'}
-- Target Audience: ${targetAudience || 'General audience'}
-- Tone: ${tone || 'Professional'}
-- Style Preferences: ${stylePreferences || 'Clear and engaging'}
-- Additional Context: ${additionalContext || 'None provided'}
-
-SECTION DETAILS:
-- Section Title: ${finalTitle}
-- Writing Instructions: ${finalInstructions}
-
-REQUIREMENTS:
-- Write a complete, polished script for this specific section
-- Follow the writing instructions precisely
-- Target the specified audience with the appropriate tone
-- Ensure the content fits naturally within the overall project theme
-- Make it engaging, professional, and ready for production use
-- Use natural, conversational language appropriate for voiceover
-- Include proper pacing and flow
-- Do not include stage directions or formatting - just the pure script content
-
-Write the script now:`
+      const prompt = `${styleGuide}\n\nYou are a professional script writer. Write a complete script section based on the following specifications:\n\nPROJECT CONTEXT:\n- Overall Theme: ${finalTheme || 'General content'}\n- Target Audience: ${targetAudience || 'General audience'}\n- Tone: ${tone || 'Professional'}\n- Style Preferences: ${stylePreferences || 'Clear and engaging'}\n- Additional Context: ${additionalContext || 'None provided'}\n\nSECTION DETAILS:\n- Section Title: ${finalTitle}\n- Writing Instructions: ${finalInstructions}\n\nREQUIREMENTS:\n- Write a complete, polished script for this specific section\n- Follow the writing instructions precisely\n- Target the specified audience with the appropriate tone\n- Ensure the content fits naturally within the overall project theme\n- Make it engaging, professional, and ready for production use\n- Use natural, conversational language appropriate for voiceover\n- Include proper pacing and flow\n- Do not include stage directions or formatting - just the pure script content\n\nWrite the script now:`
 
       console.log('Sending request to OpenAI...')
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         messages: [
           {
             role: "system",

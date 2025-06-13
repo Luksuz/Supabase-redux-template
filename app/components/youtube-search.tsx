@@ -834,13 +834,13 @@ export default function YouTubeSearch() {
                       
                       <div className="space-y-3">
                         <div>
-                          <h5 className="text-sm font-medium text-gray-700">Key Points:</h5>
-                          <ul className="list-disc list-inside space-y-1">
-                            {video.keyPoints.map((point, pointIndex) => (
-                              <li key={pointIndex} className="text-sm text-gray-600">{point}</li>
-                            ))}
-                          </ul>
-                        </div>
+                        <h5 className="text-sm font-medium text-gray-700">Key Points:</h5>
+                        <ul className="list-disc list-inside space-y-1">
+                          {video.keyPoints.map((point, pointIndex) => (
+                            <li key={pointIndex} className="text-sm text-gray-600">{point}</li>
+                          ))}
+                        </ul>
+                      </div>
                         
                         <div>
                           <h5 className="text-sm font-medium text-gray-700">Narrative Elements:</h5>

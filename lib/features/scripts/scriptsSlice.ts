@@ -106,7 +106,7 @@ export const scriptsSlice = createSlice({
     loadJobs: (state, action: PayloadAction<FineTuningJob[]>) => {
       state.jobs = action.payload
     },
-    
+
     startGeneratingSections: (state) => {
       if (state.currentJob) {
         state.currentJob.isGeneratingSections = true
@@ -130,7 +130,7 @@ export const scriptsSlice = createSlice({
       if (state.currentJob) {
         const { sectionId, updates } = action.payload
         const section = state.currentJob.sections.find(s => s.id === sectionId)
-        if (section) {
+      if (section) {
           Object.assign(section, updates)
           state.currentJob.updated_at = new Date().toISOString()
         }
@@ -140,7 +140,7 @@ export const scriptsSlice = createSlice({
     startGeneratingScript: (state, action: PayloadAction<string>) => {
       if (state.currentJob) {
         const section = state.currentJob.sections.find(s => s.id === action.payload)
-        if (section) {
+      if (section) {
           section.isGeneratingScript = true
         }
       }

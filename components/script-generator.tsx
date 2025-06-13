@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   createNewJob, 
-  startGeneratingSections, 
-  setSections, 
-  updateSection, 
+  startGeneratingSections,
+  setSections,
+  updateSection,
   startGeneratingScript,
   addGeneratedText,
   startGeneratingAllScripts,
@@ -113,7 +113,7 @@ export function ScriptGenerator() {
       })
       
       const data = await response.json()
-      
+        
       if (response.ok) {
         // Use the actual job returned from the API (with UUID) instead of creating a new one in Redux
         dispatch(setCurrentJob(data.job))
@@ -150,22 +150,22 @@ export function ScriptGenerator() {
 
     try {
       const response = await fetch('/api/script/generate-sections', {
-        method: 'POST',
+            method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+            body: JSON.stringify({
           theme: currentJob.theme,
           target_audience: targetAudience,
           tone: tone,
           style_preferences: stylePreferences
         })
-      })
+          })
 
-      if (!response.ok) {
+          if (!response.ok) {
         throw new Error('Failed to generate sections')
-      }
+          }
 
-      const data = await response.json()
-      
+          const data = await response.json()
+          
       // Save sections to database
       const sectionsResponse = await fetch('/api/fine-tuning/sections', {
         method: 'POST',
@@ -202,7 +202,7 @@ export function ScriptGenerator() {
           showMessage(sectionsData.error || 'Failed to save sections', 'error')
         }
       }
-    } catch (error) {
+        } catch (error) {
       dispatch(setError('Failed to generate sections'))
       showMessage(`Failed to generate sections: ${(error as Error).message}`, 'error')
     }
@@ -222,9 +222,9 @@ export function ScriptGenerator() {
     
     try {
       const response = await fetch('/api/script/generate-full-script', {
-        method: 'POST',
+              method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+              body: JSON.stringify({
           title: section.title,
           writingInstructions: section.writing_instructions,
           theme: currentJob.theme,
@@ -232,14 +232,14 @@ export function ScriptGenerator() {
           tone: section.tone,
           stylePreferences: section.style_preferences
         })
-      })
+            })
 
-      if (!response.ok) {
+            if (!response.ok) {
         throw new Error('Failed to generate script')
-      }
+            }
 
-      const data = await response.json()
-      
+            const data = await response.json()
+            
       // Save text to database
       const textResponse = await fetch('/api/fine-tuning/texts', {
         method: 'POST',
@@ -271,7 +271,7 @@ export function ScriptGenerator() {
           `Generated script for "${section.title}"! ${data.usingMock ? '(Mock data)' : ''}`,
           'success'
         )
-      } else {
+          } else {
         if (textResponse.status === 401) {
           showMessage('Session expired. Please log in again.', 'error')
           setShowAuthForm(true)
@@ -302,9 +302,9 @@ export function ScriptGenerator() {
     const promises = currentJob.sections.map(async (section: FineTuningSection) => {
       try {
         const response = await fetch('/api/script/generate-full-script', {
-          method: 'POST',
+        method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        body: JSON.stringify({
             title: section.title,
             writingInstructions: section.writing_instructions,
             theme: currentJob.theme,
@@ -312,14 +312,14 @@ export function ScriptGenerator() {
             tone: section.tone,
             stylePreferences: section.style_preferences
           })
-        })
+      })
 
-        if (!response.ok) {
+      if (!response.ok) {
           throw new Error(`Failed to generate script for ${section.title}`)
-        }
+      }
 
-        const data = await response.json()
-        
+      const data = await response.json()
+      
         // Save text to database
         const textResponse = await fetch('/api/fine-tuning/texts', {
           method: 'POST',
@@ -349,8 +349,8 @@ export function ScriptGenerator() {
           return { sectionId: section.id, success: true }
         } else {
           return { sectionId: section.id, error: textData.error, success: false }
-        }
-      } catch (error) {
+      }
+    } catch (error) {
         return { sectionId: section.id, error: (error as Error).message, success: false }
       }
     })
@@ -470,11 +470,11 @@ export function ScriptGenerator() {
   if (!user.initialized) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className="text-center">
+              <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">Initializing authentication...</p>
-        </div>
-      </div>
+              </div>
+              </div>
     )
   }
 
@@ -485,7 +485,7 @@ export function ScriptGenerator() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Fine-Tuning Script Generator</h1>
           <p className="text-gray-600 mt-1">Create training data for your custom script generation model</p>
-        </div>
+            </div>
         <div className="flex items-center gap-4">
           {/* User Status */}
           {user.isLoggedIn ? (
@@ -493,7 +493,7 @@ export function ScriptGenerator() {
               <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full text-sm">
                 <User className="h-4 w-4 text-green-600" />
                 <span className="text-green-800">{user.email}</span>
-              </div>
+                </div>
               <Button
                 onClick={handleLogout}
                 variant="outline"
@@ -508,7 +508,7 @@ export function ScriptGenerator() {
                 )}
                 Logout
               </Button>
-            </div>
+              </div>
           ) : (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 px-3 py-1 bg-red-100 rounded-full text-sm">
@@ -524,8 +524,8 @@ export function ScriptGenerator() {
                 <User className="h-4 w-4" />
                 Login
               </Button>
-            </div>
-          )}
+              </div>
+            )}
           
           {/* Download Button */}
           {hasGeneratedScripts && user.isLoggedIn && (
@@ -556,17 +556,17 @@ export function ScriptGenerator() {
       {/* Authentication Form */}
       {showAuthForm && !user.isLoggedIn && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5" />
               Login Required
-            </CardTitle>
-            <CardDescription>
+          </CardTitle>
+          <CardDescription>
               Please log in to create and manage fine-tuning jobs
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
               <Label htmlFor="authEmail">Email</Label>
               <Input
                 id="authEmail"
@@ -586,53 +586,53 @@ export function ScriptGenerator() {
                 onChange={(e) => setAuthPassword(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
               />
-            </div>
+          </div>
             <div className="flex gap-2">
-              <Button 
+            <Button 
                 onClick={handleLogin}
                 disabled={user.loading || !authEmail.trim() || !authPassword.trim()}
                 className="flex-1"
               >
                 {user.loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Logging in...
-                  </>
-                ) : (
+                </>
+              ) : (
                   'Login'
-                )}
-              </Button>
+              )}
+            </Button>
               <Button 
                 onClick={() => setShowAuthForm(false)}
                 variant="outline"
               >
                 Cancel
               </Button>
-            </div>
+                </div>
             {user.error && (
               <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
                 {user.error}
               </div>
             )}
-          </CardContent>
-        </Card>
+        </CardContent>
+      </Card>
       )}
 
       {/* Job Creation Form */}
       {!currentJob && user.isLoggedIn && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Create New Fine-Tuning Job
-            </CardTitle>
-            <CardDescription>
+              </CardTitle>
+              <CardDescription>
               Define your job name, theme, and description to start generating training data
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+                  <div className="space-y-2">
                 <Label htmlFor="name">Job Name *</Label>
                 <Input
                   id="name"
@@ -640,8 +640,8 @@ export function ScriptGenerator() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
-              </div>
-              <div className="space-y-2">
+                  </div>
+                  <div className="space-y-2">
                 <Label htmlFor="theme">Theme *</Label>
                 <Input
                   id="theme"
@@ -649,9 +649,9 @@ export function ScriptGenerator() {
                   value={theme}
                   onChange={(e) => setTheme(e.target.value)}
                 />
-              </div>
-            </div>
-            
+                    </div>
+                  </div>
+
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
@@ -661,7 +661,7 @@ export function ScriptGenerator() {
                 onChange={(e) => setDescription(e.target.value)}
                 className="min-h-[100px]"
               />
-            </div>
+                      </div>
 
             <Button 
               onClick={handleCreateJob}
@@ -686,7 +686,7 @@ export function ScriptGenerator() {
                   <CardTitle>{currentJob.name}</CardTitle>
                   <CardDescription>Theme: {currentJob.theme}</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                   {currentJob.sectionsGenerated && (
                     <Badge variant="secondary">{currentJob.sections.length} sections</Badge>
                   )}
@@ -696,8 +696,8 @@ export function ScriptGenerator() {
                       Generating
                     </Badge>
                   )}
+                  </div>
                 </div>
-              </div>
               {currentJob.description && (
                 <p className="text-sm text-gray-600 mt-2">
                   {currentJob.description}
@@ -709,11 +709,11 @@ export function ScriptGenerator() {
           {/* Section Configuration */}
           {!currentJob.sectionsGenerated && (
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
                   <Edit3 className="h-5 w-5" />
                   Configure Script Sections
-                </CardTitle>
+            </CardTitle>
                 <CardDescription>
                   Set target audience, tone, and style preferences
                 </CardDescription>
@@ -728,7 +728,7 @@ export function ScriptGenerator() {
                       value={targetAudience}
                       onChange={(e) => setTargetAudience(e.target.value)}
                     />
-                  </div>
+                </div>
                   <div className="space-y-2">
                     <Label htmlFor="tone">Tone</Label>
                     <Input
@@ -737,7 +737,7 @@ export function ScriptGenerator() {
                       value={tone}
                       onChange={(e) => setTone(e.target.value)}
                     />
-                  </div>
+              </div>
                   <div className="space-y-2">
                     <Label htmlFor="stylePreferences">Style Preferences</Label>
                     <Input
@@ -746,8 +746,8 @@ export function ScriptGenerator() {
                       value={stylePreferences}
                       onChange={(e) => setStylePreferences(e.target.value)}
                     />
-                  </div>
-                </div>
+            </div>
+                            </div>
 
                 <Button 
                   onClick={handleGenerateSections}
@@ -758,16 +758,16 @@ export function ScriptGenerator() {
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Generating Sections...
-                    </>
-                  ) : (
-                    <>
+                                  </>
+                                ) : (
+                                  <>
                       <Edit3 className="h-4 w-4" />
                       Generate Script Sections
-                    </>
-                  )}
+                                  </>
+                                )}
                 </Button>
-              </CardContent>
-            </Card>
+                        </CardContent>
+                      </Card>
           )}
 
           {/* Sections */}
@@ -796,7 +796,7 @@ export function ScriptGenerator() {
                 <div className="space-y-4">
                   {currentJob.sections.map((section: FineTuningSection) => (
                     <div key={section.id} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <Input
                             value={section.title}
@@ -807,32 +807,32 @@ export function ScriptGenerator() {
                             className="font-medium text-lg border-none p-0 focus:ring-0"
                             placeholder="Section title"
                           />
-                        </div>
-                        <div className="flex items-center gap-2">
+                      </div>
+                      <div className="flex items-center gap-2">
                           {section.texts && section.texts.length > 0 && (
-                            <Button
+                                <Button
                               onClick={() => copyScript(section.texts[0].generated_script)}
-                              variant="outline"
-                              size="sm"
-                            >
+                                  variant="outline"
+                                  size="sm"
+                                >
                               <Copy className="h-3 w-3" />
-                            </Button>
+                                </Button>
                           )}
-                          <Button
+                                <Button
                             onClick={() => handleGenerateScript(section)}
                             disabled={section.isGeneratingScript}
-                            size="sm"
-                          >
+                                  size="sm"
+                            >
                             {section.isGeneratingScript ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
                               <Play className="h-3 w-3" />
-                            )}
-                          </Button>
+                              )}
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <Textarea
+                        
+                                <Textarea
                         value={section.writing_instructions}
                         onChange={(e) => dispatch(updateSection({ 
                           sectionId: section.id, 
@@ -854,18 +854,18 @@ export function ScriptGenerator() {
                             handleSectionRating(section.id, rating, notes, validated)
                           }}
                         />
-                      </div>
-                      
+                    </div>
+
                       {section.texts && section.texts.length > 0 && (
                         <div className="bg-green-50 border border-green-200 rounded p-3">
                           <div className="flex items-center gap-2 mb-2">
                             <CheckCircle className="h-4 w-4 text-green-600" />
                             <span className="text-sm font-medium text-green-800">Generated Script</span>
                             <Badge variant="secondary">{section.texts.length} version(s)</Badge>
-                          </div>
+                                  </div>
                           <div className="bg-white rounded p-3 text-sm whitespace-pre-wrap border">
                             {section.texts[0].generated_script}
-                          </div>
+                                  </div>
                           <div className="mt-2 text-xs text-gray-500">
                             {section.texts[0].character_count} characters • {section.texts[0].word_count} words
                           </div>
@@ -884,14 +884,14 @@ export function ScriptGenerator() {
                                 }
                               }}
                             />
+                                </div>
+                              </div>
+                            )}
+                              </div>
+              ))}
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          </CardContent>
+        </Card>
           )}
         </>
       )}
@@ -905,8 +905,8 @@ export function ScriptGenerator() {
             <p className="text-gray-500 mb-4">
               Create a fine-tuning job to generate training data for your custom script generation model.
             </p>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
       )}
 
       {/* Unauthenticated State */}
@@ -918,13 +918,13 @@ export function ScriptGenerator() {
             <p className="text-gray-500 mb-4">
               Please log in to access the fine-tuning script generator.
             </p>
-            <Button 
+                                <Button
               onClick={() => setShowAuthForm(true)}
               className="flex items-center gap-2"
-            >
+                >
               <User className="h-4 w-4" />
               Login to Continue
-            </Button>
+                                </Button>
           </CardContent>
         </Card>
       )}

@@ -357,7 +357,7 @@ async function fallbackWhisperMethod(videoIds: string[]): Promise<SubtitleFile[]
   return (data.subtitleFiles || []).map((file: SubtitleFile) => {
     const deduplicatedSRT = deduplicateSRT(file.srtContent)
     return {
-      ...file,
+    ...file,
       method: 'whisper',
       srtContent: deduplicatedSRT,
       size: Buffer.byteLength(deduplicatedSRT, 'utf8') // Recalculate size after deduplication
