@@ -18,7 +18,7 @@ if (FAL_API_KEY) {
   });
 }
 
-type ThumbnailProvider = 'openai' | 'leonardo' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax';
+type ThumbnailProvider = 'openai' | 'leonardo' | 'leonardo-phoenix' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax';
 
 interface LeonardoGenerationResponse {
   sdGenerationJob: {
@@ -235,6 +235,70 @@ async function generateMinimaxThumbnail(prompt: string, aspectRatio: string, ref
   throw new Error('No image data received from MiniMax API');
 }
 
+// Generate thumbnail using Leonardo Phoenix
+async function generateLeonardoPhoenixThumbnail(prompt: string, width: number, height: number, contrast: number = 3.5, referenceImageId?: string, guidanceStrength?: number): Promise<{ thumbnailUrl: string; imageId: string }> {
+  const generationPayload: any = {
+    modelId: "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3", // Leonardo Phoenix 1.0 model
+    prompt: prompt,
+    contrast: contrast,
+    num_images: 1,
+    width: width,
+    height: height,
+    alchemy: true,
+    styleUUID: "111dc692-d470-4eec-b791-3475abac4c46", // Dynamic style for thumbnails
+    enhancePrompt: false, // Keep original prompt for thumbnails
+  };
+
+  // Add reference image parameters if available
+  if (referenceImageId) {
+    generationPayload.init_generation_image_id = referenceImageId;
+    generationPayload.init_strength = Math.max(0.1, Math.min(0.9, guidanceStrength || 0.5));
+    console.log(`🎨 Using reference image ID ${referenceImageId} with strength: ${generationPayload.init_strength}`);
+  }
+
+  console.log('🚀 Starting Leonardo Phoenix thumbnail generation...');
+
+  const generationResponse = await fetch(`${LEONARDO_API_URL}/generations`, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'authorization': `Bearer ${LEONARDO_API_KEY}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(generationPayload),
+  });
+
+  if (!generationResponse.ok) {
+    const errorData = await generationResponse.json();
+    console.error('Leonardo Phoenix API error (generation):', errorData);
+    throw new Error(`Leonardo Phoenix API request failed with status ${generationResponse.status}`);
+  }
+
+  const generationResult: LeonardoGenerationResponse = await generationResponse.json();
+  const generationId = generationResult.sdGenerationJob?.generationId;
+
+  if (!generationId) {
+    throw new Error('Failed to get generation ID from Leonardo Phoenix');
+  }
+
+  console.log(`🔄 Polling for Leonardo Phoenix generation completion: ${generationId}`);
+  const finalStatus = await pollForGenerationCompletion(generationId);
+
+  let errorDetail = '';
+  if (finalStatus.generations_by_pk?.status === 'FAILED') errorDetail = 'Image generation failed on Leonardo Phoenix.';
+  if (finalStatus.generations_by_pk?.status === 'CONTENT_FILTERED') errorDetail = 'Image generation was filtered by Leonardo Phoenix due to content policy.';
+
+  const imageUrl = finalStatus.generations_by_pk?.generated_images?.[0]?.url;
+  const imageId = finalStatus.generations_by_pk?.generated_images?.[0]?.id;
+
+  if (!imageUrl || !imageId) {
+    throw new Error(errorDetail || 'No image URL found in Leonardo Phoenix response');
+  }
+
+  console.log('✅ Leonardo Phoenix thumbnail generated successfully');
+  return { thumbnailUrl: imageUrl, imageId: imageId };
+}
+
 export async function POST(request: Request) {
   try {
     const { 
@@ -261,6 +325,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Leonardo API key is not configured.' }, { status: 500 });
     }
 
+    if (provider === 'leonardo-phoenix' && !LEONARDO_API_KEY) {
+      return NextResponse.json({ error: 'Leonardo API key is not configured for Phoenix model.' }, { status: 500 });
+    }
+
     if (['flux-dev', 'recraft-v3', 'stable-diffusion-v35-large'].includes(provider) && !FAL_API_KEY) {
       return NextResponse.json({ error: 'FAL API key is not configured for flux models.' }, { status: 500 });
     }
@@ -270,9 +338,9 @@ export async function POST(request: Request) {
     }
 
     // Validate reference image usage
-    if (referenceImageId && !['leonardo', 'minimax'].includes(provider)) {
+    if (referenceImageId && !['leonardo', 'leonardo-phoenix', 'minimax'].includes(provider)) {
       return NextResponse.json({ 
-        error: 'Reference images are only supported with Leonardo.ai and MiniMax providers.' 
+        error: 'Reference images are only supported with Leonardo.ai, Leonardo Phoenix, and MiniMax providers.' 
       }, { status: 400 });
     }
 
@@ -363,7 +431,6 @@ export async function POST(request: Request) {
         break;
 
       case 'leonardo':
-      default:
         // Leonardo.ai generation (original logic)
         const generationPayload: any = {
           modelId: "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3", // Leonardo Kino XL model for high quality
@@ -433,6 +500,16 @@ export async function POST(request: Request) {
         imageId = generatedImages[0].id;
         console.log('✅ Leonardo thumbnail generated successfully');
         break;
+
+      case 'leonardo-phoenix':
+        const { thumbnailUrl: leonardoPhoenixThumbnailUrl, imageId: leonardoPhoenixImageId } = await generateLeonardoPhoenixThumbnail(finalPrompt, width, height, 3.5, referenceImageId, guidanceStrength);
+        thumbnailUrl = leonardoPhoenixThumbnailUrl;
+        imageId = leonardoPhoenixImageId;
+        console.log('✅ Leonardo Phoenix thumbnail generated successfully');
+        break;
+
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
     }
 
     // Return the thumbnail URL and metadata

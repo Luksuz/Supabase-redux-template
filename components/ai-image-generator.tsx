@@ -87,6 +87,13 @@ const MODEL_INFO: Record<ImageProvider, {
     batchSize: 10,
     rateLimit: '10/min per batch',
     features: ['High quality', 'Text understanding', 'Creative interpretation', 'Base64 output']
+  },
+  'leonardo-phoenix': {
+    name: 'Leonardo Phoenix',
+    description: 'Leonardo\'s Phoenix model with enhanced contrast and quality',
+    batchSize: 10,
+    rateLimit: '6/min per batch',
+    features: ['High contrast', 'Enhanced quality', 'Style control', 'Alchemy pipeline']
   }
 }
 
@@ -320,7 +327,7 @@ export function AIImageGenerator() {
           }
 
           const data = await response.json()
-          return data.imageUrls || []
+          return data.imageUrls ? data.imageUrls : []
         } catch (error) {
           console.error(`Error generating DALL-E 3 image ${index + 1} in batch ${batchIndex + 1}:`, error)
           return []
@@ -328,6 +335,50 @@ export function AIImageGenerator() {
       })
 
       // Wait for all DALL-E 3 requests in the batch to complete
+      const results = await Promise.all(requestPromises)
+      const imageUrls = results.flat()
+
+      // Update progress for the entire batch
+      setBatchProgress(prev => ({ 
+        ...prev, 
+        current: prev.current + batchPrompts.length 
+      }))
+
+      return imageUrls
+    } else if (selectedModel === 'leonardo-phoenix') {
+      // For Leonardo Phoenix: send requests sequentially with rate limiting
+      const requestPromises = batchPrompts.map(async (prompt, index) => {
+        try {
+          const styledPrompt = applyImageStyle(prompt)
+          const response = await fetch('/api/generate-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: selectedModel,
+              prompt: styledPrompt,
+              numberOfImages: 1,
+              minimaxAspectRatio: aspectRatio,
+              userId: 'user-123'
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error(`Failed to generate Leonardo Phoenix image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+            return []
+          }
+
+          const data = await response.json()
+          return data.imageUrls ? data.imageUrls : []
+        } catch (error) {
+          console.error(`Error generating Leonardo Phoenix image ${index + 1} in batch ${batchIndex + 1}:`, error)
+          return []
+        }
+      })
+
+      // Wait for all Leonardo Phoenix requests in the batch to complete
       const results = await Promise.all(requestPromises)
       const imageUrls = results.flat()
 
@@ -364,7 +415,7 @@ export function AIImageGenerator() {
           }
 
           const data = await response.json()
-          return data.imageUrls || []
+          return data.imageUrls ? data.imageUrls : []
         } catch (error) {
           console.error(`Error generating image ${index + 1} in batch ${batchIndex + 1}:`, error)
           return []
@@ -469,6 +520,21 @@ export function AIImageGenerator() {
               
               // Show countdown for the wait time
               for (let countdown = waitTime; countdown > 0; countdown--) {
+                dispatch(updateGenerationInfo(
+                  `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
+                ))
+                await new Promise(resolve => setTimeout(resolve, 1000))
+              }
+            }
+          } else if (selectedModel === 'leonardo-phoenix') {
+            // Leonardo Phoenix needs moderate wait (30 seconds)
+            if (batchIndex < totalBatches - 1) {
+              dispatch(updateGenerationInfo(
+                `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting 30 seconds before next batch...`
+              ))
+              
+              // Show countdown for the wait time
+              for (let countdown = 30; countdown > 0; countdown--) {
                 dispatch(updateGenerationInfo(
                   `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
                 ))
@@ -1381,6 +1447,8 @@ export function AIImageGenerator() {
                     ? 'MiniMax processes images in batches of 5 with parallel execution. Please wait while all batches complete.'
                     : selectedModel === 'dalle-3'
                     ? 'DALL-E 3 processes images in batches of 10 with parallel execution. Please wait while all batches complete.'
+                    : selectedModel === 'leonardo-phoenix'
+                    ? 'Leonardo Phoenix processes images in batches of 10 with enhanced quality. Please wait while all batches complete.'
                     : `${currentModel.name} processes images in batches of 10. Please wait while all batches complete.`
                   }
                 </p>

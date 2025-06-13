@@ -7,6 +7,8 @@ import OpenAI from 'openai';
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 const FAL_API_KEY = process.env.FAL_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
+const LEONARDO_API_URL = 'https://cloud.leonardo.ai/api/rest/v1';
 
 // Initialize OpenAI client
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -45,7 +47,7 @@ const getImageDimensions = (aspectRatio: '16:9' | '1:1' | '9:16', provider: stri
     return null;
   }
 
-  // For flux models, use specific dimensions
+  // For flux models and Leonardo Phoenix, use specific dimensions
   switch (aspectRatio) {
     case '16:9':
       return { width: 1344, height: 768 };
@@ -124,6 +126,129 @@ async function generateDalleImage(prompt: string, size: '1024x1024' | '1792x1024
   return `data:image/png;base64,${response.data[0].b64_json}`;
 }
 
+// Leonardo API interfaces
+interface LeonardoGenerationResponse {
+  sdGenerationJob: {
+    generationId: string;
+    apiCreditCost?: number;
+  };
+}
+
+interface LeonardoImage {
+  id: string;
+  url: string;
+  nsfw: boolean;
+  likeCount: number;
+  motionMP4URL?: string | null;
+  prompt_id?: string;
+}
+
+interface LeonardoGenerationStatus {
+  generations_by_pk: {
+    generated_images: LeonardoImage[];
+    modelId: string;
+    prompt: string;
+    status: 'PENDING' | 'COMPLETE' | 'FAILED' | 'CONTENT_FILTERED';
+    id?: string;
+  } | null;
+}
+
+// Poll for Leonardo generation completion
+async function pollForGenerationCompletion(generationId: string): Promise<LeonardoGenerationStatus> {
+  let attempts = 0;
+  const maxAttempts = 20; // Poll for up to 100 seconds (20 * 5s)
+  const pollInterval = 5000; // 5 seconds
+
+  while (attempts < maxAttempts) {
+    try {
+      const response = await fetch(`${LEONARDO_API_URL}/generations/${generationId}`, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'authorization': `Bearer ${LEONARDO_API_KEY}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Leonardo API error while polling:', errorData);
+        throw new Error(`Leonardo API error while polling: ${response.statusText}`);
+      }
+
+      const data: LeonardoGenerationStatus = await response.json();
+
+      if (data.generations_by_pk && (data.generations_by_pk.status === 'COMPLETE' || data.generations_by_pk.status === 'FAILED' || data.generations_by_pk.status === 'CONTENT_FILTERED')) {
+        return data;
+      }
+      
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    } catch (error) {
+      console.error('Polling error:', error);
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      if (attempts >= maxAttempts) throw error;
+    }
+  }
+  throw new Error('Image generation timed out or polling failed.');
+}
+
+// Generate image using Leonardo Phoenix
+async function generateLeonardoPhoenixImage(prompt: string, width: number, height: number, contrast: number = 3.5): Promise<string> {
+  const generationPayload = {
+    modelId: "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3", // Leonardo Phoenix 1.0 model
+    prompt: prompt,
+    contrast: contrast,
+    num_images: 1,
+    width: width,
+    height: height,
+    alchemy: true,
+    styleUUID: "111dc692-d470-4eec-b791-3475abac4c46", // Dynamic style
+    enhancePrompt: false,
+  };
+
+  console.log('🚀 Starting Leonardo Phoenix image generation...');
+
+  const generationResponse = await fetch(`${LEONARDO_API_URL}/generations`, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'authorization': `Bearer ${LEONARDO_API_KEY}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(generationPayload),
+  });
+
+  if (!generationResponse.ok) {
+    const errorData = await generationResponse.json();
+    console.error('Leonardo Phoenix API error (generation):', errorData);
+    throw new Error(`Leonardo Phoenix API request failed with status ${generationResponse.status}`);
+  }
+
+  const generationResult: LeonardoGenerationResponse = await generationResponse.json();
+  const generationId = generationResult.sdGenerationJob?.generationId;
+
+  if (!generationId) {
+    throw new Error('Failed to get generation ID from Leonardo Phoenix');
+  }
+
+  console.log(`🔄 Polling for Leonardo Phoenix generation completion: ${generationId}`);
+  const finalStatus = await pollForGenerationCompletion(generationId);
+
+  let errorDetail = '';
+  if (finalStatus.generations_by_pk?.status === 'FAILED') errorDetail = 'Image generation failed on Leonardo Phoenix.';
+  if (finalStatus.generations_by_pk?.status === 'CONTENT_FILTERED') errorDetail = 'Image generation was filtered by Leonardo Phoenix due to content policy.';
+
+  const imageUrl = finalStatus.generations_by_pk?.generated_images?.[0]?.url;
+
+  if (!imageUrl) {
+    throw new Error(errorDetail || 'No image URL found in Leonardo Phoenix response');
+  }
+
+  console.log('✅ Leonardo Phoenix image generated successfully');
+  return imageUrl;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateImageRequestBody;
@@ -180,6 +305,10 @@ export async function POST(request: NextRequest) {
 
     if (provider === 'dalle-3' && !OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OpenAI API key is not configured for DALL-E 3.' }, { status: 500 });
+    }
+
+    if (provider === 'leonardo-phoenix' && !LEONARDO_API_KEY) {
+      return NextResponse.json({ error: 'Leonardo API key is not configured for Phoenix model.' }, { status: 500 });
     }
 
     const imageUrls: string[] = [];
@@ -300,6 +429,33 @@ export async function POST(request: NextRequest) {
       imageUrls.push(...validImageUrls);
       
       console.log(`✅ DALL-E 3 batch complete: ${validImageUrls.length}/${numberOfImages} images generated successfully`);
+    } else if (provider === 'leonardo-phoenix') {
+      // Leonardo Phoenix generation
+      console.log(`Generating ${numberOfImages} image(s) with Leonardo Phoenix...`);
+      
+      const dimensions = getImageDimensions(minimaxAspectRatio, 'leonardo-phoenix');
+      if (!dimensions) {
+        throw new Error('Invalid dimensions for Leonardo Phoenix');
+      }
+
+      // Generate images sequentially for Leonardo Phoenix (rate limiting)
+      for (let i = 0; i < numberOfImages; i++) {
+        console.log(`Generating Leonardo Phoenix image ${i + 1} of ${numberOfImages}...`);
+        
+        try {
+          const imageUrl = await generateLeonardoPhoenixImage(finalPrompt, dimensions.width, dimensions.height, 3.5);
+          imageUrls.push(imageUrl);
+          console.log(`✅ Successfully generated Leonardo Phoenix image ${i + 1}`);
+        } catch (error) {
+          console.error(`❌ Error generating Leonardo Phoenix image ${i + 1}:`, error);
+        }
+        
+        // Rate limiting: Wait 10 seconds between requests
+        if (i < numberOfImages - 1) {
+          console.log('Waiting 10 seconds for Leonardo Phoenix rate limiting...');
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+      }
     } else {
       // Flux models using fal.ai
       console.log(`Generating ${numberOfImages} image(s) with ${provider}...`);
@@ -358,5 +514,8 @@ if (process.env.NODE_ENV !== 'test') {
   }
   if (!OPENAI_API_KEY) {
     console.warn("Warning: OPENAI_API_KEY environment variable is not set. DALL-E 3 image generation will fail.");
+  }
+  if (!LEONARDO_API_KEY) {
+    console.warn("Warning: LEONARDO_API_KEY environment variable is not set. Leonardo Phoenix image generation will fail.");
   }
 } 

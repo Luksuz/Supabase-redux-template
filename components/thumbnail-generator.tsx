@@ -45,7 +45,7 @@ export function ThumbnailGenerator() {
   const [prompt, setPrompt] = useState('')
   const [selectedReferenceId, setSelectedReferenceId] = useState<string>('')
   const [guidanceStrength, setGuidanceStrength] = useState(0.5)
-  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'leonardo' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax'>('openai')
+  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'leonardo' | 'leonardo-phoenix' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax'>('openai')
   const [stylePrefix, setStylePrefix] = useState<string>('')
   const [customStylePrefix, setCustomStylePrefix] = useState('')
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1' | '9:16' | '4:3'>('16:9')
@@ -260,6 +260,7 @@ export function ThumbnailGenerator() {
               <SelectContent>
                 <SelectItem value="openai">OpenAI DALL-E 3 (Recommended)</SelectItem>
                 <SelectItem value="leonardo">Leonardo.ai</SelectItem>
+                <SelectItem value="leonardo-phoenix">Leonardo Phoenix</SelectItem>
                 <SelectItem value="flux-dev">Flux Dev</SelectItem>
                 <SelectItem value="recraft-v3">Recraft V3</SelectItem>
                 <SelectItem value="stable-diffusion-v35-large">Stable Diffusion 3.5 Large</SelectItem>
@@ -361,6 +362,15 @@ export function ThumbnailGenerator() {
                 </div>
               )}
               
+              {selectedProvider === 'leonardo-phoenix' && (
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <p className="text-sm text-purple-800 font-medium">Leonardo Phoenix: Style Reference</p>
+                  <p className="text-xs text-purple-600 mt-1">
+                    Use previous thumbnails to guide the style and composition with enhanced contrast and quality.
+                  </p>
+                </div>
+              )}
+              
               {selectedProvider === 'minimax' && (
                 <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
                   <p className="text-sm text-purple-800 font-medium">MiniMax: Character Reference</p>
@@ -370,17 +380,17 @@ export function ThumbnailGenerator() {
                 </div>
               )}
 
-              {!['leonardo', 'minimax'].includes(selectedProvider) && (
+              {!['leonardo', 'leonardo-phoenix', 'minimax'].includes(selectedProvider) && (
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                   <p className="text-sm text-gray-600">
                     Reference images are not supported with {selectedProvider.toUpperCase()}. 
-                    Switch to Leonardo.ai (style reference) or MiniMax (character reference) to use this feature.
+                    Switch to Leonardo.ai, Leonardo Phoenix (style reference) or MiniMax (character reference) to use this feature.
                   </p>
                 </div>
               )}
 
-              {/* Reference image selection for Leonardo */}
-              {selectedProvider === 'leonardo' && thumbnails.length > 0 && (
+              {/* Reference image selection for Leonardo and Leonardo Phoenix */}
+              {(selectedProvider === 'leonardo' || selectedProvider === 'leonardo-phoenix') && thumbnails.length > 0 && (
                 <div className="space-y-3">
                   <Select 
                     value={selectedReferenceId || 'none'} 
@@ -472,8 +482,8 @@ export function ThumbnailGenerator() {
                 </div>
               )}
 
-              {/* Empty state for Leonardo when no thumbnails */}
-              {selectedProvider === 'leonardo' && thumbnails.length === 0 && (
+              {/* Empty state for Leonardo and Leonardo Phoenix when no thumbnails */}
+              {(selectedProvider === 'leonardo' || selectedProvider === 'leonardo-phoenix') && thumbnails.length === 0 && (
                 <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
                   <ImageIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600">Generate your first thumbnail to use as style reference</p>
@@ -485,8 +495,8 @@ export function ThumbnailGenerator() {
             </div>
           </div>
 
-          {/* Guidance Strength Slider - Only for Leonardo */}
-          {selectedReferenceId && selectedProvider === 'leonardo' && (
+          {/* Guidance Strength Slider - For Leonardo and Leonardo Phoenix */}
+          {selectedReferenceId && (selectedProvider === 'leonardo' || selectedProvider === 'leonardo-phoenix') && (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label>Reference Image Strength</Label>
@@ -520,7 +530,7 @@ export function ThumbnailGenerator() {
                   <p className="text-sm font-medium text-blue-800">Generated Prompt Preview</p>
                   <p className="text-sm text-blue-700">"{generateFinalPrompt()}"</p>
                   <div className="flex items-center gap-2 mt-2">
-                    {selectedReferenceId && selectedProvider === 'leonardo' && (
+                    {selectedReferenceId && (selectedProvider === 'leonardo' || selectedProvider === 'leonardo-phoenix') && (
                       <Badge variant="outline" className="text-xs">
                         Style Reference: {Math.round(guidanceStrength * 100)}% strength
                       </Badge>
