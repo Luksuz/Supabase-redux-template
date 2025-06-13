@@ -84,7 +84,31 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     description: 'Fast and cost-effective Claude model',
     maxTokens: 200000,
     costTier: 'low'
-  }
+  },
+  {
+    id: 'claude-3-7-sonnet-20250219',
+    name: 'Claude 3.7 Sonnet',
+    provider: 'anthropic',
+    description: 'Balanced Claude model for most tasks',
+    maxTokens: 200000,
+    costTier: 'medium'
+  },
+  {
+    id: 'claude-opus-4-20250514',
+    name: 'Claude Opus 4',
+    provider: 'anthropic',
+    description: 'Balanced Claude model for most tasks',
+    maxTokens: 200000,
+    costTier: 'high'
+  },
+  {
+    id: 'claude-sonnet-4-20250514',
+    name: 'Claude Sonnet 4',
+    provider: 'anthropic',
+    description: 'Balanced Claude model for most tasks',
+    maxTokens: 200000,
+    costTier: 'high'
+  },
 ]
 
 export const DEFAULT_MODEL_ID = 'gpt-4o-mini'

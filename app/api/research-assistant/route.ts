@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     console.log('🤖 Analyzing search results with AI...');
     
     // Initialize the model using the factory
+    console.log('🤖 Initializing model...', selectedModel);
     const model = createModelInstance(selectedModel || 'gpt-4o-mini', 0.7);
 
     // Create a parser based on our Zod schema

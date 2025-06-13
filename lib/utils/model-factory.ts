@@ -4,6 +4,7 @@ import { getModelById } from "../../types/models";
 
 export function createModelInstance(modelId: string, temperature: number = 0.7) {
   const modelConfig = getModelById(modelId);
+  console.log('🤖 Model config:', modelConfig);
   
   if (!modelConfig) {
     throw new Error(`Unknown model ID: ${modelId}`);
