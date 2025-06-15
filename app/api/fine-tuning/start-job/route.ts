@@ -78,10 +78,13 @@ export async function POST(request: NextRequest) {
     const { data: session, error: sessionError } = await supabase
       .from('fine_tuning_sessions')
       .insert({
-        file_id: fileId,
+        user_id: user.id,
+        openai_file_id: fileId,
+        openai_job_id: openaiData.id,
         model: model,
         status: openaiData.status,
-        job_id: openaiData.id
+        openai_created_at: new Date(openaiData.created_at * 1000).toISOString(),
+        openai_response: openaiData
       })
       .select()
       .single()

@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       stylePreferences,
       promptId, // New parameter for using stored prompts
       customPrompt: customPromptParam, // New parameter for edited prompt content
+      model: requestedModel, // Add support for custom model
       // Legacy parameter names for backward compatibility
       sectionTitle, 
       projectTheme, 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
       // Otherwise, if promptId is provided, fetch the stored prompt
       console.log(`Fetching stored prompt with ID: ${promptId}`)
       const { data: storedPrompt, error } = await supabase
-        .from('prompts')
+        .from('fine_tuning_prompts')
         .select('*')
         .eq('id', promptId)
         .single()
@@ -74,7 +75,8 @@ export async function POST(request: NextRequest) {
       tone,
       stylePreferences,
       additionalContext,
-      usingStoredPrompt: !!finalPrompt
+      usingStoredPrompt: !!finalPrompt,
+      model: requestedModel
     })
 
     if (!finalTitle || !finalInstructions) {
@@ -108,6 +110,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🚀 Generating full script for section: ${finalTitle}`)
+
+    // Determine which model to use
+    const modelToUse = requestedModel || "gpt-4.1-mini";
+    console.log(`Using model: ${modelToUse}`);
 
     try {
       // Use custom prompt if provided, otherwise use the default style guide
@@ -177,7 +183,7 @@ Write the script now:`
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: modelToUse,
         messages: [
           {
             role: "system",

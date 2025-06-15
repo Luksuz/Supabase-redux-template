@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { FileText, ChevronRight, Youtube, Settings, Database } from 'lucide-react'
+import { FileText, ChevronRight, Youtube, Settings, Database, Activity, Volume2, Briefcase } from 'lucide-react'
 
-type NavigationView = 'youtube-search' | 'script-generator' | 'prompt-manager' | 'fine-tuning-export'
+type NavigationView = 'youtube-search' | 'script-generator' | 'prompt-manager' | 'fine-tuning-export' | 'fine-tuning-sessions' | 'audio-generation' | 'jobs-manager'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -14,7 +14,7 @@ interface SidebarNavigationProps {
 }
 
 export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigationProps) {
-  const { currentJob } = useAppSelector(state => state.scripts)
+  const { currentJob, audioGeneration } = useAppSelector(state => state.scripts)
 
   const navigationItems = [
     {
@@ -32,7 +32,16 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       icon: FileText,
       description: 'Generate structured scripts',
       hasData: !!currentJob,
-      dataCount: currentJob?.sections.filter(s => s.texts.length > 0).length || 0,
+      dataCount: currentJob?.sections.filter(s => s.texts && s.texts.length > 0).length || 0,
+      disabled: false
+    },
+    {
+      id: 'audio-generation' as NavigationView,
+      label: 'Audio Generation',
+      icon: Volume2,
+      description: 'Convert any text or scripts to audio using ElevenLabs TTS',
+      hasData: audioGeneration.sectionAudioStates.some(s => s.result?.success),
+      dataCount: audioGeneration.sectionAudioStates.filter(s => s.result?.success).length,
       disabled: false
     },
     {
@@ -49,6 +58,24 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       label: 'Fine-Tuning Export',
       icon: Database,
       description: 'Export training data in JSONL format for OpenAI fine-tuning',
+      hasData: false,
+      dataCount: 0,
+      disabled: false
+    },
+    {
+      id: 'fine-tuning-sessions' as NavigationView,
+      label: 'Fine-Tuning Sessions',
+      icon: Activity,
+      description: 'Monitor and manage your OpenAI fine-tuning jobs',
+      hasData: false,
+      dataCount: 0,
+      disabled: false
+    },
+    {
+      id: 'jobs-manager' as NavigationView,
+      label: 'Jobs Manager',
+      icon: Briefcase,
+      description: 'View and edit all fine-tuning jobs and their sections',
       hasData: false,
       dataCount: 0,
       disabled: false
@@ -132,7 +159,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                   <div className="flex justify-between">
                     <span>Scripts generated:</span>
                     <span className="font-medium text-green-600">
-                      {currentJob.sections.filter(s => s.texts.length > 0).length}
+                      {currentJob.sections.filter(s => s.texts && s.texts.length > 0).length}
                     </span>
                   </div>
                   {currentJob.sections.some(s => s.isGeneratingScript) && (

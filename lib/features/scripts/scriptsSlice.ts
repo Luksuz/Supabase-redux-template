@@ -21,6 +21,34 @@ export interface FineTuningText {
   created_at: string
 }
 
+export interface Voice {
+  id: string
+  name: string
+  category?: string
+  preview_url?: string
+}
+
+export interface AudioGenerationResult {
+  success: boolean
+  audioData?: string
+  audioSize?: number
+  chunksGenerated?: number
+  totalChunks?: number
+  errors?: string[]
+  voiceId?: string
+  modelId?: string
+  mock?: boolean
+  message?: string
+}
+
+export interface SectionAudioState {
+  sectionId: string
+  isGenerating: boolean
+  result: AudioGenerationResult | null
+  audioUrl: string | null
+  error: string | null
+}
+
 export interface FineTuningSection {
   id: string
   title: string
@@ -69,6 +97,16 @@ interface ScriptsState {
   promptsLoading: boolean
   promptContentLoading: boolean
   mergingData: boolean
+  // Audio generation state
+  audioGeneration: {
+    voices: Voice[]
+    selectedVoice: string
+    selectedModel: string
+    loadingVoices: boolean
+    sectionAudioStates: SectionAudioState[]
+    isPlaying: boolean
+    currentPlayingSection: string | null
+  }
 }
 
 const initialState: ScriptsState = {
@@ -83,7 +121,17 @@ const initialState: ScriptsState = {
   showPromptEditor: false,
   promptsLoading: false,
   promptContentLoading: false,
-  mergingData: false
+  mergingData: false,
+  // Audio generation state
+  audioGeneration: {
+    voices: [],
+    selectedVoice: '',
+    selectedModel: 'eleven_multilingual_v2',
+    loadingVoices: false,
+    sectionAudioStates: [],
+    isPlaying: false,
+    currentPlayingSection: null
+  }
 }
 
 export const scriptsSlice = createSlice({
@@ -307,7 +355,83 @@ export const scriptsSlice = createSlice({
 
     setMergingData: (state, action: PayloadAction<boolean>) => {
       state.mergingData = action.payload
-    }
+    },
+
+    // Audio generation reducers
+    setVoices: (state, action: PayloadAction<Voice[]>) => {
+      state.audioGeneration.voices = action.payload
+      if (action.payload.length > 0 && !state.audioGeneration.selectedVoice) {
+        state.audioGeneration.selectedVoice = action.payload[0].id
+      }
+    },
+
+    setLoadingVoices: (state, action: PayloadAction<boolean>) => {
+      state.audioGeneration.loadingVoices = action.payload
+    },
+
+    setSelectedVoice: (state, action: PayloadAction<string>) => {
+      state.audioGeneration.selectedVoice = action.payload
+    },
+
+    setSelectedAudioModel: (state, action: PayloadAction<string>) => {
+      state.audioGeneration.selectedModel = action.payload
+    },
+
+    startAudioGeneration: (state, action: PayloadAction<string>) => {
+      const sectionId = action.payload
+      const existingState = state.audioGeneration.sectionAudioStates.find(s => s.sectionId === sectionId)
+      
+      if (existingState) {
+        existingState.isGenerating = true
+        existingState.error = null
+        existingState.result = null
+        existingState.audioUrl = null
+      } else {
+        state.audioGeneration.sectionAudioStates.push({
+          sectionId,
+          isGenerating: true,
+          result: null,
+          audioUrl: null,
+          error: null
+        })
+      }
+    },
+
+    setAudioGenerationResult: (state, action: PayloadAction<{ sectionId: string; result: AudioGenerationResult }>) => {
+      const { sectionId, result } = action.payload
+      const sectionState = state.audioGeneration.sectionAudioStates.find(s => s.sectionId === sectionId)
+      
+      if (sectionState) {
+        sectionState.isGenerating = false
+        sectionState.result = result
+        sectionState.error = null
+      }
+    },
+
+    setAudioGenerationError: (state, action: PayloadAction<{ sectionId: string; error: string }>) => {
+      const { sectionId, error } = action.payload
+      const sectionState = state.audioGeneration.sectionAudioStates.find(s => s.sectionId === sectionId)
+      
+      if (sectionState) {
+        sectionState.isGenerating = false
+        sectionState.error = error
+        sectionState.result = null
+      }
+    },
+
+    setAudioUrl: (state, action: PayloadAction<{ sectionId: string; audioUrl: string | null }>) => {
+      const { sectionId, audioUrl } = action.payload
+      const sectionState = state.audioGeneration.sectionAudioStates.find(s => s.sectionId === sectionId)
+      
+      if (sectionState) {
+        sectionState.audioUrl = audioUrl
+      }
+    },
+
+    setAudioPlaying: (state, action: PayloadAction<{ sectionId: string | null; isPlaying: boolean }>) => {
+      state.audioGeneration.isPlaying = action.payload.isPlaying
+      state.audioGeneration.currentPlayingSection = action.payload.sectionId
+    },
   }
 })
 
@@ -336,10 +460,19 @@ export const {
   updatePromptInList,
   addPromptToList,
   removePromptFromList,
-  setMergingData
+  setMergingData,
+  setVoices,
+  setLoadingVoices,
+  setSelectedVoice,
+  setSelectedAudioModel,
+  startAudioGeneration,
+  setAudioGenerationResult,
+  setAudioGenerationError,
+  setAudioUrl,
+  setAudioPlaying
 } = scriptsSlice.actions
 
-export default scriptsSlice.reducer
+export default scriptsSlice.reducer 
 
 // Async thunks for prompt operations
 export const fetchPromptsThunk = () => async (dispatch: any) => {
@@ -462,5 +595,86 @@ export const mergeYouTubeDataWithPromptThunk = (youtubeData: any[], theme?: stri
     return { success: false, error: 'Failed to merge data with prompt' }
   } finally {
     dispatch(setMergingData(false))
+  }
+}
+
+// Audio generation thunks
+export const loadVoicesThunk = () => async (dispatch: any) => {
+  dispatch(setLoadingVoices(true))
+  
+  try {
+    const response = await fetch('/api/elevenlabs/voices')
+    const data = await response.json()
+
+    if (response.ok && data.voices) {
+      dispatch(setVoices(data.voices))
+      return { success: true, voices: data.voices }
+    } else {
+      throw new Error(data.error || 'Failed to load voices')
+    }
+  } catch (error: any) {
+    console.error('Error loading voices:', error)
+    return { success: false, error: error.message }
+  } finally {
+    dispatch(setLoadingVoices(false))
+  }
+}
+
+export const generateAudioThunk = (params: {
+  sectionId: string
+  text: string
+  voiceId: string
+  modelId: string
+}) => async (dispatch: any) => {
+  const { sectionId, text, voiceId, modelId } = params
+  
+  dispatch(startAudioGeneration(sectionId))
+  
+  try {
+    const response = await fetch('/api/elevenlabs/generate-audio', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        voiceId,
+        modelId,
+        sectionId
+      })
+    })
+
+    const result = await response.json()
+
+    if (response.ok && result.success) {
+      dispatch(setAudioGenerationResult({ sectionId, result }))
+      
+      // Create audio URL if we have audio data
+      if (result.audioData) {
+        try {
+          const binaryString = atob(result.audioData)
+          const bytes = new Uint8Array(binaryString.length)
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i)
+          }
+          const blob = new Blob([bytes], { type: 'audio/mpeg' })
+          const url = URL.createObjectURL(blob)
+          dispatch(setAudioUrl({ sectionId, audioUrl: url }))
+        } catch (error) {
+          console.error('Error creating audio URL:', error)
+          dispatch(setAudioGenerationError({ sectionId, error: 'Error processing audio data' }))
+        }
+      }
+      
+      return { success: true, result }
+    } else {
+      const errorMessage = result.error || 'Failed to generate audio'
+      dispatch(setAudioGenerationError({ sectionId, error: errorMessage }))
+      return { success: false, error: errorMessage }
+    }
+  } catch (error: any) {
+    const errorMessage = error.message || 'Failed to generate audio'
+    dispatch(setAudioGenerationError({ sectionId, error: errorMessage }))
+    return { success: false, error: errorMessage }
   }
 } 

@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       style_preferences,
       promptId,
       customPrompt: customPromptParam,
+      model: requestedModel,
     } = requestBody;
 
     console.log("Extracted values:", {
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       style_preferences,
       promptId,
       customPrompt: customPromptParam ? `${customPromptParam.substring(0, 100)}...` : null,
+      model: requestedModel,
     });
 
     if (!theme) {
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
       // Otherwise, if promptId is provided, fetch the stored prompt
       console.log(`Fetching stored prompt with ID: ${promptId}`)
       const { data: storedPrompt, error } = await supabase
-        .from('prompts')
+        .from('fine_tuning_prompts')
         .select('*')
         .eq('id', promptId)
         .single()
@@ -103,6 +105,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🚀 Generating script sections for theme: ${theme}`);
+
+    // Determine which model to use
+    const modelToUse = requestedModel || "gpt-4.1-mini";
+    console.log(`Using model: ${modelToUse}`);
 
     try {
       const prompt = finalPrompt || `CRIME DYNASTY SCRIPTWRITING STYLE GUIDE:
@@ -168,7 +174,7 @@ Return the response in the exact JSON format specified.`;
       console.log("Prompt preview:", prompt.substring(0, 200) + "...");
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: modelToUse,
         messages: [
           {
             role: "system",

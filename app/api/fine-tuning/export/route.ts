@@ -90,15 +90,80 @@ export async function GET(request: NextRequest) {
 
     console.log('Generated training examples:', trainingData.length)
 
-    // Convert to JSONL format (one JSON object per line)
-    const jsonlContent = trainingData.map(example => JSON.stringify(example)).join('\n')
+    // Sort texts by creation time for consistent splits across endpoints
+    const sortedTexts = trainingData.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     
-    // Return as downloadable file
-    const headers = new Headers()
-    headers.set('Content-Type', 'application/jsonl')
-    headers.set('Content-Disposition', 'attachment; filename="fine_tuning_data.jsonl"')
+    // Calculate split indices for 80/20 split
+    const totalCount = sortedTexts.length
+    const trainEndIndex = Math.floor(totalCount * 0.8)
     
-    return new Response(jsonlContent, { headers })
+    // Get only training set (80%)
+    const trainingTexts = sortedTexts.slice(0, trainEndIndex)
+
+    console.log(`Split summary: Total=${totalCount}, Training=${trainingTexts.length}, Validation=${totalCount - trainEndIndex}`)
+
+    // Convert to JSONL format
+    const jsonlLines = trainingTexts.map(text => {
+      const section = text.fine_tuning_outline_sections
+      const job = section.fine_tuning_jobs
+
+      return JSON.stringify({
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud."
+          },
+          {
+            role: "user", 
+            content: `Write a complete script section based on the following specifications:
+
+PROJECT CONTEXT:
+- Overall Theme: ${job.theme}
+- Project Name: ${job.name}
+
+SECTION DETAILS:
+- Section Title: ${section.title}
+- Writing Instructions: ${section.writing_instructions}
+
+REQUIREMENTS:
+- Write a complete and detailed script for this specific section
+- Follow the writing instructions precisely
+- Make it engaging, professional, and ready for production use
+- Use natural, conversational language appropriate for voiceover
+- Include proper pacing and flow
+- Do not include stage directions or formatting - just the pure script content`
+          },
+          {
+            role: "assistant",
+            content: text.generated_script
+          }
+        ],
+        metadata: {
+          split: "training",
+          job_id: job.id,
+          job_name: job.name,
+          section_id: section.id,
+          section_title: section.title,
+          text_id: text.id,
+          quality_score: text.quality_score || 5,
+          is_validated: text.is_validated || false,
+          character_count: text.character_count || 0,
+          word_count: text.word_count || 0
+        }
+      })
+    })
+
+    const jsonlContent = jsonlLines.join('\n')
+
+    console.log(`Generated training JSONL with ${trainingTexts.length} examples (80% of ${totalCount} total)`)
+
+    return new NextResponse(jsonlContent, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/jsonl',
+        'Content-Disposition': 'attachment; filename="script_generation_training.jsonl"'
+      }
+    })
 
   } catch (error) {
     console.error('Unexpected error in export GET:', error)
@@ -212,14 +277,28 @@ export async function POST(request: NextRequest) {
 
     console.log(`Generated ${totalTexts} training examples`)
 
+    // Sort by creation time for consistent splits across endpoints
+    const sortedData = trainingData.sort((a, b) => a.metadata.text_id.localeCompare(b.metadata.text_id))
+    
+    // Calculate split indices for 80/20 split
+    const totalCount = sortedData.length
+    const trainEndIndex = Math.floor(totalCount * 0.8)
+    
+    // Get only training set (80%)
+    const trainingSet = sortedData.slice(0, trainEndIndex)
+
+    console.log(`Split summary: Total=${totalCount}, Training=${trainingSet.length}, Validation=${totalCount - trainEndIndex}`)
+
     return NextResponse.json({
       success: true,
-      totalTexts,
-      trainingData,
+      totalTexts: trainingSet.length,
+      trainingData: trainingSet,
       summary: {
         totalJobs: jobs?.length || 0,
         totalSections: jobs?.reduce((acc: number, job: any) => acc + (job.fine_tuning_outline_sections?.length || 0), 0) || 0,
-        totalTexts
+        totalTexts: totalCount,
+        trainingTexts: trainingSet.length,
+        split: "training (80%)"
       }
     })
 

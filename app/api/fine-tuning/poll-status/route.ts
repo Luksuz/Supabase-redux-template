@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase
         .from('fine_tuning_sessions')
         .select('*')
-        .eq('job_id', openaiJobId)
+        .eq('openai_job_id', openaiJobId)
         .single()
 
       if (error || !data) {
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     console.log(`Polling status for OpenAI job ${session.job_id}`)
 
     // Poll OpenAI for job status
-    const openaiResponse = await fetch(`https://api.openai.com/v1/fine_tuning/jobs/${session.job_id}`, {
+    const openaiResponse = await fetch(`https://api.openai.com/v1/fine_tuning/jobs/${session.openai_job_id}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`

@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ChatOpenAI } from '@langchain/openai'
 import { z } from 'zod'
 
-// Zod schema for structured output
-const TranscriptAnalysisSchema = z.object({
+// Zod schema for individual timestamp result
+const TimestampResultSchema = z.object({
   timestamp: z.string().describe("Timestamp in SRT format (HH:MM:SS,mmm) where the relevant content starts"),
   summary: z.string().describe("Summary of the relevant transcript section"),
   relevantContent: z.string().describe("The actual transcript content that matches the query"),
   confidence: z.number().min(0).max(1).describe("Confidence score of the match (0-1)")
+})
+
+// Zod schema for structured output with up to 3 results
+const TranscriptAnalysisSchema = z.object({
+  results: z.array(TimestampResultSchema).min(1).max(3).describe("Up to 3 most relevant timestamp results, ordered by relevance")
 })
 
 interface AnalyzeTranscriptRequest {
@@ -88,11 +93,12 @@ export async function POST(request: NextRequest) {
 
       const prompt = `You are an expert transcript analyzer. I will provide you with an SRT subtitle file and a specific query. Your task is to:
 
-1. Find the most relevant section in the transcript that matches the user's query
-2. Extract the precise timestamp where that relevant content starts
-3. Provide a concise summary of what's discussed starting from that timestamp
-4. Include the actual relevant transcript content
-5. Rate your confidence in the match
+1. Find up to 3 most relevant sections in the transcript that match the user's query
+2. Extract the precise timestamp where each relevant content starts
+3. Provide a concise summary of what's discussed starting from each timestamp
+4. Include the actual relevant transcript content for each result
+5. Rate your confidence in each match
+6. Order results by relevance (most relevant first)
 
 Video Title: ${videoTitle}
 User Query: "${query}"
@@ -103,11 +109,14 @@ ${srtContent}
 Instructions:
 - Look for content that directly relates to the user's query
 - If the query mentions specific phrases, prioritize exact or near-exact matches
-- If it's a topical query, find where that topic is most thoroughly discussed
-- Provide the timestamp where the relevant discussion begins
-- The summary should be concise but informative (2-3 sentences)
+- If it's a topical query, find where that topic is discussed throughout the video
+- Provide up to 3 different timestamps where relevant discussion occurs
+- Each result should represent a distinct section or moment in the video
+- Avoid duplicate or overlapping content - each result should be meaningfully different
+- The summary for each should be concise but informative (2-3 sentences)
 - Confidence should be high (0.8+) for exact matches, lower for topical matches
-- Return only the timestamp where the content starts (not an end timestamp)
+- Return only the timestamp where each content starts (not end timestamps)
+- Order results from most relevant to least relevant
 
 Return only the structured data without any additional text or formatting.`
 
@@ -124,23 +133,24 @@ Return only the structured data without any additional text or formatting.`
       // Validate the structured output with our schema
       const validatedAnalysis = TranscriptAnalysisSchema.parse(structuredOutput)
       
-      // Add YouTube URL if videoId is provided
-      const result: any = {
-        ...validatedAnalysis
-      }
-      
+      // Add YouTube URLs if videoId is provided
+      const results = validatedAnalysis.results.map(result => {
+        const enhancedResult: any = { ...result }
       if (videoId) {
-        result.youtubeUrl = generateYouTubeUrl(videoId, validatedAnalysis.timestamp)
-        console.log('Generated YouTube URL:', result.youtubeUrl)
+          enhancedResult.youtubeUrl = generateYouTubeUrl(videoId, result.timestamp)
       }
+        return enhancedResult
+      })
       
       console.log(`✅ Analysis completed for query: "${query}"`)
-      console.log('Timestamp:', validatedAnalysis.timestamp)
-      console.log('Confidence:', validatedAnalysis.confidence)
+      console.log(`Found ${results.length} relevant timestamps`)
+      results.forEach((result, index) => {
+        console.log(`Result ${index + 1}: ${result.timestamp} (confidence: ${result.confidence})`)
+      })
       
       return NextResponse.json({
         success: true,
-        analysis: result,
+        analysis: results, // Return array of results instead of single result
         usingMock: false
       })
 
@@ -181,45 +191,50 @@ Return only the structured data without any additional text or formatting.`
   }
 }
 
-// Mock analysis generator for testing and fallback
+// Mock analysis generator for testing and fallback - now returns up to 3 results
 function generateMockAnalysis(query: string, srtContent: string, videoId?: string) {
   console.log('Generating mock analysis for query:', query)
   
-  // Extract first timestamp entry for mock data
+  // Extract multiple timestamp entries for mock data
   const lines = srtContent.split('\n')
-  let timestamp = "00:00:05,000"
+  const timestamps: string[] = []
   
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = 0; i < lines.length && timestamps.length < 3; i++) {
     const line = lines[i].trim()
     if (line.includes(' --> ')) {
       const [start] = line.split(' --> ')
-      timestamp = start
-      break
+      timestamps.push(start)
     }
   }
+  
+  // Ensure we have at least one timestamp
+  if (timestamps.length === 0) {
+    timestamps.push("00:00:05,000")
+  }
 
-  // Create contextual mock based on query
-  let mockContent = `This is a mock analysis for "${query}". `
-  let confidence = 0.75
+  // Create contextual mock results based on query
+  const mockResults = timestamps.map((timestamp, index) => {
+    let mockContent = `This is mock analysis result ${index + 1} for "${query}". `
+    let confidence = 0.75 - (index * 0.1) // Decreasing confidence for subsequent results
   
   if (query.toLowerCase().includes('time') || query.toLowerCase().includes('when')) {
-    mockContent += "The speaker discusses timing and scheduling in this segment."
-    confidence = 0.8
+      mockContent += `The speaker discusses timing and scheduling in this segment (part ${index + 1}).`
+      confidence = 0.8 - (index * 0.1)
   } else if (query.toLowerCase().includes('how')) {
-    mockContent += "The speaker explains the process and methodology."
-    confidence = 0.85
+      mockContent += `The speaker explains the process and methodology (aspect ${index + 1}).`
+      confidence = 0.85 - (index * 0.1)
   } else if (query.toLowerCase().includes('what')) {
-    mockContent += "The speaker defines and describes the concept."
-    confidence = 0.9
+      mockContent += `The speaker defines and describes the concept (definition ${index + 1}).`
+      confidence = 0.9 - (index * 0.1)
   } else {
-    mockContent += "The speaker covers the topic mentioned in your query."
+      mockContent += `The speaker covers the topic mentioned in your query (section ${index + 1}).`
   }
 
   const result: any = {
     timestamp: timestamp,
-    summary: `Mock summary: ${mockContent} This is simulated content for demonstration purposes.`,
+      summary: `Mock summary ${index + 1}: ${mockContent} This is simulated content for demonstration purposes.`,
     relevantContent: `"${mockContent} [Mock transcript content would appear here]"`,
-    confidence: confidence
+      confidence: Math.max(confidence, 0.5) // Ensure minimum confidence of 0.5
   }
 
   // Add YouTube URL if videoId is provided
@@ -228,6 +243,9 @@ function generateMockAnalysis(query: string, srtContent: string, videoId?: strin
   }
 
   return result
+  })
+
+  return mockResults
 }
 
 export async function GET(request: NextRequest) {

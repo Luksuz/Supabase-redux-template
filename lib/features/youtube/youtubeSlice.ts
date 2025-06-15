@@ -34,11 +34,11 @@ export interface TranscriptAnalysis {
   youtubeUrl?: string
 }
 
-// Analysis Result interface
+// Analysis Result interface - updated to handle multiple results
 export interface AnalysisResult {
   videoId: string
   query: string
-  analysis: TranscriptAnalysis
+  analysis: TranscriptAnalysis[] // Changed from single TranscriptAnalysis to array
   timestamp: string
   usingMock?: boolean
 }
@@ -72,6 +72,35 @@ export interface VideosSummary {
   conflictElements: string[]
   storyIdeas: string[]
   creativePrompt: string
+}
+
+// Research Summary interfaces
+export interface WebSearchResult {
+  title: string
+  link: string
+  description: string
+  source?: string
+}
+
+export interface GoogleResearchSummary {
+  id: string
+  query: string
+  context?: string
+  webResults: WebSearchResult[]
+  insights: string
+  keyFindings: string[]
+  recommendations: string[]
+  sources: string[]
+  timestamp: string
+  usingMock?: boolean
+}
+
+export interface YouTubeResearchSummary {
+  id: string
+  query: string
+  videosSummary: VideosSummary
+  timestamp: string
+  usingMock?: boolean
 }
 
 // SRT Entry interface for deduplication
@@ -233,6 +262,10 @@ interface YouTubeState {
   videosSummary: VideosSummary | null
   summarizingVideos: boolean
   
+  // Research summaries
+  googleResearchSummaries: GoogleResearchSummary[]
+  youtubeResearchSummaries: YouTubeResearchSummary[]
+  
   // Loading and error states
   searchLoading: boolean
   error: string | null
@@ -267,6 +300,10 @@ const initialState: YouTubeState = {
   // Video summarization
   videosSummary: null,
   summarizingVideos: false,
+  
+  // Research summaries
+  googleResearchSummaries: [],
+  youtubeResearchSummaries: [],
   
   // Loading and error states
   searchLoading: false,
@@ -484,12 +521,66 @@ export const analyzeTranscript = createAsyncThunk(
       throw new Error(data.error || 'An error occurred while analyzing transcript')
     }
 
+    // data.analysis is now an array of results
     return {
       videoId: params.videoId,
       query: params.query,
-      analysis: data.analysis,
+      analysis: data.analysis, // This is now an array
       timestamp: new Date().toISOString(),
       usingMock: data.usingMock
+    }
+  }
+)
+
+// Async thunk for Google research
+export const performGoogleResearch = createAsyncThunk(
+  'youtube/performGoogleResearch',
+  async ({ query, context, maxResults = 30 }: { query: string; context?: string; maxResults?: number }) => {
+    console.log(`🔍 Performing Google research for: "${query}"`)
+
+    // Step 1: Search the web
+    const webResponse = await fetch('/api/research/web-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        query,
+        context,
+        maxResults 
+      })
+    })
+    
+    const webData = await webResponse.json()
+    if (!webData.success) {
+      throw new Error(webData.error || 'Failed to search web')
+    }
+
+    // Step 2: Generate Google-only research summary
+    const summaryResponse = await fetch('/api/research/generate-google-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        context,
+        webResults: webData.results
+      })
+    })
+
+    const summaryData = await summaryResponse.json()
+    if (!summaryData.success) {
+      throw new Error(summaryData.error || 'Failed to generate research summary')
+    }
+
+    return {
+      id: `google-${Date.now()}`,
+      query,
+      context,
+      webResults: webData.results,
+      insights: summaryData.insights,
+      keyFindings: summaryData.keyFindings,
+      recommendations: summaryData.recommendations,
+      sources: summaryData.sources || [],
+      timestamp: new Date().toISOString(),
+      usingMock: summaryData.usingMock
     }
   }
 )
@@ -537,7 +628,15 @@ export const summarizeVideos = createAsyncThunk(
     return {
       summary: data.summary,
       usingMock: data.usingMock,
-      videoCount: videosWithSubtitles.length
+      videoCount: videosWithSubtitles.length,
+      // Create research summary data
+      researchSummary: {
+        id: `youtube-${Date.now()}`,
+        query: `YouTube video analysis (${videosWithSubtitles.length} videos)`,
+        videosSummary: data.summary,
+        timestamp: new Date().toISOString(),
+        usingMock: data.usingMock
+      }
     }
   }
 )
@@ -632,6 +731,32 @@ export const youtubeSlice = createSlice({
     // Video summarization actions
     clearVideosSummary: (state) => {
       state.videosSummary = null
+    },
+    
+    // Research summary actions
+    addGoogleResearchSummary: (state, action: PayloadAction<GoogleResearchSummary>) => {
+      state.googleResearchSummaries.push(action.payload)
+    },
+    
+    addYouTubeResearchSummary: (state, action: PayloadAction<YouTubeResearchSummary>) => {
+      state.youtubeResearchSummaries.push(action.payload)
+    },
+    
+    removeGoogleResearchSummary: (state, action: PayloadAction<string>) => {
+      state.googleResearchSummaries = state.googleResearchSummaries.filter(
+        summary => summary.id !== action.payload
+      )
+    },
+    
+    removeYouTubeResearchSummary: (state, action: PayloadAction<string>) => {
+      state.youtubeResearchSummaries = state.youtubeResearchSummaries.filter(
+        summary => summary.id !== action.payload
+      )
+    },
+    
+    clearAllResearchSummaries: (state) => {
+      state.googleResearchSummaries = []
+      state.youtubeResearchSummaries = []
     },
     
     // Preview modal actions
@@ -750,11 +875,26 @@ export const youtubeSlice = createSlice({
       .addCase(summarizeVideos.fulfilled, (state, action) => {
         state.summarizingVideos = false
         state.videosSummary = action.payload.summary
+        // Add to YouTube research summaries
+        state.youtubeResearchSummaries.push(action.payload.researchSummary)
         state.error = null
       })
       .addCase(summarizeVideos.rejected, (state, action) => {
         state.summarizingVideos = false
         state.error = action.error.message || 'Network error occurred while summarizing videos'
+      })
+    
+    // Google research
+    builder
+      .addCase(performGoogleResearch.pending, (state) => {
+        state.error = null
+      })
+      .addCase(performGoogleResearch.fulfilled, (state, action) => {
+        state.googleResearchSummaries.push(action.payload)
+        state.error = null
+      })
+      .addCase(performGoogleResearch.rejected, (state, action) => {
+        state.error = action.error.message || 'Network error occurred while performing Google research'
       })
   },
 })
@@ -781,6 +921,11 @@ export const {
   resetSubtitleFiles,
   resetAnalysisResults,
   resetAll,
+  addGoogleResearchSummary,
+  addYouTubeResearchSummary,
+  removeGoogleResearchSummary,
+  removeYouTubeResearchSummary,
+  clearAllResearchSummaries,
 } = youtubeSlice.actions
 
 // Export reducer
@@ -822,4 +967,9 @@ export const selectError = (state: { youtube: YouTubeState }) => state.youtube.e
 export const selectVideoSummarization = (state: { youtube: YouTubeState }) => ({
   videosSummary: state.youtube.videosSummary,
   summarizingVideos: state.youtube.summarizingVideos,
+})
+
+export const selectResearchSummaries = (state: { youtube: YouTubeState }) => ({
+  googleResearchSummaries: state.youtube.googleResearchSummaries,
+  youtubeResearchSummaries: state.youtube.youtubeResearchSummaries,
 }) 
