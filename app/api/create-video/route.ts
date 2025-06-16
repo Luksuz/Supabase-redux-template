@@ -163,12 +163,8 @@ export async function POST(request: NextRequest) {
     // Create Shotstack output configuration with custom size and low quality
     const output = {
       format: outputFormat,
-      size: {
-        width: 1280,
-        height: 720
-      },
       fps: 25,
-      quality: "low",
+      quality: quality === "sd" ? "low" : "high",
       aspectRatio: "16:9" // Note: 1080x720 is actually 3:2 ratio, but keeping 16:9 for compatibility
     };
 
