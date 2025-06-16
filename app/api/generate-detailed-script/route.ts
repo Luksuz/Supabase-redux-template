@@ -138,7 +138,7 @@ WRITING INSTRUCTIONS: ${section.writingInstructions}
 
 ${contextInstructions}
 
-OVERALL STYLE TO MAINTAIN:
+STYLE GUIDE TO FOLLOW:
 ${styleContent}
 
 ${themeInstructions}
@@ -156,20 +156,30 @@ Include specific facts, examples, or insights from the research where relevant t
 
 ${ctaInstructions}
 
-FORMATTING REQUIREMENTS:
-- Write ONLY the script content for this section
-- Do NOT include stage directions, titles, or meta-commentary
-- Do NOT use transition phrases like "[TRANSITION TO CTA]", "[PAUSE]", "[EMPHASIS]" etc.
+CRITICAL WRITING REQUIREMENTS:
+- Write ONLY the script content for this section - no stage directions, titles, or meta-commentary
+- Create content that sounds natural and authentic when spoken aloud
+- Use specific examples, case studies, or relatable scenarios to illustrate your points
+- Vary your sentence structure and length to create natural rhythm
+- Build your argument through logical progression, not repetitive shock tactics
+- Include genuine insights that provide real value to the audience
+- Avoid repetitive catchphrases or formulaic language patterns
 - If including CTAs, make them **bold** for visual emphasis but integrate them naturally
-- Use "you" and "your" to address the viewer directly
+- Use "you" and "your" to address the viewer directly, but balance with "we" for inclusivity
 - Build on previous sections naturally (this is section ${index + 1} of ${sections.length})
-- Use strong, declarative sentences and rhetorical questions
-- Include specific examples and analogies where appropriate
 ${emotionalTone ? `- Maintain the ${emotionalTone} emotional tone throughout` : ''}
 ${targetAudience ? `- Speak directly to ${targetAudience} with relevant examples and language` : ''}
 
 INTRODUCTION SECTION SPECIAL REQUIREMENT:
 ${index === 0 ? 'This is the introduction section - keep it to 160 words maximum while still being engaging and hook-focused.' : ''}
+
+QUALITY STANDARDS:
+- Provide specific, verifiable information when making claims
+- Explain not just what happens, but why it happens and how it works
+- Connect individual experiences to larger patterns or principles
+- Include actionable insights or practical applications
+- Maintain respect for your audience's intelligence throughout
+- Create content that educates, engages, and empowers rather than manipulates
 
 ${forbiddenWords ? `IMPORTANT: Do not use any of these forbidden words: ${forbiddenWords}` : ''}
 
@@ -190,7 +200,19 @@ Write the script content now:`;
             messages: [
               {
                 role: "system",
-                content: "You are an expert script writer specializing in persuasive, direct, and revelatory content that awakens awareness in viewers."
+                content: `You are a professional script writer who creates compelling, authentic content that sounds natural when spoken aloud. Your writing style is:
+
+AUTHENTIC & ENGAGING: Write like an intelligent, passionate expert sharing fascinating insights with a friend. Avoid artificial "YouTube voice" or overly dramatic declarations.
+
+NATURAL FLOW: Use conversational language that flows naturally when spoken. Vary sentence length and structure. Include specific examples and relatable scenarios.
+
+DEPTH & SUBSTANCE: Provide genuine value through well-researched information, specific examples, and actionable insights. Explain not just what happens, but why it happens.
+
+RESPECTFUL INTELLIGENCE: Respect your audience's intelligence. Build complexity gradually. Address different perspectives naturally.
+
+AVOID: Repetitive catchphrases, overly dramatic declarations like "Your life is a lie," vague accusations without evidence, generic advice, or leaving audiences feeling hopeless.
+
+Your goal is to inform, engage, and inspire through authentic communication, not to manipulate through shock tactics.`
               },
               {
                 role: "user",

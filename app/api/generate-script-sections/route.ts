@@ -337,7 +337,7 @@ ${parser.getFormatInstructions()}`;
       }
 
       // Create the batch prompt
-      const batchPrompt = `You are an expert script writer creating a compelling, persuasive video script. Based on the provided title and style guide, create ${batchSize} sections (sections ${startSection + 1} to ${endSection}) for a ${wordCount}-word script.
+      const batchPrompt = `You are a professional script writer creating compelling, authentic video content. Based on the provided title and style guide, create ${batchSize} sections (sections ${startSection + 1} to ${endSection}) for a ${wordCount}-word script.
 
 TITLE: "${title}"
 CURRENT BATCH: Sections ${startSection + 1} to ${endSection} of ${numSections} total sections
@@ -383,32 +383,51 @@ ${getCTAInstructions(ctaItem.type)}${ctaItem.type === 'custom' && ctaItem.conten
 - All other sections should focus purely on content delivery without any CTAs.
 ` : ''}
 
+CRITICAL WRITING REQUIREMENTS:
+Create sections that sound natural and authentic when spoken aloud. Each section should:
+- Provide genuine value through well-researched information and specific examples
+- Use conversational language that flows naturally when spoken
+- Build arguments through logical progression, not repetitive shock tactics
+- Include specific, verifiable information when making claims
+- Avoid repetitive catchphrases or formulaic language patterns
+- Respect the audience's intelligence and build complexity gradually
+- Connect individual experiences to larger patterns or principles
+
 SECTION DETAIL REQUIREMENTS:
-Each section must be highly detailed and comprehensive. The writing instructions should specify:
-- Exact emotional tone and psychological triggers to use
+Each section must be comprehensive and valuable. The writing instructions should specify:
+- Clear emotional tone and authentic engagement strategies
 - Specific key points, facts, or insights to cover (use research data when available)
-- Rhetorical devices and persuasion techniques to employ
+- Natural rhetorical devices and persuasion techniques
 - How this section connects to and builds upon previous sections
-- Transition strategies to maintain narrative flow
-- Specific examples, analogies, or metaphors to include
-- Target word count and pacing guidelines
-- Any special formatting or emphasis requirements
+- Smooth transition strategies to maintain narrative flow
+- Specific examples, analogies, or relatable scenarios to include
+- Target word count and natural pacing guidelines
+- Any special emphasis or delivery requirements
 
 For each section, provide:
-1. A compelling, descriptive title that captures the essence and emotional hook of that part of the script
-2. Extremely detailed writing instructions (minimum 100 words per section) that specify:
-   - The exact emotional journey the viewer should experience
+1. A compelling, descriptive title that captures the essence and value of that part of the script
+2. Detailed writing instructions (minimum 100 words per section) that specify:
+   - The authentic emotional journey the viewer should experience
    - Specific content points to cover with supporting details from research
-   - Rhetorical techniques and persuasion strategies to use
+   - Natural rhetorical techniques and engagement strategies to use
    - How this section fits into the overall narrative arc and connects to other sections
-   - Transition elements to maintain smooth flow
+   - Smooth transition elements to maintain natural flow
    - Any special emphasis, pacing, or delivery notes
 3. A detailed visual prompt for image generation that describes the scene, mood, lighting, composition, and visual elements that would complement this section (avoid controversial or taboo topics)
 
-The sections should build upon each other to create a cohesive, persuasive narrative that follows the style guide's tone. Each section should be approximately ${avgWordsPerSection} words and packed with value for the viewer.
+The sections should build upon each other to create a cohesive, engaging narrative that follows the style guide while maintaining authenticity. Each section should be approximately ${avgWordsPerSection} words and packed with genuine value for the viewer.
 
 INTRODUCTION SECTION REQUIREMENT:
 If this batch includes the first section (introduction), ensure it is limited to 160 words maximum to avoid being too lengthy while still being engaging and hook-focused.
+
+QUALITY STANDARDS:
+- Provide specific, verifiable information when making claims
+- Explain not just what happens, but why it happens and how it works
+- Include actionable insights or practical applications
+- Maintain respect for your audience's intelligence throughout
+- Create content that educates, engages, and empowers rather than manipulates
+- Avoid overly dramatic declarations that sound artificial
+- Focus on building trust through transparency and valuable insights
 
 ${forbiddenWords ? `IMPORTANT: Avoid using any of these forbidden words: ${forbiddenWords}` : ''}
 

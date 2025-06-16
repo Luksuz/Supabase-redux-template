@@ -309,10 +309,10 @@ export function ScriptGenerator() {
               <span className="font-medium text-purple-800">Intimate Philosophical Narrative Style</span>
             </div>
             <div className="text-sm text-purple-700 space-y-2">
-              <p><strong>Key Features:</strong> Conversational yet profound, second-person address, metaphors and analogies, stream of consciousness flow</p>
+              <p><strong>Key Features:</strong> Conversational wisdom, gentle authority, thoughtful pacing, emotional intelligence</p>
               <p><strong>Best For:</strong> Self-help content, philosophical discussions, psychological insights, personal development</p>
               <div className="mt-3 p-3 bg-white border border-purple-100 rounded text-xs italic">
-                <strong>Example:</strong> "have you ever noticed how some people hold power over others without ever saying a word they don't chase they don't explain they just disappear and suddenly everyone scrambles to get close again..."
+                <strong>Example:</strong> "Have you ever noticed how some of your strongest beliefs about success came from people who never achieved what you're trying to build? It's not their fault—we all inherit ideas from our environment. But recognizing this pattern is the first step toward thinking for yourself."
               </div>
             </div>
           </div>
@@ -325,10 +325,10 @@ export function ScriptGenerator() {
               <span className="font-medium text-orange-800">Breaking Free Persuasive Style</span>
             </div>
             <div className="text-sm text-orange-700 space-y-2">
-              <p><strong>Key Features:</strong> Direct tone, rhetorical questions, builds momentum, challenges beliefs, creates urgency</p>
-              <p><strong>Best For:</strong> Persuasive content, paradigm shift topics, awakening/awareness content, motivational speeches</p>
+              <p><strong>Key Features:</strong> Confident revelation, controlled intensity, evidence-based persuasion, empowering direction</p>
+              <p><strong>Best For:</strong> Challenging conventional thinking, paradigm shift topics, awareness content, empowerment</p>
               <div className="mt-3 p-3 bg-white border border-orange-100 rounded text-xs italic">
-                <strong>Example:</strong> "Your life is a lie. From the moment you could walk, they've been programming your mind, and you didn't stand a chance..."
+                <strong>Example:</strong> "Think about the last time you made a major life decision. How many of the factors you considered—what success looks like, what others would think, what's 'realistic'—actually came from your own experience versus what you absorbed from family, media, and culture? Most of us are living by rules we never consciously chose."
               </div>
             </div>
           </div>
@@ -748,95 +748,104 @@ export function ScriptGenerator() {
       // If no uploaded style but a selected style, use predefined style content
       if (!styleToUse && sectionedWorkflow.selectedStyle) {
         if (sectionedWorkflow.selectedStyle === 'intimate-philosophical') {
-          styleToUse = `STYLE GUIDE: INTIMATE PHILOSOPHICAL NARRATIVE
+          styleToUse = `INTIMATE PHILOSOPHICAL NARRATIVE - ADVANCED STYLE GUIDE
 
-1. WRITING STYLE CHARACTERISTICS
-- Conversational yet profound tone
-- Short, impactful sentences mixed with longer flowing ones
-- Direct second-person address ("you")
-- Heavy use of metaphors and analogies
-- Repetitive reinforcement of key ideas
-- Stream of consciousness flow
-- Minimal punctuation, creating a poetic rhythm
-- Building intensity through layered ideas
+CORE WRITING PHILOSOPHY:
+Write as if you're having a deep, meaningful conversation with someone you care about. Your goal is to guide them toward profound insights through gentle revelation, not forceful persuasion. Think of yourself as a wise friend who sees patterns others miss.
 
-2. EMOTIONAL TONE
-- Empathetic understanding
-- Gentle confrontation
-- Wisdom-sharing perspective
-- Therapeutic guidance
-- Intimate connection with reader
-- Non-judgmental observation
-- Emotional resonance
+VOICE & TONE PRINCIPLES:
+- Conversational wisdom: Speak like someone who has lived, learned, and wants to share insights
+- Gentle authority: Confident without being preachy, knowing without being condescending  
+- Intimate connection: Write as if speaking to one person, not a crowd
+- Thoughtful pacing: Allow ideas to breathe and develop naturally
+- Emotional intelligence: Acknowledge the complexity of human experience
 
-3. WRITING TECHNIQUES
-- Start with a hook that presents a common observation
-- Build through related concepts
-- Use psychological principles (Jung references)
-- Create emotional peaks and valleys
-- Employ strategic pauses
-- Layer metaphors with practical examples
-- End sections with powerful, standalone statements
+STRUCTURAL APPROACH:
+- Begin with relatable observations that most people recognize but haven't deeply considered
+- Layer insights progressively, building from simple to profound
+- Use personal examples and universal experiences as bridges to deeper concepts
+- Create "aha moments" through careful revelation rather than shock
+- End sections with insights that linger and invite reflection
 
-4. STRUCTURAL PATTERNS
-- Circular narrative structure
-- Repetition of key phrases
-- Progressive build-up of concepts
-- Alternating between abstract and concrete examples
-- Strategic line breaks for emphasis
-- Parallel sentence structures
-- Call-back references
+LANGUAGE PATTERNS:
+- Favor flowing, natural sentences over choppy declarations
+- Use "you" to create intimacy, but balance with "we" to show shared humanity
+- Employ metaphors that illuminate rather than confuse
+- Ask questions that genuinely invite reflection, not just rhetorical effect
+- Vary sentence length and rhythm to create natural speech patterns
 
-5. EXEMPLAR TEXT CHUNK:
-"have you ever noticed how some people hold power over others without ever saying a word they don't chase they don't explain they just disappear and suddenly everyone scrambles to get close again it's not magic it's the power of pulling back and most people never learn how to use it to their advantage"
+CONTENT DEPTH:
+- Draw from psychology, philosophy, and human nature without being academic
+- Include specific, relatable examples that readers can connect to their own lives
+- Explore the "why" behind behaviors and patterns, not just the "what"
+- Address both the problem and the path forward with equal care
+- Weave in hope and possibility alongside difficult truths
 
-This style works best for:
-- Self-help content
-- Philosophical discussions
-- Psychological insights
-- Personal development topics
-- Emotional healing narratives`
+WHAT TO AVOID:
+- Repetitive catchphrases or formulaic language
+- Overly dramatic declarations that sound artificial
+- Preaching or talking down to the reader
+- Generic self-help clichés
+- Forcing profundity where simplicity would serve better
+
+EXAMPLE APPROACH:
+Instead of: "Your life is a lie and they've been programming you"
+Try: "Have you ever noticed how some of your strongest beliefs about success came from people who never achieved what you're trying to build? It's not their fault—we all inherit ideas from our environment. But recognizing this pattern is the first step toward thinking for yourself."
+
+This style works best for content that helps people understand themselves, their relationships, and their place in the world through gentle insight rather than dramatic revelation.`
         } else if (sectionedWorkflow.selectedStyle === 'breaking-free') {
-          styleToUse = `STYLE GUIDE: "Breaking Free" Persuasive Monologue Format
+          styleToUse = `BREAKING FREE PERSUASIVE STYLE - ADVANCED GUIDE
 
-1. WRITING STYLE CHARACTERISTICS
-- Direct, conversational tone using "you" frequently
-- Short, punchy sentences mixed with longer explanatory ones
-- Heavy use of rhetorical questions
-- Builds momentum through layered revelations
-- Uses parallel structure (Example: "They don't want... They want...")
-- Employs call-and-response patterns
-- Transitions between concepts using personal examples
+CORE WRITING PHILOSOPHY:
+Write with the urgency of someone who has discovered something important and feels compelled to share it. Your goal is to awaken awareness through compelling evidence and logical progression, not through repetitive shock tactics.
 
-2. EMOTIONAL APPROACH
-- Creates urgency and awakening
-- Builds trust through shared experiences
-- Uses controlled outrage and revelation
-- Empowers through knowledge
-- Validates audience feelings
-- Maintains an "us vs. them" narrative
-- Alternates between problem and solution
+VOICE & TONE PRINCIPLES:
+- Confident revelation: Speak with the authority of someone who has done the research
+- Controlled intensity: Passionate but not frantic, urgent but not panicked
+- Respectful challenge: Question beliefs without attacking the person holding them
+- Evidence-based persuasion: Build cases through examples and logic, not just assertions
+- Empowering direction: Always point toward solutions and personal agency
 
-3. TECHNICAL INSTRUCTIONS
-- Start with a hook that challenges beliefs
-- Present evidence through relatable examples
-- Use transitional phrases to build momentum
-- Include personal validation statements
-- Create emotional peaks and valleys
-- End sections with calls to action
-- Maintain consistent enemy (the system)
+STRUCTURAL APPROACH:
+- Open with a compelling observation or question that challenges conventional thinking
+- Present evidence through varied examples and logical progression
+- Build momentum through layered revelations, each more significant than the last
+- Address counterarguments and common objections naturally
+- Conclude with clear, actionable insights that empower the reader
 
-4. STRUCTURAL PATTERNS
-- Problem > Explanation > Impact > Solution
-- Personal example > Broader implication
-- Question > Answer > Deeper revelation
-- Statement > Supporting evidence > Call to action
-- Regular use of tricolon (groups of three)
+LANGUAGE PATTERNS:
+- Use direct, clear language that cuts through confusion
+- Employ rhetorical questions strategically, not constantly
+- Vary your evidence sources: personal examples, historical patterns, current events
+- Create natural transitions between ideas without forced drama
+- Balance "you" statements with broader observations about society and systems
 
-5. SAMPLE EXEMPLAR CHUNK:
-"Your life is a lie. From the moment you could walk, they've been programming your mind, and you didn't stand a chance. You were open, trusting, curious, and they knew it. They stepped in before you could think for yourself, feeding you ideas about what to dream, what to fear, and even who you should be. And your parents, they couldn't stop it. They didn't even see it because they were victims too, caught in the same system designed to shape and control you."
+CONTENT DEPTH:
+- Focus on patterns and systems rather than individual villains
+- Provide specific, verifiable examples that readers can investigate themselves
+- Explain the "how" and "why" behind the patterns you're revealing
+- Connect individual experiences to larger systemic issues
+- Offer practical steps for breaking free from limiting patterns
 
-This style is particularly effective for persuasive content aimed at creating paradigm shifts in thinking and encouraging action through awareness.`
+PERSUASION TECHNIQUES:
+- Start with points most people can agree with, then build toward more challenging ideas
+- Use analogies that make complex systems understandable
+- Acknowledge the difficulty of change while emphasizing its possibility
+- Validate the reader's experiences and frustrations
+- Present alternative perspectives as empowering choices, not just criticisms
+
+WHAT TO AVOID:
+- Overusing dramatic phrases like "Your life is a lie" or "The truth they don't want you to know"
+- Repetitive enemy language that becomes predictable
+- Vague accusations without specific examples
+- Conspiracy thinking that lacks nuance
+- Leaving readers feeling hopeless or powerless
+
+EXAMPLE APPROACH:
+Instead of: "Your life is a lie. They've been programming your mind since birth."
+Try: "Think about the last time you made a major life decision. How many of the factors you considered—what success looks like, what others would think, what's 'realistic'—actually came from your own experience versus what you absorbed from family, media, and culture? Most of us are living by rules we never consciously chose."
+
+This style works best for content that challenges conventional thinking while providing clear paths toward greater personal freedom and authentic choice.`
         }
       }
 
@@ -907,95 +916,104 @@ This style is particularly effective for persuasive content aimed at creating pa
       // If no uploaded style but a selected style, use predefined style content
       if (!styleToUse && sectionedWorkflow.selectedStyle) {
         if (sectionedWorkflow.selectedStyle === 'intimate-philosophical') {
-          styleToUse = `STYLE GUIDE: INTIMATE PHILOSOPHICAL NARRATIVE
+          styleToUse = `INTIMATE PHILOSOPHICAL NARRATIVE - ADVANCED STYLE GUIDE
 
-1. WRITING STYLE CHARACTERISTICS
-- Conversational yet profound tone
-- Short, impactful sentences mixed with longer flowing ones
-- Direct second-person address ("you")
-- Heavy use of metaphors and analogies
-- Repetitive reinforcement of key ideas
-- Stream of consciousness flow
-- Minimal punctuation, creating a poetic rhythm
-- Building intensity through layered ideas
+CORE WRITING PHILOSOPHY:
+Write as if you're having a deep, meaningful conversation with someone you care about. Your goal is to guide them toward profound insights through gentle revelation, not forceful persuasion. Think of yourself as a wise friend who sees patterns others miss.
 
-2. EMOTIONAL TONE
-- Empathetic understanding
-- Gentle confrontation
-- Wisdom-sharing perspective
-- Therapeutic guidance
-- Intimate connection with reader
-- Non-judgmental observation
-- Emotional resonance
+VOICE & TONE PRINCIPLES:
+- Conversational wisdom: Speak like someone who has lived, learned, and wants to share insights
+- Gentle authority: Confident without being preachy, knowing without being condescending  
+- Intimate connection: Write as if speaking to one person, not a crowd
+- Thoughtful pacing: Allow ideas to breathe and develop naturally
+- Emotional intelligence: Acknowledge the complexity of human experience
 
-3. WRITING TECHNIQUES
-- Start with a hook that presents a common observation
-- Build through related concepts
-- Use psychological principles (Jung references)
-- Create emotional peaks and valleys
-- Employ strategic pauses
-- Layer metaphors with practical examples
-- End sections with powerful, standalone statements
+STRUCTURAL APPROACH:
+- Begin with relatable observations that most people recognize but haven't deeply considered
+- Layer insights progressively, building from simple to profound
+- Use personal examples and universal experiences as bridges to deeper concepts
+- Create "aha moments" through careful revelation rather than shock
+- End sections with insights that linger and invite reflection
 
-4. STRUCTURAL PATTERNS
-- Circular narrative structure
-- Repetition of key phrases
-- Progressive build-up of concepts
-- Alternating between abstract and concrete examples
-- Strategic line breaks for emphasis
-- Parallel sentence structures
-- Call-back references
+LANGUAGE PATTERNS:
+- Favor flowing, natural sentences over choppy declarations
+- Use "you" to create intimacy, but balance with "we" to show shared humanity
+- Employ metaphors that illuminate rather than confuse
+- Ask questions that genuinely invite reflection, not just rhetorical effect
+- Vary sentence length and rhythm to create natural speech patterns
 
-5. EXEMPLAR TEXT CHUNK:
-"have you ever noticed how some people hold power over others without ever saying a word they don't chase they don't explain they just disappear and suddenly everyone scrambles to get close again it's not magic it's the power of pulling back and most people never learn how to use it to their advantage"
+CONTENT DEPTH:
+- Draw from psychology, philosophy, and human nature without being academic
+- Include specific, relatable examples that readers can connect to their own lives
+- Explore the "why" behind behaviors and patterns, not just the "what"
+- Address both the problem and the path forward with equal care
+- Weave in hope and possibility alongside difficult truths
 
-This style works best for:
-- Self-help content
-- Philosophical discussions
-- Psychological insights
-- Personal development topics
-- Emotional healing narratives`
+WHAT TO AVOID:
+- Repetitive catchphrases or formulaic language
+- Overly dramatic declarations that sound artificial
+- Preaching or talking down to the reader
+- Generic self-help clichés
+- Forcing profundity where simplicity would serve better
+
+EXAMPLE APPROACH:
+Instead of: "Your life is a lie and they've been programming you"
+Try: "Have you ever noticed how some of your strongest beliefs about success came from people who never achieved what you're trying to build? It's not their fault—we all inherit ideas from our environment. But recognizing this pattern is the first step toward thinking for yourself."
+
+This style works best for content that helps people understand themselves, their relationships, and their place in the world through gentle insight rather than dramatic revelation.`
         } else if (sectionedWorkflow.selectedStyle === 'breaking-free') {
-          styleToUse = `STYLE GUIDE: "Breaking Free" Persuasive Monologue Format
+          styleToUse = `BREAKING FREE PERSUASIVE STYLE - ADVANCED GUIDE
 
-1. WRITING STYLE CHARACTERISTICS
-- Direct, conversational tone using "you" frequently
-- Short, punchy sentences mixed with longer explanatory ones
-- Heavy use of rhetorical questions
-- Builds momentum through layered revelations
-- Uses parallel structure (Example: "They don't want... They want...")
-- Employs call-and-response patterns
-- Transitions between concepts using personal examples
+CORE WRITING PHILOSOPHY:
+Write with the urgency of someone who has discovered something important and feels compelled to share it. Your goal is to awaken awareness through compelling evidence and logical progression, not through repetitive shock tactics.
 
-2. EMOTIONAL APPROACH
-- Creates urgency and awakening
-- Builds trust through shared experiences
-- Uses controlled outrage and revelation
-- Empowers through knowledge
-- Validates audience feelings
-- Maintains an "us vs. them" narrative
-- Alternates between problem and solution
+VOICE & TONE PRINCIPLES:
+- Confident revelation: Speak with the authority of someone who has done the research
+- Controlled intensity: Passionate but not frantic, urgent but not panicked
+- Respectful challenge: Question beliefs without attacking the person holding them
+- Evidence-based persuasion: Build cases through examples and logic, not just assertions
+- Empowering direction: Always point toward solutions and personal agency
 
-3. TECHNICAL INSTRUCTIONS
-- Start with a hook that challenges beliefs
-- Present evidence through relatable examples
-- Use transitional phrases to build momentum
-- Include personal validation statements
-- Create emotional peaks and valleys
-- End sections with calls to action
-- Maintain consistent enemy (the system)
+STRUCTURAL APPROACH:
+- Open with a compelling observation or question that challenges conventional thinking
+- Present evidence through varied examples and logical progression
+- Build momentum through layered revelations, each more significant than the last
+- Address counterarguments and common objections naturally
+- Conclude with clear, actionable insights that empower the reader
 
-4. STRUCTURAL PATTERNS
-- Problem > Explanation > Impact > Solution
-- Personal example > Broader implication
-- Question > Answer > Deeper revelation
-- Statement > Supporting evidence > Call to action
-- Regular use of tricolon (groups of three)
+LANGUAGE PATTERNS:
+- Use direct, clear language that cuts through confusion
+- Employ rhetorical questions strategically, not constantly
+- Vary your evidence sources: personal examples, historical patterns, current events
+- Create natural transitions between ideas without forced drama
+- Balance "you" statements with broader observations about society and systems
 
-5. SAMPLE EXEMPLAR CHUNK:
-"Your life is a lie. From the moment you could walk, they've been programming your mind, and you didn't stand a chance. You were open, trusting, curious, and they knew it. They stepped in before you could think for yourself, feeding you ideas about what to dream, what to fear, and even who you should be. And your parents, they couldn't stop it. They didn't even see it because they were victims too, caught in the same system designed to shape and control you."
+CONTENT DEPTH:
+- Focus on patterns and systems rather than individual villains
+- Provide specific, verifiable examples that readers can investigate themselves
+- Explain the "how" and "why" behind the patterns you're revealing
+- Connect individual experiences to larger systemic issues
+- Offer practical steps for breaking free from limiting patterns
 
-This style is particularly effective for persuasive content aimed at creating paradigm shifts in thinking and encouraging action through awareness.`
+PERSUASION TECHNIQUES:
+- Start with points most people can agree with, then build toward more challenging ideas
+- Use analogies that make complex systems understandable
+- Acknowledge the difficulty of change while emphasizing its possibility
+- Validate the reader's experiences and frustrations
+- Present alternative perspectives as empowering choices, not just criticisms
+
+WHAT TO AVOID:
+- Overusing dramatic phrases like "Your life is a lie" or "The truth they don't want you to know"
+- Repetitive enemy language that becomes predictable
+- Vague accusations without specific examples
+- Conspiracy thinking that lacks nuance
+- Leaving readers feeling hopeless or powerless
+
+EXAMPLE APPROACH:
+Instead of: "Your life is a lie. They've been programming your mind since birth."
+Try: "Think about the last time you made a major life decision. How many of the factors you considered—what success looks like, what others would think, what's 'realistic'—actually came from your own experience versus what you absorbed from family, media, and culture? Most of us are living by rules we never consciously chose."
+
+This style works best for content that challenges conventional thinking while providing clear paths toward greater personal freedom and authentic choice.`
         }
       }
 
@@ -1056,102 +1074,111 @@ This style is particularly effective for persuasive content aimed at creating pa
     const handleGenerateOutline = async (method: string) => {
       if (!sectionedWorkflow.videoTitle.trim()) {
         showMessage('Please enter a video title', 'error')
-        return
-      }
+      return
+    }
 
       // Determine the style to use first
       let styleToUse = sectionedWorkflow.uploadedStyle
       if (!styleToUse && sectionedWorkflow.selectedStyle) {
         if (sectionedWorkflow.selectedStyle === 'intimate-philosophical') {
-          styleToUse = `STYLE GUIDE: INTIMATE PHILOSOPHICAL NARRATIVE
+          styleToUse = `INTIMATE PHILOSOPHICAL NARRATIVE - ADVANCED STYLE GUIDE
 
-1. WRITING STYLE CHARACTERISTICS
-- Conversational yet profound tone
-- Short, impactful sentences mixed with longer flowing ones
-- Direct second-person address ("you")
-- Heavy use of metaphors and analogies
-- Repetitive reinforcement of key ideas
-- Stream of consciousness flow
-- Minimal punctuation, creating a poetic rhythm
-- Building intensity through layered ideas
+CORE WRITING PHILOSOPHY:
+Write as if you're having a deep, meaningful conversation with someone you care about. Your goal is to guide them toward profound insights through gentle revelation, not forceful persuasion. Think of yourself as a wise friend who sees patterns others miss.
 
-2. EMOTIONAL TONE
-- Empathetic understanding
-- Gentle confrontation
-- Wisdom-sharing perspective
-- Therapeutic guidance
-- Intimate connection with reader
-- Non-judgmental observation
-- Emotional resonance
+VOICE & TONE PRINCIPLES:
+- Conversational wisdom: Speak like someone who has lived, learned, and wants to share insights
+- Gentle authority: Confident without being preachy, knowing without being condescending  
+- Intimate connection: Write as if speaking to one person, not a crowd
+- Thoughtful pacing: Allow ideas to breathe and develop naturally
+- Emotional intelligence: Acknowledge the complexity of human experience
 
-3. WRITING TECHNIQUES
-- Start with a hook that presents a common observation
-- Build through related concepts
-- Use psychological principles (Jung references)
-- Create emotional peaks and valleys
-- Employ strategic pauses
-- Layer metaphors with practical examples
-- End sections with powerful, standalone statements
+STRUCTURAL APPROACH:
+- Begin with relatable observations that most people recognize but haven't deeply considered
+- Layer insights progressively, building from simple to profound
+- Use personal examples and universal experiences as bridges to deeper concepts
+- Create "aha moments" through careful revelation rather than shock
+- End sections with insights that linger and invite reflection
 
-4. STRUCTURAL PATTERNS
-- Circular narrative structure
-- Repetition of key phrases
-- Progressive build-up of concepts
-- Alternating between abstract and concrete examples
-- Strategic line breaks for emphasis
-- Parallel sentence structures
-- Call-back references
+LANGUAGE PATTERNS:
+- Favor flowing, natural sentences over choppy declarations
+- Use "you" to create intimacy, but balance with "we" to show shared humanity
+- Employ metaphors that illuminate rather than confuse
+- Ask questions that genuinely invite reflection, not just rhetorical effect
+- Vary sentence length and rhythm to create natural speech patterns
 
-5. EXEMPLAR TEXT CHUNK:
-"have you ever noticed how some people hold power over others without ever saying a word they don't chase they don't explain they just disappear and suddenly everyone scrambles to get close again it's not magic it's the power of pulling back and most people never learn how to use it to their advantage"
+CONTENT DEPTH:
+- Draw from psychology, philosophy, and human nature without being academic
+- Include specific, relatable examples that readers can connect to their own lives
+- Explore the "why" behind behaviors and patterns, not just the "what"
+- Address both the problem and the path forward with equal care
+- Weave in hope and possibility alongside difficult truths
 
-This style works best for:
-- Self-help content
-- Philosophical discussions
-- Psychological insights
-- Personal development topics
-- Emotional healing narratives`
+WHAT TO AVOID:
+- Repetitive catchphrases or formulaic language
+- Overly dramatic declarations that sound artificial
+- Preaching or talking down to the reader
+- Generic self-help clichés
+- Forcing profundity where simplicity would serve better
+
+EXAMPLE APPROACH:
+Instead of: "Your life is a lie and they've been programming you"
+Try: "Have you ever noticed how some of your strongest beliefs about success came from people who never achieved what you're trying to build? It's not their fault—we all inherit ideas from our environment. But recognizing this pattern is the first step toward thinking for yourself."
+
+This style works best for content that helps people understand themselves, their relationships, and their place in the world through gentle insight rather than dramatic revelation.`
         } else if (sectionedWorkflow.selectedStyle === 'breaking-free') {
-          styleToUse = `STYLE GUIDE: "Breaking Free" Persuasive Monologue Format
+          styleToUse = `BREAKING FREE PERSUASIVE STYLE - ADVANCED GUIDE
 
-1. WRITING STYLE CHARACTERISTICS
-- Direct, conversational tone using "you" frequently
-- Short, punchy sentences mixed with longer explanatory ones
-- Heavy use of rhetorical questions
-- Builds momentum through layered revelations
-- Uses parallel structure (Example: "They don't want... They want...")
-- Employs call-and-response patterns
-- Transitions between concepts using personal examples
+CORE WRITING PHILOSOPHY:
+Write with the urgency of someone who has discovered something important and feels compelled to share it. Your goal is to awaken awareness through compelling evidence and logical progression, not through repetitive shock tactics.
 
-2. EMOTIONAL APPROACH
-- Creates urgency and awakening
-- Builds trust through shared experiences
-- Uses controlled outrage and revelation
-- Empowers through knowledge
-- Validates audience feelings
-- Maintains an "us vs. them" narrative
-- Alternates between problem and solution
+VOICE & TONE PRINCIPLES:
+- Confident revelation: Speak with the authority of someone who has done the research
+- Controlled intensity: Passionate but not frantic, urgent but not panicked
+- Respectful challenge: Question beliefs without attacking the person holding them
+- Evidence-based persuasion: Build cases through examples and logic, not just assertions
+- Empowering direction: Always point toward solutions and personal agency
 
-3. TECHNICAL INSTRUCTIONS
-- Start with a hook that challenges beliefs
-- Present evidence through relatable examples
-- Use transitional phrases to build momentum
-- Include personal validation statements
-- Create emotional peaks and valleys
-- End sections with calls to action
-- Maintain consistent enemy (the system)
+STRUCTURAL APPROACH:
+- Open with a compelling observation or question that challenges conventional thinking
+- Present evidence through varied examples and logical progression
+- Build momentum through layered revelations, each more significant than the last
+- Address counterarguments and common objections naturally
+- Conclude with clear, actionable insights that empower the reader
 
-4. STRUCTURAL PATTERNS
-- Problem > Explanation > Impact > Solution
-- Personal example > Broader implication
-- Question > Answer > Deeper revelation
-- Statement > Supporting evidence > Call to action
-- Regular use of tricolon (groups of three)
+LANGUAGE PATTERNS:
+- Use direct, clear language that cuts through confusion
+- Employ rhetorical questions strategically, not constantly
+- Vary your evidence sources: personal examples, historical patterns, current events
+- Create natural transitions between ideas without forced drama
+- Balance "you" statements with broader observations about society and systems
 
-5. SAMPLE EXEMPLAR CHUNK:
-"Your life is a lie. From the moment you could walk, they've been programming your mind, and you didn't stand a chance. You were open, trusting, curious, and they knew it. They stepped in before you could think for yourself, feeding you ideas about what to dream, what to fear, and even who you should be. And your parents, they couldn't stop it. They didn't even see it because they were victims too, caught in the same system designed to shape and control you."
+CONTENT DEPTH:
+- Focus on patterns and systems rather than individual villains
+- Provide specific, verifiable examples that readers can investigate themselves
+- Explain the "how" and "why" behind the patterns you're revealing
+- Connect individual experiences to larger systemic issues
+- Offer practical steps for breaking free from limiting patterns
 
-This style is particularly effective for persuasive content aimed at creating paradigm shifts in thinking and encouraging action through awareness.`
+PERSUASION TECHNIQUES:
+- Start with points most people can agree with, then build toward more challenging ideas
+- Use analogies that make complex systems understandable
+- Acknowledge the difficulty of change while emphasizing its possibility
+- Validate the reader's experiences and frustrations
+- Present alternative perspectives as empowering choices, not just criticisms
+
+WHAT TO AVOID:
+- Overusing dramatic phrases like "Your life is a lie" or "The truth they don't want you to know"
+- Repetitive enemy language that becomes predictable
+- Vague accusations without specific examples
+- Conspiracy thinking that lacks nuance
+- Leaving readers feeling hopeless or powerless
+
+EXAMPLE APPROACH:
+Instead of: "Your life is a lie. They've been programming your mind since birth."
+Try: "Think about the last time you made a major life decision. How many of the factors you considered—what success looks like, what others would think, what's 'realistic'—actually came from your own experience versus what you absorbed from family, media, and culture? Most of us are living by rules we never consciously chose."
+
+This style works best for content that challenges conventional thinking while providing clear paths toward greater personal freedom and authentic choice.`
         }
       }
 
@@ -1228,7 +1255,7 @@ This style is particularly effective for persuasive content aimed at creating pa
       try {
         const response = await fetch(apiEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
         })
 
@@ -1259,13 +1286,13 @@ This style is particularly effective for persuasive content aimed at creating pa
         dispatch(setSections(sections))
         showMessage(`Generated ${sections.length} script sections using ${method} method!`, 'success')
         dispatch(markStepCompleted(3))
-      } catch (error) {
+    } catch (error) {
         const errorMessage = (error as Error).message
         showMessage(`Failed to generate sections: ${errorMessage}`, 'error')
-      }
     }
+  }
 
-  return (
+    return (
       <div className="space-y-6">
         <Card>
               <CardHeader>
@@ -1325,8 +1352,8 @@ This style is particularly effective for persuasive content aimed at creating pa
                     <p className="text-xs text-gray-600 mt-1">From articles & information</p>
                   </CardContent>
                 </Card>
-            </div>
-            </div>
+              </div>
+              </div>
 
             {/* Method-specific inputs */}
             {sectionedWorkflow.outlineMethod === 'script-extractor' && (
@@ -1343,7 +1370,7 @@ This style is particularly effective for persuasive content aimed at creating pa
                 <p className="text-xs text-gray-500">
                   The system will analyze this script and create an outline based on its structure and content.
                 </p>
-          </div>
+            </div>
             )}
 
             {sectionedWorkflow.outlineMethod === 'custom-info' && (
@@ -1360,12 +1387,12 @@ This style is particularly effective for persuasive content aimed at creating pa
             <p className="text-xs text-gray-500">
                   The system will analyze this information and create an engaging script outline from it.
             </p>
-          </div>
+                </div>
             )}
 
             {/* Generate Button */}
             <div className="flex justify-center">
-            <Button 
+              <Button
                 onClick={() => handleGenerateOutline(sectionedWorkflow.outlineMethod)} 
                 disabled={sectionedWorkflow.sectionsProgress.isActive}
                 className="px-8 py-2"
@@ -1381,8 +1408,8 @@ This style is particularly effective for persuasive content aimed at creating pa
                     Generate Outline ({sectionedWorkflow.outlineMethod.replace('-', ' ')})
                 </>
               )}
-            </Button>
-                </div>
+              </Button>
+              </div>
 
             {/* Generated Sections Display */}
             {sectionedWorkflow.sections.length > 0 && (
@@ -1392,8 +1419,8 @@ This style is particularly effective for persuasive content aimed at creating pa
                   <Button variant="outline" onClick={() => handleGenerateOutline(sectionedWorkflow.outlineMethod)}>
                     <RotateCcw className="h-4 w-4 mr-2" />
                     Regenerate
-                </Button>
-              </div>
+            </Button>
+      </div>
 
                 {sectionedWorkflow.sections.map((section, index) => (
                   <Card key={section.id} className="border-l-4 border-l-blue-500">
@@ -1408,12 +1435,12 @@ This style is particularly effective for persuasive content aimed at creating pa
                         <Badge variant="outline" className="text-xs">
                           ~{section.wordCount} words
                         </Badge>
-                    </div>
+          </div>
             </CardContent>
           </Card>
                 ))}
-            </div>
-            )}
+        </div>
+      )}
           </CardContent>
         </Card>
 
@@ -1436,43 +1463,43 @@ This style is particularly effective for persuasive content aimed at creating pa
   // Step 5: Script Generation (simplified)
   const renderGenerationStep = () => (
     <div className="space-y-6">
-      <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <PenTool className="h-5 w-5" />
             Generate Full Script
-            </CardTitle>
-                <CardDescription>
+          </CardTitle>
+          <CardDescription>
             Generate detailed script content for each section
-                </CardDescription>
-          </CardHeader>
+          </CardDescription>
+        </CardHeader>
           <CardContent>
           {sectionedWorkflow.sections.length === 0 ? (
             <div className="text-center p-8">
               <AlertCircle className="h-16 w-16 mx-auto text-yellow-500 mb-4" />
               <h3 className="text-lg font-semibold mb-2">No Outline Available</h3>
               <p className="text-gray-600">Please complete the outline step first.</p>
-                            </div>
+            </div>
           ) : (
             <div className="space-y-4">
                         <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Script Sections</h3>
-                <Button 
+            <Button 
                   onClick={handleGenerateAllScripts}
                   disabled={sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating)}
-                >
+              >
                   {sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating) ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Generating...
-                    </>
-                  ) : (
+                </>
+              ) : (
                     <>
                       <Zap className="h-4 w-4 mr-2" />
                       Generate All Scripts
                           </>
-                        )}
-                </Button>
+              )}
+            </Button>
                       </div>
                       
               {sectionedWorkflow.sections.map((section) => (
@@ -1485,9 +1512,9 @@ This style is particularly effective for persuasive content aimed at creating pa
                           <p className="text-sm whitespace-pre-wrap">{section.generatedScript}</p>
                           <div className="flex items-center justify-between mt-2">
                             <Badge className="text-xs">{section.wordCount} words</Badge>
-                                <Button
+              <Button 
                                   size="sm"
-                                  variant="outline"
+                variant="outline"
                               onClick={() => handleGenerateDetailedScript(section.id)}
                               disabled={section.isGenerating}
                             >
@@ -1502,9 +1529,9 @@ This style is particularly effective for persuasive content aimed at creating pa
                                   Regenerate
                           </>
                               )}
-                            </Button>
-                          </div>
-                        </div>
+              </Button>
+                </div>
+              </div>
                       ) : (
                         <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded">
                           <p className="text-gray-500 mb-2">Script not generated yet</p>
@@ -1525,8 +1552,8 @@ This style is particularly effective for persuasive content aimed at creating pa
                         </div>
                             )}
                           </div>
-                  </CardContent>
-                </Card>
+        </CardContent>
+      </Card>
               ))}
                         </div>
           )}
@@ -1549,18 +1576,18 @@ This style is particularly effective for persuasive content aimed at creating pa
       {/* Full Script Preview */}
       {sectionedWorkflow.fullScript && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Complete Script Preview
-            </CardTitle>
-            <CardDescription>
+              </CardTitle>
+              <CardDescription>
               Combined script from all generated sections
               {sectionedWorkflow.quote.enabled && sectionedWorkflow.quote.text && (
                 <span className="ml-2 text-blue-600">• Quote included</span>
               )}
-            </CardDescription>
-          </CardHeader>
+              </CardDescription>
+            </CardHeader>
           <CardContent>
             {/* Quote Display */}
             {sectionedWorkflow.quote.enabled && sectionedWorkflow.quote.text && (
@@ -1571,7 +1598,7 @@ This style is particularly effective for persuasive content aimed at creating pa
                 <cite className="text-sm text-blue-700 font-medium">
                   — {sectionedWorkflow.quote.author}
                 </cite>
-                                </div>
+                  </div>
                         )}
             
             <div className="bg-gray-50 p-4 rounded border max-h-96 overflow-y-auto">
@@ -1586,7 +1613,7 @@ This style is particularly effective for persuasive content aimed at creating pa
                       </h3>
                       <div className="text-gray-800 whitespace-pre-wrap">
                         {section.generatedScript}
-                              </div>
+                </div>
                       {index < sectionedWorkflow.sections.filter(s => s.generatedScript.trim()).length - 1 && (
                         <hr className="my-4 border-gray-300" />
                             )}
@@ -1606,16 +1633,16 @@ This style is particularly effective for persuasive content aimed at creating pa
                 {sectionedWorkflow.ctas.filter(cta => cta.enabled).length > 0 && (
                   <Badge variant="outline" className="bg-orange-50 text-orange-700">
                     {sectionedWorkflow.ctas.filter(cta => cta.enabled).length} CTAs included
-                  </Badge>
-                )}
-              </div>
+                    </Badge>
+                  )}
+                  </div>
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 Download Script
               </Button>
-            </div>
+                </div>
               </CardContent>
-            </Card>
+          </Card>
       )}
     </div>
   )
@@ -1623,20 +1650,20 @@ This style is particularly effective for persuasive content aimed at creating pa
   // Step 6: Translation
   const renderTranslationStep = () => (
     <div className="space-y-6">
-      <Card>
+            <Card>
           <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
             Script Translation
-                </CardTitle>
+            </CardTitle>
                 <CardDescription>
             Translate your generated script to other languages
                 </CardDescription>
-        </CardHeader>
+              </CardHeader>
       </Card>
       
       <ScriptTranslator />
-              </div>
+                </div>
   )
 
   const renderCurrentStep = () => {
@@ -1654,12 +1681,12 @@ This style is particularly effective for persuasive content aimed at creating pa
   return (
     <div className="w-full max-w-full p-6 space-y-6">
       {/* Header */}
-      <div className="space-y-2">
+                  <div className="space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Script Generator</h1>
         <p className="text-gray-600">
           Create professional video scripts with our step-by-step guided workflow
         </p>
-      </div>
+                            </div>
 
       {/* Message Display */}
       {message && (
@@ -1682,30 +1709,30 @@ This style is particularly effective for persuasive content aimed at creating pa
       {/* Current Step Content */}
       <div className="min-h-[400px]">
         {renderCurrentStep()}
-      </div>
+                      </div>
 
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between pt-6 border-t">
                                 <Button
-                  variant="outline"
+                                  variant="outline"
           onClick={handlePrevious}
           disabled={sectionedWorkflow.currentStep === 0}
-                >
+                                >
           <ChevronLeft className="h-4 w-4 mr-2" />
           Previous
                                 </Button>
 
         <div className="text-sm text-gray-500">
           Step {sectionedWorkflow.currentStep + 1} of {steps.length}
-                              </div>
+                    </div>
 
-        <Button 
+                                <Button
           onClick={handleNext}
           disabled={sectionedWorkflow.currentStep === steps.length - 1 || !canProceedToNext()}
-        >
+                >
           Next
           <ChevronRight className="h-4 w-4 ml-2" />
-        </Button>
+                                </Button>
       </div>
     </div>
   )
