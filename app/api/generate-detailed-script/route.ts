@@ -3,12 +3,40 @@ import { createModelInstance } from "../../../lib/utils/model-factory";
 import { getModelById } from "../../../types/models";
 import { THEME_OPTIONS } from "../../../lib/features/scripts/scriptsSlice";
 import OpenAI from 'openai';
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Helper function to log prompts to files
+function logPromptToFile(prompt: string, filename: string, type: 'outline' | 'detailed' = 'detailed') {
+  try {
+    const logsDir = join(process.cwd(), 'logs');
+    if (!existsSync(logsDir)) {
+      mkdirSync(logsDir, { recursive: true });
+    }
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fullFilename = `${timestamp}_${type}_${filename}.txt`;
+    const filepath = join(logsDir, fullFilename);
+    
+    const logContent = `=== ${type.toUpperCase()} GENERATION PROMPT ===
+Generated at: ${new Date().toISOString()}
+Filename: ${filename}
+Section: ${filename}
+
+${prompt}
+
+=== END OF PROMPT ===`;
+    
+    writeFileSync(filepath, logContent, 'utf-8');
+    console.log(`📝 Detailed script prompt logged to: ${filepath}`);
+  } catch (error) {
+    console.error('❌ Failed to log detailed script prompt:', error);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,15 +84,21 @@ export async function POST(request: NextRequest) {
     // Get theme instructions if theme is selected
     const selectedTheme = themeId ? THEME_OPTIONS.find(t => t.id === themeId) : null;
     const themeInstructions = selectedTheme ? `
-THEME INSTRUCTIONS - ${selectedTheme.name}:
-Hook Strategy: ${selectedTheme.instructions.hook}
-Tone Requirements: ${selectedTheme.instructions.tone}
-Clarity & Accessibility: ${selectedTheme.instructions.clarity}
-Narrative Flow: ${selectedTheme.instructions.narrativeFlow}
-Balancing Elements: ${selectedTheme.instructions.balance}
-Engagement Devices: ${selectedTheme.instructions.engagement}
-Format Requirements: ${selectedTheme.instructions.format}
-Overall Direction: ${selectedTheme.instructions.overall}
+THEMATIC DIRECTION - ${selectedTheme.name}:
+Core Approach: ${selectedTheme.instructions.hook}
+Desired Tone: ${selectedTheme.instructions.tone}
+Communication Style: ${selectedTheme.instructions.clarity}
+Narrative Progression: ${selectedTheme.instructions.narrativeFlow}
+Content Balance: ${selectedTheme.instructions.balance}
+Audience Connection: ${selectedTheme.instructions.engagement}
+Structural Guidelines: ${selectedTheme.instructions.format}
+Broader Context: ${selectedTheme.instructions.overall}
+
+CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phrases to repeat. 
+- Use the SPIRIT of these instructions, not the exact wording
+- Vary your language extensively - never repeat the same phrases across sections
+- Focus on authentic human communication that embodies these principles naturally
+- If the theme mentions specific phrases, treat them as occasional accent points, not repetitive mantras
 ` : '';
 
     const modelId = selectedModel || 'gpt-4o-mini';
@@ -109,7 +143,7 @@ IMPORTANT: Build upon these previous sections naturally. Reference concepts, the
           if (ctaItem.placement === 'beginning' && index === 0) return true;
           if (ctaItem.placement === 'middle' && index === Math.floor(sections.length / 2)) return true;
           if (ctaItem.placement === 'end' && index === sections.length - 1) return true;
-          if (ctaItem.placement === 'custom' && ctaItem.customPosition === index) return true;
+          if (ctaItem.placement === 'custom' && ctaItem.customPosition === index + 1) return true;
           return false;
         });
 
@@ -117,75 +151,119 @@ IMPORTANT: Build upon these previous sections naturally. Reference concepts, the
           ctaInstructions = `
 CTA REQUIREMENTS FOR THIS SECTION:
 ${sectionCTAs.map((ctaItem: any) => {
+  let ctaContent = '';
   if (ctaItem.type === 'newsletter') {
-    return `Include a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube. Mention that the viewer will receive a free ebook copy of "The Kybalion" upon signing up for a limited time only. The CTA must be incorporated smoothly and naturally into the content flow and can only be 2 sentences max. Make it persuasive and create urgency.`;
+    ctaContent = `Include a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube. Mention that the viewer will receive a free ebook copy of "The Kybalion" upon signing up for a limited time only. The CTA must be incorporated smoothly and naturally into the content flow and can only be 2 sentences max. Make it persuasive and create urgency.`;
   } else if (ctaItem.type === 'engagement') {
-    return `Include this engagement CTA naturally: "If this video resonated with you, let us know by commenting, 'I understood it.'" Integrate it seamlessly with the surrounding content.`;
+    ctaContent = `Include this engagement CTA naturally: "If this video resonated with you, let us know by commenting, 'I understood it.'" Integrate it seamlessly with the surrounding content.`;
   } else if (ctaItem.type === 'custom' && ctaItem.content) {
-    return `Include this custom CTA naturally: ${ctaItem.content}`;
+    ctaContent = `Include this custom CTA naturally: ${ctaItem.content}`;
   }
-  return '';
+  return ctaContent;
 }).filter(Boolean).join('\n')}
 
 CRITICAL: CTAs must be integrated naturally into the content flow. Do NOT use transition phrases like "[TRANSITION TO CTA]" or similar - these will be spoken by the voice-over. Instead, make the CTA feel like a natural part of the narrative. Bold or emphasize the CTA content for visual distinction.
 `;
         }
 
-        const prompt = `You are writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}". Write it in greatest detail possible.
+        const prompt = `You are a master storyteller and researcher writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}". Your goal is to create authentic, expert-level content that sounds like a passionate human sharing genuine insights.
 
 SECTION TITLE: "${section.title}"
 WRITING INSTRUCTIONS: ${section.writingInstructions}
 
 ${contextInstructions}
 
-STYLE GUIDE TO FOLLOW:
+FUNDAMENTAL WRITING PRINCIPLES:
 ${styleContent}
 
+THEMATIC DIRECTION:
 ${themeInstructions}
-${emotionalTone ? `EMOTIONAL TONE: Ensure the content matches this tone: ${emotionalTone}` : ''}
-${targetAudience ? `TARGET AUDIENCE: Write specifically for: ${targetAudience}` : ''}
-${forbiddenWords ? `FORBIDDEN WORDS: Avoid using any of these words: ${forbiddenWords}` : ''}
+
+${emotionalTone ? `EMOTIONAL APPROACH: Ensure content matches this tone: ${emotionalTone}` : ''}
+${targetAudience ? `INTENDED AUDIENCE: Write specifically for: ${targetAudience}` : ''}
+${forbiddenWords ? `LANGUAGE RESTRICTIONS: Completely avoid these terms: ${forbiddenWords}` : ''}
 
 ${researchData ? `
-RESEARCH CONTEXT TO INCORPORATE:
-Use insights from this research to make your content more detailed and authoritative:
+RESEARCH FOUNDATION:
+Use insights from this research to create authoritative, fact-based content:
 ${JSON.stringify(researchData, null, 2).substring(0, 1000)}...
 
-Include specific facts, examples, or insights from the research where relevant to enhance the content's value and credibility.
+INTEGRATION REQUIREMENTS:
+- Weave specific facts, statistics, and insights naturally into the narrative
+- Use research to support claims with concrete examples
+- Reference current developments and real-world applications
+- Build authority through demonstrated knowledge, not dramatic claims
 ` : ''}
 
 ${ctaInstructions}
 
+ANTI-AI CONTENT REQUIREMENTS:
+- NEVER use repetitive catchphrases or formulaic expressions
+- AVOID dramatic declarations like "Your life is a lie" or "They don't want you to know" unless used sparingly and contextually
+- ELIMINATE generic, interchangeable language that could apply to any topic
+- REJECT artificial excitement or forced urgency
+- NEVER repeat the same rhetorical devices or sentence structures
+- AVOID lists of vague benefits or empty promises
+- CREATE unique, topic-specific insights that demonstrate genuine expertise
+
+NATURAL HUMAN COMMUNICATION STANDARDS:
+- Write as if you're a knowledgeable friend sharing fascinating discoveries
+- Use varied sentence structures and natural speech patterns
+- Include specific, verifiable details and examples
+- Show genuine curiosity and intellectual engagement with the topic
+- Build arguments through logic and evidence, not repetitive assertions
+- Respect your audience's intelligence and critical thinking abilities
+- Connect ideas to real-world experiences and practical applications
+
+CONTENT DEPTH REQUIREMENTS:
+- Provide specific, actionable insights that viewers can verify or apply
+- Explain underlying mechanisms and causalities, not just surface-level claims
+- Include historical context, comparative examples, or case studies
+- Address complexity and nuance rather than oversimplifying
+- Connect individual concepts to broader frameworks or principles
+- Offer practical next steps or applications for the information shared
+
 CRITICAL WRITING REQUIREMENTS:
 - Write ONLY the script content for this section - no stage directions, titles, or meta-commentary
 - Create content that sounds natural and authentic when spoken aloud
-- Use specific examples, case studies, or relatable scenarios to illustrate your points
-- Vary your sentence structure and length to create natural rhythm
-- Build your argument through logical progression, not repetitive shock tactics
-- Include genuine insights that provide real value to the audience
-- Avoid repetitive catchphrases or formulaic language patterns
-- If including CTAs, make them **bold** for visual emphasis but integrate them naturally
-- Use "you" and "your" to address the viewer directly, but balance with "we" for inclusivity
+- Use specific examples, case studies, or relatable scenarios to illustrate points
+- Vary sentence structure and length extensively to create natural rhythm
+- Build arguments through logical progression and evidence, not shock tactics
+- Include genuine insights that provide real educational value
+- If including CTAs, make them **bold** but integrate naturally into the narrative flow
+- Balance direct address ("you") with inclusive language ("we") appropriately
 - Build on previous sections naturally (this is section ${index + 1} of ${sections.length})
-${emotionalTone ? `- Maintain the ${emotionalTone} emotional tone throughout` : ''}
-${targetAudience ? `- Speak directly to ${targetAudience} with relevant examples and language` : ''}
+${emotionalTone ? `- Maintain the ${emotionalTone} emotional tone throughout while remaining authentic` : ''}
+${targetAudience ? `- Speak directly to ${targetAudience} with relevant examples and appropriate language` : ''}
+
+CRITICAL WORD COUNT REQUIREMENTS:
+- This section should be AT LEAST 500 words minimum
+- Target approximately 700-900 words for optimal depth and engagement
+- If your initial draft is under 500 words, expand with additional examples, case studies, or deeper explanations
+- Better to exceed the target than fall significantly short
+- Focus on providing substantial value rather than reaching a word count through filler
 
 INTRODUCTION SECTION SPECIAL REQUIREMENT:
-${index === 0 ? 'This is the introduction section - keep it to 160 words maximum while still being engaging and hook-focused.' : ''}
+${index === 0 ? 'This is the introduction section - capture attention through genuine intrigue rather than dramatic claims, and limit to 160 words maximum while establishing credibility and value.' : ''}
 
-QUALITY STANDARDS:
-- Provide specific, verifiable information when making claims
-- Explain not just what happens, but why it happens and how it works
-- Connect individual experiences to larger patterns or principles
-- Include actionable insights or practical applications
-- Maintain respect for your audience's intelligence throughout
-- Create content that educates, engages, and empowers rather than manipulates
+QUALITY VERIFICATION:
+Before finalizing, ensure your content:
+- Sounds like a knowledgeable human expert, not an AI
+- Provides specific, verifiable information unique to this topic
+- Uses completely varied language with no repeated phrases or structures
+- Builds trust through transparency and demonstrated expertise
+- Educates and empowers rather than manipulates or overwhelms
+- Maintains conversational authenticity while delivering substantial value
 
-${forbiddenWords ? `IMPORTANT: Do not use any of these forbidden words: ${forbiddenWords}` : ''}
+${forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${forbiddenWords}` : ''}
 
-Write the script content now:`;
+Write the authentic, expert-level script content now:`;
 
         let detailedContent: string;
+        
+        // Log the prompt for debugging
+        const sanitizedSectionTitle = section.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+        logPromptToFile(prompt, `section_${index + 1}_${sanitizedSectionTitle}`, 'detailed');
 
         // Use LangChain for Anthropic models, direct OpenAI for OpenAI models
         if (modelConfig?.provider === 'anthropic') {
@@ -200,19 +278,26 @@ Write the script content now:`;
             messages: [
               {
                 role: "system",
-                content: `You are a professional script writer who creates compelling, authentic content that sounds natural when spoken aloud. Your writing style is:
+                content: `You are a master storyteller and researcher who creates compelling, authentic content that sounds like a passionate human expert sharing genuine insights. Your writing embodies these principles:
 
-AUTHENTIC & ENGAGING: Write like an intelligent, passionate expert sharing fascinating insights with a friend. Avoid artificial "YouTube voice" or overly dramatic declarations.
+AUTHENTIC EXPERTISE: Write like an intelligent, passionate expert sharing fascinating discoveries with a friend. Demonstrate genuine knowledge and curiosity about your subject matter.
 
-NATURAL FLOW: Use conversational language that flows naturally when spoken. Vary sentence length and structure. Include specific examples and relatable scenarios.
+NATURAL COMMUNICATION: Use conversational language that flows naturally when spoken. Vary sentence length and structure extensively. Include specific examples and verifiable details.
 
-DEPTH & SUBSTANCE: Provide genuine value through well-researched information, specific examples, and actionable insights. Explain not just what happens, but why it happens.
+ANTI-AI PATTERNS: 
+- NEVER use repetitive catchphrases like "they don't want you to know," "your life is a lie," "wake up"
+- AVOID formulaic language that sounds interchangeable between topics
+- ELIMINATE dramatic declarations without supporting evidence
+- REJECT artificial excitement or forced urgency
+- CREATE unique, topic-specific insights that demonstrate genuine expertise
 
-RESPECTFUL INTELLIGENCE: Respect your audience's intelligence. Build complexity gradually. Address different perspectives naturally.
+DEPTH & SUBSTANCE: Provide genuine value through well-researched information, specific examples, and actionable insights. Explain not just what happens, but why it happens and how it works.
 
-AVOID: Repetitive catchphrases, overly dramatic declarations like "Your life is a lie," vague accusations without evidence, generic advice, or leaving audiences feeling hopeless.
+RESPECTFUL INTELLIGENCE: Respect your audience's intelligence and critical thinking abilities. Build complexity gradually. Address different perspectives naturally and constructively.
 
-Your goal is to inform, engage, and inspire through authentic communication, not to manipulate through shock tactics.`
+EVIDENCE-BASED APPROACH: Support claims with concrete examples, historical context, or verifiable information. Build trust through transparency about sources and reasoning.
+
+Your goal is to inform, engage, and inspire through authentic human communication that educates and empowers rather than manipulates through shock tactics or AI-generated patterns.`
               },
               {
                 role: "user",
@@ -258,10 +343,20 @@ Your goal is to inform, engage, and inspire through authentic communication, not
     // Build the complete script with proper formatting
     let fullScript = '';
     
-    // Add quote at the top if provided
+    // Add quote at the top if provided - in a clearly labeled quote box
     if (quote && quote.text && quote.author) {
-      fullScript += `"${quote.text}" - ${quote.author}\n\n`;
-      console.log(`📜 Added quote to script: "${quote.text}" - ${quote.author}`);
+      fullScript += `╔════════════════════════════════════════════════════════════════╗
+║                              OPENING QUOTE                             ║
+╚════════════════════════════════════════════════════════════════╝
+
+"${quote.text}"
+
+— ${quote.author}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+`;
+      console.log(`📜 Added formatted quote box to script: "${quote.text}" - ${quote.author}`);
     }
     
     // Add sections with headlines

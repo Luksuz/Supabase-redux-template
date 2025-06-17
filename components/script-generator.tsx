@@ -73,7 +73,8 @@ import {
   Palette,
   BookOpen,
   PenTool,
-  Globe
+  Globe,
+  Info
 } from 'lucide-react'
 import { ResearchAssistant } from './research-assistant'
 import { StyleFileUpload } from './style-file-upload'
@@ -151,6 +152,52 @@ function ProgressBar({ current, total, message, className = '' }: ProgressBarPro
   )
 }
 
+// Simple Dialog Component for Prompt Preview
+function PromptDialog({ 
+  isOpen, 
+  onClose, 
+  title, 
+  prompt 
+}: { 
+  isOpen: boolean
+  onClose: () => void
+  title: string
+  prompt: string
+}) {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg max-w-4xl max-h-[80vh] w-full mx-4 flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Info className="h-5 w-5 text-blue-600" />
+            {title}
+          </h2>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="p-6 overflow-y-auto flex-1">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              This is the exact prompt that will be sent to the AI model for generation:
+            </p>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono">
+                {prompt}
+              </pre>
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end p-6 border-t">
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ScriptGenerator() {
   const dispatch = useAppDispatch()
   const { sectionedWorkflow, research } = useAppSelector(state => state.scripts)
@@ -162,6 +209,11 @@ export function ScriptGenerator() {
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  
+  // Modal state for prompt previews
+  const [showPromptModal, setShowPromptModal] = useState(false)
+  const [modalTitle, setModalTitle] = useState("")
+  const [modalPrompt, setModalPrompt] = useState("")
   
   // Outline generation state - REMOVED: Now handled by Redux
   // const [outlineMethod, setOutlineMethod] = useState<'standard' | 'title-only' | 'script-extractor' | 'custom-info'>('standard')
@@ -216,6 +268,312 @@ export function ScriptGenerator() {
 
   const handlePrevious = () => {
     dispatch(setCurrentStep(Math.max(sectionedWorkflow.currentStep - 1, 0)))
+  }
+
+  // Helper function to show script prompt  
+  const showOutlinePrompt = () => {
+    // Get theme instructions if theme is selected
+    const selectedTheme = sectionedWorkflow.themeId ? THEME_OPTIONS.find(t => t.id === sectionedWorkflow.themeId) : null;
+    const themeInstructions = selectedTheme ? `
+THEMATIC DIRECTION - ${selectedTheme.name}:
+Core Approach: ${selectedTheme.instructions.hook}
+Desired Tone: ${selectedTheme.instructions.tone}
+Communication Style: ${selectedTheme.instructions.clarity}
+Narrative Progression: ${selectedTheme.instructions.narrativeFlow}
+Content Balance: ${selectedTheme.instructions.balance}
+Audience Connection: ${selectedTheme.instructions.engagement}
+Structural Guidelines: ${selectedTheme.instructions.format}
+Broader Context: ${selectedTheme.instructions.overall}
+
+CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phrases to repeat. 
+- Use the SPIRIT of these instructions, not the exact wording
+- Vary your language extensively - never repeat the same phrases across sections
+- Focus on authentic human communication that embodies these principles naturally
+- If the theme mentions specific phrases, treat them as occasional accent points, not repetitive mantras
+` : '';
+
+    // Get active CTAs
+    const activeCTAs = sectionedWorkflow.ctas.filter(cta => cta.enabled);
+    
+    // Calculate sections
+    const numSections = Math.max(1, Math.ceil(sectionedWorkflow.wordCount / 800));
+    const avgWordsPerSection = Math.round(sectionedWorkflow.wordCount / numSections);
+
+    const promptExample = `You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Your goal is to educate and engage through natural human communication, not AI-generated content patterns.
+
+TITLE: "${sectionedWorkflow.videoTitle}"
+CURRENT BATCH: Sections 1 to ${numSections} of ${numSections} total sections
+BATCH SIZE: ${numSections}
+
+FUNDAMENTAL WRITING PRINCIPLES:
+[Style guide content from uploaded style or default feeder_script_style.txt]
+
+THEMATIC DIRECTION:
+${themeInstructions}
+
+${sectionedWorkflow.emotionalTone ? `EMOTIONAL APPROACH: ${sectionedWorkflow.emotionalTone}` : ''}
+${sectionedWorkflow.targetAudience ? `INTENDED AUDIENCE: ${sectionedWorkflow.targetAudience}` : ''}
+
+${research.analysis ? `
+RESEARCH FOUNDATION:
+Incorporate these research insights to create authoritative, fact-based content:
+
+Analysis: ${JSON.stringify(research.analysis || {}, null, 2)}
+Key Findings: [Research results from your search]
+
+INTEGRATION REQUIREMENTS:
+- Weave specific facts, statistics, and insights naturally into the narrative
+- Use research to support claims with concrete examples
+- Reference current developments and real-world applications
+- Build authority through demonstrated knowledge, not dramatic claims
+- Make abstract concepts tangible through research-backed examples
+` : ''}
+
+${sectionedWorkflow.forbiddenWords ? `LANGUAGE RESTRICTIONS: Completely avoid these terms: ${sectionedWorkflow.forbiddenWords}` : ''}
+${sectionedWorkflow.additionalInstructions ? `
+ADDITIONAL INSTRUCTIONS:
+${sectionedWorkflow.additionalInstructions}
+` : ''}
+
+ANTI-AI CONTENT REQUIREMENTS:
+- NEVER use repetitive catchphrases or formulaic expressions
+- AVOID dramatic declarations like "Your life is a lie" or "They don't want you to know" unless used sparingly and contextually
+- ELIMINATE generic, interchangeable language that could apply to any topic
+- REJECT artificial excitement or forced urgency
+- NEVER repeat the same rhetorical devices or sentence structures across sections
+- AVOID lists of vague benefits or empty promises
+- CREATE unique, topic-specific insights that demonstrate genuine expertise
+
+NATURAL HUMAN COMMUNICATION STANDARDS:
+- Write as if you're a knowledgeable friend sharing fascinating discoveries
+- Use varied sentence structures and natural speech patterns
+- Include specific, verifiable details and examples
+- Show genuine curiosity and intellectual engagement with the topic
+- Build arguments through logic and evidence, not repetitive assertions
+- Respect your audience's intelligence and critical thinking abilities
+- Connect ideas to real-world experiences and practical applications
+
+CONTENT DEPTH REQUIREMENTS:
+- Provide specific, actionable insights that viewers can verify or apply
+- Explain underlying mechanisms and causalities, not just surface-level claims
+- Include historical context, comparative examples, or case studies
+- Address complexity and nuance rather than oversimplifying
+- Connect individual concepts to broader frameworks or principles
+- Offer practical next steps or applications for the information shared
+
+${activeCTAs.length > 0 ? `
+CTA INTEGRATION REQUIREMENTS:
+${activeCTAs.map((ctaItem, ctaIndex) => {
+  let ctaInstructions = '';
+  if (ctaItem.type === 'newsletter') {
+    ctaInstructions = `IMPORTANT CTA REQUIREMENT: You must incorporate a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube (so they are more likely to sign up). Mention that the viewer will receive a free ebook copy of "The Kybalion" (hermetic book) upon signing up for a limited time only (this is not a reward). The viewer must go to the link in the description and enter their email to receive the e-book. This CTA must be incorporated smoothly and in flow with the script around it and can only be 2 sentences max. It must be short, sharp and concise so that viewers won't click off or skip. The CTA must use persuasive sales writing and sound as if some things can't be shared on YouTube, but you must come up with your own that suits the current section. It must be positioned in a way so viewers cannot afford to lose this opportunity to not sign up. Make sure you seamlessly flow into this CTA from the previous paragraph and into the next.`;
+  } else if (ctaItem.type === 'engagement') {
+    ctaInstructions = `IMPORTANT CTA REQUIREMENT: You must incorporate this engagement CTA smoothly into the content: "If this video resonated with you, let us know by commenting, 'I understood it.'" This should feel natural and be integrated seamlessly with the surrounding content. Make it feel like a genuine request for engagement rather than a forced call-to-action.`;
+  } else if (ctaItem.type === 'custom' && ctaItem.content) {
+    ctaInstructions = `IMPORTANT CTA REQUIREMENT: You must incorporate this custom CTA smoothly into the content: "${ctaItem.content}" This should feel natural and be integrated seamlessly with the surrounding content.`;
+  }
+  
+  return `- CTA Type: ${ctaItem.type} (${ctaItem.placement}${ctaItem.customPosition ? ` - Section ${ctaItem.customPosition}` : ''})
+${ctaInstructions}
+CRITICAL: Integrate the CTA naturally into the content flow - it should feel like a natural extension of the discussion, not an abrupt interruption.`;
+}).join('\n\n')}
+` : ''}
+
+SECTION DEVELOPMENT SPECIFICATIONS:
+Each section must demonstrate expertise through detailed, valuable content. Your writing instructions should specify:
+
+1. AUTHENTIC ENGAGEMENT STRATEGY:
+   - How to open with genuine intrigue based on real phenomena or questions
+   - Specific rhetorical approaches that feel natural and conversational
+   - Ways to maintain interest through substantial content, not manipulation tactics
+
+2. SUBSTANTIVE CONTENT FRAMEWORK:
+   - Key concepts, facts, or insights to explore with supporting evidence
+   - Specific examples, case studies, or practical applications to include
+   - Historical context, comparative analysis, or expert perspectives to reference
+   - How to explain complex ideas through relatable analogies or examples
+
+3. NATURAL PROGRESSION TECHNIQUES:
+   - How this section builds upon previous content and sets up future sections
+   - Logical transitions that maintain narrative coherence
+   - Ways to introduce complexity gradually without overwhelming the audience
+   - Connection strategies linking individual insights to broader themes
+
+4. AUDIENCE RESPECT INDICATORS:
+   - How to challenge assumptions while validating viewers' intelligence
+   - Ways to present controversial or complex ideas with appropriate nuance
+   - Techniques for inspiring curiosity and further exploration
+   - Methods for empowering viewers rather than creating dependency
+
+For each section, provide:
+1. A compelling, specific title that captures unique value (not generic clickbait)
+2. Comprehensive writing instructions (minimum 200 words) detailing:
+   - The authentic intellectual journey viewers should experience
+   - Specific content points with supporting evidence and examples from research
+   - Natural engagement techniques that respect audience intelligence
+   - How this section contributes to the overall educational narrative
+   - Smooth transition strategies maintaining conversational flow
+   - Special emphasis on depth, nuance, and practical applicability
+   - Concrete examples, analogies, or case studies to include
+   - Key questions to address or insights to reveal
+   - Emotional pacing and tonal shifts throughout the section
+   - Specific facts, statistics, or expert perspectives to reference
+   - How to connect abstract concepts to tangible experiences
+   - Methods for building credibility and trust with the audience
+3. A detailed visual prompt describing scenes that complement the educational content
+
+CRITICAL WORD COUNT ENFORCEMENT:
+- Include sufficient detail in writing instructions (200 words minimum)
+- Better to exceed targets than fall short - aim for substantial, valuable content
+
+${sectionedWorkflow.forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${sectionedWorkflow.forbiddenWords}` : ''}
+
+[Structured output format instructions for generating sections array]`
+
+    setModalTitle('Script Sections Generation Prompt')
+    setModalPrompt(promptExample)
+    setShowPromptModal(true)
+  }
+
+  // Helper function to show detailed script generation prompt
+  const showDetailedScriptPrompt = () => {
+    // Get theme instructions if theme is selected
+    const selectedTheme = sectionedWorkflow.themeId ? THEME_OPTIONS.find(t => t.id === sectionedWorkflow.themeId) : null;
+    const themeInstructions = selectedTheme ? `
+THEMATIC DIRECTION - ${selectedTheme.name}:
+Core Approach: ${selectedTheme.instructions.hook}
+Desired Tone: ${selectedTheme.instructions.tone}
+Communication Style: ${selectedTheme.instructions.clarity}
+Narrative Progression: ${selectedTheme.instructions.narrativeFlow}
+Content Balance: ${selectedTheme.instructions.balance}
+Audience Connection: ${selectedTheme.instructions.engagement}
+Structural Guidelines: ${selectedTheme.instructions.format}
+Broader Context: ${selectedTheme.instructions.overall}
+
+CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phrases to repeat. 
+- Use the SPIRIT of these instructions, not the exact wording
+- Vary your language extensively - never repeat the same phrases across sections
+- Focus on authentic human communication that embodies these principles naturally
+- If the theme mentions specific phrases, treat them as occasional accent points, not repetitive mantras
+` : '';
+
+    // Get active CTAs
+    const activeCTAs = sectionedWorkflow.ctas.filter(cta => cta.enabled);
+    
+    // Example section for demonstration
+    const exampleSection = sectionedWorkflow.sections.length > 0 ? sectionedWorkflow.sections[0] : {
+      title: "Example Section Title",
+      writingInstructions: "Example writing instructions for this section..."
+    };
+
+    const promptExample = `You are a master storyteller and researcher writing section 1 of ${sectionedWorkflow.sections.length || 'X'} for a compelling video script titled "${sectionedWorkflow.videoTitle}". Your goal is to create authentic, expert-level content that sounds like a passionate human sharing genuine insights.
+
+SECTION TITLE: "${exampleSection.title}"
+WRITING INSTRUCTIONS: ${exampleSection.writingInstructions}
+
+[CONTEXT FROM PREVIOUS SECTIONS would appear here for sections 2+]
+
+FUNDAMENTAL WRITING PRINCIPLES:
+[Style guide content from uploaded style or default feeder_script_style.txt]
+
+THEMATIC DIRECTION:
+${themeInstructions}
+
+${sectionedWorkflow.emotionalTone ? `EMOTIONAL APPROACH: Ensure content matches this tone: ${sectionedWorkflow.emotionalTone}` : ''}
+${sectionedWorkflow.targetAudience ? `INTENDED AUDIENCE: Write specifically for: ${sectionedWorkflow.targetAudience}` : ''}
+${sectionedWorkflow.forbiddenWords ? `LANGUAGE RESTRICTIONS: Completely avoid these terms: ${sectionedWorkflow.forbiddenWords}` : ''}
+
+${research.analysis ? `
+RESEARCH FOUNDATION:
+Use insights from this research to create authoritative, fact-based content:
+${JSON.stringify(research.analysis, null, 2).substring(0, 1000)}...
+
+INTEGRATION REQUIREMENTS:
+- Weave specific facts, statistics, and insights naturally into the narrative
+- Use research to support claims with concrete examples
+- Reference current developments and real-world applications
+- Build authority through demonstrated knowledge, not dramatic claims
+` : ''}
+
+${activeCTAs.length > 0 ? `
+CTA REQUIREMENTS FOR THIS SECTION:
+${activeCTAs.map((ctaItem) => {
+  let ctaContent = '';
+  if (ctaItem.type === 'newsletter') {
+    ctaContent = `Include a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube. Mention that the viewer will receive a free ebook copy of "The Kybalion" upon signing up for a limited time only. The CTA must be incorporated smoothly and naturally into the content flow and can only be 2 sentences max. Make it persuasive and create urgency.`;
+  } else if (ctaItem.type === 'engagement') {
+    ctaContent = `Include this engagement CTA naturally: "If this video resonated with you, let us know by commenting, 'I understood it.'" Integrate it seamlessly with the surrounding content.`;
+  } else if (ctaItem.type === 'custom' && ctaItem.content) {
+    ctaContent = `Include this custom CTA naturally: ${ctaItem.content}`;
+  }
+  return ctaContent;
+}).filter(Boolean).join('\n')}
+
+CRITICAL: CTAs must be integrated naturally into the content flow. Do NOT use transition phrases like "[TRANSITION TO CTA]" or similar - these will be spoken by the voice-over. Instead, make the CTA feel like a natural part of the narrative. Bold or emphasize the CTA content for visual distinction.
+` : ''}
+
+ANTI-AI CONTENT REQUIREMENTS:
+- NEVER use repetitive catchphrases or formulaic expressions
+- AVOID dramatic declarations like "Your life is a lie" or "They don't want you to know" unless used sparingly and contextually
+- ELIMINATE generic, interchangeable language that could apply to any topic
+- REJECT artificial excitement or forced urgency
+- NEVER repeat the same rhetorical devices or sentence structures
+- AVOID lists of vague benefits or empty promises
+- CREATE unique, topic-specific insights that demonstrate genuine expertise
+
+NATURAL HUMAN COMMUNICATION STANDARDS:
+- Write as if you're a knowledgeable friend sharing fascinating discoveries
+- Use varied sentence structures and natural speech patterns
+- Include specific, verifiable details and examples
+- Show genuine curiosity and intellectual engagement with the topic
+- Build arguments through logic and evidence, not repetitive assertions
+- Respect your audience's intelligence and critical thinking abilities
+- Connect ideas to real-world experiences and practical applications
+
+CONTENT DEPTH REQUIREMENTS:
+- Provide specific, actionable insights that viewers can verify or apply
+- Explain underlying mechanisms and causalities, not just surface-level claims
+- Include historical context, comparative examples, or case studies
+- Address complexity and nuance rather than oversimplifying
+- Connect individual concepts to broader frameworks or principles
+- Offer practical next steps or applications for the information shared
+
+CRITICAL WRITING REQUIREMENTS:
+- Write ONLY the script content for this section - no stage directions, titles, or meta-commentary
+- Create content that sounds natural and authentic when spoken aloud
+- Use specific examples, case studies, or relatable scenarios to illustrate points
+- Vary sentence structure and length extensively to create natural rhythm
+- Build arguments through logical progression and evidence, not shock tactics
+- Include genuine insights that provide real educational value
+- If including CTAs, make them **bold** but integrate naturally into the narrative flow
+- Balance direct address ("you") with inclusive language ("we") appropriately
+- Build on previous sections naturally (this is section 1 of ${sectionedWorkflow.sections.length || 'X'})
+${sectionedWorkflow.emotionalTone ? `- Maintain the ${sectionedWorkflow.emotionalTone} emotional tone throughout while remaining authentic` : ''}
+${sectionedWorkflow.targetAudience ? `- Speak directly to ${sectionedWorkflow.targetAudience} with relevant examples and appropriate language` : ''}
+
+CRITICAL WORD COUNT REQUIREMENTS:
+- This section should be AT LEAST 500 words minimum
+- Target approximately 700-900 words for optimal depth and engagement
+- If your initial draft is under 500 words, expand with additional examples, case studies, or deeper explanations
+- Better to exceed the target than fall significantly short
+- Focus on providing substantial value rather than reaching a word count through filler
+
+QUALITY VERIFICATION:
+Before finalizing, ensure your content:
+- Sounds like a knowledgeable human expert, not an AI
+- Provides specific, verifiable information unique to this topic
+- Uses completely varied language with no repeated phrases or structures
+- Builds trust through transparency and demonstrated expertise
+- Educates and empowers rather than manipulates or overwhelms
+- Maintains conversational authenticity while delivering substantial value
+
+${sectionedWorkflow.forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${sectionedWorkflow.forbiddenWords}` : ''}
+
+Write the authentic, expert-level script content now:`
+
+    setModalTitle('Detailed Script Generation Prompt')
+    setModalPrompt(promptExample)
+    setShowPromptModal(true)
   }
 
   // Step 1: Script Style
@@ -480,13 +838,20 @@ export function ScriptGenerator() {
                     <SelectValue placeholder="Select AI model..." />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="gpt-4.1-nano">GPT-4.1 Nano (Ultra Fast)</SelectItem>
+                    <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini (Fast)</SelectItem>
+                    <SelectItem value="gpt-4.1">GPT-4.1 (Balanced)</SelectItem>
                     <SelectItem value="gpt-4o-mini">GPT-4o Mini (Fast)</SelectItem>
                     <SelectItem value="gpt-4o">GPT-4o (Balanced)</SelectItem>
-                    <SelectItem value="claude-3-haiku">Claude 3 Haiku</SelectItem>
-                    <SelectItem value="claude-3-sonnet">Claude 3 Sonnet</SelectItem>
+                    
+                    <SelectItem value="claude-3-haiku-20240307">Claude Haiku 3</SelectItem>
+                    <SelectItem value="claude-3-sonnet-20240229">Claude Sonnet 3</SelectItem>
+                    <SelectItem value="claude-3-opus-20240229">Claude Opus 3</SelectItem>
+                    <SelectItem value="claude-3-5-haiku-20241022">Claude Haiku 3.5</SelectItem>
+                    <SelectItem value="claude-3-5-sonnet-20241022">Claude Sonnet 3.5</SelectItem>
+                    <SelectItem value="claude-3-7-sonnet-20250219">Claude Sonnet 3.7</SelectItem>
                     <SelectItem value="claude-opus-4-20250514">Claude Opus 4</SelectItem>
                     <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
-                    <SelectItem value="claude-3-7-sonnet-20250219">Claude Sonnet 3.7</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -502,7 +867,7 @@ export function ScriptGenerator() {
               Quote Configuration
             </CardTitle>
             <CardDescription>
-              Add an inspiring quote at the beginning of your script
+              Add an AI-generated inspiring quote at the beginning of your script
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -514,40 +879,15 @@ export function ScriptGenerator() {
                 onChange={(e) => dispatch(setQuoteEnabled(e.target.checked))}
                 className="rounded"
               />
-              <Label htmlFor="quote-enabled">Include quote at the beginning of script</Label>
+              <Label htmlFor="quote-enabled">Auto-generate a relevant quote at the beginning of script</Label>
             </div>
 
             {sectionedWorkflow.quote.enabled && (
               <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-                <div className="space-y-2">
-                  <Label htmlFor="quote-text">Quote Text</Label>
-                  <Textarea
-                    id="quote-text"
-                    value={sectionedWorkflow.quote.text}
-                    onChange={(e) => dispatch(setQuote({ 
-                      text: e.target.value, 
-                      author: sectionedWorkflow.quote.author 
-                    }))}
-                    placeholder="Enter the quote text..."
-                    rows={2}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quote-author">Quote Author</Label>
-                  <Input
-                    id="quote-author"
-                    value={sectionedWorkflow.quote.author}
-                    onChange={(e) => dispatch(setQuote({ 
-                      text: sectionedWorkflow.quote.text, 
-                      author: e.target.value 
-                    }))}
-                    placeholder="e.g., Albert Einstein, Marcus Aurelius..."
-                    className="w-full"
-                  />
-                </div>
                 <div className="text-sm text-gray-600">
-                  <p>💡 Tip: Leave empty to auto-generate a relevant quote during script generation</p>
+                  <p>✨ <strong>Auto-Generated Quote Feature Enabled</strong></p>
+                  <p>A relevant, profound quote from an authority figure will be automatically generated and placed at the top of your script based on the content and theme.</p>
+                  <p className="mt-2 text-blue-600">💡 The quote will be sourced from experts, historical figures, or thought leaders relevant to your script's subject matter.</p>
                 </div>
               </div>
             )}
@@ -568,28 +908,83 @@ export function ScriptGenerator() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <Label>CTAs</Label>
-              <Button
-                onClick={() => {
-                  const newCTA = {
-                    id: `cta-${Date.now()}`,
-                    type: 'newsletter' as const,
-                    placement: 'end' as const,
-                    enabled: true
-                  };
-                  dispatch(addCTA(newCTA));
-                }}
-                size="sm"
-                variant="outline"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add CTA
-              </Button>
+              <div className="space-x-2">
+                <Button
+                  onClick={() => {
+                    // Add both newsletter and engagement CTAs
+                    dispatch(addCTA({
+                      id: `cta-newsletter-${Date.now()}`,
+                      type: 'newsletter',
+                      placement: 'middle',
+                      enabled: true
+                    }));
+                    dispatch(addCTA({
+                      id: `cta-engagement-${Date.now()}`,
+                      type: 'engagement',
+                      placement: 'end',
+                      enabled: true
+                    }));
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="text-blue-600"
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  Add Default CTAs
+                </Button>
+                <Button
+                  onClick={() => {
+                    const newCTA = {
+                      id: `cta-${Date.now()}`,
+                      type: 'newsletter' as const,
+                      placement: 'end' as const,
+                      enabled: true
+                    };
+                    dispatch(addCTA(newCTA));
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add CTA
+                </Button>
+              </div>
             </div>
 
             {sectionedWorkflow.ctas.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <Megaphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No CTAs configured. Click "Add CTA" to get started.</p>
+                <div className="mt-4 space-x-2">
+                  <Button
+                    onClick={() => {
+                      dispatch(addCTA({
+                        id: `cta-newsletter-${Date.now()}`,
+                        type: 'newsletter',
+                        placement: 'middle',
+                        enabled: true
+                      }));
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Add Newsletter CTA
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      dispatch(addCTA({
+                        id: `cta-engagement-${Date.now()}`,
+                        type: 'engagement',
+                        placement: 'end',
+                        enabled: true
+                      }));
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Add Engagement CTA
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -863,8 +1258,9 @@ This style works best for content that challenges conventional thinking while pr
           themeId: sectionedWorkflow.themeId,
           cta: sectionedWorkflow.ctas,
           quote: sectionedWorkflow.quote.enabled ? sectionedWorkflow.quote : null,
-          researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null
-            }),
+          researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
+          generateQuote: sectionedWorkflow.quote.enabled
+        }),
           })
 
           if (!response.ok) {
@@ -1031,8 +1427,9 @@ This style works best for content that challenges conventional thinking while pr
           themeId: sectionedWorkflow.themeId,
           cta: sectionedWorkflow.ctas,
           quote: sectionedWorkflow.quote.enabled ? sectionedWorkflow.quote : null,
-          researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null
-              }),
+          researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
+          generateQuote: sectionedWorkflow.quote.enabled
+        }),
             })
 
             if (!response.ok) {
@@ -1196,7 +1593,7 @@ This style works best for content that challenges conventional thinking while pr
         ctas: sectionedWorkflow.ctas,
           forbiddenWords: sectionedWorkflow.forbiddenWords,
         researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
-        generateQuote: sectionedWorkflow.quote.enabled && !sectionedWorkflow.quote.text
+        generateQuote: sectionedWorkflow.quote.enabled
       }
 
       // Update request based on method
@@ -1391,7 +1788,7 @@ This style works best for content that challenges conventional thinking while pr
             )}
 
             {/* Generate Button */}
-            <div className="flex justify-center">
+            <div className="flex justify-center items-center gap-2">
               <Button
                 onClick={() => handleGenerateOutline(sectionedWorkflow.outlineMethod)} 
                 disabled={sectionedWorkflow.sectionsProgress.isActive}
@@ -1409,7 +1806,17 @@ This style works best for content that challenges conventional thinking while pr
                 </>
               )}
               </Button>
-              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => showOutlinePrompt()}
+                title="🔍 View exact prompt that will be sent to AI for outline generation"
+                className="px-3"
+              >
+                <Info className="h-4 w-4" />
+              </Button>
+            </div>
 
             {/* Generated Sections Display */}
             {sectionedWorkflow.sections.length > 0 && (
@@ -1422,23 +1829,85 @@ This style works best for content that challenges conventional thinking while pr
             </Button>
       </div>
 
-                {sectionedWorkflow.sections.map((section, index) => (
-                  <Card key={section.id} className="border-l-4 border-l-blue-500">
-                    <CardContent className="pt-4">
-                  <div className="space-y-2">
-                        <h4 className="font-semibold text-blue-900">
-                          {index + 1}. {section.title}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {section.writingInstructions}
-                        </p>
-                        <Badge variant="outline" className="text-xs">
-                          ~{section.wordCount} words
-                        </Badge>
-          </div>
-            </CardContent>
-          </Card>
-                ))}
+                {sectionedWorkflow.sections.map((section, index) => {
+                  // Check if this section has a CTA
+                  const activeCTAs = sectionedWorkflow.ctas.filter(cta => cta.enabled);
+                  const sectionHasCTA = activeCTAs.some((ctaItem) => {
+                    if (ctaItem.placement === 'beginning' && index === 0) return true;
+                    if (ctaItem.placement === 'middle' && index === Math.floor(sectionedWorkflow.sections.length / 2)) return true;
+                    if (ctaItem.placement === 'end' && index === sectionedWorkflow.sections.length - 1) return true;
+                    if (ctaItem.placement === 'custom' && ctaItem.customPosition === index + 1) return true;
+                    return false;
+                  });
+
+                  const sectionCTAs = activeCTAs.filter((ctaItem) => {
+                    if (ctaItem.placement === 'beginning' && index === 0) return true;
+                    if (ctaItem.placement === 'middle' && index === Math.floor(sectionedWorkflow.sections.length / 2)) return true;
+                    if (ctaItem.placement === 'end' && index === sectionedWorkflow.sections.length - 1) return true;
+                    if (ctaItem.placement === 'custom' && ctaItem.customPosition === index + 1) return true;
+                    return false;
+                  });
+
+                  return (
+                    <Card 
+                      key={section.id} 
+                      className={sectionHasCTA ? 'border-l-4 border-l-orange-500 bg-orange-50/30' : 'border-l-4 border-l-blue-500'}
+                    >
+                      <CardContent className="pt-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-blue-900 flex items-center gap-2">
+                              {index + 1}. {section.title}
+                              {sectionHasCTA && (
+                                <div className="flex items-center gap-1">
+                                  <Megaphone className="h-4 w-4 text-orange-600" />
+                                  <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
+                                    {sectionCTAs.length} CTA{sectionCTAs.length > 1 ? 's' : ''}
+                                  </Badge>
+                                </div>
+                              )}
+                            </h4>
+                          </div>
+                          
+                          {sectionHasCTA && (
+                            <div className="bg-orange-100 border border-orange-200 rounded-lg p-2 text-xs">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Megaphone className="h-3 w-3 text-orange-600" />
+                                <span className="font-medium text-orange-800">
+                                  Planned CTA{sectionCTAs.length > 1 ? 's' : ''}:
+                                </span>
+                              </div>
+                              <div className="space-y-1 text-orange-700">
+                                {sectionCTAs.map((cta) => (
+                                  <div key={cta.id} className="text-xs">
+                                    • <span className="font-medium capitalize">{cta.type}</span>
+                                    {cta.type === 'newsletter' && ' - Newsletter signup'}
+                                    {cta.type === 'engagement' && ' - Engagement request'}
+                                    {cta.type === 'custom' && ' - Custom CTA'}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          <p className="text-sm text-gray-600">
+                            {section.writingInstructions}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              ~{section.wordCount} words
+                            </Badge>
+                            {sectionHasCTA && (
+                              <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
+                                Will contain CTA
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
         </div>
       )}
           </CardContent>
@@ -1484,77 +1953,153 @@ This style works best for content that challenges conventional thinking while pr
             <div className="space-y-4">
                         <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Script Sections</h3>
-            <Button 
-                  onClick={handleGenerateAllScripts}
-                  disabled={sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating)}
-              >
-                  {sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating) ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating...
-                </>
-              ) : (
-                    <>
-                      <Zap className="h-4 w-4 mr-2" />
-                      Generate All Scripts
-                          </>
-              )}
-            </Button>
-                      </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    onClick={handleGenerateAllScripts}
+                    disabled={sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating)}
+                  >
+                    {sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 mr-2" />
+                        Generate All Scripts
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => showDetailedScriptPrompt()}
+                    title="🔍 View exact prompt that will be sent to AI for script generation"
+                    className="px-3"
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                </div>
+            </div>
                       
-              {sectionedWorkflow.sections.map((section) => (
-                <Card key={section.id}>
-                  <CardContent className="pt-4">
-                    <div className="space-y-3">
-                      <h4 className="font-semibold">{section.title}</h4>
-                      {section.generatedScript ? (
-                        <div className="bg-gray-50 p-4 rounded border">
-                          <p className="text-sm whitespace-pre-wrap">{section.generatedScript}</p>
-                          <div className="flex items-center justify-between mt-2">
-                            <Badge className="text-xs">{section.wordCount} words</Badge>
-              <Button 
-                                  size="sm"
-                variant="outline"
+              {sectionedWorkflow.sections.map((section, index) => {
+                // Check if this section has a CTA
+                const activeCTAs = sectionedWorkflow.ctas.filter(cta => cta.enabled);
+                const sectionHasCTA = activeCTAs.some((ctaItem) => {
+                  if (ctaItem.placement === 'beginning' && index === 0) return true;
+                  if (ctaItem.placement === 'middle' && index === Math.floor(sectionedWorkflow.sections.length / 2)) return true;
+                  if (ctaItem.placement === 'end' && index === sectionedWorkflow.sections.length - 1) return true;
+                  if (ctaItem.placement === 'custom' && ctaItem.customPosition === index + 1) return true;
+                  return false;
+                });
+
+                const sectionCTAs = activeCTAs.filter((ctaItem) => {
+                  if (ctaItem.placement === 'beginning' && index === 0) return true;
+                  if (ctaItem.placement === 'middle' && index === Math.floor(sectionedWorkflow.sections.length / 2)) return true;
+                  if (ctaItem.placement === 'end' && index === sectionedWorkflow.sections.length - 1) return true;
+                  if (ctaItem.placement === 'custom' && ctaItem.customPosition === index + 1) return true;
+                  return false;
+                });
+
+                return (
+                  <Card 
+                    key={section.id} 
+                    className={sectionHasCTA ? 'border-orange-300 bg-orange-50/30 shadow-md' : 'border-l-4 border-l-blue-500'}
+                  >
+                    <CardContent className="pt-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold flex items-center gap-2">
+                            {section.title}
+                            {sectionHasCTA && (
+                              <div className="flex items-center gap-1">
+                                <Megaphone className="h-4 w-4 text-orange-600" />
+                                <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
+                                  {sectionCTAs.length} CTA{sectionCTAs.length > 1 ? 's' : ''}
+                                </Badge>
+                              </div>
+                            )}
+                          </h4>
+                        </div>
+                        
+                        {sectionHasCTA && (
+                          <div className="bg-orange-100 border border-orange-200 rounded-lg p-3 text-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Megaphone className="h-4 w-4 text-orange-600" />
+                              <span className="font-medium text-orange-800">
+                                CTA{sectionCTAs.length > 1 ? 's' : ''} in this section:
+                              </span>
+                            </div>
+                            <div className="space-y-1 text-orange-700">
+                              {sectionCTAs.map((cta, ctaIndex) => (
+                                <div key={cta.id} className="text-xs">
+                                  • <span className="font-medium capitalize">{cta.type}</span>
+                                  {cta.type === 'newsletter' && ' - Insights Academy signup with "The Kybalion" ebook'}
+                                  {cta.type === 'engagement' && ' - "If this video resonated with you, let us know by commenting, \'I understood it.\'"'}
+                                  {cta.type === 'custom' && cta.content && ` - ${cta.content.substring(0, 50)}${cta.content.length > 50 ? '...' : ''}`}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {section.generatedScript ? (
+                          <div className="bg-gray-50 p-4 rounded border">
+                            <p className="text-sm whitespace-pre-wrap">{section.generatedScript}</p>
+                            <div className="flex items-center justify-between mt-2">
+                              <div className="flex items-center gap-2">
+                                <Badge className="text-xs">{section.wordCount} words</Badge>
+                                {sectionHasCTA && (
+                                  <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
+                                    Contains CTA
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleGenerateDetailedScript(section.id)}
+                                disabled={section.isGenerating}
+                              >
+                                {section.isGenerating ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    Regenerating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <RotateCcw className="h-3 w-3 mr-1" />
+                                    Regenerate
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded">
+                            <p className="text-gray-500 mb-2">Script not generated yet</p>
+                            <Button
+                              size="sm"
                               onClick={() => handleGenerateDetailedScript(section.id)}
                               disabled={section.isGenerating}
                             >
                               {section.isGenerating ? (
                                 <>
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                  Regenerating...
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Generating...
                                 </>
                               ) : (
-                                <>
-                                  <RotateCcw className="h-3 w-3 mr-1" />
-                                  Regenerate
-                          </>
+                                'Generate Script'
                               )}
-              </Button>
-                </div>
-              </div>
-                      ) : (
-                        <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded">
-                          <p className="text-gray-500 mb-2">Script not generated yet</p>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleGenerateDetailedScript(section.id)}
-                                  disabled={section.isGenerating}
-                                >
-                                  {section.isGenerating ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Generating...
-                              </>
-                                  ) : (
-                              'Generate Script'
-                                  )}
-                                </Button>
-                        </div>
-                            )}
+                            </Button>
                           </div>
-        </CardContent>
-      </Card>
-              ))}
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
                         </div>
           )}
         </CardContent>
@@ -1598,8 +2143,11 @@ This style works best for content that challenges conventional thinking while pr
                 <cite className="text-sm text-blue-700 font-medium">
                   — {sectionedWorkflow.quote.author}
                 </cite>
-                  </div>
-                        )}
+                <div className="mt-2 text-xs text-blue-600">
+                  ✨ Auto-generated quote
+                </div>
+              </div>
+            )}
             
             <div className="bg-gray-50 p-4 rounded border max-h-96 overflow-y-auto">
               <div className="text-sm leading-relaxed space-y-4">
@@ -1734,6 +2282,14 @@ This style works best for content that challenges conventional thinking while pr
           <ChevronRight className="h-4 w-4 ml-2" />
                                 </Button>
       </div>
+
+      {/* Prompt Preview Modal */}
+      <PromptDialog
+        isOpen={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        title={modalTitle}
+        prompt={modalPrompt}
+      />
     </div>
   )
 } 

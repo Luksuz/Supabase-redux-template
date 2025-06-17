@@ -215,30 +215,30 @@ export function AIImageGenerator() {
     setSelectedImages(allImageIds)
   }
 
-  // Define available image styles
+  // Define available image styles with their prefixes
   const IMAGE_STYLES = [
-    { value: 'none', label: 'No specific style' },
-    { value: 'ancient-beige-paper-ink', label: 'Ancient beige paper ink illustration style' },
-    { value: 'ancient-beige-paper-book', label: 'Ancient beige paper ink illustration from an ancient book' },
-    { value: 'esoteric-1400s', label: 'Esoteric 1400s drawing style' },
-    { value: 'medieval', label: 'Medieval drawing style' },
-    { value: 'oil-painting', label: 'Oil painting style' },
-    { value: 'ary-scheffer', label: "Ary Scheffer's painting depicting style" },
-    { value: 'pieter-jansz', label: 'Pieter-Jansz van Asch painting style' },
-    { value: 'black-white', label: 'Black & White' },
-    { value: 'ancient-egyptian', label: 'Ancient Egyptian art style' },
-    { value: 'modern-symbolist', label: 'Modern Symbolist/Esoteric Art style' },
-    { value: 'northern-renaissance', label: 'Northern Renaissance engraving style' }
+    { value: 'none', label: 'No specific style', prefix: '' },
+    { value: 'ancient-beige-paper-ink', label: 'Ancient beige paper ink illustration style', prefix: 'Ancient beige paper ink illustration style, ' },
+    { value: 'ancient-beige-paper-book', label: 'Ancient beige paper ink illustration from an ancient book', prefix: 'Ancient beige paper ink illustration from an ancient book, ' },
+    { value: 'esoteric-1400s', label: 'Esoteric 1400s drawing style', prefix: 'Esoteric 1400s drawing style, ' },
+    { value: 'medieval', label: 'Medieval drawing style', prefix: 'Medieval drawing style, ' },
+    { value: 'oil-painting', label: 'Oil painting style', prefix: 'Oil painting style, ' },
+    { value: 'ary-scheffer', label: "Ary Scheffer's painting depicting style", prefix: "Ary Scheffer's painting depicting style, " },
+    { value: 'pieter-jansz', label: 'Pieter-Jansz van Asch painting style', prefix: 'Pieter-Jansz van Asch painting style, ' },
+    { value: 'black-white', label: 'Black & White', prefix: 'Black & White, ' },
+    { value: 'ancient-egyptian', label: 'Ancient Egyptian art style', prefix: 'Ancient Egyptian art style, ' },
+    { value: 'modern-symbolist', label: 'Modern Symbolist/Esoteric Art style', prefix: 'Modern Symbolist/Esoteric Art style, ' },
+    { value: 'northern-renaissance', label: 'Northern Renaissance engraving style', prefix: 'Northern Renaissance engraving style, ' }
   ]
 
-  // Helper function to apply image style to prompt
+  // Helper function to apply image style to prompt - now transparent to user
   const applyImageStyle = (basePrompt: string) => {
     if (!selectedImageStyle || selectedImageStyle === 'none') return basePrompt
     
-    const styleLabel = IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.label
-    if (!styleLabel) return basePrompt
+    const selectedStyle = IMAGE_STYLES.find(style => style.value === selectedImageStyle)
+    if (!selectedStyle || !selectedStyle.prefix) return basePrompt
     
-    return `${basePrompt}, in ${styleLabel.toLowerCase()}`
+    return `${selectedStyle.prefix}${basePrompt}`
   }
 
   // Generate images with batch processing
@@ -261,7 +261,6 @@ export function AIImageGenerator() {
       // For MiniMax: send requests in parallel (batch size 5)
       const requestPromises = batchPrompts.map(async (prompt, index) => {
         try {
-          const styledPrompt = applyImageStyle(prompt)
           const response = await fetch('/api/generate-images', {
             method: 'POST',
             headers: {
@@ -269,10 +268,10 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: styledPrompt,
+              prompt: applyImageStyle(prompt),
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
-              userId: 'user-123'
+              userId: 'user-123',
             }),
           })
 
@@ -305,7 +304,6 @@ export function AIImageGenerator() {
       // For DALL-E 3: efficient parallel batch processing (batch size 20)
       const requestPromises = batchPrompts.map(async (prompt, index) => {
         try {
-          const styledPrompt = applyImageStyle(prompt)
           const response = await fetch('/api/generate-images', {
             method: 'POST',
             headers: {
@@ -313,10 +311,10 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: styledPrompt,
+              prompt: applyImageStyle(prompt),
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
-              userId: 'user-123'
+              userId: 'user-123',
             }),
           })
 
@@ -349,7 +347,6 @@ export function AIImageGenerator() {
       // For Leonardo Phoenix: send requests sequentially with rate limiting
       const requestPromises = batchPrompts.map(async (prompt, index) => {
         try {
-          const styledPrompt = applyImageStyle(prompt)
           const response = await fetch('/api/generate-images', {
             method: 'POST',
             headers: {
@@ -357,10 +354,10 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: styledPrompt,
+              prompt: applyImageStyle(prompt),
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
-              userId: 'user-123'
+              userId: 'user-123',
             }),
           })
 
@@ -393,7 +390,6 @@ export function AIImageGenerator() {
       // For Flux models: send all requests in parallel
       const requestPromises = batchPrompts.map(async (prompt, index) => {
         try {
-          const styledPrompt = applyImageStyle(prompt)
           const response = await fetch('/api/generate-images', {
             method: 'POST',
             headers: {
@@ -401,10 +397,10 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: styledPrompt,
+              prompt: applyImageStyle(prompt),
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
-              userId: 'user-123'
+              userId: 'user-123',
             }),
           })
 
@@ -990,6 +986,33 @@ export function AIImageGenerator() {
               </div>
             </div>
           </div>
+
+          {/* Prompt Preview */}
+          {selectedImageStyle && selectedImageStyle !== 'none' && (
+            <div className="space-y-3">
+              <Label>Style Preview</Label>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-2">
+                  ✨ Your prompts will be prefixed with the selected style:
+                </p>
+                <div className="text-xs text-blue-700 space-y-2">
+                  <div className="p-2 bg-white border border-blue-100 rounded">
+                    <span className="font-semibold text-blue-900">Style Prefix:</span>{' '}
+                    <span className="font-mono">{IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.prefix}</span>
+                  </div>
+                  <div className="p-2 bg-white border border-blue-100 rounded">
+                    <span className="font-semibold text-blue-900">Example Final Prompt:</span>{' '}
+                    <span className="font-mono text-gray-800">
+                      {selectedScenes.length > 0 && extractedScenes[selectedScenes[0]] 
+                        ? applyImageStyle(extractedScenes[selectedScenes[0]].imagePrompt)
+                        : applyImageStyle("A mystical figure meditating in an ancient temple surrounded by glowing symbols")
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Extract Scenes Button */}
           <Button 
