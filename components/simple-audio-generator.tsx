@@ -64,12 +64,9 @@ const minimaxModels = [
 
 // Voice options for ElevenLabs - Updated with channel voices
 const elevenLabsVoices = [
-  // Your channel voices (replace with your actual voice IDs and names)
-  { value: 'moss_audio_daa84003-205b-11f0-9892-fe0442d6b67f', label: 'Law Of Insights (Channel Voice)' },
-  { value: 'moss_audio_92ac26e3-2059-11f0-8444-ae62a3be7263', label: 'Library of Thoth (Channel Voice)' },
-  { value: 'your_custom_voice_id_1', label: 'Your Channel Voice 1' },
-  { value: 'your_custom_voice_id_2', label: 'Your Channel Voice 2' },
-  { value: 'your_custom_voice_id_3', label: 'Your Channel Voice 3' },
+  // Your channel voices (actual voice IDs)
+  { value: 'ZQe5CZNOzWyzPSCn5a3c', label: 'Law Of Insights (Channel Voice)' },
+  { value: 'eObHpSs7wZ69N0qM3xTM', label: 'Library of Thoth (Channel Voice)' },
   // Keep some popular defaults as backup
   { value: 'Rachel', label: 'Rachel (Default)' },
   { value: 'Adam', label: 'Adam (Default)' },
@@ -143,12 +140,12 @@ export function SimpleAudioGenerator() {
   const [customFilename, setCustomFilename] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Auto-populate with full script if available
+  // Auto-populate with full script if available (only when text is empty)
   useEffect(() => {
-    if (sectionedWorkflow.fullScript && !textToConvert) {
+    if (sectionedWorkflow.fullScript && !textToConvert.trim()) {
       dispatch(setTextToConvert(sectionedWorkflow.fullScript))
     }
-  }, [sectionedWorkflow.fullScript, textToConvert, dispatch])
+  }, [sectionedWorkflow.fullScript, dispatch]) // Removed textToConvert from dependencies to prevent interference
 
   // Auto-populate filename when script title or language changes
   useEffect(() => {
@@ -622,16 +619,29 @@ export function SimpleAudioGenerator() {
             />
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>{textToConvert.length} characters</span>
-              {scriptInfo.hasScript && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => dispatch(setTextToConvert(sectionedWorkflow.fullScript || ''))}
-                  disabled={isGenerating}
-                >
-                  Use Full Script
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {scriptInfo.hasScript && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => dispatch(setTextToConvert(sectionedWorkflow.fullScript || ''))}
+                    disabled={isGenerating}
+                  >
+                    Use Full Script
+                  </Button>
+                )}
+                {textToConvert.trim() && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => dispatch(setTextToConvert(''))}
+                    disabled={isGenerating}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    Clear Text
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
