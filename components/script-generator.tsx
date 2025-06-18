@@ -22,7 +22,19 @@ import {
   savePromptChangesThunk,
   setSelectedPromptContent,
   setShowPromptEditor,
-  mergeYouTubeDataWithPromptThunk
+  mergeYouTubeDataWithPromptThunk,
+  // New imports for approval workflow
+  setPendingSections,
+  startApprovingSections,
+  finishApprovingSections,
+  rejectPendingSections,
+  setPendingScript,
+  startApprovingScript,
+  finishApprovingScript,
+  rejectPendingScript,
+  updatePendingScripts,
+  type PendingSection,
+  type PendingScript
 } from '../lib/features/scripts/scriptsSlice'
 import { initializeAuth, loginUser, logoutUser } from '../lib/features/user/userSlice'
 import { Button } from './ui/button'
@@ -292,7 +304,12 @@ export function ScriptGenerator() {
     showPromptEditor,
     promptsLoading,
     promptContentLoading,
-    mergingData
+    mergingData,
+    // New pending approval states
+    pendingSections,
+    pendingScripts,
+    approvingSections,
+    approvingScript
   } = useAppSelector(state => state.scripts)
   
   // Get YouTube data from Redux
@@ -619,41 +636,18 @@ export function ScriptGenerator() {
 
       const data = await response.json()
       
-      // Determine which prompt was used for tracking
-      let promptUsed = 'Default Crime Dynasty Prompt'
-      if (selectedPromptId && selectedPromptId !== 'default') {
-        if (selectedPromptContent) {
-          promptUsed = selectedPromptContent
-        } else {
-          // Find the prompt title from the prompts array
-          const selectedPrompt = prompts.find(p => p.id === selectedPromptId)
-          if (selectedPrompt) {
-            promptUsed = `${selectedPrompt.title}: ${selectedPrompt.prompt}`
-          }
-        }
-      }
-
-      // Save sections to database and update Redux state
-      const sectionsResponse = await fetch('/api/fine-tuning/sections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_id: currentJob.id,
-          sections: data.sections,
-          promptUsed: promptUsed
-        })
-      })
-
-      const sectionsData = await sectionsResponse.json()
-
-      if (sectionsResponse.ok) {
-        dispatch(setSections(sectionsData.sections))
-        const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
-        const promptMessage = selectedPromptId ? ' (Using custom prompt)' : ''
-        showMessage(`Sections generated successfully!${modelMessage}${promptMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
-      } else {
-        showMessage(sectionsData.error || 'Failed to save sections', 'error')
-      }
+      // Convert generated sections to pending sections for approval
+      const pendingSections: PendingSection[] = data.sections.map((section: any) => ({
+        id: section.id,
+        title: section.title,
+        writingInstructions: section.writingInstructions,
+        tempId: `temp-${Date.now()}-${Math.random()}`
+      }))
+      
+      dispatch(setPendingSections(pendingSections))
+      const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
+      const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
+      showMessage(`Sections generated! Please review and approve.${modelMessage}${promptMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
     } catch (error) {
       showMessage('Failed to generate sections', 'error')
     }
@@ -702,31 +696,21 @@ export function ScriptGenerator() {
 
       const data = await response.json()
 
-      // Save generated text to database
-      const textResponse = await fetch('/api/fine-tuning/texts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outline_section_id: section.id,
-          input_text: section.writing_instructions,
-          generated_script: data.script
-        })
-      })
-
-      const textData = await textResponse.json()
-
-      if (textResponse.ok) {
-        dispatch(addGeneratedText({
-          sectionId: section.id,
-          text: textData.text
-        }))
-
-        const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
-        const promptMessage = selectedPromptId ? ' (Using custom prompt)' : ''
-        showMessage(`Script generated successfully!${modelMessage}${promptMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
-      } else {
-        showMessage(textData.error || 'Failed to save generated script', 'error')
+      // Create pending script for approval
+      const pendingScript: PendingScript = {
+        sectionId: section.id,
+        title: section.title,
+        writingInstructions: section.writing_instructions,
+        generatedScript: data.script,
+        tempId: `temp-${Date.now()}-${Math.random()}`,
+        characterCount: data.script.length,
+        wordCount: data.script.trim().split(/\s+/).length
       }
+      
+      dispatch(setPendingScript(pendingScript))
+      const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
+      const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
+      showMessage(`Script generated! Please review and approve.${modelMessage}${promptMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
     } catch (error) {
       showMessage('Failed to generate script', 'error')
     }
@@ -779,28 +763,18 @@ export function ScriptGenerator() {
 
         const data = await response.json()
         
-        // Save generated text to database
-        const textResponse = await fetch('/api/fine-tuning/texts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            outline_section_id: section.id,
-            input_text: section.writing_instructions,
-            generated_script: data.script
-          })
-        })
-
-        const textData = await textResponse.json()
-
-        if (textResponse.ok) {
-          dispatch(addGeneratedText({
-            sectionId: section.id,
-            text: textData.text
-          }))
-          return { sectionId: section.id, success: true }
-        } else {
-          return { sectionId: section.id, error: textData.error, success: false }
+        // Create pending script for approval instead of saving directly
+        const pendingScript: PendingScript = {
+          sectionId: section.id,
+          title: section.title,
+          writingInstructions: section.writing_instructions,
+          generatedScript: data.script,
+          tempId: `temp-${Date.now()}-${Math.random()}-${section.id}`,
+          characterCount: data.script.length,
+          wordCount: data.script.trim().split(/\s+/).length
         }
+        
+        return { sectionId: section.id, pendingScript, success: true }
       } catch (error) {
         return { sectionId: section.id, error: (error as Error).message, success: false }
       }
@@ -808,19 +782,36 @@ export function ScriptGenerator() {
 
     const results = await Promise.all(promises)
     
+    // Process results and create pending scripts
+    const successfulPendingScripts: PendingScript[] = []
     let successCount = 0
+    
     results.forEach((result: any) => {
-      if (result.success) {
+      if (result.success && result.pendingScript) {
+        successfulPendingScripts.push(result.pendingScript)
         successCount++
       }
     })
 
+    // Add all successful pending scripts to the state
+    successfulPendingScripts.forEach(pendingScript => {
+      dispatch(setPendingScript(pendingScript))
+    })
+
     const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
     const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
-    showMessage(
-      `Generated ${successCount}/${results.length} scripts successfully!${modelMessage}${promptMessage}`,
-      successCount === results.length ? 'success' : 'error'
-    )
+    
+    if (successCount === results.length) {
+      showMessage(
+        `Generated ${successCount} scripts successfully! Please review and approve them below.${modelMessage}${promptMessage}`,
+        'success'
+      )
+    } else {
+      showMessage(
+        `Generated ${successCount}/${results.length} scripts successfully! Please review and approve them below.${modelMessage}${promptMessage}`,
+        'info'
+      )
+    }
   }
 
   // Copy script to clipboard
@@ -918,6 +909,198 @@ export function ScriptGenerator() {
   }
 
   const hasGeneratedScripts = currentJob?.sections.some((s: FineTuningSection) => s.texts && s.texts.length > 0)
+
+  // Helper function to get prompt used text
+  const getPromptUsedText = () => {
+    if (selectedPromptId && selectedPromptId !== 'default') {
+      if (selectedPromptContent) {
+        return selectedPromptContent
+      } else {
+        const selectedPrompt = prompts.find(p => p.id === selectedPromptId)
+        if (selectedPrompt) {
+          return `${selectedPrompt.title}: ${selectedPrompt.prompt}`
+        }
+      }
+    }
+    return 'Default Crime Dynasty Prompt'
+  }
+
+  // Approve pending sections
+  const handleApproveSections = async () => {
+    if (!currentJob || pendingSections.length === 0) return
+
+    dispatch(startApprovingSections())
+
+    try {
+      const response = await fetch('/api/script/approve-sections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: currentJob.id,
+          sections: pendingSections,
+          promptUsed: getPromptUsedText()
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        dispatch(setSections(data.sections))
+        dispatch(finishApprovingSections())
+        showMessage(`${data.sections.length} sections approved and saved successfully!`, 'success')
+      } else {
+        showMessage(data.error || 'Failed to approve sections', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to approve sections', 'error')
+    }
+  }
+
+  // Reject pending sections
+  const handleRejectSections = () => {
+    dispatch(rejectPendingSections())
+    showMessage('Sections rejected. You can generate new ones.', 'info')
+  }
+
+  // Approve pending script
+  const handleApproveScript = async (pendingScript: PendingScript) => {
+    dispatch(startApprovingScript(pendingScript.tempId))
+
+    try {
+      const response = await fetch('/api/script/approve-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outline_section_id: pendingScript.sectionId,
+          input_text: pendingScript.writingInstructions,
+          generated_script: pendingScript.generatedScript
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Structure the data correctly for Redux state
+        const textForRedux = {
+          id: data.text.id,
+          input_text: data.text.input_text,
+          generated_script: data.text.generated_script,
+          text_order: data.text.text_order,
+          quality_score: data.text.quality_score,
+          is_validated: data.text.is_validated || false,
+          validation_notes: data.text.validation_notes,
+          character_count: data.text.character_count,
+          word_count: data.text.word_count
+        }
+
+        dispatch(addGeneratedText({
+          sectionId: pendingScript.sectionId,
+          text: textForRedux
+        }))
+        dispatch(finishApprovingScript(pendingScript.tempId))
+        showMessage('Script approved and saved successfully!', 'success')
+      } else {
+        showMessage(data.error || 'Failed to approve script', 'error')
+        dispatch(finishApprovingScript(pendingScript.tempId)) // Stop spinner even on error
+      }
+    } catch (error) {
+      showMessage('Failed to approve script', 'error')
+      dispatch(finishApprovingScript(pendingScript.tempId)) // Stop spinner even on error
+    }
+  }
+
+  // Approve all pending scripts
+  const handleApproveAllScripts = async () => {
+    if (pendingScripts.length === 0) return
+
+    showMessage('Approving all scripts...', 'info')
+
+    const promises = pendingScripts.map(async (pendingScript) => {
+      try {
+        const response = await fetch('/api/script/approve-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            outline_section_id: pendingScript.sectionId,
+            input_text: pendingScript.writingInstructions,
+            generated_script: pendingScript.generatedScript
+          })
+        })
+
+        const data = await response.json()
+
+        if (response.ok) {
+          return { success: true, pendingScript, apiData: data }
+        } else {
+          return { success: false, pendingScript, error: data.error }
+        }
+      } catch (error) {
+        return { success: false, pendingScript, error: (error as Error).message }
+      }
+    })
+
+    const results = await Promise.all(promises)
+    
+    let successCount = 0
+    results.forEach((result: any) => {
+      if (result.success) {
+        // Structure the data correctly for Redux state
+        const textForRedux = {
+          id: result.apiData.text.id,
+          input_text: result.apiData.text.input_text,
+          generated_script: result.apiData.text.generated_script,
+          text_order: result.apiData.text.text_order,
+          quality_score: result.apiData.text.quality_score,
+          is_validated: result.apiData.text.is_validated || false,
+          validation_notes: result.apiData.text.validation_notes,
+          character_count: result.apiData.text.character_count,
+          word_count: result.apiData.text.word_count
+        }
+
+        dispatch(addGeneratedText({
+          sectionId: result.pendingScript.sectionId,
+          text: textForRedux
+        }))
+        dispatch(finishApprovingScript(result.pendingScript.tempId))
+        successCount++
+      }
+    })
+
+    if (successCount === results.length) {
+      showMessage(`All ${successCount} scripts approved and saved successfully!`, 'success')
+    } else {
+      showMessage(`${successCount}/${results.length} scripts approved successfully. Some failed.`, 'info')
+    }
+  }
+
+  // Reject pending script
+  const handleRejectScript = (tempId: string) => {
+    dispatch(rejectPendingScript(tempId))
+    showMessage('Script rejected. You can generate a new one.', 'info')
+  }
+
+  // Update section in pending state
+  const updatePendingSection = (tempId: string, updates: Partial<PendingSection>) => {
+    const updatedSections = pendingSections.map(section => 
+      section.tempId === tempId ? { ...section, ...updates } : section
+    )
+    dispatch(setPendingSections(updatedSections))
+  }
+
+  // Update pending script content
+  const updatePendingScript = (tempId: string, updates: Partial<PendingScript>) => {
+    const updatedScripts = pendingScripts.map(script => 
+      script.tempId === tempId ? { 
+        ...script, 
+        ...updates,
+        // Recalculate counts if script content changed
+        characterCount: updates.generatedScript ? updates.generatedScript.length : script.characterCount,
+        wordCount: updates.generatedScript ? updates.generatedScript.trim().split(/\s+/).length : script.wordCount
+      } : script
+    )
+    // Use the new action to update the entire array at once
+    dispatch(updatePendingScripts(updatedScripts))
+  }
 
   // Show loading screen during auth initialization
   if (!user.initialized) {
@@ -1062,6 +1245,190 @@ export function ScriptGenerator() {
                 )}
             </CardContent>
           </Card>
+          )}
+
+          {/* Pending Sections Approval */}
+          {pendingSections.length > 0 && user.isLoggedIn && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-800">
+                  <AlertCircle className="h-5 w-5" />
+                  Sections Pending Approval
+                </CardTitle>
+                <CardDescription className="text-orange-700">
+                  Review the generated sections below and approve or reject them.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {pendingSections.map((section) => (
+                  <div key={section.tempId} className="border rounded-lg p-4 bg-white space-y-3">
+                    <div className="space-y-2">
+                      <Label>Section Title</Label>
+                      <Input
+                        value={section.title}
+                        onChange={(e) => updatePendingSection(section.tempId, { title: e.target.value })}
+                        className="font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Writing Instructions</Label>
+                      <Textarea
+                        value={section.writingInstructions}
+                        onChange={(e) => updatePendingSection(section.tempId, { writingInstructions: e.target.value })}
+                        className="min-h-[100px]"
+                      />
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={handleApproveSections}
+                    disabled={approvingSections}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {approvingSections ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Approving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve All Sections
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleRejectSections}
+                    disabled={approvingSections}
+                    variant="outline"
+                    className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Reject All
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pending Scripts Approval */}
+          {pendingScripts.length > 0 && user.isLoggedIn && (
+            <div className="space-y-4">
+              {/* Approve All Scripts Header */}
+              <Card className="border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-orange-800">
+                        <AlertCircle className="h-5 w-5" />
+                        {pendingScripts.length} Script{pendingScripts.length > 1 ? 's' : ''} Pending Approval
+                      </CardTitle>
+                      <CardDescription className="text-orange-700">
+                        Review and edit the generated scripts below, then approve or reject them.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      onClick={handleApproveAllScripts}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve All Scripts
+                    </Button>
+                  </div>
+                </CardHeader>
+              </Card>
+
+              {/* Individual Pending Scripts */}
+              {pendingScripts.map((pendingScript) => (
+                <Card key={pendingScript.tempId} className="border-orange-200 bg-orange-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-800">
+                      <AlertCircle className="h-5 w-5" />
+                      Script: {pendingScript.title}
+                    </CardTitle>
+                    <CardDescription className="text-orange-700">
+                      Review and edit the script content below before approving.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Editable Script Title */}
+                    <div className="space-y-2">
+                      <Label>Script Title</Label>
+                      <Input
+                        value={pendingScript.title}
+                        onChange={(e) => updatePendingScript(pendingScript.tempId, { title: e.target.value })}
+                        className="font-medium bg-white"
+                      />
+                    </div>
+
+                    {/* Editable Writing Instructions */}
+                    <div className="space-y-2">
+                      <Label>Writing Instructions</Label>
+                      <Textarea
+                        value={pendingScript.writingInstructions}
+                        onChange={(e) => updatePendingScript(pendingScript.tempId, { writingInstructions: e.target.value })}
+                        className="min-h-[80px] bg-white"
+                      />
+                    </div>
+
+                    {/* Editable Generated Script */}
+                    <div className="bg-white rounded p-4 border space-y-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FileText className="h-4 w-4 text-gray-600" />
+                        <span className="font-medium">Generated Script (Editable)</span>
+                        <Badge variant="secondary">
+                          {pendingScript.characterCount} chars • {pendingScript.wordCount} words
+                        </Badge>
+                      </div>
+                      <Textarea
+                        value={pendingScript.generatedScript}
+                        onChange={(e) => updatePendingScript(pendingScript.tempId, { generatedScript: e.target.value })}
+                        className="min-h-[200px] bg-gray-50 border-gray-200 font-mono text-sm"
+                        placeholder="Edit the generated script content here..."
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleApproveScript(pendingScript)}
+                        disabled={approvingScript === pendingScript.tempId}
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                      >
+                        {approvingScript === pendingScript.tempId ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Approving...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Approve Script
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => handleRejectScript(pendingScript.tempId)}
+                        disabled={approvingScript === pendingScript.tempId}
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Reject Script
+                      </Button>
+                      <Button
+                        onClick={() => copyScript(pendingScript.generatedScript)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
 
           {/* Job Creation Form */}
@@ -1269,6 +1636,15 @@ export function ScriptGenerator() {
                       <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 (2025-04-14)</SelectItem>
                       <SelectItem value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (2025-04-14)</SelectItem>
                       <SelectItem value="gpt-4o-mini-2024-07-18">GPT-4o Mini (2024-07-18)</SelectItem>
+                      <SelectItem value="claude-opus-4-20250514">Claude-Opus-4-20250514</SelectItem>
+                      <SelectItem value="claude-sonnet-4-20250514">Claude-Sonnet-4-20250514</SelectItem>
+                      <SelectItem value="claude-3-7-sonnet-20250219">Claude-3-7-Sonnet-20250219</SelectItem>
+                      <SelectItem value="claude-3-5-haiku-20241022">Claude-3-5-Haiku-20241022</SelectItem>
+                      <SelectItem value="claude-3-5-sonnet-20241022">Claude-3-5-Sonnet-20241022</SelectItem>
+                      <SelectItem value="claude-3-5-sonnet-20240620">Claude-3-5-Sonnet-20240620</SelectItem>
+                      <SelectItem value="claude-3-opus-20240229">Claude-3-Opus-20240229</SelectItem>
+                      <SelectItem value="claude-3-sonnet-20240229">Claude-3-Sonnet-20240229</SelectItem>
+                      <SelectItem value="claude-3-haiku-20240307">Claude-3-Haiku-20240307</SelectItem>
                       {fineTunedModels.length > 0 && (
                         <>
                           <SelectItem disabled value="divider" className="font-semibold text-blue-600">

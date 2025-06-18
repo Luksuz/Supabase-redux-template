@@ -105,7 +105,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         script: mockScript,
-        usingMock: true
+        usingMock: true,
+        requiresApproval: true // Add flag to indicate approval needed
       })
     }
 
@@ -212,7 +213,8 @@ Write the script now:`
         success: true,
         script: script,
         usingMock: false,
-        usingStoredPrompt: !!finalPrompt
+        usingStoredPrompt: !!finalPrompt,
+        requiresApproval: true // Add flag to indicate approval needed
       })
 
     } catch (openaiError: any) {
@@ -240,6 +242,7 @@ Write the script now:`
         success: true,
         script: `[AI Unavailable - Mock Script]\n\n${mockScript}`,
         usingMock: true,
+        requiresApproval: true, // Add flag to indicate approval needed
         error: openaiError.message
       })
     }

@@ -21,6 +21,25 @@ export interface FineTuningText {
   created_at: string
 }
 
+// New interface for pending sections waiting for approval
+export interface PendingSection {
+  id: string
+  title: string
+  writingInstructions: string
+  tempId: string // Temporary ID for UI tracking
+}
+
+// New interface for pending scripts waiting for approval
+export interface PendingScript {
+  sectionId: string
+  title: string
+  writingInstructions: string
+  generatedScript: string
+  tempId: string // Temporary ID for UI tracking
+  characterCount: number
+  wordCount: number
+}
+
 export interface Voice {
   id: string
   name: string
@@ -89,6 +108,11 @@ interface ScriptsState {
   jobs: FineTuningJob[]
   isLoading: boolean
   error: string | null
+  // Pending approval states
+  pendingSections: PendingSection[]
+  pendingScripts: PendingScript[]
+  approvingSections: boolean
+  approvingScript: string | null // ID of script being approved
   // Prompt management state
   prompts: Prompt[]
   selectedPromptId: string
@@ -114,6 +138,11 @@ const initialState: ScriptsState = {
   jobs: [],
   isLoading: false,
   error: null,
+  // Pending approval states
+  pendingSections: [],
+  pendingScripts: [],
+  approvingSections: false,
+  approvingScript: null,
   // Prompt management state
   prompts: [],
   selectedPromptId: '',
@@ -184,6 +213,70 @@ export const scriptsSlice = createSlice({
       if (state.currentJob) {
         state.currentJob.isGeneratingSections = true
       }
+    },
+
+    // New reducer for setting pending sections that need approval
+    setPendingSections: (state, action: PayloadAction<PendingSection[]>) => {
+      state.pendingSections = action.payload
+      if (state.currentJob) {
+        state.currentJob.isGeneratingSections = false
+      }
+    },
+
+    // New reducer for approving sections
+    startApprovingSections: (state) => {
+      state.approvingSections = true
+    },
+
+    finishApprovingSections: (state) => {
+      state.approvingSections = false
+      state.pendingSections = []
+    },
+
+    // New reducer for rejecting sections
+    rejectPendingSections: (state) => {
+      state.pendingSections = []
+      if (state.currentJob) {
+        state.currentJob.isGeneratingSections = false
+      }
+    },
+
+    // New reducer for setting pending script that needs approval
+    setPendingScript: (state, action: PayloadAction<PendingScript>) => {
+      const pendingScript = action.payload
+      // Remove any existing pending script for this section
+      state.pendingScripts = state.pendingScripts.filter(ps => ps.sectionId !== pendingScript.sectionId)
+      // Add the new pending script
+      state.pendingScripts.push(pendingScript)
+      
+      // Stop the generating state for the section
+      if (state.currentJob) {
+        const section = state.currentJob.sections.find(s => s.id === pendingScript.sectionId)
+        if (section) {
+          section.isGeneratingScript = false
+        }
+      }
+    },
+
+    // New reducer for approving a script
+    startApprovingScript: (state, action: PayloadAction<string>) => {
+      state.approvingScript = action.payload
+    },
+
+    finishApprovingScript: (state, action: PayloadAction<string>) => {
+      state.approvingScript = null
+      // Remove the pending script
+      state.pendingScripts = state.pendingScripts.filter(ps => ps.tempId !== action.payload)
+    },
+
+    // New reducer for rejecting a script
+    rejectPendingScript: (state, action: PayloadAction<string>) => {
+      state.pendingScripts = state.pendingScripts.filter(ps => ps.tempId !== action.payload)
+    },
+
+    // New reducer for updating the entire pending scripts array
+    updatePendingScripts: (state, action: PayloadAction<PendingScript[]>) => {
+      state.pendingScripts = action.payload
     },
     
     setSections: (state, action: PayloadAction<FineTuningSection[]>) => {
@@ -435,7 +528,7 @@ export const scriptsSlice = createSlice({
   }
 })
 
-export const { 
+export const {
   setLoading,
   setError,
   createNewJob,
@@ -446,11 +539,12 @@ export const {
   updateSection,
   startGeneratingScript,
   addGeneratedText,
-  updateTextRating,
-  updateSectionRating,
   startGeneratingAllScripts,
   clearCurrentJob,
   loadJob,
+  updateTextRating,
+  updateSectionRating,
+  // Prompt management actions
   setPromptsLoading,
   setPromptContentLoading,
   setPrompts,
@@ -461,15 +555,26 @@ export const {
   addPromptToList,
   removePromptFromList,
   setMergingData,
+  // Audio generation actions
   setVoices,
-  setLoadingVoices,
   setSelectedVoice,
   setSelectedAudioModel,
+  setLoadingVoices,
   startAudioGeneration,
   setAudioGenerationResult,
   setAudioGenerationError,
   setAudioUrl,
-  setAudioPlaying
+  setAudioPlaying,
+  // New approval actions
+  setPendingSections,
+  startApprovingSections,
+  finishApprovingSections,
+  rejectPendingSections,
+  setPendingScript,
+  startApprovingScript,
+  finishApprovingScript,
+  rejectPendingScript,
+  updatePendingScripts
 } = scriptsSlice.actions
 
 export default scriptsSlice.reducer 

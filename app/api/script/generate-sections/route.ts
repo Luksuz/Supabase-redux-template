@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       tone,
       style_preferences,
       promptId,
-      customPrompt: customPromptParam ? `${customPromptParam.substring(0, 100)}...` : null,
+      customPrompt: customPromptParam ? customPromptParam : null,
       model: requestedModel,
     });
 
@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
         success: true,
         sections: mockSections,
         usingMock: true,
+        requiresApproval: true,
       });
     }
 
@@ -162,7 +163,7 @@ Tone: ${tone || 'Professional'}
 Style Preferences: ${style_preferences || 'Clear and engaging'}
 Additional Context: ${additionalContext || 'None provided'}
 
-Generate 4-6 script sections that would make up a complete script. Each section should have:
+Generate 10-20 script sections that would make up a complete script. Each section should have:
 1. A clear, descriptive title
 2. Detailed writing instructions that specify the tone, content, style, and purpose of that section, and that follow the Scriptwriting Style Guide above.
 
@@ -251,6 +252,7 @@ Return the response in the exact JSON format specified.`;
         success: true,
         sections: validatedResponse.sections,
         usingMock: false,
+        requiresApproval: true,
       });
     } catch (openaiError: any) {
       console.error(`❌ OpenAI API error for theme ${theme}:`, openaiError);
@@ -275,6 +277,7 @@ Return the response in the exact JSON format specified.`;
         success: true,
         sections: mockSections,
         usingMock: true,
+        requiresApproval: true,
         error: openaiError.message,
       });
     }
