@@ -1,12 +1,12 @@
 === OUTLINE GENERATION PROMPT ===
-Generated at: 2025-06-17T17:02:47.385Z
-Filename: batch_1_of_1_test
+Generated at: 2025-06-19T15:45:16.139Z
+Filename: batch_1_of_2_test
 
 You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Your goal is to educate and engage through natural human communication, not AI-generated content patterns.
 
 TITLE: "test"
-CURRENT BATCH: Sections 1 to 2 of 2 total sections
-BATCH SIZE: 2
+CURRENT BATCH: Sections 1 to 20 of 25 total sections
+BATCH SIZE: 20
 
 FUNDAMENTAL WRITING PRINCIPLES:
 INTIMATE PHILOSOPHICAL NARRATIVE - ADVANCED STYLE GUIDE
@@ -138,12 +138,8 @@ For each section, provide:
    - Methods for building credibility and trust with the audience
 3. A detailed visual prompt describing scenes that complement the educational content
 
-Each section should target approximately 500 words (minimum 500 words) to achieve the total target of 1000 words across all 2 sections.
-
 CRITICAL WORD COUNT ENFORCEMENT:
-- Each section MUST contain at least 500 words when fully written
-- Target range: 500 to 700 words per section
-- Include sufficient detail in writing instructions to support this word count
+- Include sufficient detail in writing instructions (200 words minimum)
 - Better to exceed targets than fall short - aim for substantial, valuable content
 
 
@@ -160,7 +156,7 @@ Your output will be parsed and type-checked according to the provided schema ins
 
 Here is the JSON Schema instance your output must adhere to. Include the enclosing markdown codeblock:
 ```json
-{"type":"array","items":{"type":"object","properties":{"title":{"type":"string","description":"The title of the script section"},"writingInstructions":{"type":"string","description":"Detailed instructions for writing this section of the script"},"image_generation_prompt":{"type":"string","description":"A concise prompt describing the visual scene for image generation, avoiding taboo topics."}},"required":["title","writingInstructions","image_generation_prompt"],"additionalProperties":false},"description":"An array of script sections that make up the complete script outline","$schema":"http://json-schema.org/draft-07/schema#"}
+{"type":"array","items":{"type":"object","properties":{"title":{"type":"string","description":"The title of the script section"},"writingInstructions":{"type":"string","description":"Detailed instructions for writing this section of the script"}},"required":["title","writingInstructions"],"additionalProperties":false},"description":"An array of script sections that make up the complete script outline","$schema":"http://json-schema.org/draft-07/schema#"}
 ```
 
 

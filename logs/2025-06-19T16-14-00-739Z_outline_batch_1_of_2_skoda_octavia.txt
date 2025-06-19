@@ -1,12 +1,12 @@
 === OUTLINE GENERATION PROMPT ===
-Generated at: 2025-06-17T17:38:31.675Z
-Filename: batch_1_of_1_youtuber_addiction
+Generated at: 2025-06-19T16:14:00.739Z
+Filename: batch_1_of_2_skoda_octavia
 
 You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Your goal is to educate and engage through natural human communication, not AI-generated content patterns.
 
-TITLE: "youtuber addiction"
-CURRENT BATCH: Sections 1 to 3 of 3 total sections
-BATCH SIZE: 3
+TITLE: "skoda octavia"
+CURRENT BATCH: Sections 1 to 10 of 13 total sections
+BATCH SIZE: 10
 
 FUNDAMENTAL WRITING PRINCIPLES:
 BREAKING FREE PERSUASIVE STYLE - ADVANCED GUIDE
@@ -65,39 +65,9 @@ This style works best for content that challenges conventional thinking while pr
 THEMATIC DIRECTION:
 
 
-EMOTIONAL APPROACH: urgent
-INTENDED AUDIENCE: teenagers
 
 
-RESEARCH FOUNDATION:
-Incorporate these research insights to create authoritative, fact-based content:
 
-Analysis: {
-  "suggestedTitle": "The Untold Truth About Baka Prase: From Gaming Legend to Global Icon!",
-  "theme": "celebrity profile / influencer journey",
-  "additionalInstructions": "Create a dynamic narrative that traces Baka Prase's rise from a professional gamer and League of Legends player to a viral YouTuber, musician, and cultural icon in Serbia. Highlight his versatility, controversial moments, and entrepreneurial spirit. Use an engaging, fast-paced editing style with emotional music to evoke admiration and curiosity. Incorporate key facts like his net worth, social media influence, and personal background. Address common misconceptions and reveal lesser-known facts to surprise viewers. Structure the story with a compelling hook, a journey of growth, and a motivational conclusion. Keep the tone energetic and relatable to resonate with young audiences interested in influencer success stories.",
-  "keyInsights": [
-    "Baka Prase is a multi-talented Serbian influencer known for gaming, music, and entertainment.",
-    "He has a massive social media following, including over 1 million Instagram followers and 293K TikTok followers.",
-    "His career spans professional esports, music releases, and entrepreneurial ventures, with a net worth estimated at $6 million.",
-    "His persona combines humor, controversy, and raw authenticity, which fuels his viral appeal.",
-    "The content gaps include lesser-known personal stories, behind-the-scenes of his rise, and insights into his entrepreneurial mindset."
-  ],
-  "targetAudience": "Young adults and teens interested in influencer success stories, gaming culture, and celebrity profiles",
-  "emotionalTone": "inspirational and energetic"
-}
-Key Findings: - Baka Prase: Bogdan Ilić better known as Baka Prase is a Serbian internet personality, YouTuber, entertainer and musician. He is a former professional League of Legends ...
-- Bogdan Ilic (@bakaprase) • Instagram photos and videos: 1M followers · 259 following · 223 posts · @bakaprase: “Budući Gradonačelnik Beograda Ambasador: @vavada.europ”
-- BakaPrase: Releases · 1 · Južni Vetar. Baka Prase · Album · 26 · Šaim Se. BakaPrase · Album · 1 · Južni Vetar. BakaPrase · Album · Videos · 2:20 · BAKA PRASE - JUZNI VETAR ...
-- Baka Prase: Bogdan Ilic (born 16 September 1996), better known as Baka Prase is a Serbian YouTuber, internet personality, rapper, gamer, actor and entertainer.
-- BakaPrase | Spotify: Albums. Šaim Se. Album • 2021. Singles and EPs. VVS. Single • 2024. Južni Vetar. Single • 2023. Mpqrc. Single • 2023. Tokyo. Single • 2022. Obi. Single • ...
-
-INTEGRATION REQUIREMENTS:
-- Weave specific facts, statistics, and insights naturally into the narrative
-- Use research to support claims with concrete examples
-- Reference current developments and real-world applications
-- Build authority through demonstrated knowledge, not dramatic claims
-- Make abstract concepts tangible through research-backed examples
 
 
 

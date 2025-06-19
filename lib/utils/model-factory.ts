@@ -19,7 +19,6 @@ export function createModelInstance(modelId: string, temperature: number = 0.7) 
       openAIApiKey: process.env.OPENAI_API_KEY,
       modelName: modelId,
       temperature,
-      maxTokens: Math.min(4000, modelConfig.maxTokens), // Limit output tokens for safety
     });
   } 
   
@@ -32,7 +31,8 @@ export function createModelInstance(modelId: string, temperature: number = 0.7) 
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       modelName: modelId,
       temperature,
-      maxTokens: Math.min(4000, modelConfig.maxTokens), // Limit output tokens for safety
+      maxTokens: (modelId.includes("3-5")) ? 8192 : 40000,
+      streaming: true,
     });
   }
   

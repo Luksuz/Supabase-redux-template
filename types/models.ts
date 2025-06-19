@@ -38,7 +38,7 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     name: 'GPT-4.1 Mini',
     provider: 'openai',
     description: 'newest GPT-4 model - fast and cheap',
-    maxTokens: 8192,
+    maxTokens: 20000,
     costTier: 'low'
   },
   {
@@ -46,7 +46,7 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     name: 'GPT-4.1',
     provider: 'openai',
     description: 'newest GPT-4 model - highest performance',
-    maxTokens: 8192,
+    maxTokens: 20000,
     costTier: 'high'
   },
   

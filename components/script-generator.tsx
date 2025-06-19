@@ -844,9 +844,6 @@ Write the authentic, expert-level script content now:`
                     <SelectItem value="gpt-4o-mini">GPT-4o Mini (Fast)</SelectItem>
                     <SelectItem value="gpt-4o">GPT-4o (Balanced)</SelectItem>
                     
-                    <SelectItem value="claude-3-haiku-20240307">Claude Haiku 3</SelectItem>
-                    <SelectItem value="claude-3-sonnet-20240229">Claude Sonnet 3</SelectItem>
-                    <SelectItem value="claude-3-opus-20240229">Claude Opus 3</SelectItem>
                     <SelectItem value="claude-3-5-haiku-20241022">Claude Haiku 3.5</SelectItem>
                     <SelectItem value="claude-3-5-sonnet-20241022">Claude Sonnet 3.5</SelectItem>
                     <SelectItem value="claude-3-7-sonnet-20250219">Claude Sonnet 3.7</SelectItem>

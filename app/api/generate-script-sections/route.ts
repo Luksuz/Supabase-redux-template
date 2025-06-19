@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { StructuredOutputParser } from "langchain/output_parsers";
-import { scriptSectionsSchema } from "../../../types/script-section";
+import { scriptSectionsResponseSchema } from "../../../types/script-section";
 import { createModelInstance } from "../../../lib/utils/model-factory";
 import { THEME_OPTIONS } from "../../../lib/features/scripts/scriptsSlice";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
@@ -255,9 +254,6 @@ Do NOT include any explanation, context, or additional text.`;
     // Initialize the model using the factory
     const model = createModelInstance(selectedModel || 'gpt-4o-mini', 0.7);
 
-    // Create a parser based on our Zod schema
-    const parser = StructuredOutputParser.fromZodSchema(scriptSectionsSchema);
-
     // Build additions to the prompt based on optional parameters
     let additionalInstructions = "";
     
@@ -338,70 +334,40 @@ CRITICAL WORD COUNT REQUIREMENT:
 
 ${forbiddenWords ? `IMPORTANT: Avoid using any of these forbidden words: ${forbiddenWords}` : ''}
 
-${parser.getFormatInstructions()}`;
+Return the response as a JSON object with a "sections" array containing the single regenerated section.`;
 
       console.log(`🚀 Regenerating single section: "${regenerateSection.currentTitle}"`);
 
-      // Generate the single section
-      const response = await model.invoke(singleSectionPrompt);
+      // Generate the single section using withStructuredOutput
+      const response = await (model as any).withStructuredOutput(scriptSectionsResponseSchema).invoke(singleSectionPrompt);
       
       // Log the prompt for debugging
       logPromptToFile(singleSectionPrompt, `single_section_regen_${regenerateSection.currentTitle.replace(/[^a-zA-Z0-9]/g, '_')}`, 'outline');
       
-      // Parse the response
-      let contentString = "";
-      
-      if (typeof response.content === 'string') {
-        contentString = response.content;
-      } else if (Array.isArray(response.content)) {
-        contentString = response.content
-          .map((item: any) => {
-            if (typeof item === 'string') return item;
-            if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
-            return '';
-          })
-          .join('\n');
-      }
-          
-      try {
-        const parsedResponse = await parser.parse(contentString);
-        let regeneratedSections: any[] = [];
-        
-        if (Array.isArray(parsedResponse)) {
-          regeneratedSections = parsedResponse;
-        } else {
-          regeneratedSections = [parsedResponse];
-        }
+      console.log(`✅ Successfully regenerated section: "${response.sections[0]?.title || 'Untitled'}"`);
 
-        console.log(`✅ Successfully regenerated section: "${regeneratedSections[0]?.title || 'Untitled'}"`);
-
-        return NextResponse.json({
-          success: true,
-          sections: regeneratedSections,
-          meta: {
-            title,
-            wordCount,
-            numSections: 1,
-            avgWordsPerSection,
-            theme: selectedTheme ? {
-              id: selectedTheme.id,
-              name: selectedTheme.name
-            } : null,
-            regeneration: {
-              originalTitle: regenerateSection.currentTitle,
-              newTitle: regeneratedSections[0]?.title
-            }
+      return NextResponse.json({
+        success: true,
+        sections: response.sections,
+        meta: {
+          title,
+          wordCount,
+          numSections: 1,
+          avgWordsPerSection,
+          theme: selectedTheme ? {
+            id: selectedTheme.id,
+            name: selectedTheme.name
+          } : null,
+          regeneration: {
+            originalTitle: regenerateSection.currentTitle,
+            newTitle: response.sections[0]?.title
           }
-        });
-
-      } catch (parseError) {
-        console.error(`❌ Failed to parse regenerated section:`, parseError);
-        throw parseError;
-      }
+        }
+      });
     }
 
     // Define batch size for processing
-    const BATCH_SIZE = 20;
+    const BATCH_SIZE = 10;
     const totalBatches = Math.ceil(numSections / BATCH_SIZE);
     let allSections: ScriptSection[] = [];
     
@@ -554,7 +520,6 @@ For each section, provide:
    - Specific facts, statistics, or expert perspectives to reference
    - How to connect abstract concepts to tangible experiences
    - Methods for building credibility and trust with the audience
-3. A detailed visual prompt describing scenes that complement the educational content
 
 CRITICAL WORD COUNT ENFORCEMENT:
 - Include sufficient detail in writing instructions (200 words minimum)
@@ -562,49 +527,20 @@ CRITICAL WORD COUNT ENFORCEMENT:
 
 ${forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${forbiddenWords}` : ''}
 
-${parser.getFormatInstructions()}`;
+Return the response as a JSON object with a "sections" array containing ${batchSize} section objects.`;
 
       console.log(`🚀 Generating batch ${batchIndex + 1}/${totalBatches}: ${batchSize} sections for: "${title}"`);
 
-      // Generate the batch of sections
-      const response = await model.invoke(batchPrompt);
+      // Generate the batch of sections using withStructuredOutput
+      writeFileSync(`batch_${batchIndex + 1}_of_${totalBatches}.txt`, batchPrompt);
+      const response = await (model as any).withStructuredOutput(scriptSectionsResponseSchema).invoke(batchPrompt);
       
       // Log the batch prompt for debugging
       const sanitizedTitle = title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
       logPromptToFile(batchPrompt, `batch_${batchIndex + 1}_of_${totalBatches}_${sanitizedTitle}`, 'outline');
       
-      // Parse the response - ensure we get a string
-      let contentString = "";
-      
-      if (typeof response.content === 'string') {
-        contentString = response.content;
-      } else if (Array.isArray(response.content)) {
-        // Extract text from array of complex message contents
-        contentString = response.content
-          .map((item: any) => {
-            if (typeof item === 'string') return item;
-            // Handle text content if it's a text content object
-            if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
-            return '';
-          })
-          .join('\n');
-      }
-          
-      try {
-        const parsedBatchResponse = await parser.parse(contentString);
-        
-        if (Array.isArray(parsedBatchResponse)) {
-          console.log(`✅ Successfully generated ${parsedBatchResponse.length} sections for batch ${batchIndex + 1}`);
-          allSections = [...allSections, ...parsedBatchResponse];
-        } else {
-          console.error(`❌ Parser returned non-array response for batch ${batchIndex + 1}:`, parsedBatchResponse);
-          throw new Error("Parsing error: Expected array of sections");
-        }
-      } catch (parseError) {
-        console.error(`❌ Failed to parse response for batch ${batchIndex + 1}:`, parseError);
-        console.log("Raw content:", contentString.substring(0, 500) + "...");
-        throw parseError;
-      }
+      console.log(`✅ Successfully generated ${response.sections.length} sections for batch ${batchIndex + 1}`);
+      allSections = [...allSections, ...response.sections];
     }
 
     console.log(`✅ Generated all ${allSections.length} script sections for: "${title}"`);
