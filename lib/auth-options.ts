@@ -18,13 +18,39 @@ interface CustomSession extends NextAuthSession {
 const isProduction = process.env.NODE_ENV === 'production';
 const hasGoogleOAuth = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
+// Get the current base URL - handle ngrok and other deployment scenarios
+const getBaseUrl = () => {
+  // If NEXTAUTH_URL is explicitly set, use it
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+  
+  // For development
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:3000';
+  }
+  
+  // For Vercel deployments
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  // Fallback - this might be the case for ngrok or other tunneling services
+  return 'http://localhost:3000';
+};
+
+const baseUrl = getBaseUrl();
+
 if (isProduction && !process.env.NEXTAUTH_SECRET) {
   console.warn('⚠️ NEXTAUTH_SECRET is required in production');
 }
 
-if (isProduction && !process.env.NEXTAUTH_URL) {
-  console.warn('⚠️ NEXTAUTH_URL should be set in production for proper redirects');
-}
+console.log('🔐 NextAuth configuration:', {
+  baseUrl,
+  hasGoogleOAuth,
+  isProduction,
+  nodeEnv: process.env.NODE_ENV
+});
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -69,23 +95,33 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      // Use the custom session type here implicitly through assignment
-      const customSession = session as CustomSession;
-      customSession.accessToken = token.accessToken as string;
-      customSession.refreshToken = token.refreshToken as string;
-      customSession.expiresAt = token.expiresAt as number;
-      if (customSession.user) {
-        customSession.user.id = token.id as string;
+      try {
+        // Use the custom session type here implicitly through assignment
+        const customSession = session as CustomSession;
+        customSession.accessToken = token.accessToken as string;
+        customSession.refreshToken = token.refreshToken as string;
+        customSession.expiresAt = token.expiresAt as number;
+        if (customSession.user) {
+          customSession.user.id = token.id as string;
+        }
+        return customSession; // Return the modified session
+      } catch (error) {
+        console.error('Session callback error:', error);
+        return session; // Return original session if there's an error
       }
-      return customSession; // Return the modified session
     },
     // Add redirect callback to handle post-auth redirects properly
-    async redirect({ url, baseUrl }) {
-      // Allows relative callback URLs
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+    async redirect({ url, baseUrl: callbackBaseUrl }) {
+      try {
+        // Allows relative callback URLs
+        if (url.startsWith("/")) return `${callbackBaseUrl}${url}`;
+        // Allows callback URLs on the same origin
+        else if (new URL(url).origin === callbackBaseUrl) return url;
+        return callbackBaseUrl;
+      } catch (error) {
+        console.error('Redirect callback error:', error);
+        return callbackBaseUrl;
+      }
     },
   },
   session: {
@@ -96,9 +132,10 @@ export const authOptions: NextAuthOptions = {
     signIn: '/auth/login',
     error: '/auth/error',
   },
-  secret: process.env.NEXTAUTH_SECRET || (isProduction ? undefined : 'dev-secret-key-replace-in-production'),
+  // Make secret required for production, optional for development
+  secret: process.env.NEXTAUTH_SECRET || (isProduction ? 'missing-secret-please-set-nextauth-secret' : 'dev-secret-key'),
   debug: process.env.NODE_ENV === 'development',
-  useSecureCookies: isProduction,
+  useSecureCookies: baseUrl.startsWith('https://'),
   cookies: {
     sessionToken: {
       name: `next-auth.session-token`,
@@ -106,11 +143,12 @@ export const authOptions: NextAuthOptions = {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: isProduction,
-        // Only set domain in production and if NEXTAUTH_URL is provided
-        domain: isProduction && process.env.NEXTAUTH_URL 
-          ? `.${process.env.NEXTAUTH_URL.replace(/https?:\/\//, '').split('/')[0]}` 
-          : undefined,
+        secure: baseUrl.startsWith('https://'),
+        // Don't set domain for ngrok or localhost
+        domain: baseUrl.includes('ngrok') || baseUrl.includes('localhost') ? undefined : 
+                 isProduction && process.env.NEXTAUTH_URL ? 
+                   `.${process.env.NEXTAUTH_URL.replace(/https?:\/\//, '').split('/')[0]}` : 
+                   undefined,
       },
     },
   },
