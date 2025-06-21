@@ -17,7 +17,8 @@ const initialState: VideoState = {
     useSegmentedTiming: false,
     useScriptBasedTiming: false,
     videoQuality: 'hd',
-    includeSubtitles: true
+    includeSubtitles: true,
+    includeOverlay: false
   },
   statusRefreshInterval: null
 }

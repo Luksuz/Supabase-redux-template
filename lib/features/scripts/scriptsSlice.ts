@@ -7,11 +7,34 @@ export interface GeneratedScript {
   generated: boolean
 }
 
+export interface ScriptSection {
+  title: string
+  writingInstructions: string
+  image_generation_prompt: string
+}
+
+export interface FullScriptData {
+  scriptWithMarkdown: string
+  scriptCleaned: string
+  title: string
+  theme: string
+  wordCount: number
+  generatedAt: string
+}
+
 interface ScriptsState {
   prompt: string
   scripts: GeneratedScript[]
   hasGeneratedScripts: boolean
   lastGeneratedAt: string | null
+  
+  // New script generation format
+  scriptSections: ScriptSection[]
+  fullScript: FullScriptData | null
+  hasScriptSections: boolean
+  hasFullScript: boolean
+  isGeneratingScript: boolean
+  scriptGenerationError: string | null
 }
 
 const initialState: ScriptsState = {
@@ -27,7 +50,15 @@ Final narration cannot read words that are not in text boxes or read words that 
 `,
   scripts: [],
   hasGeneratedScripts: false,
-  lastGeneratedAt: null
+  lastGeneratedAt: null,
+  
+  // New script generation format
+  scriptSections: [],
+  fullScript: null,
+  hasScriptSections: false,
+  hasFullScript: false,
+  isGeneratingScript: false,
+  scriptGenerationError: null
 }
 
 export const scriptsSlice = createSlice({
@@ -80,6 +111,59 @@ export const scriptsSlice = createSlice({
       state.scripts = []
       state.hasGeneratedScripts = false
       state.lastGeneratedAt = null
+    },
+    
+    // New script generation actions
+    setScriptSections: (state, action: PayloadAction<ScriptSection[]>) => {
+      state.scriptSections = action.payload
+      state.hasScriptSections = action.payload.length > 0
+    },
+    
+    updateScriptSection: (state, action: PayloadAction<{ index: number; section: ScriptSection }>) => {
+      const { index, section } = action.payload
+      if (state.scriptSections[index]) {
+        state.scriptSections[index] = section
+      }
+    },
+    
+    setFullScript: (state, action: PayloadAction<{ scriptWithMarkdown: string; scriptCleaned: string; title: string; theme?: string; wordCount?: number }>) => {
+      const { scriptWithMarkdown, scriptCleaned, title, theme, wordCount } = action.payload
+      state.fullScript = {
+        scriptWithMarkdown,
+        scriptCleaned,
+        title,
+        theme: theme || '',
+        wordCount: wordCount || 0,
+        generatedAt: new Date().toISOString()
+      }
+      state.hasFullScript = true
+      state.lastGeneratedAt = new Date().toISOString()
+    },
+    
+    clearFullScript: (state) => {
+      state.fullScript = null
+      state.hasFullScript = false
+    },
+    
+    setIsGeneratingScript: (state, action: PayloadAction<boolean>) => {
+      state.isGeneratingScript = action.payload
+      if (action.payload) {
+        state.scriptGenerationError = null
+      }
+    },
+    
+    setScriptGenerationError: (state, action: PayloadAction<string>) => {
+      state.scriptGenerationError = action.payload
+      state.isGeneratingScript = false
+    },
+    
+    clearAllNewScriptData: (state) => {
+      state.scriptSections = []
+      state.fullScript = null
+      state.hasScriptSections = false
+      state.hasFullScript = false
+      state.isGeneratingScript = false
+      state.scriptGenerationError = null
     }
   }
 })
@@ -90,7 +174,14 @@ export const {
   updateScript,
   initializeScripts,
   clearScripts,
-  clearAllScriptData
+  clearAllScriptData,
+  setScriptSections,
+  updateScriptSection,
+  setFullScript,
+  clearFullScript,
+  setIsGeneratingScript,
+  setScriptGenerationError,
+  clearAllNewScriptData
 } = scriptsSlice.actions
 
 export default scriptsSlice.reducer 

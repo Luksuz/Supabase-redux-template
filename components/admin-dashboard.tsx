@@ -2,66 +2,86 @@
 
 import { useState, useEffect } from 'react'
 import { useAppSelector } from '../lib/hooks'
-import { createClient } from '../lib/supabase/client'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { Textarea } from './ui/textarea'
 import { 
   Users, 
-  Key, 
-  Shield, 
   AlertCircle, 
   CheckCircle, 
   Crown,
   RefreshCw,
-  BarChart3,
-  Upload,
-  FileText,
-  Edit
+  Edit,
+  Trash2,
+  VideoIcon,
+  Plus,
+  Eye,
+  UserPlus,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 
-interface UserProfile {
+interface ExtendedUserProfile {
   id: string
   email: string
   created_at: string
-  is_admin: boolean
   last_sign_in_at: string | null
-  has_api_key: boolean
+  email_confirmed_at: string | null
+  phone: string | null
+  is_admin: boolean
+  profile_id: number | null
+  profile_created_at: string | null
+  videos: {
+    total: number
+    completed: number
+    processing: number
+    failed: number
+  }
 }
 
-interface ApiKeyStats {
-  validCount: number
-  invalidCount: number
-  totalCount: number
-  usageLimitReached: number
-  averageUsage: number
+interface UserVideo {
+  id: string
+  user_id: string
+  status: 'processing' | 'completed' | 'failed'
+  created_at: string
+  final_video_url: string | null
+  error_message: string | null
+  metadata: any
+  image_urls: string[]
 }
 
 export function AdminDashboard() {
   const user = useAppSelector(state => state.user)
-  const [users, setUsers] = useState<UserProfile[]>([])
+  const [users, setUsers] = useState<ExtendedUserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
-  const [showApiKeys, setShowApiKeys] = useState(false)
   
-  // API Key Statistics
-  const [stats, setStats] = useState<ApiKeyStats | null>(null)
-  const [isLoadingStats, setIsLoadingStats] = useState(false)
+  // User Management
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
+  const [userVideos, setUserVideos] = useState<Record<string, UserVideo[]>>({})
+  const [loadingUserVideos, setLoadingUserVideos] = useState<Set<string>>(new Set())
+  const [editingUser, setEditingUser] = useState<ExtendedUserProfile | null>(null)
+  const [showCreateUser, setShowCreateUser] = useState(false)
+  
+  // Edit user form
+  const [editForm, setEditForm] = useState({
+    email: '',
+    isAdmin: false
+  })
 
-  // API Key Upload
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [apiKeysText, setApiKeysText] = useState('')
-  const [isUploading, setIsUploading] = useState(false)
-  const [isUploadingText, setIsUploadingText] = useState(false)
+  // Create user form
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    password: '',
+    isAdmin: false
+  })
 
   useEffect(() => {
     if (user.isAdmin) {
       fetchUsers()
-      fetchApiKeyStats()
     }
   }, [user.isAdmin])
 
@@ -71,10 +91,11 @@ export function AdminDashboard() {
     setTimeout(() => setMessage(''), 5000)
   }
 
+  // Fetch users with enhanced data
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/users')
+      const response = await fetch('/api/admin/manage-users')
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -83,6 +104,7 @@ export function AdminDashboard() {
       
       const data = await response.json()
       setUsers(data.users)
+      console.log('👥 Fetched users:', data.users)
     } catch (error) {
       showMessage('Error fetching users: ' + (error as Error).message, 'error')
     } finally {
@@ -90,166 +112,181 @@ export function AdminDashboard() {
     }
   }
 
-  // Fetch API key statistics
-  const fetchApiKeyStats = async () => {
-    setIsLoadingStats(true)
+  // Fetch videos for a specific user
+  const fetchUserVideos = async (userId: string) => {
+    if (userVideos[userId]) return // Already loaded
+
+    setLoadingUserVideos(prev => new Set(prev).add(userId))
     try {
-      const response = await fetch('/api/api-keys-status')
+      const response = await fetch(`/api/admin/user-videos?userId=${userId}`)
       
-      if (response.ok) {
-        const data = await response.json()
-        setStats({
-          validCount: data.validCount,
-          invalidCount: data.invalidCount,
-          totalCount: data.totalCount,
-          usageLimitReached: data.usageLimitReached,
-          averageUsage: data.averageUsage
-        })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to fetch user videos')
+      }
+      
+      const data = await response.json()
+      setUserVideos(prev => ({
+        ...prev,
+        [userId]: data.videos
+      }))
+    } catch (error) {
+      showMessage('Error fetching user videos: ' + (error as Error).message, 'error')
+    } finally {
+      setLoadingUserVideos(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(userId)
+        return newSet
+      })
+    }
+  }
+
+  // Toggle user expansion and load videos
+  const toggleUserExpansion = (userId: string) => {
+    setExpandedUsers(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(userId)) {
+        newSet.delete(userId)
       } else {
-        console.warn('Failed to fetch API key statistics')
+        newSet.add(userId)
+        fetchUserVideos(userId) // Load videos when expanding
       }
-    } catch (error) {
-      console.error('Error fetching API key statistics:', error)
-    } finally {
-      setIsLoadingStats(false)
-    }
+      return newSet
+    })
   }
 
-  // Handle file selection
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file && file.type === 'text/plain') {
-      setSelectedFile(file)
-      setMessage('')
-    } else {
-      showMessage('Please select a valid text (.txt) file', 'error')
-    }
-  }
-
-  // Upload API keys from file
-  const handleUploadApiKeys = async () => {
-    if (!selectedFile) {
-      showMessage('Please select a file first', 'error')
+  // Delete user
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to delete user ${userEmail}? This will permanently delete all their data including videos, profiles, and account access.`)) {
       return
     }
 
-    setIsUploading(true)
-    showMessage('Uploading API keys from file...', 'info')
-
     try {
-      // Read file content
-      const fileContent = await selectedFile.text()
-      
-      const response = await fetch('/api/upload-api-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apiKeysText: fileContent,
-          userId: 'current_user'
-        }),
+      const response = await fetch(`/api/admin/manage-users?userId=${userId}`, {
+        method: 'DELETE'
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to upload API keys')
+        throw new Error(errorData.error || 'Failed to delete user')
       }
 
-      const data = await response.json()
-      showMessage(`Successfully uploaded ${data.count} API keys from file!`, 'success')
-      
-      // Refresh stats after upload
-      await fetchApiKeyStats()
-      
-      // Clear file selection
-      setSelectedFile(null)
-      const fileInput = document.getElementById('api-keys-file') as HTMLInputElement
-      if (fileInput) fileInput.value = ''
-      
-    } catch (error) {
-      showMessage('Error uploading API keys from file: ' + (error as Error).message, 'error')
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  // Upload API keys from text box
-  const handleUploadApiKeysFromText = async () => {
-    if (!apiKeysText.trim()) {
-      showMessage('Please enter API keys in the text box', 'error')
-      return
-    }
-
-    setIsUploadingText(true)
-    showMessage('Uploading API keys from text box...', 'info')
-
-    try {
-      const response = await fetch('/api/upload-api-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apiKeysText: apiKeysText,
-          userId: 'current_user'
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to upload API keys')
-      }
-
-      const data = await response.json()
-      showMessage(`Successfully uploaded ${data.count} API keys from text box!`, 'success')
-      
-      // Refresh stats after upload
-      await fetchApiKeyStats()
-      
-      // Clear text box
-      setApiKeysText('')
-      
-    } catch (error) {
-      showMessage('Error uploading API keys from text: ' + (error as Error).message, 'error')
-    } finally {
-      setIsUploadingText(false)
-    }
-  }
-
-  // Count API keys in text box
-  const countApiKeysInText = () => {
-    if (!apiKeysText.trim()) return 0
-    return apiKeysText
-      .split('\n')
-      .map(key => key.trim())
-      .filter(key => key.length > 0)
-      .length
-  }
-
-  const toggleUserAdminStatus = async (userId: string, currentStatus: boolean) => {
-    try {
-      const response = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          isAdmin: !currentStatus
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update admin status')
-      }
-
-      showMessage(`User admin status updated successfully`, 'success')
+      showMessage(`Successfully deleted user ${userEmail}`, 'success')
       fetchUsers() // Refresh the list
     } catch (error) {
-      showMessage('Error updating admin status: ' + (error as Error).message, 'error')
+      showMessage('Error deleting user: ' + (error as Error).message, 'error')
     }
+  }
+
+  // Delete specific video
+  const handleDeleteVideo = async (userId: string, videoId: string) => {
+    if (!confirm('Are you sure you want to delete this video?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/user-videos?userId=${userId}&videoId=${videoId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete video')
+      }
+
+      showMessage('Video deleted successfully', 'success')
+      
+      // Remove video from local state
+      setUserVideos(prev => ({
+        ...prev,
+        [userId]: prev[userId]?.filter(v => v.id !== videoId) || []
+      }))
+      
+      // Refresh users to update video counts
+      fetchUsers()
+    } catch (error) {
+      showMessage('Error deleting video: ' + (error as Error).message, 'error')
+    }
+  }
+
+  // Start editing user
+  const startEditUser = (userProfile: ExtendedUserProfile) => {
+    setEditingUser(userProfile)
+    setEditForm({
+      email: userProfile.email,
+      isAdmin: userProfile.is_admin
+    })
+  }
+
+  // Save user edits
+  const saveUserEdits = async () => {
+    if (!editingUser) return
+
+    try {
+      const response = await fetch('/api/admin/manage-users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editingUser.id,
+          email: editForm.email !== editingUser.email ? editForm.email : undefined,
+          isAdmin: editForm.isAdmin
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update user')
+      }
+
+      showMessage('User updated successfully', 'success')
+      setEditingUser(null)
+      fetchUsers() // Refresh the list
+    } catch (error) {
+      showMessage('Error updating user: ' + (error as Error).message, 'error')
+    }
+  }
+
+  // Create new user
+  const handleCreateUser = async () => {
+    if (!createForm.email || !createForm.password) {
+      showMessage('Email and password are required', 'error')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/manage-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: createForm.email,
+          password: createForm.password,
+          isAdmin: createForm.isAdmin
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create user')
+      }
+
+      showMessage('User created successfully', 'success')
+      setShowCreateUser(false)
+      setCreateForm({ email: '', password: '', isAdmin: false })
+      fetchUsers() // Refresh the list
+    } catch (error) {
+      showMessage('Error creating user: ' + (error as Error).message, 'error')
+    }
+  }
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   if (!user.isAdmin) {
@@ -278,242 +315,86 @@ export function AdminDashboard() {
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
           </div>
           <p className="text-gray-600">
-            Manage users, monitor API keys, and system overview
+            User management and system administration
           </p>
         </div>
 
-        {/* API Key Statistics */}
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              WellSaid Labs API Key Status
-              <Button
-                onClick={fetchApiKeyStats}
-                size="sm"
-                variant="outline"
-                disabled={isLoadingStats}
-                className="ml-auto"
-              >
-                {isLoadingStats ? (
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3 w-3" />
-                )}
-              </Button>
-            </CardTitle>
-            <CardDescription>
-              Monitor the status and usage of system API keys
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {stats ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
-                    <div className="text-2xl font-bold text-green-700">{stats.validCount}</div>
-                    <div className="text-sm text-green-600">Valid Keys</div>
-                    <div className="text-xs text-gray-500 mt-1">Available for use</div>
-                  </div>
-                  
-                  <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
-                    <div className="text-2xl font-bold text-red-700">{stats.invalidCount}</div>
-                    <div className="text-sm text-red-600">Invalid Keys</div>
-                    <div className="text-xs text-gray-500 mt-1">Expired or error</div>
-                  </div>
-                  
-                  <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <div className="text-2xl font-bold text-orange-700">{stats.usageLimitReached}</div>
-                    <div className="text-sm text-orange-600">At Limit</div>
-                    <div className="text-xs text-gray-500 mt-1">50+ uses reached</div>
-                  </div>
-                  
-                  <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="text-2xl font-bold text-blue-700">{stats.averageUsage}</div>
-                    <div className="text-sm text-blue-600">Avg Usage</div>
-                    <div className="text-xs text-gray-500 mt-1">Uses per key</div>
-                  </div>
-                </div>
-                
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-700">
-                    <strong>Total Keys:</strong> {stats.totalCount} | 
-                    <strong className="ml-2 text-green-600">Usable:</strong> {stats.validCount} | 
-                    <strong className="ml-2 text-red-600">Unusable:</strong> {stats.invalidCount + stats.usageLimitReached}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    Keys become invalid after 50 uses or API errors. Upload new keys when running low.
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center p-8 text-gray-500">
-                {isLoadingStats ? 'Loading statistics...' : 'No statistics available'}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Add API Keys Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Method 1: Paste API Keys */}
-          <Card className="bg-white shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Edit className="h-5 w-5" />
-                Paste API Keys
-              </CardTitle>
-              <CardDescription>
-                Paste your WellSaid Labs API keys directly (one per line)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="api-keys-text">API Keys</Label>
-                <Textarea
-                  id="api-keys-text"
-                  value={apiKeysText}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setApiKeysText(e.target.value)}
-                  placeholder="wsl_abcd1234efgh5678ijkl9012mnop3456
-wsl_qrst7890uvwx1234yzab5678cdef9012
-wsl_ghij3456klmn7890pqrs1234tuvw5678"
-                  disabled={isUploadingText}
-                  className="min-h-[120px] font-mono text-sm"
-                />
-                <div className="flex justify-between items-center text-xs text-gray-500">
-                  <span>One API key per line</span>
-                  {apiKeysText.trim() && (
-                    <span className="font-medium">
-                      {countApiKeysInText()} key{countApiKeysInText() !== 1 ? 's' : ''} detected
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <Button 
-                onClick={handleUploadApiKeysFromText}
-                disabled={isUploadingText || !apiKeysText.trim()}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                {isUploadingText ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload {countApiKeysInText()} Key{countApiKeysInText() !== 1 ? 's' : ''}
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Method 2: Upload File */}
-          <Card className="bg-white shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Upload File
-              </CardTitle>
-              <CardDescription>
-                Upload a text file containing WellSaid Labs API keys
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="api-keys-file">API Keys File (.txt)</Label>
-                <input
-                  id="api-keys-file"
-                  type="file"
-                  accept=".txt"
-                  onChange={handleFileSelect}
-                  disabled={isUploading}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                />
-                <p className="text-xs text-gray-500">
-                  Each line should contain one WellSaid Labs API key. Empty lines will be ignored.
-                </p>
-              </div>
-
-              {selectedFile && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      {selectedFile.name}
-                    </Badge>
-                    <span className="text-sm text-gray-500">
-                      ({(selectedFile.size / 1024).toFixed(1)} KB)
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <Button 
-                onClick={handleUploadApiKeys}
-                disabled={isUploading || !selectedFile}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                {isUploading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload File
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Format Instructions */}
-        <Card className="bg-blue-50 border border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-blue-900">API Key Format Instructions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="bg-white p-3 rounded border font-mono text-sm text-gray-700">
-                wsl_abcd1234efgh5678ijkl9012mnop3456<br/>
-                wsl_qrst7890uvwx1234yzab5678cdef9012<br/>
-                wsl_ghij3456klmn7890pqrs1234tuvw5678
-              </div>
-              <div className="text-sm text-blue-700 space-y-1">
-                <div>• One API key per line</div>
-                <div>• WellSaid Labs API keys start with "wsl_"</div>
-                <div>• Keys will be validated during audio generation</div>
-                <div>• Invalid keys are automatically marked and skipped</div>
-                <div>• Each key can be used up to 50 times before being marked invalid</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Users Overview */}
+        {/* User Management Section */}
         <Card className="bg-white shadow-sm border border-gray-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Users Overview ({users.length} total)
-              <Button 
-                onClick={fetchUsers} 
-                size="sm" 
-                variant="outline"
-                disabled={loading}
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              </Button>
+              User Management ({users.length} total)
+              <div className="ml-auto flex gap-2">
+                <Button
+                  onClick={() => setShowCreateUser(!showCreateUser)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  {showCreateUser ? 'Cancel' : 'Add User'}
+                </Button>
+                <Button 
+                  onClick={fetchUsers} 
+                  size="sm" 
+                  variant="outline"
+                  disabled={loading}
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </CardTitle>
             <CardDescription>
-              Manage users and their admin privileges
+              Comprehensive user management with video tracking and admin controls
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            {/* Create User Form */}
+            {showCreateUser && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
+                <h4 className="font-medium text-blue-900">Create New User</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Email *</Label>
+                    <Input
+                      type="email"
+                      value={createForm.email}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="user@example.com"
+                    />
+                  </div>
+                  <div>
+                    <Label>Password *</Label>
+                    <Input
+                      type="password"
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="Secure password"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="create-admin"
+                      checked={createForm.isAdmin}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                    />
+                    <Label htmlFor="create-admin">Admin privileges</Label>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleCreateUser} size="sm">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Create User
+                  </Button>
+                  <Button onClick={() => setShowCreateUser(false)} variant="outline" size="sm">
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Users List */}
             {loading ? (
               <div className="text-center py-8">
                 <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
@@ -521,83 +402,180 @@ wsl_ghij3456klmn7890pqrs1234tuvw5678"
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Badge variant="secondary">
-                      {users.filter(u => u.is_admin).length} Admins
-                    </Badge>
-                    <Badge variant="outline">
-                      {users.filter(u => u.has_api_key).length} with API keys
-                    </Badge>
-                  </div>
-                  <Button
-                    onClick={() => setShowApiKeys(!showApiKeys)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    {showApiKeys ? 'Hide' : 'Show'} API Key Status
-                  </Button>
-                </div>
-
-                <div className="grid gap-4">
-                  {users.map((userProfile) => (
-                    <div 
-                      key={userProfile.id} 
-                      className="border rounded-lg p-4 space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            {userProfile.is_admin && (
-                              <Crown className="h-4 w-4 text-yellow-600" />
-                            )}
-                            <span className="font-medium">{userProfile.email}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {userProfile.is_admin && (
-                              <Badge variant="secondary" className="text-xs">
-                                Admin
-                              </Badge>
-                            )}
-                            {showApiKeys && userProfile.has_api_key && (
-                              <Badge variant="outline" className="text-xs">
-                                <Key className="h-3 w-3 mr-1" />
-                                API Key
-                              </Badge>
-                            )}
-                          </div>
+                {users.map((userProfile) => (
+                  <div key={userProfile.id} className="border rounded-lg p-4 space-y-3">
+                    {/* User Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          {userProfile.is_admin && (
+                            <Crown className="h-4 w-4 text-yellow-600" />
+                          )}
+                          <span className="font-medium">
+                            {userProfile.email}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => toggleUserAdminStatus(userProfile.id, userProfile.is_admin)}
-                            size="sm"
-                            variant={userProfile.is_admin ? "destructive" : "default"}
-                            disabled={userProfile.id === user.id} // Prevent self-modification
-                          >
-                            <Shield className="h-4 w-4 mr-1" />
-                            {userProfile.is_admin ? 'Remove Admin' : 'Make Admin'}
-                          </Button>
+                          {userProfile.is_admin && (
+                            <Badge variant="secondary" className="text-xs">
+                              Admin
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            <VideoIcon className="h-3 w-3 mr-1" />
+                            {userProfile.videos.total} videos
+                          </Badge>
                         </div>
                       </div>
                       
-                      <div className="text-sm text-gray-500 space-y-1">
-                        <div>Created: {new Date(userProfile.created_at).toLocaleDateString()}</div>
-                        {userProfile.last_sign_in_at && (
-                          <div>Last sign in: {new Date(userProfile.last_sign_in_at).toLocaleString()}</div>
-                        )}
-                        {userProfile.id === user.id && (
-                          <Badge variant="outline" className="text-xs">
-                            You
-                          </Badge>
-                        )}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => toggleUserExpansion(userProfile.id)}
+                          size="sm"
+                          variant="outline"
+                        >
+                          {expandedUsers.has(userProfile.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          onClick={() => startEditUser(userProfile)}
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteUser(userProfile.id, userProfile.email)}
+                          size="sm"
+                          variant="destructive"
+                          disabled={userProfile.id === user.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* User Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500">Created:</span>
+                        <div>{formatDate(userProfile.created_at)}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Last Sign In:</span>
+                        <div>{userProfile.last_sign_in_at ? formatDate(userProfile.last_sign_in_at) : 'Never'}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Completed:</span>
+                        <div className="text-green-600 font-medium">{userProfile.videos.completed}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Processing:</span>
+                        <div className="text-blue-600 font-medium">{userProfile.videos.processing}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Failed:</span>
+                        <div className="text-red-600 font-medium">{userProfile.videos.failed}</div>
+                      </div>
+                    </div>
+
+                    {/* Expanded User Details */}
+                    {expandedUsers.has(userProfile.id) && (
+                      <div className="pt-3 border-t space-y-3">
+                        <h5 className="font-medium text-gray-900">User Videos</h5>
+                        {loadingUserVideos.has(userProfile.id) ? (
+                          <div className="text-center py-4">
+                            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
+                            <p className="text-sm text-gray-500">Loading videos...</p>
+                          </div>
+                        ) : userVideos[userProfile.id]?.length > 0 ? (
+                          <div className="space-y-2">
+                            {userVideos[userProfile.id].map((video) => (
+                              <div key={video.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                <div className="flex items-center gap-3">
+                                  <Badge 
+                                    variant={
+                                      video.status === 'completed' ? 'default' :
+                                      video.status === 'failed' ? 'destructive' : 'secondary'
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {video.status}
+                                  </Badge>
+                                  <span className="text-sm">Video {video.id.slice(0, 8)}</span>
+                                  <span className="text-xs text-gray-500">
+                                    {formatDate(video.created_at)}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {video.image_urls.length} images
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {video.final_video_url && (
+                                    <Button
+                                      onClick={() => window.open(video.final_video_url!, '_blank')}
+                                      size="sm"
+                                      variant="outline"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    onClick={() => handleDeleteVideo(userProfile.id, video.id)}
+                                    size="sm"
+                                    variant="destructive"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 text-center py-4">No videos found</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Edit User Modal */}
+        {editingUser && (
+          <Card className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-medium mb-4">Edit User</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    value={editForm.email}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit-admin"
+                    checked={editForm.isAdmin}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                  />
+                  <Label htmlFor="edit-admin">Admin privileges</Label>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <Button onClick={saveUserEdits}>Save Changes</Button>
+                <Button onClick={() => setEditingUser(null)} variant="outline">Cancel</Button>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Status Message */}
         {message && (
@@ -610,7 +588,7 @@ wsl_ghij3456klmn7890pqrs1234tuvw5678"
               <div className="flex items-center gap-2">
                 {messageType === 'success' && <CheckCircle className="h-4 w-4 text-green-600" />}
                 {messageType === 'error' && <AlertCircle className="h-4 w-4 text-red-600" />}
-                {messageType === 'info' && <Shield className="h-4 w-4 text-blue-600" />}
+                {messageType === 'info' && <AlertCircle className="h-4 w-4 text-blue-600" />}
                 <span className={`text-sm ${
                   messageType === 'success' ? 'text-green-800' :
                   messageType === 'error' ? 'text-red-800' :

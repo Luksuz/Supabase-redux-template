@@ -75,6 +75,8 @@ export function VideoStatus() {
 
     try {
       showMessage(`Downloading video for upload...`, 'info')
+      
+      // Download video file
       const videoResponse = await fetch(video.final_video_url)
       
       if (!videoResponse.ok) {
@@ -92,36 +94,93 @@ export function VideoStatus() {
         type: videoFile.type
       })
 
-      showMessage(`Uploading ${videoFile.name} to Google Drive...`, 'info')
-      
+      // Prepare form data for streaming upload
       const formData = new FormData()
       formData.append('file', videoFile)
       formData.append('parentId', 'root')
 
-      const uploadApiResponse = await fetch('/api/upload-to-gdrive', {
+      showMessage(`Starting streaming upload to Google Drive...`, 'info')
+
+      // Use the streaming upload endpoint with Server-Sent Events
+      const response = await fetch('/api/upload-to-gdrive-stream', {
         method: 'POST',
         body: formData,
       })
 
-      if (!uploadApiResponse.ok) {
-        const errorData = await uploadApiResponse.json()
-        throw new Error(errorData.error || `Upload failed with status ${uploadApiResponse.status}`)
+      if (!response.ok) {
+        throw new Error(`Failed to start streaming upload: ${response.status}`)
       }
 
-      const result = await uploadApiResponse.json()
-      console.log('✅ Upload successful:', result)
+      // Handle Server-Sent Events for progress updates
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
 
-      setUploadProgress(prev => ({ ...prev, [video.id]: 100 }))
-      showMessage(`Successfully uploaded ${videoFile.name} to Google Drive!`, 'success')
-      
-      // Clear progress after a delay
-      setTimeout(() => {
-        setUploadProgress(prev => {
-          const newProgress = { ...prev }
-          delete newProgress[video.id]
-          return newProgress
-        })
-      }, 2000)
+      if (!reader) {
+        throw new Error('No response stream available')
+      }
+
+      let buffer = ''
+      let uploadCompleted = false
+
+      while (!uploadCompleted) {
+        const { done, value } = await reader.read()
+        
+        if (done) {
+          console.log('🏁 Stream ended')
+          break
+        }
+
+        buffer += decoder.decode(value, { stream: true })
+        
+        // Process complete messages
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              console.log('📊 Progress update:', data)
+
+              if (data.error) {
+                throw new Error(data.error)
+              }
+
+              if (data.progress !== undefined) {
+                setUploadProgress(prev => ({
+                  ...prev,
+                  [video.id]: data.progress
+                }))
+              }
+
+              if (data.message) {
+                showMessage(data.message, 'info')
+              }
+
+              if (data.success) {
+                console.log('✅ Upload completed successfully:', data)
+                showMessage(`Successfully uploaded ${data.fileName} to Google Drive!`, 'success')
+                uploadCompleted = true
+                
+                // Clear progress after success
+                setTimeout(() => {
+                  setUploadProgress(prev => {
+                    const newProgress = { ...prev }
+                    delete newProgress[video.id]
+                    return newProgress
+                  })
+                }, 3000)
+                break
+              }
+
+            } catch (parseError) {
+              console.error('Failed to parse SSE data:', parseError)
+            }
+          }
+        }
+      }
+
+      reader.releaseLock()
       
     } catch (error: any) {
       console.error('💥 Upload error caught:', error)
@@ -247,7 +306,9 @@ export function VideoStatus() {
 
   const allVideos = [
     ...(currentGeneration ? [{ ...currentGeneration, isCurrent: true }] : []),
-    ...generationHistory.map(video => ({ ...video, isCurrent: false }))
+    ...generationHistory
+      .filter(video => !currentGeneration || video.id !== currentGeneration.id)
+      .map(video => ({ ...video, isCurrent: false }))
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   const processingCount = allVideos.filter(v => v.status === 'processing').length

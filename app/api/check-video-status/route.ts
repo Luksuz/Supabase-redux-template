@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
       shotstack_id: videoRecord.shotstack_id,
       image_urls: videoRecord.image_urls,
       audio_url: videoRecord.audio_url,
+      compressed_audio_url: videoRecord.compressed_audio_url || undefined,
       subtitles_url: videoRecord.subtitles_url || undefined,
       final_video_url: videoUrl || videoRecord.final_video_url || undefined,
       thumbnail_url: videoRecord.thumbnail_url,

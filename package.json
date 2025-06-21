@@ -7,6 +7,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google-cloud/text-to-speech": "^6.1.0",
+    "@langchain/openai": "^0.5.13",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -39,8 +41,10 @@
     "@types/multer": "^1.4.12",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "elevenlabs": "^1.59.0",
     "googleapis": "^149.0.0",
     "jszip": "^3.10.1",
+    "langchain": "^0.3.28",
     "lucide-react": "^0.511.0",
     "multer": "^2.0.0",
     "next": "latest",
@@ -49,10 +53,12 @@
     "openai": "^4.103.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
     "sharp": "^0.34.2",
     "tailwind-merge": "^3.3.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^3.25.67"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -1,9 +1,19 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
+export interface AIVoice {
+  id: number
+  created_at: string
+  name: string
+  provider: string
+  voice_id: string
+}
+
 export interface AudioGeneration {
   id: string
   audioUrl: string | null
+  compressedAudioUrl: string | null
   subtitlesUrl: string | null
+  subtitlesContent: string | null
   duration: number | null
   generatedAt: string
   voice: number
@@ -33,6 +43,19 @@ interface AudioState {
   selectedVoice: number
   selectedModel: string
   generateSubtitles: boolean
+  // Voice management
+  customVoices: AIVoice[]
+  isLoadingVoices: boolean
+  isManagingVoice: boolean
+  voiceManagementError: string | null
+  voiceFormData: {
+    id?: number
+    name: string
+    provider: string
+    voice_id: string
+  }
+  showVoiceForm: boolean
+  editingVoiceId: number | null
 }
 
 const initialState: AudioState = {
@@ -47,7 +70,19 @@ const initialState: AudioState = {
   },
   selectedVoice: 3,
   selectedModel: 'caruso',
-  generateSubtitles: false
+  generateSubtitles: false,
+  // Voice management
+  customVoices: [],
+  isLoadingVoices: false,
+  isManagingVoice: false,
+  voiceManagementError: null,
+  voiceFormData: {
+    name: '',
+    provider: '',
+    voice_id: ''
+  },
+  showVoiceForm: false,
+  editingVoiceId: null
 }
 
 export const audioSlice = createSlice({
@@ -83,7 +118,9 @@ export const audioSlice = createSlice({
       state.currentGeneration = {
         id,
         audioUrl: null,
+        compressedAudioUrl: null,
         subtitlesUrl: null,
+        subtitlesContent: null,
         duration: null,
         generatedAt: new Date().toISOString(),
         voice,
@@ -95,9 +132,12 @@ export const audioSlice = createSlice({
       state.isGeneratingAudio = true
     },
     
-    completeAudioGeneration: (state, action: PayloadAction<{ audioUrl: string; duration: number; scriptDurations?: AudioGeneration['scriptDurations'] }>) => {
+    completeAudioGeneration: (state, action: PayloadAction<{ audioUrl: string; compressedAudioUrl?: string; duration: number; scriptDurations?: AudioGeneration['scriptDurations'] }>) => {
       if (state.currentGeneration) {
         state.currentGeneration.audioUrl = action.payload.audioUrl
+        if (action.payload.compressedAudioUrl) {
+          state.currentGeneration.compressedAudioUrl = action.payload.compressedAudioUrl
+        }
         state.currentGeneration.duration = action.payload.duration
         if (action.payload.scriptDurations) {
           state.currentGeneration.scriptDurations = action.payload.scriptDurations
@@ -107,11 +147,20 @@ export const audioSlice = createSlice({
       state.isGeneratingAudio = false
     },
     
-    addSubtitlesToGeneration: (state, action: PayloadAction<{ subtitlesUrl: string }>) => {
+    addSubtitlesToGeneration: (state, action: PayloadAction<{ subtitlesUrl: string; subtitlesContent?: string }>) => {
       if (state.currentGeneration) {
         state.currentGeneration.subtitlesUrl = action.payload.subtitlesUrl
+        if (action.payload.subtitlesContent) {
+          state.currentGeneration.subtitlesContent = action.payload.subtitlesContent
+        }
       }
       state.isGeneratingSubtitles = false
+    },
+    
+    updateSubtitleContent: (state, action: PayloadAction<{ subtitlesContent: string }>) => {
+      if (state.currentGeneration) {
+        state.currentGeneration.subtitlesContent = action.payload.subtitlesContent
+      }
     },
     
     setAudioGenerationError: (state, action: PayloadAction<string>) => {
@@ -150,6 +199,76 @@ export const audioSlice = createSlice({
         completed: 0,
         phase: 'chunks'
       }
+    },
+
+    // Voice management actions
+    setIsLoadingVoices: (state, action: PayloadAction<boolean>) => {
+      state.isLoadingVoices = action.payload
+    },
+
+    setCustomVoices: (state, action: PayloadAction<AIVoice[]>) => {
+      state.customVoices = action.payload
+    },
+
+    setIsManagingVoice: (state, action: PayloadAction<boolean>) => {
+      state.isManagingVoice = action.payload
+    },
+
+    setVoiceManagementError: (state, action: PayloadAction<string | null>) => {
+      state.voiceManagementError = action.payload
+    },
+
+    setVoiceFormData: (state, action: PayloadAction<Partial<AudioState['voiceFormData']>>) => {
+      state.voiceFormData = { ...state.voiceFormData, ...action.payload }
+    },
+
+    setShowVoiceForm: (state, action: PayloadAction<boolean>) => {
+      state.showVoiceForm = action.payload
+      if (!action.payload) {
+        // Reset form when hiding
+        state.voiceFormData = {
+          name: '',
+          provider: '',
+          voice_id: ''
+        }
+        state.editingVoiceId = null
+        state.voiceManagementError = null
+      }
+    },
+
+    setEditingVoiceId: (state, action: PayloadAction<number | null>) => {
+      state.editingVoiceId = action.payload
+      if (action.payload) {
+        // Populate form with existing voice data
+        const voice = state.customVoices.find(v => v.id === action.payload)
+        if (voice) {
+          state.voiceFormData = {
+            id: voice.id,
+            name: voice.name,
+            provider: voice.provider,
+            voice_id: voice.voice_id
+          }
+        }
+      }
+    },
+
+    addCustomVoice: (state, action: PayloadAction<AIVoice>) => {
+      state.customVoices.unshift(action.payload)
+    },
+
+    updateCustomVoice: (state, action: PayloadAction<AIVoice>) => {
+      const index = state.customVoices.findIndex(v => v.id === action.payload.id)
+      if (index !== -1) {
+        state.customVoices[index] = action.payload
+      }
+    },
+
+    removeCustomVoice: (state, action: PayloadAction<number>) => {
+      state.customVoices = state.customVoices.filter(v => v.id !== action.payload)
+    },
+
+    clearVoiceManagementError: (state) => {
+      state.voiceManagementError = null
     }
   }
 })
@@ -164,10 +283,23 @@ export const {
   startAudioGeneration,
   completeAudioGeneration,
   addSubtitlesToGeneration,
+  updateSubtitleContent,
   setAudioGenerationError,
   saveGenerationToHistory,
   clearCurrentGeneration,
-  clearAllAudioData
+  clearAllAudioData,
+  // Voice management actions
+  setIsLoadingVoices,
+  setCustomVoices,
+  setIsManagingVoice,
+  setVoiceManagementError,
+  setVoiceFormData,
+  setShowVoiceForm,
+  setEditingVoiceId,
+  addCustomVoice,
+  updateCustomVoice,
+  removeCustomVoice,
+  clearVoiceManagementError
 } = audioSlice.actions
 
 export default audioSlice.reducer 

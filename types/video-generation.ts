@@ -6,10 +6,16 @@ export interface SegmentTiming {
 export interface CreateVideoRequestBody {
   imageUrls: string[]
   audioUrl: string
+  compressedAudioUrl?: string
   subtitlesUrl?: string
   userId: string
   thumbnailUrl?: string
   segmentTimings?: SegmentTiming[]
+  includeOverlay?: boolean
+  quality?: 'low' | 'medium' | 'high'
+  enableOverlay?: boolean
+  enableZoom?: boolean
+  enableSubtitles?: boolean
 }
 
 export interface CreateVideoResponse {
@@ -27,6 +33,7 @@ export interface VideoRecord {
   shotstack_id: string
   image_urls: string[]
   audio_url: string
+  compressed_audio_url?: string
   subtitles_url?: string
   final_video_url?: string
   thumbnail_url: string
@@ -46,4 +53,5 @@ export interface VideoGenerationSettings {
   useScriptBasedTiming: boolean
   videoQuality: 'hd' | 'sd'
   includeSubtitles: boolean
+  includeOverlay: boolean
 } 

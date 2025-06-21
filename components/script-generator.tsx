@@ -1,1162 +1,718 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useAppSelector, useAppDispatch } from '../lib/hooks'
-import { setPrompt, setScripts, initializeScripts, updateScript } from '../lib/features/scripts/scriptsSlice'
-import { startScriptGeneration, updateScriptGenerationProgress, finishScriptGeneration, clearScriptGenerationProgress } from '../lib/features/progress/progressSlice'
-import type { GeneratedScript } from '../lib/features/scripts/scriptsSlice'
-import { Button } from './ui/button'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { Badge } from './ui/badge'
-import { Progress } from './ui/progress'
-import { Textarea } from './ui/textarea'
-import { FileText, Copy, Download, Mic, Image as ImageIcon, CheckCircle, AlertCircle, Loader2, RotateCcw, Edit, Save, X } from 'lucide-react'
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Download, Upload, RefreshCw } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppDispatch, useAppSelector } from "../lib/hooks";
+import { 
+  setScriptSections, 
+  updateScriptSection, 
+  setFullScript, 
+  setIsGeneratingScript, 
+  setScriptGenerationError,
+  clearFullScript 
+} from "../lib/features/scripts/scriptsSlice";
 
-const BATCH_SIZE = 10
-const BATCH_DELAY = 61000 // 61 seconds in milliseconds
-
-
-interface ProgressState {
-  total: number
-  completed: number
-  currentImage: string
-  completedImages: string[]
-  currentBatch: number
-  totalBatches: number
-  batchProgress: number
-  timeUntilNextBatch?: number
+export interface ScriptSection {
+  title: string;
+  writingInstructions: string;
+  image_generation_prompt: string;
 }
 
-export function ScriptGenerator() {
-  const dispatch = useAppDispatch()
-  const { originalImages } = useAppSelector(state => state.images)
-  const { prompt, scripts, hasGeneratedScripts } = useAppSelector(state => state.scripts)
-  const { scriptGeneration: progress } = useAppSelector(state => state.progress)
+const ScriptGenerator: React.FC = () => {
+  const dispatch = useAppDispatch();
   
-  // UI-specific states (not stored in Redux)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set())
-  const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
-  const [editingScripts, setEditingScripts] = useState<Record<string, string>>({})
-  const [message, setMessage] = useState("")
-  const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
-  const [wordCountPerImage, setWordCountPerImage] = useState(150) // Default word count
-  // Individual prompts for each image
-  const [individualPrompts, setIndividualPrompts] = useState<Record<string, string>>({})
-  const [individualWordCounts, setIndividualWordCounts] = useState<Record<string, number>>({})
-  const [showIndividualPrompts, setShowIndividualPrompts] = useState(false)
+  // Get state from Redux
+  const { 
+    scriptSections, 
+    fullScript, 
+    hasScriptSections, 
+    hasFullScript, 
+    isGeneratingScript, 
+    scriptGenerationError 
+  } = useAppSelector(state => state.scripts);
 
-  const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setMessage(msg)
-    setMessageType(type)
-  }
-
-  // Handle prompt changes
-  const handlePromptChange = (value: string) => {
-    dispatch(setPrompt(value))
-  }
-
-  // Handle individual prompt changes
-  const handleIndividualPromptChange = (imageId: string, value: string) => {
-    setIndividualPrompts(prev => ({
-      ...prev,
-      [imageId]: value
-    }))
-  }
-
-  // Apply global prompt to all individual prompts
-  const applyPromptToAll = () => {
-    if (!prompt.trim()) {
-      showMessage('Please enter a global prompt first', 'error')
-      return
-    }
+  // Store form values in state
+  const [title, setTitle] = useState("");
+  const [wordCount, setWordCount] = useState(1000);
+  const [theme, setTheme] = useState("");
+  const [additionalPrompt, setAdditionalPrompt] = useState("");
+  const [inspirationalTranscript, setInspirationalTranscript] = useState("");
+  const [forbiddenWords, setForbiddenWords] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [scriptWordCount, setScriptWordCount] = useState(0);
+  const [uploadedScript, setUploadedScript] = useState("");
+  const [selectedSegmentIndex, setSelectedSegmentIndex] = useState<number | null>(null);
+  const [regeneratePrompt, setRegeneratePrompt] = useState("");
+  
+  // Store form values in localStorage to persist between renders
+  useEffect(() => {
+    // Load saved values from localStorage on initial component mount
+    const savedTitle = localStorage.getItem('scriptGenerator.title');
+    const savedWordCount = localStorage.getItem('scriptGenerator.wordCount');
+    const savedTheme = localStorage.getItem('scriptGenerator.theme');
+    const savedAdditionalPrompt = localStorage.getItem('scriptGenerator.additionalPrompt');
+    const savedForbiddenWords = localStorage.getItem('scriptGenerator.forbiddenWords');
     
-    const newIndividualPrompts: Record<string, string> = {}
-    originalImages.forEach(image => {
-      newIndividualPrompts[image.id] = prompt
-    })
-    setIndividualPrompts(newIndividualPrompts)
-    showMessage(`Applied global prompt to all ${originalImages.length} segments`, 'success')
-  }
+    if (savedTitle) setTitle(savedTitle);
+    if (savedWordCount) setWordCount(parseInt(savedWordCount));
+    if (savedTheme) setTheme(savedTheme);
+    if (savedAdditionalPrompt) setAdditionalPrompt(savedAdditionalPrompt);
+    if (savedForbiddenWords) setForbiddenWords(savedForbiddenWords);
+  }, []);
+  
+  // Save form values to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('scriptGenerator.title', title);
+    localStorage.setItem('scriptGenerator.wordCount', wordCount.toString());
+    localStorage.setItem('scriptGenerator.theme', theme);
+    localStorage.setItem('scriptGenerator.additionalPrompt', additionalPrompt);
+    localStorage.setItem('scriptGenerator.forbiddenWords', forbiddenWords);
+  }, [title, wordCount, theme, additionalPrompt, forbiddenWords]);
 
-  // Apply word count to all individual prompts
-  const applyWordCountToAll = () => {
-    const newIndividualWordCounts: Record<string, number> = {}
-    originalImages.forEach(image => {
-      newIndividualWordCounts[image.id] = wordCountPerImage
-    })
-    setIndividualWordCounts(newIndividualWordCounts)
-    showMessage(`Applied ${wordCountPerImage} word count to all ${originalImages.length} segments`, 'success')
-  }
-
-  // Handle individual word count changes
-  const handleIndividualWordCountChange = (imageId: string, value: number) => {
-    setIndividualWordCounts(prev => ({
-      ...prev,
-      [imageId]: value
-    }))
-  }
-
-  // Start editing a script
-  const startEditingScript = (imageId: string, currentScript: string) => {
-    setEditingIds(prev => new Set(prev).add(imageId))
-    setEditingScripts(prev => ({
-      ...prev,
-      [imageId]: currentScript
-    }))
-  }
-
-  // Cancel editing a script
-  const cancelEditingScript = (imageId: string) => {
-    setEditingIds(prev => {
-      const newSet = new Set(prev)
-      newSet.delete(imageId)
-      return newSet
-    })
-    setEditingScripts(prev => {
-      const newScripts = { ...prev }
-      delete newScripts[imageId]
-      return newScripts
-    })
-  }
-
-  // Save edited script
-  const saveEditedScript = (imageId: string) => {
-    const editedScript = editingScripts[imageId]
-    if (!editedScript || !editedScript.trim()) {
-      showMessage('Script cannot be empty', 'error')
-      return
+  // Calculate word count when full script changes
+  const updateScriptWordCount = (script: string) => {
+    if (!script) {
+      setScriptWordCount(0);
+      return;
     }
+    // Clean the markdown to count only actual words
+    const cleanText = script.replace(/[#*_~`]/g, '');
+    const words = cleanText.trim().split(/\s+/);
+    setScriptWordCount(words.length);
+  };
 
-    // Update the script in Redux
-    dispatch(updateScript({
-      imageId: imageId,
-      script: editedScript.trim(),
-      generated: true
-    }))
-
-    // Clear editing state
-    cancelEditingScript(imageId)
-    showMessage('Script updated successfully!', 'success')
-  }
-
-  // Handle editing script text changes
-  const handleEditingScriptChange = (imageId: string, value: string) => {
-    setEditingScripts(prev => ({
-      ...prev,
-      [imageId]: value
-    }))
-  }
-
-  // Regenerate a single script with custom prompt
-  const regenerateScript = async (imageId: string, customPrompt?: string, customWordCount?: number) => {
-    const image = originalImages.find(img => img.id === imageId)
-    if (!image) {
-      showMessage('Image not found for regeneration', 'error')
-      return
+  // Update word count when full script changes from Redux
+  useEffect(() => {
+    if (fullScript?.scriptWithMarkdown) {
+      updateScriptWordCount(fullScript.scriptWithMarkdown);
+    } else {
+      setScriptWordCount(0);
     }
+  }, [fullScript?.scriptWithMarkdown]);
 
-    const promptToUse = customPrompt || individualPrompts[imageId] || prompt
-    const wordCountToUse = customWordCount || individualWordCounts[imageId] || wordCountPerImage
-    
-    if (!promptToUse.trim()) {
-      showMessage('Please enter a prompt before regenerating', 'error')
-      return
-    }
-
-    // Add to regenerating set
-    setRegeneratingIds(prev => new Set(prev).add(imageId))
-    showMessage(`Regenerating script for ${image.originalName}...`, 'info')
-
+  const handleGenerateOutline = async () => {
     try {
-      const response = await fetch('/api/generate-script', {
-        method: 'POST',
+      setIsLoading(true);
+      dispatch(clearFullScript());
+      
+      const response = await fetch("/api/generate-script", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          title, 
+          wordCount, 
+          theme, 
+          additionalPrompt, 
+          inspirationalTranscript, 
+          forbiddenWords 
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate script outline");
+      }
+      
+      const data = await response.json();
+      
+      // Store sections in Redux
+      if (data.sections) {
+        dispatch(setScriptSections(data.sections));
+      }
+      
+      // After receiving outline sections, immediately generate the full script
+      if (data.sections && data.sections.length > 0) {
+        await generateFullScriptDirectly(data.sections);
+      }
+    } catch (error) {
+      console.error("Error generating script outline:", error);
+      dispatch(setScriptGenerationError((error as Error).message));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to generate full script using the sections directly
+  const generateFullScriptDirectly = async (sections: ScriptSection[]) => {
+    try {
+      dispatch(setIsGeneratingScript(true));
+      
+      const response = await fetch("/api/generate-full-script", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          imageDataUrl: image.dataUrl,
-          imageName: image.originalName,
-          prompt: promptToUse.trim(),
-          wordCount: wordCountToUse
+          title, 
+          theme, 
+          sections: sections,
+          additionalPrompt,
+          forbiddenWords
         }),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Failed to regenerate script for ${image.originalName}`)
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate full script");
       }
-
-      const data = await response.json()
       
-      // Update the specific script in Redux
-      dispatch(updateScript({
-        imageId: imageId,
-        script: data.usingMock 
-          ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
-          : data.script,
-        generated: true
-      }))
-
-      showMessage(`Successfully regenerated script for ${image.originalName}!`, 'success')
+      const data = await response.json();
+      
+      // Process the script - clean it up for the audio component
+      if (data.scriptWithMarkdown) {
+        // Keep original for display
+        const scriptWithMarkdown = data.scriptWithMarkdown;
+        
+        // Create cleaned version for audio
+        let scriptCleaned = data.scriptCleaned || data.scriptWithMarkdown;
+        
+        // Enhanced cleaning process to eliminate all title and header patterns
+        
+        // Save original length for logging
+        const originalLength = scriptCleaned.length;
+        
+        // Remove exact title match
+        scriptCleaned = scriptCleaned.replace(new RegExp(`^(?:${title}|\\s*${title}\\s*)$`, 'im'), '');
+        
+        // Remove any title-looking text at the beginning (capitalized words)
+        scriptCleaned = scriptCleaned.replace(/^([A-Z][a-z]*\s*){1,7}$/m, '');
+        
+        // Remove common opening lines that might be title-related
+        scriptCleaned = scriptCleaned.replace(/^(Title:|Script:|Written by:).*$/gim, '');
+        
+        // Remove markdown headers
+        scriptCleaned = scriptCleaned.replace(/^#{1,6}\s+.*$/gm, '');
+        
+        // Remove chapter/section headers
+        scriptCleaned = scriptCleaned.replace(/^(?:Chapter|Section|Part)\s+\d+[\s:.-]*.*$/gim, '');
+        
+        // Remove ALL CAPS titles (expanded pattern)
+        scriptCleaned = scriptCleaned.replace(/^[A-Z][A-Z\s\d:,.!?-]{4,}$/gm, '');
+        
+        // Remove any remaining title lines
+        scriptCleaned = scriptCleaned.replace(new RegExp(`^\\s*${title}\\s*$`, 'gim'), '');
+        
+        // Remove common greetings at the beginning that shouldn't be in the script
+        scriptCleaned = scriptCleaned.replace(/^(Hi!|Hello!|Greetings!|Welcome!)\s*/i, '');
+        
+        // Handle specific pattern seen in the example
+        scriptCleaned = scriptCleaned.replace(/^A Chance Encounter\\nHi!\\n/i, '');
+        
+        // Clean up any title followed immediately by greeting
+        scriptCleaned = scriptCleaned.replace(/^[A-Z][a-zA-Z\s]+\\n(Hi!|Hello!)/i, '');
+        
+        // Remove excessive line breaks at the beginning
+        scriptCleaned = scriptCleaned.replace(/^\s*\n+/, '');
+        
+        // Clean up multiple line breaks
+        scriptCleaned = scriptCleaned.replace(/\n{2,}/g, '\n\n');
+        
+        // Trim whitespace
+        scriptCleaned = scriptCleaned.trim();
+        
+        console.log("Script cleaned for audio. Original length:", originalLength, 
+                    "Cleaned length:", scriptCleaned.length,
+                    "First 100 chars:", scriptCleaned.substring(0, 100));
+        
+        // Store in Redux
+        dispatch(setFullScript({
+          scriptWithMarkdown: scriptWithMarkdown,
+          scriptCleaned: scriptCleaned,
+          title: title,
+          theme: theme,
+          wordCount: data.wordCount || scriptWordCount
+        }));
+      }
     } catch (error) {
-      showMessage(`Failed to regenerate script: ${(error as Error).message}`, 'error')
-      
-      // Update with error script
-      dispatch(updateScript({
-        imageId: imageId,
-        script: `Error: ${(error as Error).message}`,
-        generated: false
-      }))
+      console.error("Error generating full script:", error);
+      dispatch(setScriptGenerationError((error as Error).message));
     } finally {
-      // Remove from regenerating set
-      setRegeneratingIds(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(imageId)
-        return newSet
-      })
+      dispatch(setIsGeneratingScript(false));
     }
-  }
+  };
 
-  // Regenerate all scripts with individual prompts
-  const regenerateAllWithIndividualPrompts = async () => {
-    const imagesToUpdate = originalImages.filter(image => {
-      const individualPrompt = individualPrompts[image.id]
-      return individualPrompt && individualPrompt.trim()
-    })
+  const handleGenerateFullScript = async () => {
+    if (scriptSections.length === 0) return;
+    await generateFullScriptDirectly(scriptSections);
+  };
 
-    if (imagesToUpdate.length === 0) {
-      showMessage('No individual prompts found. Set prompts for specific segments first.', 'error')
-      return
-    }
+  const handleUpdateSection = (index: number, updatedSection: ScriptSection) => {
+    dispatch(updateScriptSection({ index, section: updatedSection }));
+  };
 
-    setIsGenerating(true)
+  const handleDownloadDocx = async () => {
+    if (!fullScript?.scriptWithMarkdown) return;
     
-    // Initialize progress
-    dispatch(startScriptGeneration({
-      total: imagesToUpdate.length,
-      totalBatches: 1 // Single batch for regeneration
-    }))
-
-    showMessage(`Regenerating ${imagesToUpdate.length} scripts with individual prompts...`, 'info')
-
     try {
-      const scriptPromises = imagesToUpdate.map(async (image, index) => {
-        const individualPrompt = individualPrompts[image.id]
-        const individualWordCount = individualWordCounts[image.id] || wordCountPerImage
-        
-        try {
-          const response = await fetch('/api/generate-script', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              imageDataUrl: image.dataUrl,
-              imageName: image.originalName,
-              prompt: individualPrompt.trim(),
-              wordCount: individualWordCount
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to regenerate script for ${image.originalName}`)
-          }
-
-          const data = await response.json()
-          
-          dispatch(updateScriptGenerationProgress({
-            completed: index + 1,
-            currentImage: `Completed: ${image.originalName}`
-          }))
-          
-          // Immediately update the script in Redux
-          dispatch(updateScript({
-            imageId: image.id,
-            script: data.usingMock 
-              ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
-              : data.script,
-            generated: true
-          }))
-          
-          return {
-            success: true,
-            data: {
-              imageId: image.id,
-              script: data.usingMock 
-                ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
-                : data.script,
-              generated: true
-            }
-          }
-        } catch (error) {
-          dispatch(updateScriptGenerationProgress({
-            completed: index + 1,
-            currentImage: `Failed: ${image.originalName}`
-          }))
-          
-          // Immediately update the script in Redux with error message
-          const errorMessage = `Error: ${error instanceof Error ? error.message : 'Failed to regenerate script'}`
-          dispatch(updateScript({
-            imageId: image.id,
-            script: errorMessage,
-            generated: false
-          }))
-          
-          return {
-            success: false,
-            error: {
-              imageId: image.id,
-              imageName: image.originalName,
-              error: error instanceof Error ? error.message : 'Failed to regenerate script'
-            }
-          }
-        }
-      })
-
-      const results = await Promise.all(scriptPromises)
+      const response = await fetch("/api/download-docx", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          title, 
+          content: fullScript.scriptWithMarkdown
+        }),
+      });
       
-      // Count results since scripts are already updated immediately
-      const successCount = results.filter(r => r.success).length
-      showMessage(`Regenerated ${successCount}/${imagesToUpdate.length} scripts with individual prompts!`, 'success')
-
+      if (!response.ok) {
+        throw new Error("Failed to generate DOCX");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/\s+/g, "_")}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
-      showMessage('Error during bulk regeneration: ' + (error as Error).message, 'error')
-    } finally {
-      setIsGenerating(false)
-      dispatch(finishScriptGeneration())
-      // Clear progress after completion
-      setTimeout(() => {
-        dispatch(clearScriptGenerationProgress())
-      }, 3000)
+      console.error("Error downloading DOCX:", error);
     }
-  }
+  };
 
-  // Generate scripts for all images with rate limiting
-  const handleNarrateImages = async () => {
-    if (!prompt.trim()) {
-      showMessage('Please enter a prompt for script generation', 'error')
-      return
-    }
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
 
-    if (originalImages.length === 0) {
-      showMessage('No images available for narration', 'error')
-      return
-    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setUploadedScript(event.target.result as string);
+        // Store uploaded script in Redux
+        dispatch(setFullScript({
+          scriptWithMarkdown: event.target.result as string,
+          scriptCleaned: event.target.result as string,
+          title: title || "Uploaded Script",
+          theme: theme,
+          wordCount: 0
+        }));
+      }
+    };
+    reader.readAsText(file);
+  };
 
-    setIsGenerating(true)
-    const totalBatches = Math.ceil(originalImages.length / BATCH_SIZE)
+  const handleRegenerateSegment = async (sectionIndex?: number) => {
+    // Use provided index or fall back to selectedSegmentIndex
+    const index = sectionIndex !== undefined ? sectionIndex : selectedSegmentIndex;
     
-    // Initialize progress
-    dispatch(startScriptGeneration({
-      total: originalImages.length,
-      totalBatches
-    }))
+    if (index === null || !scriptSections[index]) return;
     
-    showMessage(`Starting batched processing of ${originalImages.length} images in ${totalBatches} batch(es) of ${BATCH_SIZE}...`, 'info')
-
     try {
-      // Initialize scripts array in Redux
-      dispatch(initializeScripts(
-        originalImages.map(img => ({
-          imageId: img.id,
-          imageName: img.originalName
-        }))
-      ))
-
-      console.log(`🚀 Processing ${originalImages.length} images in ${totalBatches} batches`)
-
-      const allResults: Array<{
-        success: boolean
-        data?: any
-        error?: any
-      }> = []
+      const currentSection = scriptSections[index];
       
-      let completedCount = 0 // Shared counter for completed items
-
-      // Process images in batches
-      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        const startIndex = batchIndex * BATCH_SIZE
-        const endIndex = Math.min(startIndex + BATCH_SIZE, originalImages.length)
-        const batchImages = originalImages.slice(startIndex, endIndex)
-        
-        console.log(`📦 Processing batch ${batchIndex + 1}/${totalBatches}: ${batchImages.length} images`)
-        
-        // Update progress for current batch
-        dispatch(updateScriptGenerationProgress({
-          currentBatch: batchIndex + 1,
-          batchProgress: 0,
-          currentImage: `Processing batch ${batchIndex + 1}/${totalBatches}...`
-        }))
-
-        // Create promises for current batch
-        const batchPromises = batchImages.map(async (image, imageIndex) => {
-          const globalIndex = startIndex + imageIndex
-          console.log(`📸 Starting request ${globalIndex + 1}/${originalImages.length}: ${image.originalName}`)
-
-          try {
-            const response = await fetch('/api/generate-script', {
-              method: 'POST',
+      // Verify title and theme are available for context in API route
+      if (!title || !theme) {
+        console.error(`❌ Cannot regenerate section - missing title or theme`);
+        alert("Please enter a title and theme before regenerating sections.");
+        return;
+      }
+      
+      console.log(`🔄 Starting regeneration for section ${index + 1}: "${currentSection.title}"`);
+      console.log(`📄 Using title: "${title}" and theme: "${theme}"`);
+      
+      // Show prompt dialog
+      const promptText = window.prompt(
+        `Enter instructions for regenerating section "${currentSection.title}":`,
+        `Improve section ${index + 1} to make it more detailed and engaging.`
+      );
+      
+      // If user cancels, return early
+      if (promptText === null) {
+        console.log(`⏱️ Regeneration cancelled by user for section ${index + 1}`);
+        return;
+      }
+      
+      // Use the prompt from dialog
+      const regenerationPrompt = promptText.trim();
+      console.log(`📝 User provided prompt for section ${index + 1}: "${regenerationPrompt}"`);
+      
+      console.log(`🔄 Sending regeneration request to API for section ${index + 1}`);
+      const response = await fetch("/api/regenerate-segment", {
+        method: "POST",
               headers: {
-                'Content-Type': 'application/json',
+          "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                imageDataUrl: image.dataUrl,
-                imageName: image.originalName,
-                prompt: prompt.trim(),
-                wordCount: wordCountPerImage,
-                batchInfo: {
-                  batchIndex: batchIndex + 1,
-                  totalBatches,
-                  imageIndex: imageIndex + 1,
-                  batchSize: batchImages.length
-                }
-              }),
-            })
+          sectionIndex: index,
+          currentSection,
+          additionalPrompt: regenerationPrompt,
+          forbiddenWords,
+          title, // Add title to the request for context
+          theme  // Add theme to the request for context
+        }),
+      });
 
             if (!response.ok) {
-              throw new Error(`Failed to generate script for ${image.originalName}`)
-            }
-
-            const data = await response.json()
-            
-            console.log(`✅ Completed request ${globalIndex + 1}: ${image.originalName}`)
-            
-            // Increment shared counter and update progress
-            completedCount++
-            dispatch(updateScriptGenerationProgress({
-              completed: completedCount,
-              batchProgress: imageIndex + 1,
-              currentImage: `Batch ${batchIndex + 1}: Completed ${image.originalName}`
-            }))
-            
-            // Immediately update the script in Redux so it shows in the UI
-            dispatch(updateScript({
-              imageId: image.id,
-              script: data.usingMock 
-                ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
-                : data.script,
-              generated: true
-            }))
-            
-            return {
-              success: true,
-              data: {
-                imageId: image.id,
-                imageName: image.originalName,
-                script: data.usingMock 
-                  ? `${data.script}\n\n[Generated using mock data - Set OPENAI_API_KEY for real AI analysis]`
-                  : data.script,
-                generated: true,
-                usingMock: data.usingMock
-              }
-            }
-          } catch (error) {
-            console.error(`❌ Error in request ${globalIndex + 1}:`, error)
-            
-            // Increment shared counter even for failures
-            completedCount++
-            dispatch(updateScriptGenerationProgress({
-              completed: completedCount,
-              batchProgress: imageIndex + 1,
-              currentImage: `Batch ${batchIndex + 1}: Failed ${image.originalName}`
-            }))
-            
-            // Immediately update the script in Redux with error message
-            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Failed to generate script'}`
-            dispatch(updateScript({
-              imageId: image.id,
-              script: errorMessage,
-              generated: false
-            }))
-            
-            return {
-              success: false,
-              error: {
-                imageId: image.id,
-                imageName: image.originalName,
-                error: error instanceof Error ? error.message : 'Failed to generate script'
-              }
-            }
-          }
-        })
-
-        // Process current batch in parallel
-        const batchResults = await Promise.all(batchPromises)
-        allResults.push(...batchResults)
-        
-        console.log(`✅ Batch ${batchIndex + 1}/${totalBatches} complete`)
-
-        // Add delay between batches (except for the last batch)
-        if (batchIndex < totalBatches - 1) {
-          console.log(`⏱️ Waiting ${BATCH_DELAY / 1000} seconds before next batch...`)
-          
-          // Countdown timer for user feedback
-          for (let seconds = Math.floor(BATCH_DELAY / 1000); seconds > 0; seconds--) {
-            dispatch(updateScriptGenerationProgress({
-              timeUntilNextBatch: seconds,
-              currentImage: `Waiting ${seconds}s before next batch...`
-            }))
-            await new Promise(resolve => setTimeout(resolve, 1000))
-          }
-          
-          dispatch(updateScriptGenerationProgress({
-            timeUntilNextBatch: 0
-          }))
-        }
+        throw new Error(`Failed to regenerate segment. Status: ${response.status}`);
       }
-
-      // Process all results - just count successes and errors since scripts are already updated
-      const successCount = allResults.filter(r => r.success).length
-      const errorCount = allResults.filter(r => !r.success).length
-
-      console.log(`🎉 Batched processing complete: ${successCount} successful, ${errorCount} failed`)
-
-      if (errorCount === 0) {
-        showMessage(`Successfully generated all ${successCount} scripts using ${totalBatches} batch(es)!`, 'success')
-      } else {
-        showMessage(`Generated ${successCount} scripts successfully, ${errorCount} failed using ${totalBatches} batch(es)`, 'success')
-      }
-
+      
+      const data = await response.json();
+      console.log(`✅ Regeneration successful for section ${index + 1}. New title: "${data.updatedSection.title}"`);
+      
+      // Update the section in Redux
+      dispatch(updateScriptSection({ index, section: data.updatedSection }));
+      
+      // Clear the regenerate prompt and selected segment
+      setRegeneratePrompt("");
+      setSelectedSegmentIndex(null);
     } catch (error) {
-      showMessage('Error during script generation: ' + (error as Error).message, 'error')
-    } finally {
-      setIsGenerating(false)
-      dispatch(finishScriptGeneration())
-      // Clear progress after completion
-      setTimeout(() => {
-        dispatch(clearScriptGenerationProgress())
-      }, 3000)
+      console.error(`❌ Error regenerating segment ${index !== null ? index + 1 : 'unknown'}:`, error);
     }
-  }
+  };
 
-  // Copy script to clipboard
-  const copyScript = async (script: string) => {
+  // Function to split text into 500-word segments for display
+  const splitIntoSegments = (text: string, wordsPerSegment = 500): string[] => {
+    if (!text) return [];
+    
+    const words = text.split(/\s+/);
+    const segments: string[] = [];
+    
+    for (let i = 0; i < words.length; i += wordsPerSegment) {
+      segments.push(words.slice(i, i + wordsPerSegment).join(' '));
+    }
+    
+    return segments;
+  };
+  
+  const scriptSegments = splitIntoSegments(fullScript?.scriptWithMarkdown || '');
+
+  // Update the handleRegenerateScriptSegment function to better handle regeneration prompts
+  const handleRegenerateScriptSegment = async (segmentIndex: number, segmentContent: string, prompt?: string) => {
     try {
-      await navigator.clipboard.writeText(script)
-      showMessage('Script copied to clipboard!', 'success')
+      console.log(`🔄 Starting regeneration for script segment ${segmentIndex + 1}`);
+      // Verify title and theme are available
+      if (!title || !theme) {
+        console.error(`❌ Cannot regenerate script segment - missing title or theme`);
+        alert("Please enter a title and theme before regenerating script segments.");
+        return;
+      }
+
+      console.log(`📄 Using title: "${title}" and theme: "${theme}"`);
+      dispatch(setIsGeneratingScript(true));
+      
+      // Use the provided prompt or fall back to the current regeneratePrompt state
+      const regenerationPrompt = prompt || regeneratePrompt;
+      console.log(`📝 Using prompt for script segment ${segmentIndex + 1}: "${regenerationPrompt}"`);
+      
+      console.log(`🔄 Sending regeneration request to API for script segment ${segmentIndex + 1}`);
+      const response = await fetch("/api/regenerate-script-segment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          segmentIndex, 
+          segmentContent,
+          title,
+          theme,
+          additionalPrompt: regenerationPrompt,
+          forbiddenWords
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to regenerate script segment. Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`✅ Successfully regenerated script segment ${segmentIndex + 1}. Word count: ${data.wordCount || 'unknown'}`);
+      
+      // Replace this segment in the full script
+      if (fullScript && data.regeneratedContent) {
+        // Split the script into segments
+        const segments = splitIntoSegments(fullScript.scriptWithMarkdown);
+        
+        // Replace the specified segment
+        segments[segmentIndex] = data.regeneratedContent;
+        
+        // Rejoin the segments
+        const updatedScript = segments.join(' ');
+        
+        // Update the full script in Redux
+        dispatch(setFullScript({
+          scriptWithMarkdown: updatedScript,
+          scriptCleaned: updatedScript,
+          title: fullScript.title,
+          theme: fullScript.theme,
+          wordCount: updatedScript.split(/\s+/).length
+        }));
+        
+        console.log(`📊 Updated full script after segment regeneration. Total length: ${updatedScript.split(/\s+/).length} words`);
+      }
+      
+      // Clear the regenerate prompt and selected segment
+      setRegeneratePrompt("");
+      setSelectedSegmentIndex(null);
     } catch (error) {
-      showMessage('Failed to copy script', 'error')
+      console.error(`❌ Error regenerating script segment ${segmentIndex + 1}:`, error);
+      dispatch(setScriptGenerationError((error as Error).message));
+    } finally {
+      dispatch(setIsGeneratingScript(false));
     }
-  }
+  };
 
-  // Download all scripts as text file
-  const downloadAllScripts = () => {
-    const validScripts = scripts.filter(s => s.generated && s.script)
+  // Add a new direct regeneration function that includes a prompt dialog
+  const handleDirectRegeneration = async (segmentIndex: number, segmentContent: string) => {
+    console.log(`🔄 Initiating direct regeneration for segment ${segmentIndex + 1}`);
     
-    if (validScripts.length === 0) {
-      showMessage('No scripts available to download', 'error')
-      return
+    // Verify title is available
+    if (!title) {
+      console.error(`❌ Cannot regenerate script segment - missing title`);
+      alert("Please enter a title before regenerating script segments.");
+      return;
     }
-
-    // Calculate statistics
-    const totalWords = validScripts.reduce((total, s) => 
-      total + s.script.split(/\s+/).filter(word => word.length > 0).length, 0
-    )
-    const averageWords = Math.round(totalWords / validScripts.length)
-
-    // Create file content with statistics header
-    const statsHeader = `=== SCRIPT GENERATION SUMMARY ===
-Total Scripts: ${validScripts.length}
-Total Words: ${totalWords}
-Average Words per Script: ${averageWords}
-Generated on: ${new Date().toLocaleString()}
-Target Word Count: ${wordCountPerImage} words per script
-
-=== SCRIPTS ===
-
-`
-
-    const allScripts = validScripts
-      .map((s, index) => {
-        const wordCount = s.script.split(/\s+/).filter(word => word.length > 0).length
-        return `=== ${s.imageName} ===
-Word Count: ${wordCount} words
-${s.script}
-
-`
-      })
-      .join('')
     
-    const fullContent = statsHeader + allScripts
-
-    const blob = new Blob([fullContent], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `image-scripts-${validScripts.length}-scripts-${totalWords}-words-${new Date().toISOString().split('T')[0]}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    // Show prompt dialog
+    const prompt = window.prompt("Enter instructions for rewriting this segment:", `Rewrite segment ${segmentIndex + 1} to make it more engaging and impactful.`);
     
-    showMessage(`Downloaded ${validScripts.length} scripts (${totalWords} total words)!`, 'success')
-  }
-
-  const generatedCount = scripts.filter(s => s.generated).length
-  const progressPercentage = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0
+    // If user cancels, return early
+    if (prompt === null) {
+      console.log(`⏱️ Direct regeneration cancelled by user for segment ${segmentIndex + 1}`);
+      return;
+    }
+    
+    console.log(`📝 User provided prompt for direct regeneration of segment ${segmentIndex + 1}: "${prompt}"`);
+    
+    // Regenerate with the prompt
+    await handleRegenerateScriptSegment(segmentIndex, segmentContent, prompt);
+  };
 
   return (
-    <div className="w-full max-w-full p-6 space-y-6 overflow-hidden">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Script Generator</h1>
-        <p className="text-gray-600">
-          Generate narration scripts for your processed images using AI
-        </p>
-      </div>
-
-      {/* Progress Card - Only show when generating */}
-      {progress.isActive && (
-        <Card className="bg-blue-50 border border-blue-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-              Generating Scripts ({progressPercentage}%)
-            </CardTitle>
-            <CardDescription>
-              Processing images in batches of 10 to respect API rate limits
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Overall Progress Bar */}
+    <div className="space-y-8">
+      <Tabs defaultValue="form">
+        <TabsList className="mb-4">
+          <TabsTrigger value="form">Basic Settings</TabsTrigger>
+          <TabsTrigger value="advanced">Advanced Options</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="form" className="w-full space-y-6 p-6 bg-card rounded-lg border shadow-sm">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Overall Progress</span>
-                <span className="font-medium text-blue-600">{progressPercentage}%</span>
-              </div>
-              <Progress value={progressPercentage} className="h-2" />
-              <div className="text-xs text-gray-500">
-                {progress.completed} of {progress.total} requests completed
-              </div>
-            </div>
-
-            {/* Countdown Timer */}
-            {progress.timeUntilNextBatch && progress.timeUntilNextBatch > 0 && (
-              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                <div className="flex items-center gap-2 text-orange-800">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="font-medium">Rate Limit Pause</span>
-                  <Badge variant="secondary" className="bg-orange-100">
-                    {progress.timeUntilNextBatch}s
-                  </Badge>
-                </div>
-                <p className="text-sm text-orange-700 mt-1">
-                  Waiting before processing next batch to respect API limits
+            <h2 className="text-2xl font-bold">Script Generator</h2>
+            <p className="text-muted-foreground">
+              Create a script using AI. Fill in the details below.
                 </p>
               </div>
-            )}
 
-            {/* Current Status */}
-            {progress.currentImage && (
-              <div className="flex items-center gap-2 text-sm">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <span className="text-gray-600">Status:</span>
-                <span className="font-medium">{progress.currentImage}</span>
-              </div>
-            )}
-
-            {/* Completed Images List */}
-            {progress.completedImages.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <div className="text-sm font-medium text-gray-700">Recently Completed:</div>
-                <div className="max-h-24 overflow-y-auto space-y-1">
-                  {progress.completedImages.slice(-5).map((imageName, index) => (
-                    <div key={index} className="flex items-center gap-2 text-xs">
-                      <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
-                      <span className="text-gray-600 truncate">{imageName}</span>
-                    </div>
-                  ))}
-                  {progress.completedImages.length > 5 && (
-                    <div className="text-xs text-gray-400">
-                      ...and {progress.completedImages.length - 5} more
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Prompt Input Card */}
-      <Card className="bg-white shadow-sm border border-gray-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Script Prompt
-          </CardTitle>
-          <CardDescription>
-            Enter a prompt to guide the script generation for your images
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="prompt">Narration Prompt</Label>
-            <div className="flex gap-2">
+              <Label htmlFor="title" className="flex justify-between">
+                <span>Title</span>
+                {!title && <span className="text-red-500 text-xs">Required for regeneration</span>}
+              </Label>
               <Input
-                id="prompt"
-                value={prompt}
-                onChange={(e) => handlePromptChange(e.target.value)}
-                placeholder="e.g., Create an engaging narration script that describes the visual elements, mood, and story of this image..."
-                className="flex-1"
-                disabled={isGenerating}
+                id="title"
+                placeholder="Enter a title for your script"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={!title ? "border-red-300 focus-visible:ring-red-500" : ""}
               />
-            </div>
-            <p className="text-xs text-gray-500">
-              This prompt will be used to generate scripts for all {originalImages.length} images
-            </p>
-          </div>
+                    </div>
 
-          {/* Word Count Control */}
           <div className="space-y-2">
-            <Label htmlFor="wordCount">Word Count Per Image</Label>
-            <div className="flex gap-2 items-center">
+              <Label htmlFor="wordCount">Word Count</Label>
               <Input
                 id="wordCount"
-                type="text"
-                value={wordCountPerImage}
-                onChange={(e) => setWordCountPerImage(parseInt(e.target.value) || 150)}
-                className="w-24"
-                disabled={isGenerating}
-                placeholder="150"
+                type="number"
+                min={1000}
+                max={100000}
+                step={1000}
+                value={wordCount}
+                onChange={(e) => setWordCount(Number(e.target.value))}
               />
-              <span className="text-sm text-gray-600">words per script</span>
-              <Button
-                onClick={applyWordCountToAll}
-                size="sm"
-                variant="outline"
-                disabled={isGenerating}
-                className="whitespace-nowrap"
-              >
-                Apply to All Images
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500">
-              Target word count for each generated script (actual count may vary slightly)
+              <p className="text-xs text-muted-foreground">
+                This will generate {Math.max(1, Math.floor(wordCount / 800))} script sections
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <Button 
-              onClick={handleNarrateImages}
-              disabled={isGenerating || originalImages.length === 0 || !prompt.trim()}
-              className="bg-green-600 hover:bg-green-700 whitespace-nowrap"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating... ({progressPercentage}%)
-                </>
-              ) : (
-                <>
-                  <Mic className="h-4 w-4 mr-2" />
-                  Generate Scripts for {originalImages.length} Images
-                </>
-              )}
-            </Button>
-            
-            {generatedCount > 0 && (
-              <Button 
-                onClick={downloadAllScripts}
-                variant="outline"
-                disabled={isGenerating}
-                className="whitespace-nowrap"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download All Scripts
-              </Button>
-            )}
+          <div className="space-y-2">
+              <Label htmlFor="theme" className="flex justify-between">
+                <span>Story Theme</span>
+              </Label>
+              <Input
+                id="theme"
+                placeholder="E.g., Mystery, Romance, Sci-Fi"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+              />
+            </div>
+          </div>
 
-            {originalImages.length > 0 && (
+          <div className="space-y-2">
+            <Label htmlFor="additionalPrompt">Additional Instructions (Optional)</Label>
+            <Textarea
+              id="additionalPrompt"
+              placeholder="Add any specific instructions for the AI to follow when generating your script"
+              value={additionalPrompt}
+              onChange={(e) => setAdditionalPrompt(e.target.value)}
+              className="min-h-[80px]"
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
               <Button 
-                onClick={() => setShowIndividualPrompts(!showIndividualPrompts)}
+              className="flex-1" 
+              onClick={handleGenerateOutline}
+              disabled={isLoading || isGeneratingScript || !title}
+            >
+              {isLoading ? "Generating..." : "Generate Script"}
+              </Button>
+
+            {fullScript && (
+              <Button 
                 variant="outline"
-                disabled={isGenerating}
-                className="whitespace-nowrap"
+                onClick={handleDownloadDocx}
+                className="flex-1 gap-2"
               >
-                <FileText className="h-4 w-4 mr-2" />
-                {showIndividualPrompts ? 'Hide' : 'Show'} Individual Prompts
+                <Download size={16} />
+                Download DOCX
               </Button>
             )}
           </div>
 
-          {/* Individual Prompt Controls */}
-          {showIndividualPrompts && originalImages.length > 0 && (
-            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-                <h4 className="font-medium text-gray-900">Individual Segment Prompts</h4>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    onClick={applyPromptToAll}
-                    size="sm"
-                    variant="outline"
-                    disabled={!prompt.trim() || isGenerating}
-                    className="whitespace-nowrap"
-                  >
-                    Apply Global Prompt to All
-                  </Button>
-                  <Button
-                    onClick={applyWordCountToAll}
-                    size="sm"
-                    variant="outline"
-                    disabled={isGenerating}
-                    className="whitespace-nowrap"
-                  >
-                    Apply Word Count to All
-                  </Button>
-                  <Button
-                    onClick={regenerateAllWithIndividualPrompts}
-                    size="sm"
-                    disabled={isGenerating || Object.keys(individualPrompts).filter(id => individualPrompts[id]?.trim()).length === 0}
-                    className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Regenerating...
-                      </>
-                    ) : (
-                      <>
-                        <RotateCcw className="h-3 w-3 mr-1" />
-                        Regenerate All with Individual Prompts
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-              <p className="text-sm text-gray-600 break-words">
-                Customize prompts and word counts for specific segments. Empty prompts will use the global prompt above.
-              </p>
+          {/* Error Display */}
+          {scriptGenerationError && (
+            <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
+              <p className="font-semibold">Error:</p>
+              <p className="text-sm">{scriptGenerationError}</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      {/* Status Message */}
-      {message && (
-        <Card className={`border ${
-          messageType === 'success' ? 'border-green-200 bg-green-50' :
-          messageType === 'error' ? 'border-red-200 bg-red-50' :
-          'border-blue-200 bg-blue-50'
-        }`}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              {messageType === 'success' && <CheckCircle className="h-4 w-4 text-green-600" />}
-              {messageType === 'error' && <AlertCircle className="h-4 w-4 text-red-600" />}
-              {messageType === 'info' && <FileText className="h-4 w-4 text-blue-600" />}
-              <span className={`text-sm ${
-                messageType === 'success' ? 'text-green-800' :
-                messageType === 'error' ? 'text-red-800' :
-                'text-blue-800'
-              }`}>
-                {message}
-              </span>
+        <TabsContent value="advanced" className="w-full space-y-6 p-6 bg-card rounded-lg border shadow-sm">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Advanced Options</h2>
+            <p className="text-muted-foreground">
+              Fine-tune your script generation with these advanced settings.
+            </p>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Images and Scripts */}
-      {originalImages.length > 0 && (
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5" />
-              Images & Generated Scripts ({generatedCount}/{originalImages.length})
-            </CardTitle>
-            <CardDescription className="space-y-1">
-              <div>View your images and their generated narration scripts</div>
-              {generatedCount > 0 && (
-                <div className="text-sm text-green-600 font-medium">
-                  Total words generated: {scripts
-                    .filter(s => s.generated && s.script)
-                    .reduce((total, s) => total + s.script.split(/\s+/).filter(word => word.length > 0).length, 0)
-                  } words across {generatedCount} scripts • 
-                  Average: {Math.round(scripts
-                    .filter(s => s.generated && s.script)
-                    .reduce((total, s) => total + s.script.split(/\s+/).filter(word => word.length > 0).length, 0) / generatedCount
-                  )} words per script
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="inspirationalTranscript">Inspirational Video Transcript</Label>
+              <Textarea
+                id="inspirationalTranscript"
+                placeholder="Paste a transcript from a video that you'd like to use as inspiration"
+                value={inspirationalTranscript}
+                onChange={(e) => setInspirationalTranscript(e.target.value)}
+                className="min-h-[150px]"
+              />
                 </div>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {originalImages.map((image, index) => {
-                const script = scripts.find(s => s.imageId === image.id)
-                const isCompleted = progress.completedImages.some(img => img.includes(image.originalName))
-                const isRegenerating = regeneratingIds.has(image.id)
-                
-                return (
-                  <div key={image.id} className={`border rounded-lg p-4 ${
-                    isRegenerating ? 'border-orange-200 bg-orange-50' :
-                    isCompleted ? 'border-green-200 bg-green-50' : 
-                    isGenerating ? 'border-blue-200 bg-blue-50' :
-                    'border-gray-200'
-                  }`}>
-                    <div className="flex gap-4">
-                      {/* Image */}
-                      <div className="flex-shrink-0">
-                        <div className="w-32 h-20 bg-gray-100 rounded-lg overflow-hidden">
-                          <img
-                            src={image.dataUrl}
-                            alt={image.originalName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="mt-2 text-center">
-                          <Badge variant="outline" className="text-xs">
-                            #{index + 1}
-                          </Badge>
-                        </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="forbiddenWords">Forbidden Words (comma-separated)</Label>
+              <Input
+                id="forbiddenWords"
+                placeholder="Words to avoid in the generated script, separated by commas"
+                value={forbiddenWords}
+                onChange={(e) => setForbiddenWords(e.target.value)}
+              />
                       </div>
                       
-                      {/* Script Content */}
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-medium text-gray-900 truncate" title={image.originalName}>
-                            {image.originalName}
-                          </h3>
+            <div className="space-y-2">
+              <Label htmlFor="uploadScript">Upload Existing Script</Label>
                           <div className="flex items-center gap-2">
-                            {isRegenerating && (
-                              <Badge variant="secondary" className="text-xs">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                Regenerating
-                              </Badge>
-                            )}
-                            {isGenerating && !script?.generated && !isRegenerating && (
-                              <Badge variant="secondary" className="text-xs">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                Processing
-                              </Badge>
-                            )}
-                            {script?.generated && !isRegenerating && (
-                              <Badge variant="secondary" className="text-xs">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Generated
-                              </Badge>
-                            )}
-                            
-                            {/* Word Count Badge */}
-                            {script?.script && script.generated && (
-                              <Badge variant="outline" className="text-xs">
-                                {script.script.split(/\s+/).filter(word => word.length > 0).length} words
-                              </Badge>
-                            )}
-                            
-                            {/* Action Buttons */}
-                            <div className="flex gap-1">
-                              {script?.script && script.generated && (
-                                <Button
-                                  onClick={() => copyScript(script.script)}
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={isRegenerating}
-                                >
-                                  <Copy className="h-3 w-3" />
+                <Input
+                  id="uploadScript"
+                  type="file"
+                  accept=".txt,.md,.docx"
+                  onChange={handleFileUpload}
+                  className="flex-1"
+                />
+                <Button variant="outline" className="gap-2">
+                  <Upload size={16} />
+                  Upload
                                 </Button>
-                              )}
-                              
-                              {/* Edit Button */}
-                              {script?.script && script.generated && !editingIds.has(image.id) && (
-                                <Button
-                                  onClick={() => startEditingScript(image.id, script.script)}
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={isRegenerating || isGenerating}
-                                  title="Edit script"
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                              )}
-                              
-                              {/* Save Edit Button */}
-                              {editingIds.has(image.id) && (
-                                <Button
-                                  onClick={() => saveEditedScript(image.id)}
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={!editingScripts[image.id]?.trim()}
-                                  title="Save changes"
-                                  className="text-green-600 border-green-200 hover:bg-green-50"
-                                >
-                                  <Save className="h-3 w-3" />
-                                </Button>
-                              )}
-                              
-                              {/* Cancel Edit Button */}
-                              {editingIds.has(image.id) && (
-                                <Button
-                                  onClick={() => cancelEditingScript(image.id)}
-                                  size="sm"
-                                  variant="outline"
-                                  title="Cancel editing"
-                                  className="text-red-600 border-red-200 hover:bg-red-50"
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              )}
-                              
-                              {/* Regenerate Button */}
-                              {script && !editingIds.has(image.id) && (
-                                <Button
-                                  onClick={() => regenerateScript(image.id)}
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={isRegenerating || isGenerating || !prompt.trim()}
-                                  title="Regenerate script with current prompt"
-                                >
-                                  {isRegenerating ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <RotateCcw className="h-3 w-3" />
-                                  )}
-                                </Button>
-                              )}
                             </div>
                           </div>
                         </div>
-                        
-                        {script?.script ? (
-                          <div className={`p-3 rounded-lg text-sm ${
-                            isRegenerating ? 'bg-orange-100 border border-orange-200' :
-                            script.generated 
-                              ? 'bg-green-50 border border-green-200' 
-                              : 'bg-red-50 border border-red-200'
-                          }`}>
-                            {isRegenerating && (
-                              <div className="flex items-center gap-2 mb-2 text-orange-700">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                <span className="text-xs">Regenerating with current prompt...</span>
-                              </div>
-                            )}
-                            
-                            {/* Edit Mode */}
-                            {editingIds.has(image.id) ? (
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2 mb-2 text-blue-700">
-                                  <Edit className="h-3 w-3" />
-                                  <span className="text-xs">Editing script...</span>
-                                </div>
-                                <Textarea
-                                  value={editingScripts[image.id] || ''}
-                                  onChange={(e) => handleEditingScriptChange(image.id, e.target.value)}
-                                  className="min-h-[100px] text-sm"
-                                  placeholder="Edit your script here..."
-                                />
-                                <div className="text-xs text-gray-500">
-                                  Word count: {editingScripts[image.id]?.split(/\s+/).filter(word => word.length > 0).length || 0} words
-                                </div>
-                              </div>
-                            ) : (
-                              /* Display Mode */
-                              <div className="space-y-2">
-                                <p className="whitespace-pre-wrap">{script.script}</p>
-                                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                                  <div className="text-xs text-gray-500">
-                                    Word count: {script.script.split(/\s+/).filter(word => word.length > 0).length} words
-                                  </div>
-                                  <div className="text-xs text-gray-400">
-                                    Target: {individualWordCounts[image.id] || wordCountPerImage} words
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className={`p-3 rounded-lg text-sm ${
-                            isGenerating ? 'bg-blue-100 border border-blue-200 text-blue-700' :
-                            'bg-gray-50 border border-gray-200 text-gray-500'
-                          }`}>
-                            {isGenerating ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                Processing in parallel...
-                              </div>
-                            ) : (
-                              'No script generated yet'
-                            )}
-                          </div>
-                        )}
+        </TabsContent>
+      </Tabs>
 
-                        {/* Individual Prompt Input */}
-                        {showIndividualPrompts && (
-                          <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
-                            <Label htmlFor={`prompt-${image.id}`} className="text-xs font-medium text-gray-700">
-                              Custom prompt for "{image.originalName}":
-                            </Label>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <Input
-                                id={`prompt-${image.id}`}
-                                value={individualPrompts[image.id] || ''}
-                                onChange={(e) => handleIndividualPromptChange(image.id, e.target.value)}
-                                placeholder={`Custom prompt for ${image.originalName}... (leave empty to use global prompt)`}
-                                className="flex-1 text-sm min-w-0"
-                                disabled={isRegenerating || isGenerating}
-                              />
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="text"
-                                  value={individualWordCounts[image.id] || wordCountPerImage}
-                                  onChange={(e) => handleIndividualWordCountChange(image.id, parseInt(e.target.value) || wordCountPerImage)}
-                                  className="w-20 text-sm"
-                                  disabled={isRegenerating || isGenerating}
-                                  placeholder="Words"
-                                />
-                                <span className="text-xs text-gray-500 whitespace-nowrap">words</span>
+      {/* Full Script Section - Modified to take full width */}
+      <div className="w-full space-y-6">
+        <div className="space-y-2 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold">Full Script</h2>
+            <p className="text-muted-foreground">
+              The complete script based on your outline.
+            </p>
+                              </div>
+          {fullScript && (
+            <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
+              Word Count: {scriptWordCount}
+                              </div>
+                            )}
+                          </div>
+        
+        {!fullScript ? (
+          <div className="h-[300px] flex items-center justify-center border rounded-lg bg-muted/50">
+            <p className="text-muted-foreground">
+              {isGeneratingScript || isLoading
+                ? "Generating your script..." 
+                : "Click 'Generate Script' to create your content"}
+            </p>
+                              </div>
+                            ) : (
+          <div className="space-y-6">
+            <div className="border rounded-lg p-4 bg-card shadow-sm overflow-y-auto max-h-[600px]">
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <h1 className="text-xl font-bold mb-4">{fullScript.title}</h1>
+                {/* Modified to remove headers from the markdown rendering */}
+                <ReactMarkdown
+                  components={{
+                    // Remove h1, h2, h3 headers from the output
+                    h1: () => null,
+                    h2: () => null,
+                    h3: () => null
+                  }}
+                >
+                  {fullScript.scriptWithMarkdown}
+                </ReactMarkdown>
+                          </div>
+            </div>
+            
+            {scriptSegments.length > 1 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Script Segments</h3>
+                <p className="text-sm text-muted-foreground">
+                  The script is divided into segments of approximately 500 words each for easier editing.
+                </p>
+                
+                {scriptSegments.map((segment, index) => (
+                  <div key={index} className="border rounded-lg p-4 bg-card shadow-sm">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-medium">Segment {index + 1}</h4>
                                 <Button
-                                  onClick={() => regenerateScript(image.id, individualPrompts[image.id], individualWordCounts[image.id])}
                                   size="sm"
-                                  disabled={isRegenerating || isGenerating || (!individualPrompts[image.id]?.trim() && !prompt.trim())}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
-                                  title="Regenerate with this specific prompt and word count"
-                                >
-                                  {isRegenerating ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <RotateCcw className="h-3 w-3 mr-1" />
+                        variant="outline"
+                        onClick={() => handleDirectRegeneration(index, segment)}
+                        disabled={isGeneratingScript}
+                      >
+                        <RefreshCw size={14} className="mr-2" />
                                       Regenerate
-                                    </>
-                                  )}
                                 </Button>
                               </div>
+                    <div className="text-sm whitespace-pre-wrap">{segment}</div>
                             </div>
-                            <p className="text-xs text-gray-500 break-words">
-                              {individualPrompts[image.id]?.trim() 
-                                ? 'Will use this custom prompt' 
-                                : 'Will use global prompt if empty'
-                              } • Target: {individualWordCounts[image.id] || wordCountPerImage} words
-                            </p>
+                ))}
                           </div>
                         )}
                       </div>
+        )}
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+  );
+};
 
-      {/* Empty State */}
-      {originalImages.length === 0 && (
-        <Card className="bg-gray-50 border border-gray-200">
-          <CardContent className="pt-6 text-center py-12">
-            <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Images Available</h3>
-            <p className="text-gray-600 mb-4">
-              Process some images first to generate narration scripts
-            </p>
-            <Badge variant="outline">
-              Go to Process Images to get started
-            </Badge>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  )
-} 
+export default ScriptGenerator; 

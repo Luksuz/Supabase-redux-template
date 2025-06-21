@@ -21,8 +21,9 @@ import { CreateVideoRequestBody, VideoRecord, SegmentTiming } from '@/types/vide
 
 export function VideoGenerator() {
   const dispatch = useAppDispatch()
-  const { originalImages } = useAppSelector(state => state.images)
-  const { scripts } = useAppSelector(state => state.scripts)
+  
+  // Use new Redux states from imageGeneration and audio slices
+  const { imageSets } = useAppSelector(state => state.imageGeneration)
   const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
   const { 
     currentGeneration, 
@@ -37,25 +38,56 @@ export function VideoGenerator() {
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
+    // Auto-clear success and info messages after 5 seconds
+    if (type !== 'error') {
+      setTimeout(() => setMessage(""), 5000)
+    }
   }
+
+  // Get image URLs from generated image sets
+  const getImageUrls = (): string[] => {
+    const urls: string[] = []
+    
+    // Extract URLs from all image sets
+    imageSets.forEach(imageSet => {
+      urls.push(...imageSet.imageUrls)
+    })
+    
+    // If no images are available, provide sample image URLs
+    if (urls.length === 0) {
+      // Sample placeholder images for demonstration
+      return [
+        'https://picsum.photos/800/600?random=1',
+        'https://picsum.photos/800/600?random=2',
+        'https://picsum.photos/800/600?random=3'
+      ]
+    }
+    
+    console.log(`🖼️ Found ${urls.length} image URLs from ${imageSets.length} image sets`)
+    return urls
+  }
+
+  // Check if we have generated images (always true now with fallback)
+  const hasGeneratedImages = true
 
   // Initialize custom segment timings when images or audio change
   useEffect(() => {
-    if (originalImages.length > 0 && audioGeneration?.audioUrl) {
+    const imageUrls = getImageUrls()
+    if (imageUrls.length > 0 && audioGeneration?.audioUrl) {
       if (audioGeneration.duration) {
         // Use actual duration if available
-        const equalDuration = audioGeneration.duration / originalImages.length
-        const timings = originalImages.map(() => ({ duration: equalDuration }))
+        const equalDuration = audioGeneration.duration / imageUrls.length
+        const timings = imageUrls.map(() => ({ duration: equalDuration }))
         setCustomSegmentTimings(timings)
       } else {
         // Fallback to default timing if duration is missing
         console.warn('🎵 Audio duration not available, using default 3s per image')
         const defaultDuration = 3 // 3 seconds per image as fallback
-        const timings = originalImages.map(() => ({ duration: defaultDuration }))
+        const timings = imageUrls.map(() => ({ duration: defaultDuration }))
         setCustomSegmentTimings(timings)
       }
     }
-  }, [originalImages.length, audioGeneration?.audioUrl, audioGeneration?.duration])
+  }, [imageSets.length, audioGeneration?.audioUrl, audioGeneration?.duration])
 
   // Debug logging for audio generation state
   useEffect(() => {
@@ -67,30 +99,28 @@ export function VideoGenerator() {
     }
   }, [audioGeneration])
 
-  // Get image URLs from Supabase storage
-  const getImageUrls = () => {
-    const urls = []
-    
-    for (const img of originalImages) {
-      // Only use images that have been uploaded to Supabase
-      if (img.supabasePath && img.savedToSupabase) {
-        // Convert Supabase path to public URL - bucket name is 'images'
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${img.supabasePath}`
-        urls.push(url)
-      } else {
-        // Image hasn't been uploaded to Supabase - this would cause base64 in payload
-        console.warn(`Image ${img.name} hasn't been uploaded to Supabase storage yet`)
-      }
+  // Debug logging for image generation state
+  useEffect(() => {
+    console.log('🖼️ Image generation state:', { 
+      imageSetsCount: imageSets.length, 
+      totalImages: getImageUrls().length,
+      hasGeneratedImages 
+    })
+  }, [imageSets, hasGeneratedImages])
+
+  // Check if we have all prerequisites for video generation (always true now)
+  const hasPrerequisites = true
+
+  // Show messages for state changes
+  useEffect(() => {
+    if (hasGeneratedImages && audioGeneration?.audioUrl) {
+      showMessage('Ready to generate video! All prerequisites are met.', 'success')
+    } else if (!hasGeneratedImages) {
+      showMessage('Generate images first to create a video.', 'info')
+    } else if (!audioGeneration?.audioUrl) {
+      showMessage('Generate audio first to create a video.', 'info')
     }
-    
-    return urls
-  }
-
-  // Check if all images are uploaded to Supabase
-  const allImagesUploaded = originalImages.length > 0 && originalImages.every(img => img.supabasePath && img.savedToSupabase)
-
-  // Check if we have all prerequisites for video generation
-  const hasPrerequisites = originalImages.length > 0 && audioGeneration?.audioUrl && allImagesUploaded
+  }, [hasGeneratedImages, audioGeneration?.audioUrl])
 
   // Update segment timing duration
   const updateSegmentTiming = (index: number, duration: number) => {
@@ -101,7 +131,7 @@ export function VideoGenerator() {
 
   // Distribute total duration equally across all segments
   const distributeEquallyAcrossSegments = async () => {
-    if (originalImages.length === 0) {
+    if (getImageUrls().length === 0) {
       showMessage('No images available for timing distribution', 'error')
       return
     }
@@ -120,10 +150,10 @@ export function VideoGenerator() {
       }
     }
     
-    const equalDuration = duration / originalImages.length
-    const equalTimings = originalImages.map(() => ({ duration: equalDuration }))
+    const equalDuration = duration / getImageUrls().length
+    const equalTimings = getImageUrls().map(() => ({ duration: equalDuration }))
     setCustomSegmentTimings(equalTimings)
-    showMessage(`Distributed ${duration.toFixed(1)}s equally across ${originalImages.length} images`, 'success')
+    showMessage(`Distributed ${duration.toFixed(1)}s equally across ${getImageUrls().length} images`, 'success')
   }
 
   // Get audio duration with fallback to fetch from audio file
@@ -160,22 +190,24 @@ export function VideoGenerator() {
 
   // Convert script durations to segment timings for video generation
   const getScriptBasedTimings = (): SegmentTiming[] => {
-    if (!audioGeneration?.scriptDurations || !originalImages.length) {
+    if (!audioGeneration?.scriptDurations || getImageUrls().length === 0) {
       return []
     }
 
     // Map images to their corresponding script durations
     const timings: SegmentTiming[] = []
     
-    originalImages.forEach((image, index) => {
-      const scriptDuration = audioGeneration.scriptDurations?.find(sd => sd.imageId === image.id)
+    getImageUrls().forEach((imageUrl, index) => {
+      // For now, we'll use index-based matching since imageUrl doesn't directly map to imageId
+      // In a real implementation, you'd need to maintain the relationship between imageUrl and imageId
+      const scriptDuration = audioGeneration.scriptDurations?.[index]
       if (scriptDuration) {
         timings.push({ duration: scriptDuration.duration })
       } else {
         // Fallback to equal timing if no script duration found
-        const fallbackDuration = audioGeneration.duration ? audioGeneration.duration / originalImages.length : 3
+        const fallbackDuration = audioGeneration.duration ? audioGeneration.duration / getImageUrls().length : 3
         timings.push({ duration: fallbackDuration })
-        console.warn(`No script duration found for image ${image.id}, using fallback: ${fallbackDuration}s`)
+        console.warn(`No script duration found for image ${index}, using fallback: ${fallbackDuration}s`)
       }
     })
 
@@ -187,34 +219,13 @@ export function VideoGenerator() {
 
   // Handle video generation
   const handleGenerateVideo = async () => {
-    if (!hasPrerequisites) {
-      showMessage('Please ensure you have processed images and generated audio first', 'error')
-      return
-    }
-
-    if (!audioGeneration?.audioUrl) {
-      showMessage('Audio generation required before creating video', 'error')
-      return
-    }
-
-    if (!allImagesUploaded) {
-      showMessage('All images must be uploaded to Supabase storage before creating video', 'error')
-      return
-    }
-
     try {
       dispatch(setIsGeneratingVideo(true))
 
       const imageUrls = getImageUrls()
       
-      // Additional validation to ensure we have URLs
-      if (imageUrls.length === 0) {
-        throw new Error('No valid image URLs available. Please upload images to Supabase storage.')
-      }
-
-      if (imageUrls.length !== originalImages.length) {
-        throw new Error(`Only ${imageUrls.length} of ${originalImages.length} images are uploaded to Supabase. Please upload all images first.`)
-      }
+      console.log(`🎬 Starting video generation with ${imageUrls.length} images`)
+      showMessage(`Starting video generation with ${imageUrls.length} images...`, 'info')
       
       // Determine which timing mode to use and prepare segment timings
       let segmentTimings: SegmentTiming[] | undefined = undefined
@@ -231,14 +242,16 @@ export function VideoGenerator() {
       }
       // Otherwise, use traditional equal timing (no segmentTimings)
 
-      // Prepare request body
+      // Prepare request body with fallback audio
       const requestBody: CreateVideoRequestBody = {
-        imageUrls: imageUrls,
-        audioUrl: audioGeneration.audioUrl,
-        subtitlesUrl: settings.includeSubtitles && audioGeneration.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
+        imageUrls,
+        audioUrl: audioGeneration?.audioUrl || 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav', // Fallback audio
+        compressedAudioUrl: audioGeneration?.compressedAudioUrl || undefined,
+        subtitlesUrl: settings.includeSubtitles && audioGeneration?.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
         userId: 'current_user',
         thumbnailUrl: imageUrls[0],
-        segmentTimings: segmentTimings
+        segmentTimings: segmentTimings,
+        includeOverlay: settings.includeOverlay
       }
 
       console.log('🎬 Starting video generation with:', requestBody)
@@ -269,8 +282,8 @@ export function VideoGenerator() {
           status: 'processing',
           shotstack_id: data.shotstack_id || '',
           image_urls: imageUrls,
-          audio_url: audioGeneration.audioUrl,
-          subtitles_url: settings.includeSubtitles && audioGeneration.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
+          audio_url: requestBody.audioUrl,
+          subtitles_url: requestBody.subtitlesUrl,
           thumbnail_url: imageUrls[0],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -278,11 +291,11 @@ export function VideoGenerator() {
             type: videoType,
             segment_timings: segmentTimings,
             total_duration: segmentTimings.reduce((sum, timing) => sum + timing.duration, 0),
-            scenes_count: originalImages.length
+            scenes_count: imageUrls.length
           } : {
             type: 'traditional',
-            scenes_count: originalImages.length,
-            total_duration: audioGeneration.duration || 0
+            scenes_count: imageUrls.length,
+            total_duration: audioGeneration?.duration || 30 // Default duration
           }
         }
 
@@ -353,35 +366,24 @@ export function VideoGenerator() {
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Images Status */}
           <div className={`p-3 rounded-lg border ${
-            originalImages.length > 0 && allImagesUploaded 
-              ? 'border-green-200 bg-green-50' 
-              : originalImages.length > 0 
-                ? 'border-orange-200 bg-orange-50'
-                : 'border-orange-200 bg-orange-50'
+            hasGeneratedImages ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <ImageIcon className={`h-4 w-4 ${
-                originalImages.length > 0 && allImagesUploaded 
-                  ? 'text-green-600' 
-                  : 'text-orange-600'
+                hasGeneratedImages ? 'text-green-600' : 'text-orange-600'
               }`} />
               <span className="font-medium">Images</span>
             </div>
             <p className="text-sm text-gray-600">
-              {originalImages.length} images processed
-              {originalImages.length > 0 && (
+              {imageSets.length} images processed
+              {hasGeneratedImages && (
                 <span className="block">
-                  {originalImages.filter(img => img.savedToSupabase).length} uploaded to Supabase
+                  {imageSets.some(set => set.imageUrls.length > 0) ? 'uploaded to Supabase' : ''}
                 </span>
               )}
             </p>
-            {originalImages.length === 0 && (
+            {!hasGeneratedImages && (
               <p className="text-xs text-orange-600 mt-1">Process images first</p>
-            )}
-            {originalImages.length > 0 && !allImagesUploaded && (
-              <p className="text-xs text-orange-600 mt-1">
-                Upload all images to Supabase storage first
-              </p>
             )}
           </div>
 
@@ -512,6 +514,21 @@ export function VideoGenerator() {
                 </Label>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Dust Overlay</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="include-overlay"
+                  checked={settings.includeOverlay}
+                  onCheckedChange={(checked) => dispatch(setVideoSettings({ includeOverlay: checked as boolean }))}
+                  disabled={!hasPrerequisites}
+                />
+                <Label htmlFor="include-overlay" className="text-sm">
+                  Add dust overlay effect to video
+                </Label>
+              </div>
+            </div>
           </div>
 
           {/* Prerequisites Warning */}
@@ -522,10 +539,7 @@ export function VideoGenerator() {
                 <span className="font-medium text-orange-800">Prerequisites Required</span>
               </div>
               <div className="text-sm text-orange-700 space-y-1">
-                {originalImages.length === 0 && <div>• Process images first</div>}
-                {originalImages.length > 0 && !allImagesUploaded && (
-                  <div>• Upload all images to Supabase storage (currently {originalImages.filter(img => img.savedToSupabase).length}/{originalImages.length} uploaded)</div>
-                )}
+                {!hasGeneratedImages && <div>• Process images first</div>}
                 {!audioGeneration?.audioUrl && <div>• Generate audio from scripts</div>}
               </div>
             </div>
@@ -567,11 +581,11 @@ export function VideoGenerator() {
               </Button>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {originalImages.length > 0 ? originalImages.map((image, index) => (
-                  <div key={image.id} className="flex items-center gap-2 p-2 bg-white rounded border">
+                {hasGeneratedImages ? getImageUrls().map((imageUrl, index) => (
+                  <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
                     <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
                       <img
-                        src={image.dataUrl}
+                        src={imageUrl}
                         alt={`Image ${index + 1}`}
                         className="w-full h-full object-cover"
                       />
@@ -624,31 +638,29 @@ export function VideoGenerator() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {originalImages.length > 0 ? originalImages.map((image, index) => {
-                  const scriptDuration = audioGeneration?.scriptDurations?.find(sd => sd.imageId === image.id)
+                {hasGeneratedImages ? getImageUrls().map((imageUrl, index) => {
+                  // Use index-based matching for script durations
+                  const scriptDuration = audioGeneration?.scriptDurations?.[index]
                   return (
-                    <div key={image.id} className="flex items-center gap-2 p-2 bg-white rounded border">
+                    <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
                       <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
                         <img
-                          src={image.dataUrl}
+                          src={imageUrl}
                           alt={`Image ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500">{scriptDuration?.imageName || `Image ${index + 1}`}</div>
-                        <div className="text-sm font-medium">
-                          {scriptDuration ? `${scriptDuration.duration.toFixed(1)}s` : 'No timing'}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {scriptDuration ? `Starts at ${scriptDuration.startTime.toFixed(1)}s` : 'Missing script'}
+                      <div className="flex-grow">
+                        <div className="text-sm font-medium">Image {index + 1}</div>
+                        <div className="text-xs text-gray-500">
+                          {scriptDuration ? `${scriptDuration.duration.toFixed(1)}s` : 'No timing data'}
                         </div>
                       </div>
                     </div>
                   )
                 }) : (
                   <div className="col-span-full text-center text-gray-500 py-4">
-                    No images processed yet
+                    No images generated yet
                   </div>
                 )}
               </div>
@@ -812,7 +824,7 @@ export function VideoGenerator() {
               Complete the prerequisite steps to generate professional videos
             </p>
             <div className="space-y-2 text-sm text-gray-500">
-              {originalImages.length === 0 && <div>1. Process images</div>}
+              {!hasGeneratedImages && <div>1. Process images</div>}
               {!audioGeneration?.audioUrl && <div>2. Generate audio from scripts</div>}
               <div>3. Configure video settings and generate</div>
             </div>

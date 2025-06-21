@@ -24,13 +24,14 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`Attempting to upload '${file.name}' to folder ID: ${parentId}`);
+    console.log(`File size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
     // --- 2. Setup Google Drive API Client --- 
     const auth = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET
     );
-    // Crucially, set the credentials obtained from the token
+    
     auth.setCredentials({
       access_token: token.accessToken as string,
       refresh_token: token.refreshToken as string,
@@ -38,39 +39,98 @@ export async function POST(req: NextRequest) {
         ? (token.expiresAt as number) * 1000
         : undefined,
     });
+    
     const drive = google.drive({ version: 'v3', auth });
 
-    // --- 3. Convert File to ReadableStream --- 
+    // --- 3. Use resumable upload for large files (>5MB) or simple upload for smaller files ---
     const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const fileStream = Readable.from(fileBuffer);
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB threshold
+      console.log('Using resumable upload for large file...');
+      
+      // Create resumable upload session
+      const resumableResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token.accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Upload-Content-Type': file.type,
+          'X-Upload-Content-Length': file.size.toString(),
+        },
+        body: JSON.stringify({
+          name: file.name,
+          parents: [parentId],
+        }),
+      });
 
-    // --- 4. Call drive.files.create --- 
-    console.log(`Calling drive.files.create for ${file.name}...`);
-    const response = await drive.files.create({
-      requestBody: {
-        name: file.name,
-        parents: [parentId], // Specify parent folder
-      },
-      media: {
-        mimeType: file.type,
-        body: fileStream, 
-      },
-      fields: 'id, name, webViewLink', // Request fields useful for feedback
-    });
+      if (!resumableResponse.ok) {
+        throw new Error(`Failed to create resumable upload session: ${resumableResponse.status}`);
+      }
 
-    console.log(`File Upload Successful: ID=${response.data.id}, Name=${response.data.name}`);
-    return NextResponse.json({
-      success: true,
-      fileId: response.data.id,
-      fileName: response.data.name,
-      fileLink: response.data.webViewLink,
-    });
+      const uploadUrl = resumableResponse.headers.get('Location');
+      if (!uploadUrl) {
+        throw new Error('No upload URL received from Google Drive');
+      }
+
+      console.log('Resumable upload session created, uploading file...');
+
+      // Upload the file content
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+          'Content-Length': file.size.toString(),
+        },
+        body: fileBuffer,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      }
+
+      const result = await uploadResponse.json();
+      console.log(`Resumable upload successful: ID=${result.id}, Name=${result.name}`);
+      
+      return NextResponse.json({
+        success: true,
+        fileId: result.id,
+        fileName: result.name,
+        fileLink: `https://drive.google.com/file/d/${result.id}/view?usp=drivesdk`,
+      });
+      
+    } else {
+      console.log('Using simple upload for small file...');
+      
+      // --- 4. Convert File to ReadableStream for simple upload ---
+      const fileStream = Readable.from(fileBuffer);
+
+      // --- 5. Call drive.files.create --- 
+      console.log(`Calling drive.files.create for ${file.name}...`);
+      const response = await drive.files.create({
+        requestBody: {
+          name: file.name,
+          parents: [parentId],
+        },
+        media: {
+          mimeType: file.type,
+          body: fileStream, 
+        },
+        fields: 'id, name, webViewLink',
+      });
+
+      console.log(`Simple upload successful: ID=${response.data.id}, Name=${response.data.name}`);
+      
+      return NextResponse.json({
+        success: true,
+        fileId: response.data.id,
+        fileName: response.data.name,
+        fileLink: response.data.webViewLink,
+      });
+    }
 
   } catch (error: any) {
     console.error('Error uploading file to Google Drive:', error);
-    // Extract more specific error details if available (e.g., from Google API response)
     const errorMessage = error.response?.data?.error?.message || error.message || 'Failed to upload file';
-    // Attempt to get a more specific status code if it's a Google API error
     const status = error.response?.data?.error?.code || (error.code === 'ENOENT' ? 400 : 500);
     return NextResponse.json({ error: errorMessage }, { status });
   }

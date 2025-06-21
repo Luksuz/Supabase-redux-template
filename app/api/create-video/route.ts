@@ -5,7 +5,25 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Shotstack API settings from environment variables
 const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY || 'ovtvkcufDaBDRJnsTLHkMB3eLG6ytwlRoUAPAHPq';
-const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT || 'https://api.shotstack.io/edit/stage';
+const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT || 'https://api.shotstack.io/edit/v1';
+
+// Dust overlay URL
+const DUST_OVERLAY_URL = 'https://byktarizdjtreqwudqmv.supabase.co/storage/v1/object/public/video-generator/overlay.webm';
+
+/**
+ * Checks if a URL is accessible by making a HEAD request
+ * @param url URL to check
+ * @returns boolean indicating if the URL is accessible
+ */
+async function isUrlAccessible(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
+  } catch (error) {
+    console.warn(`Failed to access URL: ${url}`, error);
+    return false;
+  }
+}
 
 /**
  * Get audio duration from URL by fetching audio metadata
@@ -27,20 +45,46 @@ async function getAudioDuration(audioUrl: string): Promise<number | null> {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateVideoRequestBody = await request.json();
-    const { imageUrls, audioUrl, subtitlesUrl, userId, thumbnailUrl, segmentTimings } = body;
+    const { 
+      imageUrls, 
+      audioUrl, 
+      compressedAudioUrl, 
+      subtitlesUrl, 
+      userId, 
+      thumbnailUrl, 
+      segmentTimings, 
+      includeOverlay,
+      quality = 'low',
+      enableOverlay = true,
+      enableZoom = true,
+      enableSubtitles = true
+    } = body;
+    
     console.log(`🖼️ Image URLs: ${imageUrls}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
+    console.log(`🗜️ Compressed Audio URL: ${compressedAudioUrl}`);
     console.log(`📝 Subtitles URL: ${subtitlesUrl}`);
     console.log(`👤 User ID: ${userId}`);
     console.log(`📷 Thumbnail URL: ${thumbnailUrl}`);
     console.log(`⏱️ Segment Timings: ${segmentTimings}`);
+    console.log(`✨ Include Overlay: ${includeOverlay ? 'YES' : 'NO'}`);
+    console.log(`🎬 Quality: ${quality}`);
+    console.log(`🌟 Enable Overlay: ${enableOverlay}`);
+    console.log(`🔍 Enable Zoom: ${enableZoom}`);
+    console.log(`📄 Enable Subtitles: ${enableSubtitles}`);
 
     
     console.log(`📋 Video creation request:
       - Images: ${imageUrls?.length || 0}
       - Audio URL: ${audioUrl ? 'YES' : 'NO'}
+      - Compressed Audio URL: ${compressedAudioUrl ? 'YES' : 'NO'}
       - Subtitles URL: ${subtitlesUrl ? 'YES' : 'NO'}
       - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (traditional video)'}
+      - Include Overlay: ${includeOverlay ? 'YES' : 'NO'}
+      - Enable Overlay: ${enableOverlay}
+      - Enable Zoom: ${enableZoom}
+      - Enable Subtitles: ${enableSubtitles}
+      - Quality: ${quality}
       - User ID: ${userId}
     `);
 
@@ -85,26 +129,34 @@ export async function POST(request: NextRequest) {
         - Number of segments: ${segmentTimings.length}
         - Individual durations: ${segmentTimings.map(t => t.duration.toFixed(2)).join(', ')}s`);
     } else {
-      // Traditional video: get audio duration and divide equally
+      // Traditional video: get audio duration and use new timeline structure
       console.log('Getting audio duration for traditional video timeline...');
       const audioDuration = await getAudioDuration(audioUrl);
       
       // If we can't get audio duration, default to 5 minutes
       totalDuration = audioDuration || 300; 
-      // Each image gets equal time in the slideshow
-      imageDuration = totalDuration / imageUrls.length;
+      // First minute is for alternating images, or shorter if audio is shorter
+      const firstPartDuration = Math.min(60, totalDuration * 0.6); 
+      // Image display time depends on how many images we have
+      imageDuration = Math.floor(firstPartDuration / imageUrls.length);
       
       console.log(`Traditional video configuration:
         - Total duration: ${totalDuration.toFixed(1)} seconds
-        - Number of images: ${imageUrls.length}
-        - Duration per image: ${imageDuration.toFixed(1)} seconds`);
+        - First part (alternating images): ${firstPartDuration.toFixed(1)} seconds
+        - Each image display time: ${imageDuration.toFixed(1)} seconds
+        - Second part (zoom effect): ${Math.max(totalDuration - firstPartDuration, 10).toFixed(1)} seconds`);
     }
     
+    // Check if the dust overlay is accessible and if overlay is enabled
+    const shouldIncludeOverlay = (includeOverlay || enableOverlay);
+    const isOverlayAvailable = shouldIncludeOverlay ? await isUrlAccessible(DUST_OVERLAY_URL) : false;
+    console.log(`Dust overlay availability check: ${isOverlayAvailable ? 'Available and enabled' : shouldIncludeOverlay ? 'Not available' : 'Disabled by user'}`);
+
     // Initialize tracks array
     let tracks = [];
 
-    // Track for subtitles (captions) - Add this first if it exists
-    if (subtitlesUrl) {
+    // Track for subtitles (captions) - Add this first if it exists and is enabled
+    if (subtitlesUrl && enableSubtitles) {
       console.log(`Adding subtitles to video: ${subtitlesUrl}`);
       const captionTrack = {
         clips: [
@@ -114,14 +166,14 @@ export async function POST(request: NextRequest) {
               src: subtitlesUrl,
               font: {
                 family: "Montserrat",
-                size: 40,
+                size: 70,
                 stroke: "#000000",
                 strokeWidth: 1
               },
               background: {
                 color: "#ffffff",
                 opacity: 0.5,
-                padding: 12,
+                padding: 15,
               },
             },
             start: 0,
@@ -134,6 +186,10 @@ export async function POST(request: NextRequest) {
         ]
       };
       tracks.push(captionTrack);
+    } else if (subtitlesUrl && !enableSubtitles) {
+      console.log(`Subtitles available but disabled by user: ${subtitlesUrl}`);
+    } else if (!subtitlesUrl && enableSubtitles) {
+      console.log(`Subtitles enabled but no subtitles URL provided`);
     }
 
     // Track for images - Create slideshow with timing based on mode
@@ -171,30 +227,73 @@ export async function POST(request: NextRequest) {
       };
       tracks.push(imageTrack);
     } else {
-      // Traditional video: equal timing for all images with sliding transitions
-      console.log(`🎬 Creating traditional slideshow with ${imageUrls.length} images:`);
-      const imageClips = imageUrls.map((url, index) => {
-        const startTime = index * imageDuration;
-        // Cycle through sliding effects for visual variety
-        const slideEffects = ["slideLeft", "slideRight", "slideUp", "slideDown"];
-        const selectedEffect = slideEffects[index % slideEffects.length];
+      // Traditional video: new timeline structure with alternating images and zoom effects
+      console.log(`🎬 Creating traditional video with new timeline structure:`);
+      
+      const firstPartDuration = Math.min(60, totalDuration * 0.6);
+      const secondPartDuration = Math.max(totalDuration - firstPartDuration, 10);
+      
+      // Create multiple clips for zoom in/out effect
+      const zoomClips = [];
+      
+      if (enableZoom) {
+        const zoomDuration = 15; // Each zoom cycle lasts 15 seconds
+        const numZoomCycles = Math.ceil(secondPartDuration / (zoomDuration * 2));
         
-        console.log(`   Image ${index + 1}: ${selectedEffect} effect, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
-        
-        return {
+        for (let i = 0; i < numZoomCycles; i++) {
+          // Add zoom in clip
+          zoomClips.push({
+            asset: {
+              type: "image",
+              src: imageUrls[imageUrls.length - 1]
+            },
+            start: firstPartDuration + (i * zoomDuration * 2),
+            length: zoomDuration,
+            effect: "zoomIn",
+            fit: "cover"
+          });
+          
+          // Add zoom out clip if there's still time left
+          if (firstPartDuration + (i * zoomDuration * 2) + zoomDuration < totalDuration) {
+            zoomClips.push({
+              asset: {
+                type: "image",
+                src: imageUrls[imageUrls.length - 1]
+              },
+              start: firstPartDuration + (i * zoomDuration * 2) + zoomDuration,
+              length: Math.min(zoomDuration, totalDuration - (firstPartDuration + (i * zoomDuration * 2) + zoomDuration)),
+              effect: "zoomOut",
+              fit: "cover"
+            });
+          }
+        }
+      } else {
+        // If zoom is disabled, just show the last image statically
+        zoomClips.push({
           asset: {
             type: "image",
-            src: url
+            src: imageUrls[imageUrls.length - 1]
           },
-          start: startTime,
-          length: imageDuration,
-          effect: selectedEffect,
-          fit: "contain"
-        };
-      });
+          start: firstPartDuration,
+          length: secondPartDuration,
+          fit: "cover"
+        });
+      }
 
       const imageTrack = {
-        clips: imageClips
+        clips: [
+          ...imageUrls.map((url, index) => ({
+            asset: {
+              type: "image",
+              src: url
+            },
+            start: index * imageDuration,
+            length: imageDuration,
+            effect: "zoomIn", // Always use zoomIn for first minute
+            fit: "cover"
+          })),
+          ...zoomClips // Last image zoom in/out
+        ]
       };
       tracks.push(imageTrack);
     }
@@ -214,27 +313,56 @@ export async function POST(request: NextRequest) {
         };
         tracks.push(audioTrack);
     }
+
+    // Prepend dust overlay track if available (becomes the first track)
+    if (isOverlayAvailable) {
+      console.log(`✨ Adding dust overlay to video: ${DUST_OVERLAY_URL}`);
+      const overlayTrack = {
+        clips: [
+          {
+            asset: {
+              type: "video",
+              src: DUST_OVERLAY_URL,
+              volume: 0
+            },
+            start: 0,
+            length: totalDuration,
+            fit: "cover",
+            opacity: 0.5
+          }
+        ]
+      };
+      tracks.unshift(overlayTrack);
+    }
     
     // Log the track structure for debugging
     console.log('📊 Final track structure:');
     tracks.forEach((track, index) => {
       const assetType = track.clips[0]?.asset?.type || 'unknown';
-      console.log(`  Track ${index}: ${assetType}`);
+      const isOverlay = assetType === 'video' && track.clips[0]?.asset?.src === DUST_OVERLAY_URL;
+      console.log(`  Track ${index}: ${assetType}${isOverlay ? ' (dust overlay)' : ''}`);
     });
 
     const timeline: any = {
       tracks: tracks
     };
 
+    const outputConfig: any = {
+      format: "mp4",
+      size: {
+        width: 1280,
+        height: 720
+      }
+    };
+
+    // Only add quality parameter if it's 'low'
+    if (quality === 'low') {
+      outputConfig.quality = "low";
+    }
+
     const shotstackPayload = {
       timeline: timeline,
-      output: {
-        format: "mp4",
-        size: {
-          width: 1280,
-          height: 720
-        }
-      },
+      output: outputConfig,
       callback: process.env.SHOTSTACK_CALLBACK_URL
     };
 
@@ -245,7 +373,11 @@ export async function POST(request: NextRequest) {
     console.log(`- Total tracks: ${tracks.length}`);
     console.log(`- Images: ${imageUrls.length}`);
     console.log(`- Audio: ${audioUrl ? 'YES' : 'NO'}`);
-    console.log(`- Subtitles: ${subtitlesUrl ? 'YES' : 'NO'}`);
+    console.log(`- Compressed Audio: ${compressedAudioUrl ? 'YES' : 'NO'}`);
+    console.log(`- Subtitles: ${subtitlesUrl && enableSubtitles ? 'YES' : subtitlesUrl ? 'DISABLED' : 'NO'}`);
+    console.log(`- Overlay: ${isOverlayAvailable ? 'YES' : shouldIncludeOverlay ? 'UNAVAILABLE' : 'DISABLED'}`);
+    console.log(`- Zoom Effects: ${enableZoom ? 'YES' : 'NO'}`);
+    console.log(`- Quality: ${quality}`);
     console.log(`- Total duration: ${totalDuration.toFixed(2)}s`);
     
     // Make Shotstack API call BEFORE creating database record
@@ -297,6 +429,7 @@ export async function POST(request: NextRequest) {
         shotstack_id: shotstackId,
         image_urls: imageUrls,
         audio_url: audioUrl,
+        compressed_audio_url: compressedAudioUrl,
         subtitles_url: subtitlesUrl,
         // Use provided thumbnail URL if available, otherwise fall back to first image
         thumbnail_url: thumbnailUrl || imageUrls[0],

@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       shotstack_id: video.shotstack_id,
       image_urls: video.image_urls,
       audio_url: video.audio_url,
+      compressed_audio_url: video.compressed_audio_url || undefined,
       subtitles_url: video.subtitles_url || undefined,
       final_video_url: video.final_video_url || undefined,
       thumbnail_url: video.thumbnail_url,

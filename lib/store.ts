@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit'
 import userReducer from './features/user/userSlice'
 import imagesReducer from './features/images/imagesSlice'
+import imageGenerationReducer from './features/images/imageGenerationSlice'
 import scriptsReducer from './features/scripts/scriptsSlice'
 import audioReducer from './features/audio/audioSlice'
 import videoReducer from './features/video/videoSlice'
@@ -12,6 +13,7 @@ export const store = configureStore({
     // User authentication state management
     user: userReducer,
     images: imagesReducer,
+    imageGeneration: imageGenerationReducer,
     scripts: scriptsReducer,
     audio: audioReducer,
     video: videoReducer,
