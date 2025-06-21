@@ -8,6 +8,16 @@ import { GoogleLogo } from './google-logo';
 export function GoogleAuthButton() {
   const { data: session, status } = useSession();
 
+  const handleSignIn = (e: React.MouseEvent) => {
+    e.preventDefault();
+    signIn('google');
+  };
+
+  const handleSignOut = (e: React.MouseEvent) => {
+    e.preventDefault();
+    signOut();
+  };
+
   if (status === 'loading') {
     return (
       <Button 
@@ -31,7 +41,7 @@ export function GoogleAuthButton() {
         <Button 
           variant="outline" 
           size="sm" 
-          onClick={() => signOut()}
+          onClick={handleSignOut}
           className="flex items-center gap-2 border-red-300 bg-white hover:bg-red-50 text-red-600 hover:text-red-700"
         >
           <LogOut className="h-4 w-4" />
@@ -45,7 +55,7 @@ export function GoogleAuthButton() {
     <Button 
       variant="outline" 
       size="sm" 
-      onClick={() => signIn('google')}
+      onClick={handleSignIn}
       className="flex items-center gap-2 border-blue-300 bg-white hover:bg-blue-50 text-blue-600 hover:text-blue-700 shadow-sm transition-all duration-200 hover:shadow-md"
     >
       <GoogleLogo size={16} />
