@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import { AuthDebug } from '@/components/auth-debug';
 
 export default function AuthDebugPage() {
   const { data: session, status } = useSession();
@@ -23,6 +24,9 @@ export default function AuthDebugPage() {
       <h1 className="text-2xl font-bold mb-6">NextAuth Debug Information</h1>
       
       <div className="grid gap-6">
+        {/* Interactive Debug Panel */}
+        <AuthDebug />
+
         {/* Session Status */}
         <div className="bg-white p-4 rounded-lg border">
           <h2 className="text-lg font-semibold mb-3">Session Status</h2>
@@ -61,6 +65,23 @@ export default function AuthDebugPage() {
             <p><strong>Sign Out URL:</strong> /api/auth/signout</p>
             <p><strong>Session URL:</strong> /api/auth/session</p>
             <p><strong>CSRF URL:</strong> /api/auth/csrf</p>
+            <p><strong>Config Check:</strong> /api/auth/config</p>
+          </div>
+        </div>
+
+        {/* OAuth State Mismatch Troubleshooting */}
+        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+          <h2 className="text-lg font-semibold mb-3 text-red-800">OAuth State Mismatch Fix</h2>
+          <div className="space-y-3 text-sm">
+            <p className="text-red-700">If you're getting "state mismatch" errors:</p>
+            <ol className="list-decimal list-inside space-y-2 text-red-600">
+              <li>Use the "Clean Sign In" button above - it clears cookies first</li>
+              <li>Make sure NEXTAUTH_URL exactly matches your ngrok URL</li>
+              <li>Clear all browser cookies for this domain</li>
+              <li>Try signing in from an incognito/private window</li>
+              <li>Restart your ngrok tunnel and update NEXTAUTH_URL</li>
+              <li>Check that Google OAuth redirect URI matches your ngrok URL</li>
+            </ol>
           </div>
         </div>
 

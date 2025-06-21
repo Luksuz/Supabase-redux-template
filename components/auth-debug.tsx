@@ -1,117 +1,82 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useAppSelector, useAppDispatch } from '../lib/hooks'
-import { createClient } from '../lib/supabase/client'
-import { initializeAuth } from '../lib/features/user/userSlice'
-import type { User } from '@supabase/supabase-js'
+import { useSession, signIn, signOut } from 'next-auth/react'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 
 export function AuthDebug() {
-  const dispatch = useAppDispatch()
-  const reduxUser = useAppSelector(state => state.user)
-  const [supabaseUser, setSupabaseUser] = useState<User | null>(null)
-  const [supabaseLoading, setSupabaseLoading] = useState(true)
+  const { data: session, status } = useSession()
+  const [isSigningIn, setIsSigningIn] = useState(false)
 
-  useEffect(() => {
-    const supabase = createClient()
-    
-    // Get initial Supabase auth state
-    const getSupabaseUser = async () => {
-      setSupabaseLoading(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      setSupabaseUser(user)
-      setSupabaseLoading(false)
+  const handleSignIn = async () => {
+    setIsSigningIn(true)
+    try {
+      // Clear any existing cookies/session before signing in
+      await signOut({ redirect: false })
+      
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Sign in with fresh state
+      await signIn('google', { 
+        callbackUrl: window.location.origin,
+        redirect: true 
+      })
+    } catch (error) {
+      console.error('Sign in error:', error)
+    } finally {
+      setIsSigningIn(false)
     }
-    
-    getSupabaseUser()
-    
-    // Listen to Supabase auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSupabaseUser(session?.user || null)
-      }
-    )
-    
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const handleRefresh = () => {
-    dispatch(initializeAuth())
   }
 
   return (
-    <div className="p-4 bg-gray-50 rounded-lg space-y-4 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-lg">Auth Debug Panel</h3>
-        <button 
-          onClick={handleRefresh}
-          className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-        >
-          Refresh Redux
-        </button>
-      </div>
+    <div className="p-4 border rounded-lg bg-gray-50">
+      <h3 className="font-bold mb-2">Auth Debug Panel</h3>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Supabase State */}
-        <div className="bg-white p-3 rounded border">
-          <h4 className="font-semibold text-green-600 mb-2">Supabase Auth State</h4>
-          {supabaseLoading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
-          ) : supabaseUser ? (
-            <div className="text-sm space-y-1">
-              <p><strong>Status:</strong> <span className="text-green-600">✅ Logged In</span></p>
-              <p><strong>ID:</strong> <code className="text-xs bg-gray-100 px-1 rounded">{supabaseUser.id}</code></p>
-              <p><strong>Email:</strong> {supabaseUser.email}</p>
-              <p><strong>Created:</strong> {new Date(supabaseUser.created_at).toLocaleString()}</p>
-            </div>
-          ) : (
-            <p className="text-sm"><strong>Status:</strong> <span className="text-red-600">❌ Not Logged In</span></p>
-          )}
-        </div>
-        
-        {/* Redux State */}
-        <div className="bg-white p-3 rounded border">
-          <h4 className="font-semibold text-blue-600 mb-2">Redux Auth State</h4>
-          {!reduxUser.initialized ? (
-            <p className="text-sm text-gray-500">Initializing...</p>
-          ) : reduxUser.isLoggedIn ? (
-            <div className="text-sm space-y-1">
-              <p><strong>Status:</strong> <span className="text-green-600">✅ Logged In</span></p>
-              <p><strong>ID:</strong> <code className="text-xs bg-gray-100 px-1 rounded">{reduxUser.id}</code></p>
-              <p><strong>Email:</strong> {reduxUser.email}</p>
-              <p><strong>Loading:</strong> {reduxUser.loading ? 'Yes' : 'No'}</p>
-              {reduxUser.error && <p><strong>Error:</strong> <span className="text-red-600">{reduxUser.error}</span></p>}
-            </div>
-          ) : (
-            <div className="text-sm space-y-1">
-              <p><strong>Status:</strong> <span className="text-red-600">❌ Not Logged In</span></p>
-              <p><strong>Loading:</strong> {reduxUser.loading ? 'Yes' : 'No'}</p>
-              {reduxUser.error && <p><strong>Error:</strong> <span className="text-red-600">{reduxUser.error}</span></p>}
-            </div>
-          )}
-        </div>
+      <div className="space-y-2 text-sm">
+        <p><strong>Status:</strong> {status}</p>
+        <p><strong>User:</strong> {session?.user?.email || 'None'}</p>
+        <p><strong>Current URL:</strong> {typeof window !== 'undefined' ? window.location.href : 'N/A'}</p>
       </div>
-      
-      {/* Sync Status */}
-      <div className="bg-white p-3 rounded border">
-        <h4 className="font-semibold mb-2">Sync Status</h4>
-        {supabaseLoading || !reduxUser.initialized ? (
-          <p className="text-sm text-gray-500">Checking...</p>
-        ) : (
-          <div className="text-sm">
-            {(supabaseUser?.id === reduxUser.id) && (supabaseUser?.email === reduxUser.email) ? (
-              <p className="text-green-600">✅ Redux and Supabase are in sync</p>
-            ) : (
-              <div className="text-red-600">
-                <p>❌ Redux and Supabase are out of sync</p>
-                <p className="text-xs mt-1">
-                  Supabase: {supabaseUser?.email || 'Not logged in'} | 
-                  Redux: {reduxUser.email || 'Not logged in'}
-                </p>
-              </div>
-            )}
-          </div>
+
+      <div className="mt-4 space-x-2">
+        {status === 'unauthenticated' && (
+          <Button 
+            onClick={handleSignIn} 
+            disabled={isSigningIn}
+            size="sm"
+          >
+            {isSigningIn ? 'Signing in...' : 'Clean Sign In'}
+          </Button>
         )}
+        
+        {status === 'authenticated' && (
+          <Button 
+            onClick={() => signOut()} 
+            variant="outline"
+            size="sm"
+          >
+            Sign Out
+          </Button>
+        )}
+        
+        <Button 
+          onClick={() => window.location.reload()} 
+          variant="outline"
+          size="sm"
+        >
+          Refresh Page
+        </Button>
+      </div>
+
+      <div className="mt-4 text-xs text-gray-600">
+        <p><strong>Troubleshooting Tips:</strong></p>
+        <ul className="list-disc list-inside space-y-1">
+          <li>If you get state mismatch, try "Clean Sign In"</li>
+          <li>Make sure your ngrok URL matches NEXTAUTH_URL</li>
+          <li>Check browser cookies are enabled</li>
+          <li>Try in incognito mode if issues persist</li>
+        </ul>
       </div>
     </div>
   )

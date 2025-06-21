@@ -40,6 +40,7 @@ const getBaseUrl = () => {
 };
 
 const baseUrl = getBaseUrl();
+const isNgrok = baseUrl.includes('ngrok');
 
 if (isProduction && !process.env.NEXTAUTH_SECRET) {
   console.warn('⚠️ NEXTAUTH_SECRET is required in production');
@@ -49,6 +50,7 @@ console.log('🔐 NextAuth configuration:', {
   baseUrl,
   hasGoogleOAuth,
   isProduction,
+  isNgrok,
   nodeEnv: process.env.NODE_ENV
 });
 
@@ -144,12 +146,33 @@ export const authOptions: NextAuthOptions = {
         sameSite: 'lax',
         path: '/',
         secure: baseUrl.startsWith('https://'),
-        // Don't set domain for ngrok or localhost
-        domain: baseUrl.includes('ngrok') || baseUrl.includes('localhost') ? undefined : 
-                 isProduction && process.env.NEXTAUTH_URL ? 
-                   `.${process.env.NEXTAUTH_URL.replace(/https?:\/\//, '').split('/')[0]}` : 
-                   undefined,
+        // Special handling for ngrok - don't set domain for better compatibility
+        domain: undefined, // This fixes most ngrok issues
+      },
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        httpOnly: false,
+        sameSite: 'lax',
+        path: '/',
+        secure: baseUrl.startsWith('https://'),
+        domain: undefined,
+      },
+    },
+    csrfToken: {
+      name: `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: baseUrl.startsWith('https://'),
+        domain: undefined,
       },
     },
   },
+  // Add additional configuration for ngrok compatibility
+  ...(isNgrok && {
+    trustHost: true, // Trust the ngrok host
+  }),
 };
