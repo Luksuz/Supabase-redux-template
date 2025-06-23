@@ -3,10 +3,23 @@ import { getToken } from 'next-auth/jwt';
 
 export async function POST(req: NextRequest) {
   console.log("Streaming upload request received");
+  console.log("Request headers:", Object.fromEntries(req.headers.entries()));
+  console.log("Request URL:", req.url);
+  
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  
+  console.log("Token result:", token ? "Token found" : "No token");
+  console.log("Token details:", {
+    hasToken: !!token,
+    hasAccessToken: !!token?.accessToken,
+    tokenKeys: token ? Object.keys(token) : [],
+    expiresAt: token?.expiresAt
+  });
 
   if (!token || !token.accessToken) {
     console.error("Upload failed: Not authenticated");
+    console.error("Token:", token);
+    console.error("AccessToken:", token?.accessToken);
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
@@ -72,7 +85,7 @@ export async function POST(req: NextRequest) {
           }, 100);
 
           let currentProgress = 30;
-          const progressStep = (90 - 30) / 10; // Divide remaining progress into steps
+          const progressStep = (90 - 30) / 10;
 
           // Send periodic progress updates
           const updateProgress = () => {
