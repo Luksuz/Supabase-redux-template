@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ElevenLabsClient } from "elevenlabs";
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
 const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 let elevenlabs: ElevenLabsClient | null = null;
@@ -23,7 +23,7 @@ export async function GET() {
     const voicesResponse = await elevenlabs.voices.getAll();
     
     const simplifiedVoices = voicesResponse.voices.map(voice => ({
-      id: voice.voice_id,
+      id: voice.voiceId,
       name: voice.name,
       // You can include other properties like category or preview_url if needed
       // category: voice.category,

@@ -16,6 +16,10 @@ export interface CreateVideoRequestBody {
   enableOverlay?: boolean
   enableZoom?: boolean
   enableSubtitles?: boolean
+  fontFamily?: string
+  fontColor?: string
+  fontSize?: number
+  strokeWidth?: number
 }
 
 export interface CreateVideoResponse {

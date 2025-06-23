@@ -23,7 +23,7 @@ import { Progress } from './ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
-import { Volume2, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Subtitles, ChevronDown, ChevronUp } from 'lucide-react'
+import { Volume2, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Subtitles, ChevronDown, ChevronUp, Edit3, Copy } from 'lucide-react'
 
 // TTS Provider configurations with proper typing
 interface TTSProvider {
@@ -56,6 +56,9 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
   minimax: {
     name: "MiniMax",
     voices: [
+      // New voices
+      { id: "moss_audio_af6166c7-4f84-11f0-a038-1eedf694f526", name: "Test - Erinome" },
+      { id: "moss_audio_dabbf83c-4f84-11f0-bf87-a6350041d731", name: "Peter" },
       // Prioritized Female
       { id: "English_radiant_girl", name: "Radiant Girl" },
       { id: "English_captivating_female1", name: "Captivating Female" },
@@ -90,6 +93,9 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
   "fish-audio": {
     name: "Fish Audio",
     voices: [
+      { id: "474887f7949b4d1ab3e626cddf82613a", name: "OS1 Samantha (Scarlett Johansson) - Her (2013) v2" },
+      { id: "728f6ff2240d49308e8137ffe66008e2", name: "Adam" },
+      { id: "3509853b4279468a86100a000ef287ee", name: "Bill" },
       { id: "058e3e7df4c94303a7ce22576fc81ec8", name: "Lisa: English Woman (US) - Advertisement" },
       { id: "ecc977e5dca94390926fab1e0c2ba292", name: "Katie: English Woman (US) - Training" },
       { id: "125d6460953a443d8c65909adf87ca3f", name: "Neil: English Man (US) - Audiobook" }
@@ -102,7 +108,9 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
   elevenlabs: {
     name: "ElevenLabs",
     voices: [
-      // Voices will be loaded from API
+      { id: "2qfp6zPuviqeCOZIE9RZ", name: "Christina - Calming Yoga Instructor" },
+      { id: "wgHvco1wiREKN0BdyVx5", name: "Drew - Deep, Soothing, Guided Meditation" }
+      // Additional voices will be loaded from API
     ],
     models: [
       { id: "eleven_multilingual_v2", name: "Multilingual V2" },
@@ -181,6 +189,9 @@ export function AudioGenerator() {
   // Message state for user feedback
   const [message, setMessage] = useState<string>("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+
+  // Simple text input state
+  const [inputText, setInputText] = useState<string>("")
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -328,11 +339,21 @@ export function AudioGenerator() {
     }
   }
 
-  // Determine what content we're working with
-  const availableContent = hasFullScript ? 'new-script' : (hasGeneratedScripts ? 'image-scripts' : 'sample')
-  
   // Get content for display and processing
   const getContentSummary = () => {
+    // Check if we have input text
+    if (inputText.trim()) {
+      const wordCount = inputText.trim().split(/\s+/).length
+      return {
+        type: 'Custom Text Input',
+        content: inputText.substring(0, 100) + (inputText.length > 100 ? '...' : ''),
+        wordCount: wordCount,
+        length: inputText.length,
+        textToProcess: inputText.trim()
+      }
+    }
+    
+    // Original logic for generated scripts
     if (hasFullScript && fullScript) {
       const wordCount = fullScript.scriptCleaned.split(/\s+/).filter(word => word.length > 0).length
       return {
@@ -354,18 +375,9 @@ export function AudioGenerator() {
         content: `${scripts.filter(s => s.generated).length} generated scripts`,
         textToProcess: combinedText
       }
-    } else {
-      // Sample content for demonstration
-      const sampleText = "Welcome to our content generation platform. This is a sample script to demonstrate the audio generation capabilities."
-      return {
-        type: 'Sample Content',
-        count: 1,
-        length: sampleText.length,
-        wordCount: sampleText.split(/\s+/).length,
-        content: 'Sample demonstration script',
-        textToProcess: sampleText
-      }
     }
+    
+    return null
   }
   
   const contentSummary = getContentSummary()
@@ -416,8 +428,15 @@ export function AudioGenerator() {
 
   // Generate audio using the comprehensive backend API
   const handleGenerateAudio = async () => {
-    if (availableContent === 'sample' && !contentSummary) {
-      showMessage('No scripts available for audio generation', 'error')
+    const contentSummary = getContentSummary()
+    if (!contentSummary) {
+      showMessage("No content available for audio generation", 'error')
+      return
+    }
+
+    const textToGenerate = contentSummary.textToProcess
+    if (!textToGenerate || !textToGenerate.trim()) {
+      showMessage("No text content found to generate audio", 'error')
       return
     }
 
@@ -438,11 +457,11 @@ export function AudioGenerator() {
       }))
 
       console.log(`🎵 Starting audio generation with ${selectedProvider}`)
-      console.log(`📝 Text length: ${contentSummary.textToProcess.length} characters`)
+      console.log(`📝 Text length: ${textToGenerate.length} characters`)
 
       // Prepare provider-specific parameters
       const requestBody: any = {
-        text: contentSummary.textToProcess,
+        text: textToGenerate,
         provider: selectedProvider,
         userId: 'current_user'
               }
@@ -557,19 +576,66 @@ export function AudioGenerator() {
     return null
   }
 
+  // Paste from clipboard function
+  const pasteFromClipboard = async () => {
+    try {
+      const clipboardText = await navigator.clipboard.readText()
+      if (clipboardText) {
+        setInputText(prev => prev + clipboardText)
+        showMessage("Text pasted from clipboard!", 'success')
+      }
+    } catch (error) {
+      showMessage("Failed to paste from clipboard. Please paste manually.", 'error')
+    }
+  }
+
   const currentProvider = TTS_PROVIDERS[selectedProvider]
 
   return (
-    <div className="flex-1 p-6 space-y-6">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
-        <p className="text-gray-600">
-          Generate high-quality audio from your scripts using multiple AI TTS providers
-        </p>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Text Input Section */}
+      <Card className="bg-white shadow-sm border border-gray-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Edit3 className="h-5 w-5" />
+            Text Input for Voice Generation
+          </CardTitle>
+          <CardDescription>
+            Enter or paste your text content for audio generation
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="text-input">Text Content</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={pasteFromClipboard}
+                className="text-xs h-7 px-2"
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                Paste from Clipboard
+              </Button>
+            </div>
+            <textarea
+              id="text-input"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Enter your text here... You can paste content from clipboard or type directly."
+              rows={8}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
+            />
+            {inputText && (
+              <div className="text-xs text-gray-500">
+                {inputText.trim().split(/\s+/).length} words • {inputText.length} characters
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Scripts Summary */}
+      {/* Content Summary */}
       <Card className="bg-white shadow-sm border border-gray-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -796,42 +862,7 @@ export function AudioGenerator() {
               </div>
             )}
 
-            {/* Debug Information for Google TTS */}
-            {selectedProvider === 'google-tts' && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
-                <div className="font-medium text-yellow-800 mb-2">Debug Info (Google TTS):</div>
-                <div className="space-y-1 text-yellow-700">
-                  <div>Provider Voice: {providerVoice || 'Not selected'}</div>
-                  <div>Language Code: {languageCode || 'Not set'}</div>
-                  <div>Is Loading Voices: {isLoadingApiVoices ? 'Yes' : 'No'}</div>
-                  <div>API Voices Count: {apiVoices.length}</div>
-                  <div>Voice Options Count: {getVoiceOptions().length}</div>
-                  {apiVoices.length > 0 && (
-                    <div>
-                      <div>First API Voice Structure:</div>
-                      <pre className="ml-2 text-xs bg-white p-1 rounded border max-h-20 overflow-y-auto">
-                        {JSON.stringify(apiVoices[0], null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  {getVoiceOptions().length > 0 && (
-                    <div>
-                      <div>First Voice Option:</div>
-                      <pre className="ml-2 text-xs bg-white p-1 rounded border max-h-20 overflow-y-auto">
-                        {JSON.stringify(getVoiceOptions()[0], null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  <div>Button Disabled Reasons:</div>
-                  <ul className="ml-4 space-y-1">
-                    <li>• Is Generating: {isGeneratingAudio ? 'Yes' : 'No'}</li>
-                    <li>• No Voice Selected: {!providerVoice ? 'Yes' : 'No'}</li>
-                    <li>• No Language Code: {!languageCode ? 'Yes' : 'No'}</li>
-                  </ul>
-                </div>
-              </div>
-            )}
-
+          
             {/* Generate Button */}
             <Button
               onClick={handleGenerateAudio}

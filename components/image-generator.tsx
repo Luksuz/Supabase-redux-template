@@ -54,7 +54,7 @@ import { Checkbox } from './ui/checkbox'
 import { Badge } from './ui/badge'
 import { ScrollArea } from './ui/scroll-area'
 import { Slider } from './ui/slider'
-import { ImageIcon, Download, RefreshCw, Plus, Check, X, FileText } from 'lucide-react'
+import { ImageIcon, Download, RefreshCw, Plus, Check, X, FileText, CheckCircle } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 
 export function ImageGenerator() {
@@ -97,6 +97,9 @@ export function ImageGenerator() {
 
   // Get script sections from script Redux state
   const { scriptSections, hasScriptSections, fullScript, hasFullScript } = useAppSelector(state => state.scripts)
+
+  // Local state for new features
+  const [selectedImagesForVideo, setSelectedImagesForVideo] = useState<Set<string>>(new Set())
 
   // Handle extract scenes button click
   const handleExtractScenesClick = async () => {
@@ -299,6 +302,168 @@ export function ImageGenerator() {
         URL.revokeObjectURL(link.href)
       })
       .catch(err => console.error("Failed to download image:", err))
+  }
+
+  // Image selection for video generation
+  const toggleImageForVideo = (imageId: string) => {
+    setSelectedImagesForVideo(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(imageId)) {
+        newSet.delete(imageId)
+      } else {
+        newSet.add(imageId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllImagesForVideo = () => {
+    const allImageIds = new Set<string>()
+    imageSets.forEach((set, setIndex) => {
+      set.imageUrls.forEach((_, imageIndex) => {
+        allImageIds.add(`${setIndex}-url-${imageIndex}`)
+      })
+      set.imageData.forEach((_, imageIndex) => {
+        allImageIds.add(`${setIndex}-b64-${imageIndex}`)
+      })
+    })
+    setSelectedImagesForVideo(allImageIds)
+  }
+
+  const clearSelectedImagesForVideo = () => {
+    setSelectedImagesForVideo(new Set())
+  }
+
+  // Regenerate individual image
+  const regenerateImage = async (setIndex: number, imageIndex: number, isBase64: boolean = false) => {
+    const imageSet = imageSets[setIndex]
+    if (!imageSet) return
+    
+    try {
+      dispatch(startRegeneration({
+        type: 'single',
+        prompt: imageSet.originalPrompt
+      }))
+
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: selectedProvider,
+          prompt: imageSet.originalPrompt,
+          numberOfImages: 1
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to regenerate image')
+      }
+
+      const data = await response.json()
+      
+      // Create a new image set with the updated image
+      const newImageSets = imageSets.map((set, index) => {
+        if (index === setIndex) {
+          if (isBase64 && data.imageData && data.imageData[0]) {
+            return {
+              ...set,
+              imageData: set.imageData.map((img, imgIndex) => 
+                imgIndex === imageIndex ? data.imageData[0] : img
+              )
+            }
+          } else if (!isBase64 && data.imageUrls && data.imageUrls[0]) {
+            return {
+              ...set,
+              imageUrls: set.imageUrls.map((url, urlIndex) => 
+                urlIndex === imageIndex ? data.imageUrls[0] : url
+              )
+            }
+          }
+        }
+        return set
+      })
+
+      // Update Redux state with new image sets
+      dispatch(clearGeneratedImages())
+      newImageSets.forEach(set => dispatch(addGeneratedImageSet(set)))
+      dispatch(completeRegeneration())
+      
+    } catch (error: any) {
+      dispatch(setImageGenerationError(error.message))
+    }
+  }
+
+  // Regenerate all images
+  const regenerateAllImages = async () => {
+    if (imageSets.length === 0) return
+
+    try {
+      dispatch(startRegeneration({
+        type: 'all',
+        prompt: 'Regenerating all images'
+      }))
+
+      // Clear existing images
+      dispatch(clearGeneratedImages())
+
+      // Regenerate all with original prompts
+      const allPrompts = imageSets.map(set => set.originalPrompt)
+      await handleGenerateFromPrompts(allPrompts)
+
+      dispatch(completeRegeneration())
+      
+    } catch (error: any) {
+      dispatch(setImageGenerationError(error.message))
+    }
+  }
+
+  // Helper function to generate from specific prompts
+  const handleGenerateFromPrompts = async (prompts: string[]) => {
+    const generationId = uuidv4()
+    dispatch(startImageGeneration({
+      id: generationId,
+      prompts: prompts,
+      provider: selectedProvider,
+      numberOfImages: 1
+    }))
+
+    try {
+      const combinedPrompt = prompts.join('|||||')
+      
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: selectedProvider,
+          prompt: combinedPrompt,
+          numberOfImages: 1
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate images')
+      }
+
+      const data = await response.json()
+      
+      // Add each prompt's results as separate image sets
+      prompts.forEach((prompt, index) => {
+        const imageSet: GeneratedImageSet = {
+          originalPrompt: prompt,
+          imageUrls: data.imageUrls ? [data.imageUrls[index]] : [],
+          imageData: data.imageData ? [data.imageData[index]] : [],
+          generatedAt: new Date().toISOString(),
+          provider: selectedProvider
+        }
+        dispatch(addGeneratedImageSet(imageSet))
+      })
+
+      dispatch(completeImageGeneration())
+    } catch (error: any) {
+      dispatch(setImageGenerationError(error.message))
+    }
   }
 
   // Determine if we have prompts available based on active source
@@ -750,61 +915,182 @@ export function ImageGenerator() {
               </div>
             </div>
           )}
-          
-          {imageSets.map((set, setIndex) => (
-            <Card key={setIndex}>
-              <CardContent className="p-4">
-                <h3 className="text-lg font-semibold mb-1">Prompt:</h3>
-                <p className="text-sm text-muted-foreground mb-3 italic truncate">&quot;{set.originalPrompt}&quot;</p>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {set.imageUrls.map((url, imageIndex) => (
-                    <div key={`url-${imageIndex}`} className="space-y-3">
-                      <div className="relative group border rounded-lg overflow-hidden shadow-lg aspect-video">
-                        <img 
-                          src={url} 
-                          alt={`Generated for: ${set.originalPrompt.substring(0,30)}...`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            onClick={() => downloadImage(url, `generated_image_${setIndex}_${imageIndex}.png`)}
-                          >
-                            <Download size={16} className="mr-2" />
-                            Download
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {set.imageData.map((b64, imageIndex) => (
-                    <div key={`b64-${imageIndex}`} className="space-y-3">
-                      <div className="relative group border rounded-lg overflow-hidden shadow-lg aspect-video">
-                        <img 
-                          src={`data:image/png;base64,${b64}`}
-                          alt={`Generated (base64) for: ${set.originalPrompt.substring(0,30)}...`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            onClick={() => downloadImage(`data:image/png;base64,${b64}`, `generated_image_b64_${setIndex}_${imageIndex}.png`)}
-                          >
-                            <Download size={16} className="mr-2" />
-                            Download
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+
+          {/* Image Selection Controls */}
+          {imageSets.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5" />
+                      Image Selection for Video
+                    </CardTitle>
+                    <CardDescription>
+                      Select any number of images to use for video generation
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearSelectedImagesForVideo}
+                      disabled={selectedImagesForVideo.size === 0}
+                    >
+                      Clear Selection
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllImagesForVideo}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={regenerateAllImages}
+                      disabled={isGenerating || regenerating}
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${regenerating ? 'animate-spin' : ''}`} />
+                      Regenerate All
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{selectedImagesForVideo.size} of {imageSets.reduce((total, set) => total + set.imageUrls.length + set.imageData.length, 0)} images selected</span>
                 </div>
               </CardContent>
             </Card>
-          ))}
+          )}
+          
+          {/* All Images Grid - Display all images from all sets in a single grid */}
+          {imageSets.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Generated Images</CardTitle>
+                <CardDescription>
+                  All generated images displayed in a grid (3 per row)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  {imageSets.map((set, setIndex) => [
+                    // Map through imageUrls
+                    ...set.imageUrls.map((url, imageIndex) => {
+                      const imageId = `${setIndex}-url-${imageIndex}`
+                      const isSelected = selectedImagesForVideo.has(imageId)
+                      return (
+                        <div key={imageId} className="space-y-2">
+                          <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors ${
+                            isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                          }`}>
+                            {/* Selection checkbox */}
+                            <div className="absolute top-2 left-2 z-10">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleImageForVideo(imageId)}
+                                className="bg-white/90 border-gray-400"
+                              />
+                            </div>
+                            
+                            <img 
+                              src={url} 
+                              alt={`Generated image ${setIndex}-${imageIndex}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                              <Button 
+                                size="sm" 
+                                variant="secondary" 
+                                onClick={() => downloadImage(url, `generated_image_${setIndex}_${imageIndex}.png`)}
+                              >
+                                <Download size={16} className="mr-2" />
+                                Download
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => regenerateImage(setIndex, imageIndex, false)}
+                                disabled={isGenerating || regenerating}
+                              >
+                                <RefreshCw size={16} className={`mr-2 ${regenerating ? 'animate-spin' : ''}`} />
+                                Regenerate
+                              </Button>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="text-xs text-blue-600 text-center font-medium">
+                              ✓ Selected
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-500 text-center truncate">
+                            {set.originalPrompt.substring(0, 40)}...
+                          </div>
+                        </div>
+                      )
+                    }),
+                    // Map through imageData (base64)
+                    ...set.imageData.map((b64, imageIndex) => {
+                      const imageId = `${setIndex}-b64-${imageIndex}`
+                      const isSelected = selectedImagesForVideo.has(imageId)
+                      return (
+                        <div key={imageId} className="space-y-2">
+                          <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors ${
+                            isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                          }`}>
+                            {/* Selection checkbox */}
+                            <div className="absolute top-2 left-2 z-10">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleImageForVideo(imageId)}
+                                className="bg-white/90 border-gray-400"
+                              />
+                            </div>
+                            
+                            <img 
+                              src={`data:image/png;base64,${b64}`}
+                              alt={`Generated image ${setIndex}-${imageIndex} (base64)`}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                              <Button 
+                                size="sm" 
+                                variant="secondary" 
+                                onClick={() => downloadImage(`data:image/png;base64,${b64}`, `generated_image_b64_${setIndex}_${imageIndex}.png`)}
+                              >
+                                <Download size={16} className="mr-2" />
+                                Download
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => regenerateImage(setIndex, imageIndex, true)}
+                                disabled={isGenerating || regenerating}
+                              >
+                                <RefreshCw size={16} className={`mr-2 ${regenerating ? 'animate-spin' : ''}`} />
+                                Regenerate
+                              </Button>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="text-xs text-blue-600 text-center font-medium">
+                              ✓ Selected
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-500 text-center truncate">
+                            {set.originalPrompt.substring(0, 40)}...
+                          </div>
+                        </div>
+                      )
+                    })
+                  ]).flat()}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </TabsContent>
 

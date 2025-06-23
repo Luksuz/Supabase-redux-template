@@ -26,18 +26,65 @@ async function isUrlAccessible(url: string): Promise<boolean> {
 }
 
 /**
- * Get audio duration from URL by fetching audio metadata
+ * Get audio duration from URL using ffprobe
  * @param audioUrl URL of the audio file
  * @returns Promise<number> duration in seconds, or null if unable to determine
  */
 async function getAudioDuration(audioUrl: string): Promise<number | null> {
   try {
-    // For now, we'll return a default duration since we don't have ffprobe on the server
-    // In a production environment, you'd want to implement proper audio duration detection
-    console.log(`Getting audio duration for: ${audioUrl}`)
-    return 300; // Default to 5 minutes
+    const { spawn } = require('child_process');
+    
+    console.log(`🎵 Getting audio duration using ffprobe for: ${audioUrl}`);
+    
+    return new Promise((resolve, reject) => {
+      const ffprobe = spawn('ffprobe', [
+        '-v', 'quiet',
+        '-show_entries', 'format=duration',
+        '-of', 'csv=p=0',
+        audioUrl
+      ]);
+
+      let output = '';
+      let errorOutput = '';
+
+      ffprobe.stdout.on('data', (data: Buffer) => {
+        output += data.toString();
+      });
+
+      ffprobe.stderr.on('data', (data: Buffer) => {
+        errorOutput += data.toString();
+      });
+
+      ffprobe.on('close', (code: number) => {
+        if (code === 0) {
+          const duration = parseFloat(output.trim());
+          if (!isNaN(duration) && duration > 0) {
+            console.log(`✅ Audio duration detected: ${duration.toFixed(2)} seconds`);
+            resolve(duration);
+          } else {
+            console.warn(`⚠️ Invalid duration from ffprobe: ${output.trim()}`);
+            resolve(null);
+          }
+        } else {
+          console.error(`❌ ffprobe failed with code ${code}:`, errorOutput);
+          resolve(null);
+        }
+      });
+
+      ffprobe.on('error', (error: Error) => {
+        console.error(`❌ ffprobe spawn error:`, error.message);
+        resolve(null);
+      });
+
+      // Set timeout to avoid hanging
+      setTimeout(() => {
+        ffprobe.kill();
+        console.warn(`⏰ ffprobe timeout for ${audioUrl}`);
+        resolve(null);
+      }, 10000); // 10 second timeout
+    });
   } catch (error) {
-    console.error('Error getting audio duration:', error);
+    console.error('❌ Error in getAudioDuration:', error);
     return null;
   }
 }
@@ -57,7 +104,12 @@ export async function POST(request: NextRequest) {
       quality = 'low',
       enableOverlay = true,
       enableZoom = true,
-      enableSubtitles = true
+      enableSubtitles = true,
+      // Add subtitle styling properties from frontend
+      fontFamily = 'Arial',
+      fontColor = '#ffffff',
+      fontSize = 24,
+      strokeWidth = 2
     } = body;
     
     console.log(`🖼️ Image URLs: ${imageUrls}`);
@@ -72,6 +124,10 @@ export async function POST(request: NextRequest) {
     console.log(`🌟 Enable Overlay: ${enableOverlay}`);
     console.log(`🔍 Enable Zoom: ${enableZoom}`);
     console.log(`📄 Enable Subtitles: ${enableSubtitles}`);
+    console.log(`🎨 Font Family: ${fontFamily}`);
+    console.log(`🎨 Font Color: ${fontColor}`);
+    console.log(`🎨 Font Size: ${fontSize}px`);
+    console.log(`🎨 Stroke Width: ${strokeWidth}px`);
 
     
     console.log(`📋 Video creation request:
@@ -85,6 +141,7 @@ export async function POST(request: NextRequest) {
       - Enable Zoom: ${enableZoom}
       - Enable Subtitles: ${enableSubtitles}
       - Quality: ${quality}
+      - Subtitle Styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke
       - User ID: ${userId}
     `);
 
@@ -134,14 +191,20 @@ export async function POST(request: NextRequest) {
       const audioDuration = await getAudioDuration(audioUrl);
       
       // If we can't get audio duration, default to 5 minutes
-      totalDuration = audioDuration || 300; 
+      if (audioDuration === null) {
+        console.warn('⚠️ Could not determine audio duration with ffprobe, using fallback duration of 300 seconds');
+        totalDuration = 300;
+      } else {
+        totalDuration = audioDuration;
+      }
+      
       // First minute is for alternating images, or shorter if audio is shorter
       const firstPartDuration = Math.min(60, totalDuration * 0.6); 
       // Image display time depends on how many images we have
       imageDuration = Math.floor(firstPartDuration / imageUrls.length);
       
       console.log(`Traditional video configuration:
-        - Total duration: ${totalDuration.toFixed(1)} seconds
+        - Total duration: ${totalDuration.toFixed(1)} seconds (${audioDuration ? 'detected' : 'fallback'})
         - First part (alternating images): ${firstPartDuration.toFixed(1)} seconds
         - Each image display time: ${imageDuration.toFixed(1)} seconds
         - Second part (zoom effect): ${Math.max(totalDuration - firstPartDuration, 10).toFixed(1)} seconds`);
@@ -149,8 +212,14 @@ export async function POST(request: NextRequest) {
     
     // Check if the dust overlay is accessible and if overlay is enabled
     const shouldIncludeOverlay = (includeOverlay || enableOverlay);
-    const isOverlayAvailable = shouldIncludeOverlay ? await isUrlAccessible(DUST_OVERLAY_URL) : false;
-    console.log(`Dust overlay availability check: ${isOverlayAvailable ? 'Available and enabled' : shouldIncludeOverlay ? 'Not available' : 'Disabled by user'}`);
+    let isOverlayAvailable = false;
+    
+    if (shouldIncludeOverlay) {
+      isOverlayAvailable = await isUrlAccessible(DUST_OVERLAY_URL);
+      console.log(`Dust overlay availability check: ${isOverlayAvailable ? 'Available and enabled' : 'Not available'}`);
+    } else {
+      console.log(`Dust overlay disabled by user settings`);
+    }
 
     // Initialize tracks array
     let tracks = [];
@@ -158,6 +227,8 @@ export async function POST(request: NextRequest) {
     // Track for subtitles (captions) - Add this first if it exists and is enabled
     if (subtitlesUrl && enableSubtitles) {
       console.log(`Adding subtitles to video: ${subtitlesUrl}`);
+      console.log(`Subtitle styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke`);
+      
       const captionTrack = {
         clips: [
           {
@@ -165,16 +236,14 @@ export async function POST(request: NextRequest) {
               type: "caption",
               src: subtitlesUrl,
               font: {
-                family: "Montserrat",
-                size: 70,
-                stroke: "#000000",
-                strokeWidth: 1
+                family: fontFamily,
+                size: fontSize,
+                color: fontColor
               },
-              background: {
-                color: "#ffffff",
-                opacity: 0.5,
-                padding: 15,
-              },
+              stroke: {
+                color: "#000000",
+                width: strokeWidth
+              }
             },
             start: 0,
             length: totalDuration,
@@ -328,7 +397,7 @@ export async function POST(request: NextRequest) {
             start: 0,
             length: totalDuration,
             fit: "cover",
-            opacity: 0.5
+            opacity: 0.15 // Much lower opacity to prevent darkening (was 0.5)
           }
         ]
       };

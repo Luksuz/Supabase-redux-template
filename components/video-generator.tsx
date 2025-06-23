@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
 import { Input } from './ui/input'
-import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Image as ImageIcon, Volume2, Subtitles, Settings } from 'lucide-react'
+import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Image as ImageIcon, Volume2, Subtitles, Settings, Palette } from 'lucide-react'
 import { CreateVideoRequestBody, VideoRecord, SegmentTiming } from '@/types/video-generation'
 
 export function VideoGenerator() {
@@ -34,6 +34,17 @@ export function VideoGenerator() {
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [customSegmentTimings, setCustomSegmentTimings] = useState<SegmentTiming[]>([])
+
+  // Add subtitle styling state
+  const [subtitleSettings, setSubtitleSettings] = useState({
+    fontFamily: 'Arial',
+    fontColor: '#ffffff',
+    fontSize: 24,
+    strokeWidth: 2
+  })
+
+  // Add image selection state for video generation
+  const [selectedImagesForVideo, setSelectedImagesForVideo] = useState<Set<string>>(new Set())
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -65,6 +76,65 @@ export function VideoGenerator() {
     
     console.log(`🖼️ Found ${urls.length} image URLs from ${imageSets.length} image sets`)
     return urls
+  }
+
+  // Get selected image URLs for video generation
+  const getSelectedImageUrls = (): string[] => {
+    const allImages: { url: string; id: string }[] = []
+    
+    // Collect all images with their IDs
+    imageSets.forEach((set, setIndex) => {
+      set.imageUrls.forEach((url, imageIndex) => {
+        allImages.push({
+          url,
+          id: `${setIndex}-url-${imageIndex}`
+        })
+      })
+      set.imageData.forEach((b64, imageIndex) => {
+        allImages.push({
+          url: `data:image/png;base64,${b64}`,
+          id: `${setIndex}-b64-${imageIndex}`
+        })
+      })
+    })
+
+    // Filter to only selected images
+    const selectedUrls = allImages
+      .filter(img => selectedImagesForVideo.has(img.id))
+      .map(img => img.url)
+
+    console.log(`🎬 Selected ${selectedUrls.length} images for video generation`)
+    return selectedUrls
+  }
+
+  // Image selection functions
+  const toggleImageForVideo = (imageId: string) => {
+    setSelectedImagesForVideo(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(imageId)) {
+        newSet.delete(imageId)
+      } else {
+        newSet.add(imageId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllImagesForVideo = () => {
+    const allImageIds = new Set<string>()
+    imageSets.forEach((set, setIndex) => {
+      set.imageUrls.forEach((_, imageIndex) => {
+        allImageIds.add(`${setIndex}-url-${imageIndex}`)
+      })
+      set.imageData.forEach((_, imageIndex) => {
+        allImageIds.add(`${setIndex}-b64-${imageIndex}`)
+      })
+    })
+    setSelectedImagesForVideo(allImageIds)
+  }
+
+  const clearSelectedImagesForVideo = () => {
+    setSelectedImagesForVideo(new Set())
   }
 
   // Check if we have generated images (always true now with fallback)
@@ -217,41 +287,70 @@ export function VideoGenerator() {
   // Check if script-based timing is available
   const scriptBasedTimingAvailable = audioGeneration?.scriptDurations && audioGeneration.scriptDurations.length > 0
 
+  // Font family options
+  const fontFamilyOptions = [
+    { value: 'Arial', label: 'Arial' },
+    { value: 'Helvetica', label: 'Helvetica' },
+    { value: 'Times New Roman', label: 'Times New Roman' },
+    { value: 'Georgia', label: 'Georgia' },
+    { value: 'Verdana', label: 'Verdana' },
+    { value: 'Trebuchet MS', label: 'Trebuchet MS' },
+    { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+    { value: 'Impact', label: 'Impact' },
+    { value: 'Lucida Console', label: 'Lucida Console' },
+    { value: 'Tahoma', label: 'Tahoma' }
+  ]
+
   // Handle video generation
   const handleGenerateVideo = async () => {
     try {
       dispatch(setIsGeneratingVideo(true))
 
-      const imageUrls = getImageUrls()
+      // Use selected images instead of all images
+      const selectedImageUrls = getSelectedImageUrls()
       
-      console.log(`🎬 Starting video generation with ${imageUrls.length} images`)
-      showMessage(`Starting video generation with ${imageUrls.length} images...`, 'info')
+      // Validate that at least one image is selected
+      if (selectedImageUrls.length === 0) {
+        showMessage('Please select at least one image for video generation.', 'error')
+        dispatch(setIsGeneratingVideo(false))
+        return
+      }
+      
+      console.log(`🎬 Starting video generation with ${selectedImageUrls.length} selected images`)
+      showMessage(`Starting video generation with ${selectedImageUrls.length} selected images...`, 'info')
       
       // Determine which timing mode to use and prepare segment timings
       let segmentTimings: SegmentTiming[] | undefined = undefined
       let videoType: 'traditional' | 'segmented' | 'script-based' = 'traditional'
 
       if (settings.useSegmentedTiming) {
-        // Custom segmented timing (manual user input)
-        segmentTimings = customSegmentTimings
+        // Custom segmented timing (manual user input) - adjust for selected images
+        const selectedTimings = customSegmentTimings.slice(0, selectedImageUrls.length)
+        segmentTimings = selectedTimings
         videoType = 'segmented'
       } else if (settings.useScriptBasedTiming && scriptBasedTimingAvailable) {
-        // Script-based timing (automatic from audio generation)
-        segmentTimings = getScriptBasedTimings()
+        // Script-based timing (automatic from audio generation) - adjust for selected images
+        const scriptTimings = getScriptBasedTimings()
+        segmentTimings = scriptTimings.slice(0, selectedImageUrls.length)
         videoType = 'script-based'
       }
       // Otherwise, use traditional equal timing (no segmentTimings)
 
-      // Prepare request body with fallback audio
+      // Prepare request body with selected images
       const requestBody: CreateVideoRequestBody = {
-        imageUrls,
+        imageUrls: selectedImageUrls, // Use selected images only
         audioUrl: audioGeneration?.audioUrl || 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav', // Fallback audio
         compressedAudioUrl: audioGeneration?.compressedAudioUrl || undefined,
         subtitlesUrl: settings.includeSubtitles && audioGeneration?.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
         userId: 'current_user',
-        thumbnailUrl: imageUrls[0],
+        thumbnailUrl: selectedImageUrls[0], // Use first selected image as thumbnail
         segmentTimings: segmentTimings,
-        includeOverlay: settings.includeOverlay
+        includeOverlay: settings.includeOverlay,
+        // Add subtitle styling properties
+        fontFamily: subtitleSettings.fontFamily,
+        fontColor: subtitleSettings.fontColor,
+        fontSize: subtitleSettings.fontSize,
+        strokeWidth: subtitleSettings.strokeWidth
       }
 
       console.log('🎬 Starting video generation with:', requestBody)
@@ -281,20 +380,20 @@ export function VideoGenerator() {
           user_id: 'current_user',
           status: 'processing',
           shotstack_id: data.shotstack_id || '',
-          image_urls: imageUrls,
+          image_urls: selectedImageUrls,
           audio_url: requestBody.audioUrl,
           subtitles_url: requestBody.subtitlesUrl,
-          thumbnail_url: imageUrls[0],
+          thumbnail_url: selectedImageUrls[0],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: segmentTimings ? {
             type: videoType,
             segment_timings: segmentTimings,
             total_duration: segmentTimings.reduce((sum, timing) => sum + timing.duration, 0),
-            scenes_count: imageUrls.length
+            scenes_count: selectedImageUrls.length
           } : {
             type: 'traditional',
-            scenes_count: imageUrls.length,
+            scenes_count: selectedImageUrls.length,
             total_duration: audioGeneration?.duration || 30 // Default duration
           }
         }
@@ -421,6 +520,130 @@ export function VideoGenerator() {
         </CardContent>
       </Card>
 
+      {/* Image Selection for Video */}
+      {imageSets.length > 0 && (
+        <Card className="bg-white shadow-sm border border-gray-200">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" />
+                  Select Images for Video
+                </CardTitle>
+                <CardDescription>
+                  Choose which images to include in your video (displayed in 3 columns)
+                </CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearSelectedImagesForVideo}
+                  disabled={selectedImagesForVideo.size === 0}
+                >
+                  Clear Selection
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllImagesForVideo}
+                >
+                  Select All
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <p className="text-sm text-muted-foreground">
+                {selectedImagesForVideo.size} of {imageSets.reduce((total, set) => total + set.imageUrls.length + set.imageData.length, 0)} images selected
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+              {imageSets.map((set, setIndex) => [
+                // Map through imageUrls
+                ...set.imageUrls.map((url, imageIndex) => {
+                  const imageId = `${setIndex}-url-${imageIndex}`
+                  const isSelected = selectedImagesForVideo.has(imageId)
+                  return (
+                    <div key={imageId} className="space-y-2">
+                      <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors cursor-pointer ${
+                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      }`} onClick={() => toggleImageForVideo(imageId)}>
+                        {/* Selection checkbox */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={() => {}} // Handled by parent click
+                            className="bg-white/90 border-gray-400 pointer-events-none"
+                          />
+                        </div>
+                        
+                        <img 
+                          src={url} 
+                          alt={`Generated image ${setIndex}-${imageIndex}`}
+                          className="w-full h-full object-cover"
+                        />
+                        
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                            <div className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
+                              Selected
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 text-center truncate">
+                        {set.originalPrompt.substring(0, 40)}...
+                      </div>
+                    </div>
+                  )
+                }),
+                // Map through imageData (base64)
+                ...set.imageData.map((b64, imageIndex) => {
+                  const imageId = `${setIndex}-b64-${imageIndex}`
+                  const isSelected = selectedImagesForVideo.has(imageId)
+                  return (
+                    <div key={imageId} className="space-y-2">
+                      <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors cursor-pointer ${
+                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      }`} onClick={() => toggleImageForVideo(imageId)}>
+                        {/* Selection checkbox */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={() => {}} // Handled by parent click
+                            className="bg-white/90 border-gray-400 pointer-events-none"
+                          />
+                        </div>
+                        
+                        <img 
+                          src={`data:image/png;base64,${b64}`}
+                          alt={`Generated image ${setIndex}-${imageIndex} (base64)`}
+                          className="w-full h-full object-cover"
+                        />
+                        
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                            <div className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
+                              Selected
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 text-center truncate">
+                        {set.originalPrompt.substring(0, 40)}...
+                      </div>
+                    </div>
+                  )
+                })
+              ]).flat()}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Video Settings */}
       <Card className="bg-white shadow-sm border border-gray-200">
         <CardHeader>
@@ -530,6 +753,119 @@ export function VideoGenerator() {
               </div>
             </div>
           </div>
+
+          {/* Subtitle Styling Controls */}
+          {settings.includeSubtitles && audioGeneration?.subtitlesUrl && (
+            <div className="space-y-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-4">
+                <Palette className="h-5 w-5 text-yellow-600" />
+                <h4 className="font-medium text-yellow-800">Subtitle Styling</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Font Family */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Font Family</Label>
+                  <Select 
+                    value={subtitleSettings.fontFamily} 
+                    onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, fontFamily: value }))}
+                    disabled={!hasPrerequisites}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fontFamilyOptions.map((font) => (
+                        <SelectItem key={font.value} value={font.value}>
+                          {font.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Font Color */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Font Color</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={subtitleSettings.fontColor}
+                      onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontColor: e.target.value }))}
+                      className="w-12 h-8 p-0 border rounded cursor-pointer"
+                      disabled={!hasPrerequisites}
+                    />
+                    <Input
+                      type="text"
+                      value={subtitleSettings.fontColor}
+                      onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontColor: e.target.value }))}
+                      placeholder="#ffffff"
+                      className="flex-1 h-8 text-xs"
+                      disabled={!hasPrerequisites}
+                    />
+                  </div>
+                </div>
+
+                {/* Font Size */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Font Size: {subtitleSettings.fontSize}px</Label>
+                  <input
+                    type="range"
+                    min="12"
+                    max="60"
+                    step="2"
+                    value={subtitleSettings.fontSize}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    disabled={!hasPrerequisites}
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>12px</span>
+                    <span>60px</span>
+                  </div>
+                </div>
+
+                {/* Stroke Width */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Stroke Outline: {subtitleSettings.strokeWidth}px</Label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="8"
+                    step="0.5"
+                    value={subtitleSettings.strokeWidth}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, strokeWidth: parseFloat(e.target.value) }))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    disabled={!hasPrerequisites}
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>0px</span>
+                    <span>8px</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Preview */}
+              <div className="mt-4 p-4 bg-black rounded-lg">
+                <div className="text-center">
+                  <p className="text-xs text-gray-400 mb-2">Subtitle Preview:</p>
+                  <div 
+                    style={{
+                      fontFamily: subtitleSettings.fontFamily,
+                      color: subtitleSettings.fontColor,
+                      fontSize: `${Math.min(subtitleSettings.fontSize * 0.7, 24)}px`, // Scale down for preview
+                      textShadow: subtitleSettings.strokeWidth > 0 
+                        ? `${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, ${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000`
+                        : 'none',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    Sample subtitle text appears here
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Prerequisites Warning */}
           {!hasPrerequisites && (
@@ -670,7 +1006,7 @@ export function VideoGenerator() {
           {/* Generate Button */}
           <Button
             onClick={handleGenerateVideo}
-            disabled={isGeneratingVideo || !hasPrerequisites}
+            disabled={isGeneratingVideo || !hasPrerequisites || selectedImagesForVideo.size === 0}
             className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
             size="lg"
           >
@@ -684,10 +1020,15 @@ export function VideoGenerator() {
                 <VideoIcon className="h-4 w-4 mr-2" />
                 Complete Prerequisites to Generate Video
               </>
+            ) : selectedImagesForVideo.size === 0 ? (
+              <>
+                <VideoIcon className="h-4 w-4 mr-2" />
+                Select Images to Generate Video
+              </>
             ) : (
               <>
                 <VideoIcon className="h-4 w-4 mr-2" />
-                Generate Video ({
+                Generate Video with {selectedImagesForVideo.size} Selected Image{selectedImagesForVideo.size !== 1 ? 's' : ''} ({
                   settings.useSegmentedTiming ? 'Custom Timing' :
                   settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
                   'Traditional'

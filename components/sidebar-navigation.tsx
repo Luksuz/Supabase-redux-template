@@ -108,11 +108,6 @@ export function SidebarNavigation({
       <div className="p-4 border-t border-gray-200">
         <div className="text-xs text-gray-500">
           <div>User: {user.email || 'Not logged in'}</div>
-          <div className="mt-1">
-            Status: {audioGeneration ? '🎵 Audio Ready' : ''} 
-            {generatedImages.length > 0 ? ' 🖼️ Images Ready' : ''}
-            {videoGeneration ? ' 🎬 Video Ready' : ''}
-          </div>
         </div>
       </div>
     </div>

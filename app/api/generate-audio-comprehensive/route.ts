@@ -5,7 +5,7 @@ import { OpenAI } from 'openai';
 import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
-import { ElevenLabsClient } from "elevenlabs";
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { spawn } from 'child_process';
 import { uploadFileToSupabase } from "@/lib/wellsaid-utils";
 import { v4 as uuidv4 } from 'uuid';
@@ -190,20 +190,35 @@ async function generateSingleAudioChunk(
         
         const elConversionParams: any = {
           text: textChunk,
-          model_id: elModelId,
-          output_format: "mp3_44100_128"
+          modelId: elModelId,
+          outputFormat: "mp3_44100_128"
         };
         
         if (elModelId === "eleven_flash_v2_5" && languageCode) {
-          elConversionParams.language_code = languageCode;
+          elConversionParams.languageCode = languageCode;
         }
         
         const elAudioStream = await elevenlabs.textToSpeech.convert(elevenLabsVoiceId, elConversionParams);
         const elStreamChunks: Uint8Array[] = [];
-        for await (const streamChunk of elAudioStream) { elStreamChunks.push(streamChunk as Uint8Array); }
+        
+        // Handle ReadableStream properly
+        const reader = elAudioStream.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            elStreamChunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        
         const elConcatenatedUint8Array = new Uint8Array(elStreamChunks.reduce((acc, streamChunk) => acc + streamChunk.length, 0));
         let offset = 0;
-        for (const streamChunk of elStreamChunks) { elConcatenatedUint8Array.set(streamChunk, offset); offset += streamChunk.length; }
+        for (const streamChunk of elStreamChunks) { 
+          elConcatenatedUint8Array.set(streamChunk, offset); 
+          offset += streamChunk.length; 
+        }
         audioBuffer = Buffer.from(elConcatenatedUint8Array);
         break;
         
@@ -211,7 +226,24 @@ async function generateSingleAudioChunk(
         if (!googleTtsVoiceName) throw new Error(`Missing googleTtsVoiceName for Google TTS [Chunk ${chunkIndex}]`);
         if (!languageCode) throw new Error(`Missing languageCode for Google TTS [Chunk ${chunkIndex}]`);
         console.log(`🇬☁️ [Chunk ${chunkIndex}] Google TTS: voice=${googleTtsVoiceName}, language=${languageCode}`);
-        audioBuffer = await synthesizeGoogleTts(textChunk, googleTtsVoiceName, languageCode);
+        
+        try {
+          audioBuffer = await synthesizeGoogleTts(textChunk, googleTtsVoiceName, languageCode);
+        } catch (error: any) {
+          // Handle language code mismatch errors specifically
+          if (error.message && error.message.includes("doesn't match the voice")) {
+            const friendlyError = `Google TTS Error [Chunk ${chunkIndex}]: Language code mismatch. ${error.message}`;
+            console.error(`❌ ${friendlyError}`);
+            throw new Error(friendlyError);
+          }
+          // Handle other Google TTS specific errors
+          if (error.details || error.message) {
+            const friendlyError = `Google TTS Error [Chunk ${chunkIndex}]: ${error.details || error.message}`;
+            console.error(`❌ ${friendlyError}`);
+            throw new Error(friendlyError);
+          }
+          throw error;
+        }
         break;
 
       default:
