@@ -41,7 +41,38 @@ async function fetchFolderContents(
 
 export async function GET(req: NextRequest) {
   console.log('getting token');
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  
+  // Try multiple cookie names for NextAuth v5 compatibility
+  let token = await getToken({ 
+    req, 
+    secret: process.env.NEXTAUTH_SECRET,
+    cookieName: "__Secure-authjs.session-token"
+  });
+  
+  // Fallback to other cookie names if needed
+  if (!token) {
+    token = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "authjs.session-token"
+    });
+  }
+  
+  if (!token) {
+    token = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "next-auth.session-token"
+    });
+  }
+  
+  if (!token) {
+    token = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "__Host-authjs.session-token"
+    });
+  }
 
   console.log('token', token);
 

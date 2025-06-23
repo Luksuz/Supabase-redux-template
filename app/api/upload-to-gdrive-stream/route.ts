@@ -3,18 +3,71 @@ import { getToken } from 'next-auth/jwt';
 
 export async function POST(req: NextRequest) {
   console.log("Streaming upload request received");
-  console.log("Request headers:", Object.fromEntries(req.headers.entries()));
   console.log("Request URL:", req.url);
   
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  // Debug: Check all cookies
+  const cookies = req.headers.get('cookie');
+  console.log("All cookies:", cookies);
+  
+  // Try multiple approaches to get the token
+  const token = await getToken({ 
+    req, 
+    secret: process.env.NEXTAUTH_SECRET,
+    // Specify the correct cookie name for NextAuth v5
+    cookieName: "__Secure-authjs.session-token"
+  });
   
   console.log("Token result:", token ? "Token found" : "No token");
   console.log("Token details:", {
     hasToken: !!token,
     hasAccessToken: !!token?.accessToken,
     tokenKeys: token ? Object.keys(token) : [],
-    expiresAt: token?.expiresAt
+    expiresAt: token?.expiresAt,
+    email: token?.email
   });
+
+  // If first attempt fails, try with alternative cookie names
+  if (!token) {
+    console.log("Trying alternative cookie names...");
+    
+    // Try the cookie name I can see in the logs
+    const altToken0 = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "authjs.session-token"
+    });
+    
+    const altToken1 = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "next-auth.session-token"
+    });
+    
+    const altToken2 = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "__Host-authjs.session-token"
+    });
+    
+    console.log("Alternative token attempts:", {
+      altToken0: !!altToken0,
+      altToken1: !!altToken1,
+      altToken2: !!altToken2
+    });
+    
+    if (altToken0) {
+      console.log("Using altToken0 (authjs.session-token)");
+      return await processUpload(req, altToken0);
+    }
+    if (altToken1) {
+      console.log("Using altToken1");
+      return await processUpload(req, altToken1);
+    }
+    if (altToken2) {
+      console.log("Using altToken2");
+      return await processUpload(req, altToken2);
+    }
+  }
 
   if (!token || !token.accessToken) {
     console.error("Upload failed: Not authenticated");
@@ -23,6 +76,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
+  return await processUpload(req, token);
+}
+
+// Separate function to handle the actual upload logic
+async function processUpload(req: NextRequest, token: any) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
@@ -155,7 +213,7 @@ export async function POST(req: NextRequest) {
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache',  
         'Connection': 'keep-alive',
       },
     });

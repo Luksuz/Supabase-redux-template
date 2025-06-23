@@ -5,7 +5,38 @@ import { Readable } from 'stream';
 
 export async function POST(req: NextRequest) {
   console.log("Upload request received");
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  
+  // Try multiple cookie names for NextAuth v5 compatibility
+  let token = await getToken({ 
+    req, 
+    secret: process.env.NEXTAUTH_SECRET,
+    cookieName: "__Secure-authjs.session-token"
+  });
+  
+  // Fallback to other cookie names if needed
+  if (!token) {
+    token = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "authjs.session-token"
+    });
+  }
+  
+  if (!token) {
+    token = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "next-auth.session-token"
+    });
+  }
+  
+  if (!token) {
+    token = await getToken({ 
+      req, 
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "__Host-authjs.session-token"
+    });
+  }
 
   if (!token || !token.accessToken) {
     console.error("Upload failed: Not authenticated");
