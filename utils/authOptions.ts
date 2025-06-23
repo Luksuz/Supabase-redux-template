@@ -4,6 +4,7 @@ import type { NextAuthConfig } from 'next-auth';
 
 // Define the auth configuration for NextAuth v5
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
