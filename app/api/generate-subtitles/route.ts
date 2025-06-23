@@ -54,7 +54,7 @@ function reformatSrtContent(srt: string): string {
             
             if (timingLine && timingLine.includes('-->')) {
                 const [startTime, endTime] = timingLine.split(' --> ')
-                const text = textLines.join(' ').trim()
+                const text = textLines.join(' ').trim().toUpperCase()
                 
                 if (text) {
                     subtitles.push({

@@ -109,7 +109,10 @@ export async function POST(request: NextRequest) {
       fontFamily = 'Arial',
       fontColor = '#ffffff',
       fontSize = 24,
-      strokeWidth = 2
+      strokeWidth = 2,
+      fontWeight = '1000',
+      textTransform = 'none',
+      audioDuration
     } = body;
     
     console.log(`🖼️ Image URLs: ${imageUrls}`);
@@ -128,6 +131,8 @@ export async function POST(request: NextRequest) {
     console.log(`🎨 Font Color: ${fontColor}`);
     console.log(`🎨 Font Size: ${fontSize}px`);
     console.log(`🎨 Stroke Width: ${strokeWidth}px`);
+    console.log(`🎨 Font Weight: ${fontWeight}`);
+    console.log(`🎨 Text Transform: ${textTransform}`);
 
     
     console.log(`📋 Video creation request:
@@ -141,7 +146,7 @@ export async function POST(request: NextRequest) {
       - Enable Zoom: ${enableZoom}
       - Enable Subtitles: ${enableSubtitles}
       - Quality: ${quality}
-      - Subtitle Styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke
+      - Subtitle Styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke, ${fontWeight}, ${textTransform}
       - User ID: ${userId}
     `);
 
@@ -187,15 +192,15 @@ export async function POST(request: NextRequest) {
         - Individual durations: ${segmentTimings.map(t => t.duration.toFixed(2)).join(', ')}s`);
     } else {
       // Traditional video: get audio duration and use new timeline structure
-      console.log('Getting audio duration for traditional video timeline...');
-      const audioDuration = await getAudioDuration(audioUrl);
+      console.log('Using provided audio duration for traditional video timeline...');
       
-      // If we can't get audio duration, default to 5 minutes
-      if (audioDuration === null) {
-        console.warn('⚠️ Could not determine audio duration with ffprobe, using fallback duration of 300 seconds');
-        totalDuration = 300;
-      } else {
+      // Use provided audio duration if available, otherwise fallback to default
+      if (audioDuration && audioDuration > 0) {
         totalDuration = audioDuration;
+        console.log(`✅ Using provided audio duration: ${totalDuration.toFixed(2)} seconds`);
+      } else {
+        console.warn('⚠️ No audio duration provided, using fallback duration of 300 seconds');
+        totalDuration = 300;
       }
       
       // First minute is for alternating images, or shorter if audio is shorter
@@ -204,7 +209,7 @@ export async function POST(request: NextRequest) {
       imageDuration = Math.floor(firstPartDuration / imageUrls.length);
       
       console.log(`Traditional video configuration:
-        - Total duration: ${totalDuration.toFixed(1)} seconds (${audioDuration ? 'detected' : 'fallback'})
+        - Total duration: ${totalDuration.toFixed(1)} seconds (${audioDuration ? 'provided' : 'fallback'})
         - First part (alternating images): ${firstPartDuration.toFixed(1)} seconds
         - Each image display time: ${imageDuration.toFixed(1)} seconds
         - Second part (zoom effect): ${Math.max(totalDuration - firstPartDuration, 10).toFixed(1)} seconds`);
@@ -227,7 +232,7 @@ export async function POST(request: NextRequest) {
     // Track for subtitles (captions) - Add this first if it exists and is enabled
     if (subtitlesUrl && enableSubtitles) {
       console.log(`Adding subtitles to video: ${subtitlesUrl}`);
-      console.log(`Subtitle styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke`);
+      console.log(`Subtitle styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke, ${fontWeight}, ${textTransform}`);
       
       const captionTrack = {
         clips: [
@@ -238,7 +243,8 @@ export async function POST(request: NextRequest) {
               font: {
                 family: fontFamily,
                 size: fontSize,
-                color: fontColor
+                color: fontColor,
+                weight: fontWeight,
               },
               stroke: {
                 color: "#000000",

@@ -20,6 +20,9 @@ export interface CreateVideoRequestBody {
   fontColor?: string
   fontSize?: number
   strokeWidth?: number
+  fontWeight?: string
+  textTransform?: string
+  audioDuration?: number
 }
 
 export interface CreateVideoResponse {

@@ -40,7 +40,9 @@ export function VideoGenerator() {
     fontFamily: 'Arial',
     fontColor: '#ffffff',
     fontSize: 24,
-    strokeWidth: 2
+    strokeWidth: 2,
+    fontWeight: '1000',
+    textTransform: 'none'
   })
 
   // Add image selection state for video generation
@@ -350,7 +352,11 @@ export function VideoGenerator() {
         fontFamily: subtitleSettings.fontFamily,
         fontColor: subtitleSettings.fontColor,
         fontSize: subtitleSettings.fontSize,
-        strokeWidth: subtitleSettings.strokeWidth
+        strokeWidth: subtitleSettings.strokeWidth,
+        fontWeight: subtitleSettings.fontWeight,
+        textTransform: subtitleSettings.textTransform,
+        // Include audio duration to avoid backend URL probing
+        audioDuration: audioGeneration?.duration ?? undefined
       }
 
       console.log('🎬 Starting video generation with:', requestBody)
@@ -784,6 +790,49 @@ export function VideoGenerator() {
                   </Select>
                 </div>
 
+                {/* Font Weight */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Font Weight</Label>
+                  <Select 
+                    value={subtitleSettings.fontWeight} 
+                    onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, fontWeight: value }))}
+                    disabled={!hasPrerequisites}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal (400)</SelectItem>
+                      <SelectItem value="500">Medium (500)</SelectItem>
+                      <SelectItem value="600">Semi Bold (600)</SelectItem>
+                      <SelectItem value="700">Bold (700)</SelectItem>
+                      <SelectItem value="800">Extra Bold (800)</SelectItem>
+                      <SelectItem value="900">Black (900)</SelectItem>
+                      <SelectItem value="1000">Ultra Black (1000)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Text Transform */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Text Style</Label>
+                  <Select 
+                    value={subtitleSettings.textTransform} 
+                    onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, textTransform: value }))}
+                    disabled={!hasPrerequisites}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Normal</SelectItem>
+                      <SelectItem value="uppercase">UPPERCASE</SelectItem>
+                      <SelectItem value="lowercase">lowercase</SelectItem>
+                      <SelectItem value="capitalize">Capitalize</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Font Color */}
                 <div className="space-y-2">
                   <Label className="text-sm">Font Color</Label>
@@ -805,7 +854,9 @@ export function VideoGenerator() {
                     />
                   </div>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Font Size */}
                 <div className="space-y-2">
                   <Label className="text-sm">Font Size: {subtitleSettings.fontSize}px</Label>
@@ -857,7 +908,8 @@ export function VideoGenerator() {
                       textShadow: subtitleSettings.strokeWidth > 0 
                         ? `${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, ${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000`
                         : 'none',
-                      fontWeight: 'bold'
+                      fontWeight: subtitleSettings.fontWeight,
+                      textTransform: subtitleSettings.textTransform as any
                     }}
                   >
                     Sample subtitle text appears here

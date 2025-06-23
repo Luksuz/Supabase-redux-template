@@ -52,7 +52,7 @@ function reformatTextBlock(originalTextLines: string[], maxWords: number): strin
         return [];
     }
 
-    const fullText = originalTextLines.map(line => line.trim()).filter(line => line).join(" ");
+    const fullText = originalTextLines.map(line => line.trim()).filter(line => line).join(" ").toUpperCase();
     const words = fullText.split(/\s+/).filter(word => word);
 
     if (words.length === 0) {
@@ -146,10 +146,10 @@ export function reformatSrtContent(srtContent: string, maxWords: number = MAX_WO
 
         let currentSegmentStartMs = originalStartMs;
         const durationPerSegmentMs = numSegments > 0 ? originalDurationMs / numSegments : originalDurationMs;
-        const minSegmentDurationMs = 100; // e.g., 100ms minimum
+        const minSegmentDurationMs = 100;
 
         for (let i = 0; i < numSegments; i++) {
-            const segmentText = textSegments[i];
+            const segmentText = textSegments[i].toUpperCase();
             if (!segmentText.trim() && numSegments === 1) { // Skip if it's a single, genuinely empty segment
                 continue;
             }
