@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
   console.log('YouTube search API endpoint hit')
   
   try {
-    const session = await auth() as CustomSession | null
+    const session = await auth()
     const { searchQuery, channelUrl, maxResults = 50, sortOrder = 'date' }: SearchParams = await request.json()
     
     console.log('Request params:', { searchQuery, channelUrl, maxResults, sortOrder })
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
 
     // Get valid access token if session exists
     if (session) {
-      validAccessToken = await getValidAccessToken(session)
+      validAccessToken = await getValidAccessToken(session as CustomSession)
     }
     
     // If channel URL is provided, resolve it to channel ID
