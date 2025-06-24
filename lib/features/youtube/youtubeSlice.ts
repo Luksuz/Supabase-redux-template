@@ -327,7 +327,7 @@ async function tryYtDlpExtraction(videoIds: string[]): Promise<{ subtitleFiles: 
   console.log('🔄 Trying yt-dlp extraction for', videoIds.length, 'videos')
   
   try {
-    const response = await fetch('http://localhost:3001/extract-multiple', {
+    const response = await fetch('https://fdaa-34-173-92-192.ngrok-free.app/extract-multiple', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
