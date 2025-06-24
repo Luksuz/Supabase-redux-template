@@ -9,15 +9,16 @@ const supabase = createClient(
 // GET - Get single prompt by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log(`=== GET /api/prompts/${params.id} ===`)
+  const { id } = await params
+  console.log(`=== GET /api/prompts/${id} ===`)
   
   try {
     const { data: prompt, error } = await supabase
       .from('fine_tuning_prompts')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error) {
@@ -46,9 +47,10 @@ export async function GET(
 // PUT - Update prompt
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log(`=== PUT /api/prompts/${params.id} ===`)
+  const { id } = await params
+  console.log(`=== PUT /api/prompts/${id} ===`)
   
   try {
     const body = await request.json()
@@ -71,7 +73,7 @@ export async function PUT(
         prompt, 
         updated_at: new Date().toISOString() 
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -101,15 +103,16 @@ export async function PUT(
 // DELETE - Delete prompt
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log(`=== DELETE /api/prompts/${params.id} ===`)
+  const { id } = await params
+  console.log(`=== DELETE /api/prompts/${id} ===`)
   
   try {
     const { error } = await supabase
       .from('fine_tuning_prompts')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (error) {
       console.error('Error deleting prompt:', error)
@@ -119,7 +122,7 @@ export async function DELETE(
       )
     }
 
-    console.log(`✅ Deleted prompt with ID: ${params.id}`)
+    console.log(`✅ Deleted prompt with ID: ${id}`)
     return NextResponse.json({
       success: true,
       message: 'Prompt deleted successfully'

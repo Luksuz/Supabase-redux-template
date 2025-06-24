@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   console.log('=== DELETE /api/fine-tuning/sections/[id] ===')
   
@@ -12,7 +12,7 @@ export async function DELETE(
     const supabase = await createClient()
     console.log('Supabase client created successfully')
     
-    const sectionId = params.id
+    const { id: sectionId } = await params
 
     // Get current user
     console.log('Getting user authentication...')
