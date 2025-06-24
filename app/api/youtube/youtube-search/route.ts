@@ -24,7 +24,9 @@ interface CustomSession {
 
 // Function to refresh access token if needed
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+  console.log('🔄 Starting token refresh process')
   try {
+    console.log('📡 Making token refresh request to Google OAuth')
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
@@ -38,25 +40,32 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
       }),
     })
 
+    console.log('📡 Token refresh response status:', response.status)
     const data = await response.json()
+    console.log('📡 Token refresh response data:', data)
     
     if (response.ok && data.access_token) {
-      console.log('Successfully refreshed access token')
+      console.log('✅ Successfully refreshed access token')
       return data.access_token
     } else {
-      console.error('Failed to refresh token:', data)
+      console.error('❌ Failed to refresh token:', data)
       return null
     }
   } catch (error) {
-    console.error('Error refreshing token:', error)
+    console.error('💥 Error refreshing token:', error)
     return null
   }
 }
 
 // Function to get valid access token
 async function getValidAccessToken(session: CustomSession): Promise<string | null> {
+  console.log('🔍 Checking access token validity')
+  console.log('🔍 Session has accessToken:', !!session.accessToken)
+  console.log('🔍 Session has refreshToken:', !!session.refreshToken)
+  console.log('🔍 Session expiresAt:', session.expiresAt)
+  
   if (!session.accessToken) {
-    console.log('No access token in session')
+    console.log('❌ No access token in session')
     return null
   }
 
@@ -64,34 +73,49 @@ async function getValidAccessToken(session: CustomSession): Promise<string | nul
   const now = Math.floor(Date.now() / 1000)
   const expiresAt = session.expiresAt || 0
   const isExpired = now >= (expiresAt - 300) // 5 minute buffer
+  
+  console.log('⏰ Current timestamp:', now)
+  console.log('⏰ Token expires at:', expiresAt)
+  console.log('⏰ Token is expired:', isExpired)
 
   if (isExpired) {
-    console.log('Access token is expired, attempting to refresh')
+    console.log('⚠️ Access token is expired, attempting to refresh')
     if (session.refreshToken) {
+      console.log('🔄 Refresh token available, attempting refresh')
       const newToken = await refreshAccessToken(session.refreshToken)
       if (newToken) {
+        console.log('✅ Token refresh successful')
         return newToken
       }
+    } else {
+      console.log('❌ No refresh token available')
     }
-    console.log('Failed to refresh token')
+    console.log('❌ Failed to refresh token')
     return null
   }
 
-  console.log('Using existing access token')
+  console.log('✅ Using existing access token')
   return session.accessToken
 }
 
 // Extract channel ID from various YouTube URL formats
 function extractChannelId(url: string): string | null {
-  if (!url) return null
+  console.log('🔗 Extracting channel ID from URL:', url)
+  
+  if (!url) {
+    console.log('❌ No URL provided')
+    return null
+  }
   
   // If it's already a channel ID (starts with UC and is 24 characters)
   if (url.match(/^UC[\w-]{22}$/)) {
+    console.log('✅ URL is already a channel ID:', url)
     return url
   }
   
   // Remove any trailing slashes and query parameters
   url = url.split('?')[0].replace(/\/$/, '')
+  console.log('🧹 Cleaned URL:', url)
   
   // Extract from different URL formats
   const patterns = [
@@ -102,69 +126,102 @@ function extractChannelId(url: string): string | null {
   ]
   
   for (const pattern of patterns) {
+    console.log('🔍 Testing pattern:', pattern.source)
     const match = url.match(pattern)
     if (match) {
+      console.log('✅ Pattern matched:', match)
       if (pattern.source.includes('channel')) {
+        console.log('✅ Direct channel ID found:', match[1])
         return match[1] // Direct channel ID
       } else {
+        console.log('🔍 Username/handle found:', match[1])
         return match[1] // Username/handle - will need to resolve
       }
     }
   }
   
+  console.log('❌ No pattern matched')
   return null
 }
 
 // Resolve username/handle to channel ID
 async function resolveChannelId(usernameOrHandle: string, urlType: string, accessToken?: string): Promise<string | null> {
+  console.log('🔍 Resolving channel ID for:', usernameOrHandle, 'type:', urlType)
+  
   try {
     let url: string
     
     if (urlType === 'handle') {
       // For @handles, we need to search
       url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(usernameOrHandle)}&type=channel&maxResults=1`
+      console.log('🔍 Using search endpoint for handle')
     } else {
       // For usernames and custom URLs, try channels endpoint
       url = `https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${encodeURIComponent(usernameOrHandle)}`
+      console.log('🔍 Using channels endpoint for username')
     }
     
     // Use OAuth token if available, otherwise fall back to API key
     if (accessToken) {
       url += `&access_token=${accessToken}`
+      console.log('🔑 Using OAuth token for channel resolution')
     } else {
       url += `&key=${API_KEY}`
+      console.log('🔑 Using API key for channel resolution')
     }
     
-    console.log('Resolving channel ID for:', usernameOrHandle, 'URL:', url)
+    console.log('📡 Channel resolution URL:', url)
     
     const response = await fetch(url)
+    console.log('📡 Channel resolution response status:', response.status)
     const data = await response.json()
     
-    console.log('Channel resolution response:', data)
+    console.log('📡 Channel resolution response data:', JSON.stringify(data, null, 2))
     
     if (data.items && data.items.length > 0) {
       const channelId = urlType === 'handle' ? data.items[0].snippet.channelId : data.items[0].id
-      console.log('Resolved channel ID:', channelId)
+      console.log('✅ Resolved channel ID:', channelId)
       return channelId
     }
     
+    console.log('❌ No channel found in response')
     return null
   } catch (error) {
-    console.error('Error resolving channel ID:', error)
+    console.error('💥 Error resolving channel ID:', error)
     return null
   }
 }
 
 export async function POST(request: NextRequest) {
-  console.log('YouTube search API endpoint hit')
+  console.log('🚀 YouTube search API endpoint hit')
+  console.log('🌍 Environment:', process.env.NODE_ENV)
+  console.log('🔑 API Key available:', !!API_KEY)
+  console.log('🔑 Google Client ID available:', !!process.env.GOOGLE_CLIENT_ID)
+  console.log('🔑 Google Client Secret available:', !!process.env.GOOGLE_CLIENT_SECRET)
   
   try {
+    console.log('🔐 Attempting to get auth session...')
+    // Use auth as a wrapper for the request
     const session = await auth()
-    const { searchQuery, channelUrl, maxResults = 50, sortOrder = 'date' }: SearchParams = await request.json()
+    console.log('🔐 Auth function completed')
+    console.log('👤 Session:', session ? 'exists' : 'null')
+    if (session) {
+      console.log('👤 Session details:', {
+        hasUser: !!session.user,
+        hasAccessToken: !!(session as any).accessToken,
+        hasRefreshToken: !!(session as any).refreshToken,
+        expiresAt: (session as any).expiresAt
+      })
+    }
     
-    console.log('Request params:', { searchQuery, channelUrl, maxResults, sortOrder })
+    console.log('📝 Parsing request body...')
+    const { searchQuery, channelUrl, maxResults = 50, sortOrder = 'date' }: SearchParams = await request.json()
+    console.log('📝 Request body parsed successfully')
+    
+    console.log('📋 Request params:', { searchQuery, channelUrl, maxResults, sortOrder })
     
     if (!searchQuery && !channelUrl) {
+      console.log('❌ Validation failed: no search query or channel URL')
       return NextResponse.json(
         { error: 'Please provide either a search query or a channel URL (or both).' },
         { status: 400 }
@@ -174,18 +231,24 @@ export async function POST(request: NextRequest) {
     let channelId: string | null = null
     let validAccessToken: string | null = null
 
+    console.log('🔍 Processing session for access token...')
     // Get valid access token if session exists
     if (session) {
+      console.log('🔍 Session exists, getting valid access token...')
       validAccessToken = await getValidAccessToken(session as CustomSession)
+      console.log('🔍 Valid access token result:', !!validAccessToken)
+    } else {
+      console.log('⚠️ No session available')
     }
     
     // If channel URL is provided, resolve it to channel ID
     if (channelUrl) {
-      console.log('Processing channel URL:', channelUrl)
+      console.log('🔗 Processing channel URL:', channelUrl)
       channelId = extractChannelId(channelUrl)
-      console.log('Extracted channel ID:', channelId)
+      console.log('🔗 Extracted channel ID:', channelId)
       
       if (!channelId) {
+        console.log('❌ Could not extract channel ID')
         return NextResponse.json(
           { error: 'Could not extract channel ID from the provided URL. Please check the format.' },
           { status: 400 }
@@ -194,11 +257,13 @@ export async function POST(request: NextRequest) {
       
       // If it's not a direct channel ID, try to resolve it
       if (!channelId.match(/^UC[\w-]{22}$/)) {
-        console.log('Need to resolve channel ID for:', channelId)
+        console.log('🔍 Need to resolve channel ID for:', channelId)
         const urlType = channelUrl.includes('@') ? 'handle' : 'username'
+        console.log('🔍 URL type determined:', urlType)
         const resolvedId = await resolveChannelId(channelId, urlType, validAccessToken || undefined)
         
         if (!resolvedId) {
+          console.log('❌ Could not resolve channel ID')
           return NextResponse.json(
             { error: 'Could not find channel. Please verify the URL is correct.' },
             { status: 404 }
@@ -206,9 +271,11 @@ export async function POST(request: NextRequest) {
         }
         
         channelId = resolvedId
+        console.log('✅ Channel ID resolved to:', channelId)
       }
     }
 
+    console.log('🔧 Building search parameters...')
     // Build search parameters
     const searchParams = new URLSearchParams({
       part: 'snippet,id',
@@ -220,38 +287,46 @@ export async function POST(request: NextRequest) {
     // Add search query if provided
     if (searchQuery) {
       searchParams.append('q', searchQuery)
+      console.log('🔍 Added search query to params')
     }
 
     // Add channel ID if provided
     if (channelId) {
-      console.log('Adding channelId to search:', channelId)
+      console.log('🔗 Adding channelId to search:', channelId)
       searchParams.append('channelId', channelId)
     }
 
     // Use OAuth token if available, otherwise fall back to API key
     if (validAccessToken) {
       searchParams.append('access_token', validAccessToken)
-      console.log('Using OAuth token for search')
+      console.log('🔑 Using OAuth token for search')
     } else {
       searchParams.append('key', API_KEY)
-      console.log('Using API key for search')
+      console.log('🔑 Using API key for search')
     }
 
-    console.log('Final search URL params:', searchParams.toString())
+    console.log('🔧 Final search URL params:', searchParams.toString())
 
+    console.log('📡 Making YouTube API request...')
     const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${searchParams}`)
+    console.log('📡 YouTube API response received')
+    console.log('📡 YouTube API response status:', response.status)
+    
     const data = await response.json()
-
-    console.log('YouTube API response status:', response.status)
-    console.log('YouTube API response data:', JSON.stringify(data, null, 2))
+    console.log('📡 YouTube API response parsed')
+    console.log('📡 YouTube API response data:', JSON.stringify(data, null, 2))
 
     if (!response.ok) {
+      console.log('❌ YouTube API request failed')
       return NextResponse.json(
         { error: data.error?.message || 'YouTube API error', details: data },
         { status: response.status }
       )
     }
 
+    console.log('✅ YouTube API request successful')
+    console.log('📊 Returning response with', data.items?.length || 0, 'items')
+    
     return NextResponse.json({
       success: true,
       data,
@@ -264,7 +339,8 @@ export async function POST(request: NextRequest) {
     })
     
   } catch (error) {
-    console.error('YouTube search error:', error)
+    console.error('💥 YouTube search error:', error)
+    console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -273,6 +349,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  console.log('📍 GET request to YouTube search API')
   return NextResponse.json({
     message: 'YouTube search API is working',
     method: 'GET',
