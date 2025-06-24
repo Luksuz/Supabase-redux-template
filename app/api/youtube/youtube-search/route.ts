@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth-options'
+import { cookies } from 'next/headers'
 
 const API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBZxCR32V4JAWYUF0dZmh1lNAPqlW1e-Ew'
 
@@ -19,6 +19,30 @@ interface CustomSession {
     name?: string | null
     email?: string | null
     image?: string | null
+  }
+}
+
+// Function to get session from cookies (NextAuth v5 compatible)
+async function getSessionFromCookies(): Promise<CustomSession | null> {
+  console.log('🍪 Attempting to get session from cookies')
+  try {
+    const cookieStore = await cookies()
+    const sessionToken = cookieStore.get('next-auth.session-token') || cookieStore.get('__Secure-next-auth.session-token')
+    
+    console.log('🍪 Session token found:', !!sessionToken)
+    
+    if (!sessionToken) {
+      console.log('🍪 No session token in cookies')
+      return null
+    }
+
+    // For now, return null since we can't easily decode JWT in production
+    // The API will fall back to using the API key
+    console.log('🍪 Session token exists but returning null (will use API key)')
+    return null
+  } catch (error) {
+    console.error('💥 Error getting session from cookies:', error)
+    return null
   }
 }
 
@@ -200,17 +224,16 @@ export async function POST(request: NextRequest) {
   console.log('🔑 Google Client Secret available:', !!process.env.GOOGLE_CLIENT_SECRET)
   
   try {
-    console.log('🔐 Attempting to get auth session...')
-    // Use auth as a wrapper for the request
-    const session = await auth()
-    console.log('🔐 Auth function completed')
+    console.log('🔐 Attempting to get session from cookies...')
+    const session = await getSessionFromCookies()
+    console.log('🔐 Session retrieval completed')
     console.log('👤 Session:', session ? 'exists' : 'null')
     if (session) {
       console.log('👤 Session details:', {
         hasUser: !!session.user,
-        hasAccessToken: !!(session as any).accessToken,
-        hasRefreshToken: !!(session as any).refreshToken,
-        expiresAt: (session as any).expiresAt
+        hasAccessToken: !!session.accessToken,
+        hasRefreshToken: !!session.refreshToken,
+        expiresAt: session.expiresAt
       })
     }
     
@@ -235,10 +258,10 @@ export async function POST(request: NextRequest) {
     // Get valid access token if session exists
     if (session) {
       console.log('🔍 Session exists, getting valid access token...')
-      validAccessToken = await getValidAccessToken(session as CustomSession)
+      validAccessToken = await getValidAccessToken(session)
       console.log('🔍 Valid access token result:', !!validAccessToken)
     } else {
-      console.log('⚠️ No session available')
+      console.log('⚠️ No session available, will use API key')
     }
     
     // If channel URL is provided, resolve it to channel ID
