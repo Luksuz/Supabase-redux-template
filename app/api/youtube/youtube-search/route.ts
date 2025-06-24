@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth-options'
+import { auth } from '@/lib/auth-options'
 
 const API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBZxCR32V4JAWYUF0dZmh1lNAPqlW1e-Ew'
 
@@ -160,7 +159,7 @@ export async function POST(request: NextRequest) {
   console.log('YouTube search API endpoint hit')
   
   try {
-    const session = await getServerSession(authOptions) as CustomSession | null
+    const session = await auth() as CustomSession | null
     const { searchQuery, channelUrl, maxResults = 50, sortOrder = 'date' }: SearchParams = await request.json()
     
     console.log('Request params:', { searchQuery, channelUrl, maxResults, sortOrder })
