@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   console.log('=== PATCH /api/fine-tuning/jobs/[id] ===')
   
@@ -17,7 +17,7 @@ export async function PATCH(
     console.log('Request body:', requestBody)
     
     const { name, description, theme } = requestBody
-    const jobId = params.id
+    const { id: jobId } = await params
 
     if (!name?.trim() || !theme?.trim()) {
       console.log('Validation failed: missing name or theme')
@@ -73,7 +73,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   console.log('=== DELETE /api/fine-tuning/jobs/[id] ===')
   
@@ -82,7 +82,7 @@ export async function DELETE(
     const supabase = await createClient()
     console.log('Supabase client created successfully')
     
-    const jobId = params.id
+    const { id: jobId } = await params
 
     // Get current user
     console.log('Getting user authentication...')
