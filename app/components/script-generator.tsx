@@ -14,7 +14,8 @@ import {
   setError,
   loadJobs,
   type FineTuningJob,
-  type FineTuningSection
+  type FineTuningSection,
+  setCurrentJob
 } from '@/lib/features/scripts/scriptsSlice'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,11 +29,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Copy, Download, Plus, Wand2, FileText } from 'lucide-react'
+import { Loader2, Copy, Download, Plus, Wand2, FileText, Youtube, Database, YoutubeIcon } from 'lucide-react'
 
 export default function ScriptGenerator() {
   const dispatch = useAppDispatch()
   const { currentJob, jobs, isLoading, error } = useAppSelector((state) => state.scripts)
+  
+  // Get YouTube research data from Redux store
+  const youtubeState = useAppSelector((state) => state.youtube)
 
   // Form states
   const [name, setName] = useState('')
@@ -42,10 +46,241 @@ export default function ScriptGenerator() {
   const [tone, setTone] = useState('')
   const [stylePreferences, setStylePreferences] = useState('')
 
+  // YouTube data integration state
+  const [includeYouTubeData, setIncludeYouTubeData] = useState(false)
+  const [youtubeDataSummary, setYoutubeDataSummary] = useState('')
+
   // Load jobs on component mount
   useEffect(() => {
     loadJobsFromDB()
   }, [])
+
+  // Update YouTube data summary when YouTube state changes
+  useEffect(() => {
+    generateYouTubeDataSummary()
+    
+    // Debug: Log the current YouTube state
+    console.log('🔍 YouTube state updated:', {
+      videosSummary: !!youtubeState.videosSummary,
+      analysisResults: youtubeState.analysisResults?.length || 0,
+      googleResearchSummaries: youtubeState.googleResearchSummaries?.length || 0,
+      youtubeResearchSummaries: youtubeState.youtubeResearchSummaries?.length || 0,
+      subtitleFiles: youtubeState.subtitleFiles?.filter(sf => sf.status === 'completed').length || 0,
+      appliedGoogleResearch: youtubeState.googleResearchSummaries?.filter(r => r.appliedToScript).length || 0,
+      appliedYouTubeResearch: youtubeState.youtubeResearchSummaries?.filter(r => r.appliedToScript).length || 0
+    })
+  }, [youtubeState])
+
+  const generateYouTubeDataSummary = () => {
+    const subtitleCount = youtubeState.subtitleFiles?.filter(sf => sf.status === 'completed').length || 0
+    const analysisCount = youtubeState.analysisResults?.length || 0
+    const hasSummary = !!youtubeState.videosSummary
+    const researchCount = (youtubeState.googleResearchSummaries?.length || 0) + (youtubeState.youtubeResearchSummaries?.length || 0)
+    
+    if (subtitleCount === 0 && analysisCount === 0 && !hasSummary && researchCount === 0) {
+      setYoutubeDataSummary('No YouTube research data available')
+      return
+    }
+
+    const parts = []
+    if (subtitleCount > 0) parts.push(`${subtitleCount} video transcripts`)
+    if (analysisCount > 0) parts.push(`${analysisCount} transcript analyses`)
+    if (hasSummary) parts.push('video collection summary')
+    if (researchCount > 0) parts.push(`${researchCount} research summaries`)
+    
+    setYoutubeDataSummary(`Available: ${parts.join(', ')}`)
+  }
+
+  const buildYouTubeResearchContext = () => {
+    // Check if there's any YouTube data available
+    const hasVideosSummary = !!youtubeState.videosSummary
+    const hasAnalysisResults = youtubeState.analysisResults && youtubeState.analysisResults.length > 0
+    const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
+    const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
+    const hasCompletedSubtitles = youtubeState.subtitleFiles && youtubeState.subtitleFiles.filter(sf => sf.status === 'completed').length > 0
+    
+    if (!hasVideosSummary && !hasAnalysisResults && !hasGoogleResearch && !hasYouTubeResearch && !hasCompletedSubtitles) {
+      console.log('❌ No YouTube research data available')
+      return ''
+    }
+
+    console.log('✅ Building YouTube research context with:', {
+      hasVideosSummary,
+      hasAnalysisResults,
+      hasGoogleResearch,
+      hasYouTubeResearch,
+      hasCompletedSubtitles
+    })
+
+    let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
+    
+    // Add note about applied research (prioritized)
+    const appliedGoogleResearch = youtubeState.googleResearchSummaries?.filter(r => r.appliedToScript) || []
+    const appliedYouTubeResearch = youtubeState.youtubeResearchSummaries?.filter(r => r.appliedToScript) || []
+    
+    if (appliedGoogleResearch.length > 0 || appliedYouTubeResearch.length > 0) {
+      context += `\n--- PRIORITIZED APPLIED RESEARCH ---\n`
+      context += `✓ ${appliedGoogleResearch.length} Google research summaries marked as applied\n`
+      context += `✓ ${appliedYouTubeResearch.length} YouTube research summaries marked as applied\n`
+      context += `Note: These research summaries were specifically selected for script generation.\n\n`
+    }
+
+    // Add video summaries if available
+    if (youtubeState.videosSummary) {
+      context += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
+      context += `Overall Theme: ${youtubeState.videosSummary.overallTheme}\n\n`
+      
+      context += 'Key Insights:\n'
+      youtubeState.videosSummary.keyInsights.forEach((insight, i) => {
+        context += `${i + 1}. ${insight}\n`
+      })
+      
+      context += '\nNarrative Themes:\n'
+      youtubeState.videosSummary.narrativeThemes.forEach((theme, i) => {
+        context += `${i + 1}. ${theme}\n`
+      })
+      
+      // Add character insights if available
+      if (youtubeState.videosSummary.characterInsights && youtubeState.videosSummary.characterInsights.length > 0) {
+        context += '\nCharacter Insights:\n'
+        youtubeState.videosSummary.characterInsights.forEach((insight, i) => {
+          context += `${i + 1}. ${insight}\n`
+        })
+      }
+      
+      // Add conflict elements if available
+      if (youtubeState.videosSummary.conflictElements && youtubeState.videosSummary.conflictElements.length > 0) {
+        context += '\nConflict Elements:\n'
+        youtubeState.videosSummary.conflictElements.forEach((conflict, i) => {
+          context += `${i + 1}. ${conflict}\n`
+        })
+      }
+      
+      // Add story ideas if available
+      if (youtubeState.videosSummary.storyIdeas && youtubeState.videosSummary.storyIdeas.length > 0) {
+        context += '\nStory Ideas:\n'
+        youtubeState.videosSummary.storyIdeas.forEach((idea, i) => {
+          context += `${i + 1}. ${idea}\n`
+        })
+      }
+      
+      // Add common patterns if available
+      if (youtubeState.videosSummary.commonPatterns && youtubeState.videosSummary.commonPatterns.length > 0) {
+        context += '\nCommon Patterns:\n'
+        youtubeState.videosSummary.commonPatterns.forEach((pattern, i) => {
+          context += `${i + 1}. ${pattern}\n`
+        })
+      }
+      
+      context += `\nCreative Prompt: ${youtubeState.videosSummary.creativePrompt}\n`
+      
+      // Add individual video summaries with enhanced fields
+      context += '\n--- INDIVIDUAL VIDEO ANALYSIS ---\n'
+      youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
+        context += `\nVideo ${i + 1}: ${video.title}\n`
+        context += `Main Topic: ${video.mainTopic}\n`
+        context += `Emotional Tone: ${video.emotionalTone}\n`
+        
+        context += 'Key Points:\n'
+        video.keyPoints.forEach(point => context += `- ${point}\n`)
+        
+        context += 'Narrative Elements:\n'
+        video.narrativeElements.forEach(element => context += `- ${element}\n`)
+        
+        // Add enhanced fields if available
+        if (video.keyQuotes && video.keyQuotes.length > 0) {
+          context += 'Key Quotes:\n'
+          video.keyQuotes.forEach(quote => context += `- "${quote}"\n`)
+        }
+        
+        if (video.dramaticElements && video.dramaticElements.length > 0) {
+          context += 'Dramatic Elements:\n'
+          video.dramaticElements.forEach(element => context += `- ${element}\n`)
+        }
+        
+        if (video.contextualInfo) {
+          context += `Contextual Information: ${video.contextualInfo}\n`
+        }
+        
+        if (video.timestamp) {
+          context += `Key Timestamp: ${video.timestamp}\n`
+        }
+      })
+    }
+
+    // Add transcript analysis results
+    if (youtubeState.analysisResults && youtubeState.analysisResults.length > 0) {
+      context += '\n--- TRANSCRIPT ANALYSIS RESULTS ---\n'
+      youtubeState.analysisResults.forEach((result, i) => {
+        context += `\nAnalysis ${i + 1} - Query: "${result.query}"\n`
+        result.analysis.forEach((analysis, j) => {
+          context += `Result ${j + 1}:\n`
+          context += `- Summary: ${analysis.summary}\n`
+          context += `- Relevant Content: "${analysis.relevantContent}"\n`
+          context += `- Timestamp: ${analysis.timestamp}\n`
+          context += `- Confidence: ${Math.round(analysis.confidence * 100)}%\n`
+          
+          // Add enhanced analysis fields
+          if (analysis.keyQuotes && analysis.keyQuotes.length > 0) {
+            context += `- Key Quotes: ${analysis.keyQuotes.map(q => `"${q}"`).join(', ')}\n`
+          }
+          
+          if (analysis.dramaticElements && analysis.dramaticElements.length > 0) {
+            context += `- Dramatic Elements: ${analysis.dramaticElements.join(', ')}\n`
+          }
+          
+          if (analysis.contextualInfo) {
+            context += `- Context: ${analysis.contextualInfo}\n`
+          }
+        })
+      })
+    }
+
+    // Add ALL Google research summaries (applied ones are prioritized above)
+    if (youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0) {
+      context += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
+      youtubeState.googleResearchSummaries.forEach((research, i) => {
+        const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+        context += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
+        context += `Insights: ${research.insights}\n`
+        context += 'Key Findings:\n'
+        research.keyFindings.forEach(finding => context += `- ${finding}\n`)
+        context += 'Recommendations:\n'
+        research.recommendations.forEach(rec => context += `- ${rec}\n`)
+      })
+    }
+
+    // Add ALL YouTube research summaries (applied ones are prioritized above)
+    if (youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0) {
+      context += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
+      youtubeState.youtubeResearchSummaries.forEach((research, i) => {
+        const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+        context += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
+        context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
+        context += 'Key Insights:\n'
+        research.videosSummary.keyInsights.forEach(insight => context += `- ${insight}\n`)
+      })
+    }
+
+    // Add subtitle content (first few for context)
+    const completedSubtitles = youtubeState.subtitleFiles?.filter(sf => sf.status === 'completed') || []
+    if (completedSubtitles.length > 0) {
+      context += '\n--- TRANSCRIPT EXCERPTS ---\n'
+      completedSubtitles.slice(0, 3).forEach((subtitle, i) => {
+        context += `\nTranscript ${i + 1}: ${subtitle.title}\n`
+        // Extract first few lines of subtitle for context
+        const lines = subtitle.srtContent.split('\n').slice(0, 20).join('\n')
+        context += `Content Preview:\n${lines}\n...\n`
+      })
+    }
+
+    context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
+    
+    console.log('📝 Generated YouTube research context length:', context.length)
+    console.log('📝 Context preview:', context.substring(0, 300) + '...')
+    
+    return context
+  }
 
   const loadJobsFromDB = async () => {
     try {
@@ -71,17 +306,57 @@ export default function ScriptGenerator() {
     try {
       dispatch(setLoading(true))
       
+      console.log('🏗️ Creating job with:', { name, theme, description })
+      
+      // Build enhanced description with YouTube data if included
+      let enhancedDescription = description
+      if (includeYouTubeData) {
+        const youtubeContext = buildYouTubeResearchContext()
+        enhancedDescription = `${description}\n\n=== YOUTUBE RESEARCH DATA INCLUDED ===\n${youtubeContext}`
+      }
+      
       // Create job in database
       const response = await fetch('/api/fine-tuning/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, theme })
+        body: JSON.stringify({ 
+          name, 
+          description: enhancedDescription, 
+          theme,
+          includeYouTubeData,
+          youtubeDataSummary: includeYouTubeData ? youtubeDataSummary : null
+        })
       })
       
       const data = await response.json()
       
       if (response.ok) {
-        dispatch(createNewJob({ name, description, theme }))
+        console.log('✅ Job created in database:', data.job)
+        
+        // Create job in Redux state with the actual database ID
+        const newJob = {
+          id: data.job.id,
+          name: data.job.name,
+          description: enhancedDescription,
+          theme: data.job.theme,
+          model_name: data.job.model_name || 'gpt-4o-mini',
+          total_sections: 0,
+          completed_sections: 0,
+          total_training_examples: 0,
+          sections: [],
+          isGeneratingSections: false,
+          sectionsGenerated: false,
+          created_at: data.job.created_at,
+          updated_at: data.job.updated_at
+        }
+        
+        dispatch(createNewJob({ name: data.job.name, description: enhancedDescription, theme: data.job.theme }))
+        
+        // Also set as current job explicitly
+        dispatch(setCurrentJob(newJob))
+        
+        console.log('✅ Job set in Redux state:', newJob)
+        
         // Reset form
         setName('')
         setDescription('')
@@ -89,10 +364,13 @@ export default function ScriptGenerator() {
         setTargetAudience('')
         setTone('')
         setStylePreferences('')
+        setIncludeYouTubeData(false)
       } else {
+        console.error('❌ Failed to create job:', data.error)
         dispatch(setError(data.error || 'Failed to create job'))
       }
     } catch (error) {
+      console.error('❌ Job creation error:', error)
       dispatch(setError('Failed to create job'))
     } finally {
       dispatch(setLoading(false))
@@ -100,26 +378,91 @@ export default function ScriptGenerator() {
   }
 
   const handleGenerateSections = async () => {
-    if (!currentJob) return
+    if (!currentJob) {
+      console.error('❌ No current job available for section generation')
+      dispatch(setError('No current job selected. Please create a job first.'))
+      return
+    }
+
+    console.log('🎯 Current job details:', {
+      id: currentJob.id,
+      name: currentJob.name,
+      theme: currentJob.theme,
+      description: currentJob.description?.substring(0, 100) + '...'
+    })
 
     try {
       dispatch(startGeneratingSections())
 
-      // Generate sections using OpenAI
+      // Build enhanced context with YouTube data
+      let additionalContext = ''
+      let additionalResearch = ''
+      
+      // Always check if we have YouTube research data available
+      const youtubeContext = buildYouTubeResearchContext()
+      const hasActualYouTubeData = youtubeContext.trim().length > 0
+      
+      // Check if job was created with YouTube data OR if currently enabled OR if data is available
+      const hasYouTubeData = includeYouTubeData || 
+                            currentJob.description?.includes('=== YOUTUBE RESEARCH DATA INCLUDED ===') ||
+                            hasActualYouTubeData
+      
+      console.log('🔍 YouTube data detection results:', {
+        includeYouTubeData,
+        hasJobMarker: currentJob.description?.includes('=== YOUTUBE RESEARCH DATA INCLUDED ==='),
+        hasActualYouTubeData,
+        finalDecision: hasYouTubeData,
+        contextLength: youtubeContext.length
+      })
+      
+      if (hasYouTubeData && hasActualYouTubeData) {
+        additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
+        additionalResearch = youtubeContext
+        
+        console.log('✅ YouTube research data included in section generation')
+        console.log('📊 Research context length:', youtubeContext.length)
+        console.log('📋 Research context preview:', youtubeContext.substring(0, 200) + '...')
+      } else {
+        console.log('❌ No YouTube research data found or not enabled')
+        console.log('📊 Available YouTube state summary:', {
+          videosSummary: !!youtubeState.videosSummary,
+          analysisResults: youtubeState.analysisResults?.length || 0,
+          googleResearch: youtubeState.googleResearchSummaries?.length || 0,
+          youtubeResearch: youtubeState.youtubeResearchSummaries?.length || 0,
+          subtitleFiles: youtubeState.subtitleFiles?.filter(sf => sf.status === 'completed').length || 0,
+          appliedGoogleResearch: youtubeState.googleResearchSummaries?.filter(r => r.appliedToScript).length || 0,
+          appliedYouTubeResearch: youtubeState.youtubeResearchSummaries?.filter(r => r.appliedToScript).length || 0
+        })
+      }
+
+      const requestPayload = {
+        theme: currentJob.theme,
+        title: currentJob.name,
+        target_audience: targetAudience,
+        tone: tone,
+        style_preferences: stylePreferences,
+        additionalContext,
+        additionalResearch
+      }
+
+      console.log('🚀 Sending to API with full payload:', {
+        ...requestPayload,
+        additionalResearchLength: additionalResearch.length,
+        additionalResearchPreview: additionalResearch.substring(0, 100) + (additionalResearch.length > 100 ? '...' : '')
+      })
+
+      // Generate sections using OpenAI with enhanced prompts
       const response = await fetch('/api/script/generate-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          theme: currentJob.theme,
-          target_audience: targetAudience,
-          tone: tone,
-          style_preferences: stylePreferences
-        })
+        body: JSON.stringify(requestPayload)
       })
 
       const data = await response.json()
 
       if (response.ok && data.sections) {
+        console.log('✅ Sections generated successfully:', data.sections.length)
+        
         // Save sections to database
         const sectionsResponse = await fetch('/api/fine-tuning/sections', {
           method: 'POST',
@@ -142,13 +485,17 @@ export default function ScriptGenerator() {
             ...section,
             texts: []
           }))))
+          console.log('✅ Sections saved to database and Redux state updated')
         } else {
+          console.error('❌ Failed to save sections to database:', sectionsData.error)
           dispatch(setError(sectionsData.error || 'Failed to save sections'))
         }
       } else {
+        console.error('❌ Failed to generate sections:', data.error)
         dispatch(setError(data.error || 'Failed to generate sections'))
       }
     } catch (error) {
+      console.error('❌ Section generation error:', error)
       dispatch(setError('Failed to generate sections'))
     }
   }
@@ -179,12 +526,23 @@ export default function ScriptGenerator() {
     try {
       dispatch(startGeneratingScript(section.id))
 
+      // Build enhanced context for script generation
+      let enhancedInstructions = section.writing_instructions
+      
+      // Check if job was created with YouTube data OR if currently enabled
+      const hasYouTubeData = includeYouTubeData || currentJob?.description?.includes('=== YOUTUBE RESEARCH DATA INCLUDED ===')
+      
+      if (hasYouTubeData) {
+        const youtubeContext = buildYouTubeResearchContext()
+        enhancedInstructions += `\n\nAdditional Research Context:${youtubeContext}`
+      }
+
       const response = await fetch('/api/script/generate-full-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: section.title,
-          writingInstructions: section.writing_instructions,
+          writingInstructions: enhancedInstructions,
           theme: currentJob?.theme,
           targetAudience: section.target_audience,
           tone: section.tone,
@@ -201,7 +559,7 @@ export default function ScriptGenerator() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             outline_section_id: section.id,
-            input_text: `Theme: ${currentJob?.theme}\nTitle: ${section.title}\nInstructions: ${section.writing_instructions}`,
+            input_text: `Theme: ${currentJob?.theme}\nTitle: ${section.title}\nInstructions: ${enhancedInstructions}`,
             generated_script: data.script,
             text_order: section.texts?.length || 0
           })
@@ -260,6 +618,15 @@ export default function ScriptGenerator() {
     URL.revokeObjectURL(url)
   }
 
+  // Debug function to test YouTube research context building
+  const testYouTubeContext = () => {
+    console.log('🧪 Testing YouTube research context building...')
+    const context = buildYouTubeResearchContext()
+    console.log('📋 Generated context length:', context.length)
+    console.log('📋 Generated context:', context)
+    alert(`YouTube research context generated!\nLength: ${context.length} characters\nCheck console for full content.`)
+  }
+
   return (
     <div className="flex-1 p-6 bg-gray-50 overflow-auto">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -273,6 +640,63 @@ export default function ScriptGenerator() {
             <p className="text-red-800">{error}</p>
           </div>
         )}
+
+        {/* YouTube Data Integration Card */}
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-900">
+              <YoutubeIcon className="h-5 w-5" />
+              YouTube Research Integration
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="includeYouTubeData"
+                  checked={includeYouTubeData}
+                  onChange={(e) => setIncludeYouTubeData(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="includeYouTubeData" className="text-sm font-medium text-blue-800">
+                  Include YouTube research data in script generation
+                </label>
+              </div>
+              
+              <div className="bg-white p-3 rounded border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Database className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">Research Data Status:</span>
+                </div>
+                <p className="text-sm text-gray-700">{youtubeDataSummary}</p>
+              </div>
+              
+              {includeYouTubeData && (
+                <div className="bg-blue-100 p-3 rounded border border-blue-300">
+                  <p className="text-sm text-blue-800">
+                    ✓ Your YouTube research data will be integrated into the system and user prompts 
+                    to enhance script generation with real insights from analyzed videos, transcripts, 
+                    and research summaries.
+                  </p>
+                </div>
+              )}
+              
+              {/* Debug Test Button */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={testYouTubeContext}
+                  className="text-xs"
+                >
+                  🧪 Test YouTube Context
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Job Selection/Creation */}
         {!currentJob && (
@@ -296,12 +720,16 @@ export default function ScriptGenerator() {
                 </div>
                 <div>
                   <Label htmlFor="theme">Theme</Label>
-                  <Input
-                    id="theme"
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value)}
-                    placeholder="e.g., Product descriptions, Blog posts"
-                  />
+                  <Select value={theme} onValueChange={setTheme}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rap">Hip-Hop/Rap Culture</SelectItem>
+                      <SelectItem value="crime">True Crime</SelectItem>
+                      <SelectItem value="general">General Content</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               
@@ -329,7 +757,7 @@ export default function ScriptGenerator() {
                 ) : (
                   <>
                     <Plus className="mr-2 h-4 w-4" />
-                    Create Job
+                    Create Job {includeYouTubeData && '(with YouTube Data)'}
                   </>
                 )}
               </Button>
@@ -341,7 +769,15 @@ export default function ScriptGenerator() {
         {currentJob && (
           <Card>
             <CardHeader>
-              <CardTitle>{currentJob.name}</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>{currentJob.name}</span>
+                {currentJob.description?.includes('YOUTUBE RESEARCH DATA') && (
+                  <div className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm">
+                    <Youtube className="h-4 w-4" />
+                    Enhanced with YouTube Data
+                  </div>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -399,6 +835,8 @@ export default function ScriptGenerator() {
                       <SelectItem value="authoritative">Authoritative</SelectItem>
                       <SelectItem value="conversational">Conversational</SelectItem>
                       <SelectItem value="humorous">Humorous</SelectItem>
+                      <SelectItem value="streetwise">Streetwise</SelectItem>
+                      <SelectItem value="dramatic">Dramatic</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -539,7 +977,15 @@ export default function ScriptGenerator() {
                 {jobs.slice(0, 5).map((job: FineTuningJob) => (
                   <div key={job.id} className="flex justify-between items-center p-3 border rounded-lg">
                     <div>
-                      <p className="font-medium">{job.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{job.name}</p>
+                        {job.description?.includes('YOUTUBE RESEARCH DATA') && (
+                          <div className="flex items-center gap-1 bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs">
+                            <Youtube className="h-3 w-3" />
+                            Enhanced
+                          </div>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500">{job.theme}</p>
                     </div>
                     <div className="text-right">

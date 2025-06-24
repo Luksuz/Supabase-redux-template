@@ -27,6 +27,13 @@ export interface PendingSection {
   title: string
   writingInstructions: string
   tempId: string // Temporary ID for UI tracking
+  // YouTube reference fields
+  youtubeLinks?: Array<{
+    url: string
+    timestamps?: string
+    title?: string
+  }>
+  timestamps?: string[]
 }
 
 // New interface for pending scripts waiting for approval
@@ -38,6 +45,12 @@ export interface PendingScript {
   tempId: string // Temporary ID for UI tracking
   characterCount: number
   wordCount: number
+  // YouTube reference fields
+  youtubeLinks?: Array<{
+    url: string
+    timestamps?: string
+    title?: string
+  }>
 }
 
 export interface Voice {
@@ -84,6 +97,13 @@ export interface FineTuningSection {
   // Section Rating Fields (matching database schema)
   quality_score?: number
   rating_notes?: string
+  // YouTube reference fields
+  youtubeLinks?: Array<{
+    url: string
+    timestamps?: string
+    title?: string
+  }>
+  timestamps?: string[]
 }
 
 export interface FineTuningJob {
@@ -281,10 +301,15 @@ export const scriptsSlice = createSlice({
     
     setSections: (state, action: PayloadAction<FineTuningSection[]>) => {
       if (state.currentJob) {
-        state.currentJob.sections = action.payload
+        // Ensure all sections have initialized texts arrays
+        const sectionsWithTexts = action.payload.map(section => ({
+          ...section,
+          texts: section.texts || []
+        }))
+        state.currentJob.sections = sectionsWithTexts
         state.currentJob.isGeneratingSections = false
         state.currentJob.sectionsGenerated = true
-        state.currentJob.total_sections = action.payload.length
+        state.currentJob.total_sections = sectionsWithTexts.length
         state.currentJob.updated_at = new Date().toISOString()
       }
     },
@@ -325,11 +350,15 @@ export const scriptsSlice = createSlice({
             id: text.id || `${Date.now()}-${Math.random()}`,
             created_at: new Date().toISOString()
           }
+          // Ensure texts array is initialized
+          if (!section.texts) {
+            section.texts = []
+          }
           section.texts.push(newText)
           section.isGeneratingScript = false
           section.training_examples_count = section.texts.length
           state.currentJob.total_training_examples = state.currentJob.sections.reduce(
-            (total, s) => total + s.texts.length, 0
+            (total, s) => total + (s.texts?.length || 0), 0
           )
           state.currentJob.updated_at = new Date().toISOString()
         }
@@ -345,13 +374,15 @@ export const scriptsSlice = createSlice({
       if (state.currentJob) {
         const { textId, quality_score, is_validated, validation_notes } = action.payload
         for (const section of state.currentJob.sections) {
-          const text = section.texts.find(t => t.id === textId)
-          if (text) {
-            text.quality_score = quality_score
-            text.is_validated = is_validated
-            text.validation_notes = validation_notes
-            state.currentJob.updated_at = new Date().toISOString()
-            break
+          if (section.texts) {
+            const text = section.texts.find(t => t.id === textId)
+            if (text) {
+              text.quality_score = quality_score
+              text.is_validated = is_validated
+              text.validation_notes = validation_notes
+              state.currentJob.updated_at = new Date().toISOString()
+              break
+            }
           }
         }
       }

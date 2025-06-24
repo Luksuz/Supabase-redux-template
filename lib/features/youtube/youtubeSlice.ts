@@ -32,6 +32,9 @@ export interface TranscriptAnalysis {
   relevantContent: string
   confidence: number
   youtubeUrl?: string
+  dramaticElements?: string[]
+  keyQuotes?: string[]
+  contextualInfo?: string
 }
 
 // Analysis Result interface - updated to handle multiple results
@@ -59,6 +62,9 @@ export interface VideoSummary {
   timestamp?: string
   narrativeElements: string[]
   emotionalTone: string
+  dramaticElements?: string[]
+  keyQuotes?: string[]
+  contextualInfo?: string
 }
 
 export interface VideosSummary {
@@ -93,6 +99,7 @@ export interface GoogleResearchSummary {
   sources: string[]
   timestamp: string
   usingMock?: boolean
+  appliedToScript?: boolean
 }
 
 export interface YouTubeResearchSummary {
@@ -101,6 +108,7 @@ export interface YouTubeResearchSummary {
   videosSummary: VideosSummary
   timestamp: string
   usingMock?: boolean
+  appliedToScript?: boolean
 }
 
 // SRT Entry interface for deduplication
@@ -580,7 +588,8 @@ export const performGoogleResearch = createAsyncThunk(
       recommendations: summaryData.recommendations,
       sources: summaryData.sources || [],
       timestamp: new Date().toISOString(),
-      usingMock: summaryData.usingMock
+      usingMock: summaryData.usingMock,
+      appliedToScript: false
     }
   }
 )
@@ -635,7 +644,8 @@ export const summarizeVideos = createAsyncThunk(
         query: `YouTube video analysis (${videosWithSubtitles.length} videos)`,
         videosSummary: data.summary,
         timestamp: new Date().toISOString(),
-        usingMock: data.usingMock
+        usingMock: data.usingMock,
+        appliedToScript: false
       }
     }
   }
@@ -757,6 +767,37 @@ export const youtubeSlice = createSlice({
     clearAllResearchSummaries: (state) => {
       state.googleResearchSummaries = []
       state.youtubeResearchSummaries = []
+    },
+    
+    // Mark research summaries as applied to script
+    markGoogleResearchAsApplied: (state, action: PayloadAction<string>) => {
+      const summary = state.googleResearchSummaries.find(s => s.id === action.payload)
+      if (summary) {
+        summary.appliedToScript = true
+      }
+    },
+    
+    markYouTubeResearchAsApplied: (state, action: PayloadAction<string>) => {
+      const summary = state.youtubeResearchSummaries.find(s => s.id === action.payload)
+      if (summary) {
+        summary.appliedToScript = true
+      }
+    },
+    
+    markMultipleResearchAsApplied: (state, action: PayloadAction<{ googleIds: string[], youtubeIds: string[] }>) => {
+      action.payload.googleIds.forEach(id => {
+        const summary = state.googleResearchSummaries.find(s => s.id === id)
+        if (summary) {
+          summary.appliedToScript = true
+        }
+      })
+      
+      action.payload.youtubeIds.forEach(id => {
+        const summary = state.youtubeResearchSummaries.find(s => s.id === id)
+        if (summary) {
+          summary.appliedToScript = true
+        }
+      })
     },
     
     // Preview modal actions
@@ -926,6 +967,9 @@ export const {
   removeGoogleResearchSummary,
   removeYouTubeResearchSummary,
   clearAllResearchSummaries,
+  markGoogleResearchAsApplied,
+  markYouTubeResearchAsApplied,
+  markMultipleResearchAsApplied,
 } = youtubeSlice.actions
 
 // Export reducer

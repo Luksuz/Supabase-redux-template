@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GenerateImageRequestBody, GenerateImageResponse } from '@/types/image-generation';
 import { v4 as uuidv4 } from 'uuid';
 import { fal } from "@fal-ai/client";
 import OpenAI from 'openai';
@@ -247,6 +246,19 @@ async function generateLeonardoPhoenixImage(prompt: string, width: number, heigh
 
   console.log('✅ Leonardo Phoenix image generated successfully');
   return imageUrl;
+}
+
+// Define types directly in the file
+interface GenerateImageRequestBody {
+  provider?: string;
+  prompt: string;
+  numberOfImages?: number;
+  minimaxAspectRatio?: '16:9' | '1:1' | '9:16';
+  userId?: string;
+}
+
+interface GenerateImageResponse {
+  imageUrls: string[];
 }
 
 export async function POST(request: NextRequest) {

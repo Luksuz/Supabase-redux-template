@@ -27,6 +27,7 @@ import {
   removeGoogleResearchSummary,
   removeYouTubeResearchSummary,
   clearAllResearchSummaries,
+  markMultipleResearchAsApplied,
   selectSearchForm,
   selectSearchResults,
   selectSubtitleGeneration,
@@ -376,6 +377,13 @@ const CurrentResearchTab = ({
     
     if (selectedSummaries.length === 0) return
     
+    // Separate Google and YouTube research IDs
+    const googleIds = selectedSummaries.filter(s => s.type === 'google').map(s => s.id)
+    const youtubeIds = selectedSummaries.filter(s => s.type === 'youtube').map(s => s.id)
+    
+    // Mark selected summaries as applied in Redux state
+    dispatch(markMultipleResearchAsApplied({ googleIds, youtubeIds }))
+    
     // Show success message with guidance
     const summaryTypes = selectedSummaries.map(s => s.type === 'google' ? 'Google Research' : 'YouTube Analysis').join(', ')
     
@@ -384,7 +392,7 @@ const CurrentResearchTab = ({
     console.log('Selected research summaries for script generation:', selectedSummaries)
     
     // Show success message
-    alert(`✅ Selected ${selectedSummaries.length} research summaries (${summaryTypes}) for script generation!\n\nTo use this research in your scripts:\n1. Go to the Script Generator page\n2. Create or select a job\n3. Click "Merge Research Data" to integrate this research with your prompts\n\nThe research data is now available in the script generator.`)
+    alert(`✅ Applied ${selectedSummaries.length} research summaries (${summaryTypes}) to script generation!\n\nThese research summaries are now marked as applied and will be automatically included when generating script sections.\n\nGo to the Script Generator to create sections with this research data.`)
     
     // Clear selection after applying
     setSelectedForScript(new Set())
@@ -395,6 +403,9 @@ const CurrentResearchTab = ({
     ...researchSummaries.youtubeResearchSummaries.map((s: YouTubeResearchSummary) => ({ ...s, type: 'youtube' }))
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
+  // Count applied summaries
+  const appliedCount = allSummaries.filter(s => s.appliedToScript).length
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -402,6 +413,11 @@ const CurrentResearchTab = ({
         <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <BookOpen className="h-6 w-6" />
           Current Research ({allSummaries.length})
+          {appliedCount > 0 && (
+            <span className="text-sm font-normal text-green-600">
+              • {appliedCount} applied
+            </span>
+          )}
         </h3>
         
         <div className="flex gap-2">
@@ -440,9 +456,16 @@ const CurrentResearchTab = ({
           {allSummaries.map((summary: any) => {
             const isExpanded = expandedSummaries.has(summary.id)
             const isSelected = selectedForScript.has(summary.id)
+            const isApplied = summary.appliedToScript
             
             return (
-              <div key={summary.id} className={`border rounded-lg ${isSelected ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-white'}`}>
+              <div key={summary.id} className={`border rounded-lg ${
+                isApplied 
+                  ? 'border-green-300 bg-green-50' 
+                  : isSelected 
+                    ? 'border-purple-300 bg-purple-50' 
+                    : 'border-gray-200 bg-white'
+              }`}>
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -450,7 +473,8 @@ const CurrentResearchTab = ({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleScriptSelection(summary.id)}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                        disabled={isApplied}
+                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded disabled:opacity-50"
                       />
                       
                       <div className="flex items-center gap-2">
@@ -463,6 +487,12 @@ const CurrentResearchTab = ({
                           {summary.type === 'google' ? 'Google Research' : 'YouTube Analysis'}: {summary.query}
                         </h4>
                       </div>
+                      
+                      {isApplied && (
+                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
+                          ✓ Applied to Script
+                        </span>
+                      )}
                       
                       {summary.usingMock && (
                         <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-xs">
@@ -572,6 +602,74 @@ const CurrentResearchTab = ({
                             </ul>
                           </div>
                           
+                          {/* Character Insights */}
+                          {summary.videosSummary.characterInsights && summary.videosSummary.characterInsights.length > 0 && (
+                            <div>
+                              <h5 className="font-semibold text-gray-800 mb-2">Character Insights</h5>
+                              <ul className="space-y-1">
+                                {summary.videosSummary.characterInsights.map((insight: string, index: number) => (
+                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                    <span className="bg-indigo-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                      👤
+                                    </span>
+                                    {insight}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {/* Conflict Elements */}
+                          {summary.videosSummary.conflictElements && summary.videosSummary.conflictElements.length > 0 && (
+                            <div>
+                              <h5 className="font-semibold text-gray-800 mb-2">Conflict Elements</h5>
+                              <ul className="space-y-1">
+                                {summary.videosSummary.conflictElements.map((conflict: string, index: number) => (
+                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                    <span className="bg-red-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                      ⚡
+                                    </span>
+                                    {conflict}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {/* Story Ideas */}
+                          {summary.videosSummary.storyIdeas && summary.videosSummary.storyIdeas.length > 0 && (
+                            <div>
+                              <h5 className="font-semibold text-gray-800 mb-2">Story Ideas</h5>
+                              <ul className="space-y-1">
+                                {summary.videosSummary.storyIdeas.map((idea: string, index: number) => (
+                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                    <span className="bg-green-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                      💡
+                                    </span>
+                                    {idea}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {/* Common Patterns */}
+                          {summary.videosSummary.commonPatterns && summary.videosSummary.commonPatterns.length > 0 && (
+                            <div>
+                              <h5 className="font-semibold text-gray-800 mb-2">Common Patterns</h5>
+                              <ul className="space-y-1">
+                                {summary.videosSummary.commonPatterns.map((pattern: string, index: number) => (
+                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                    <span className="bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                      🔄
+                                    </span>
+                                    {pattern}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
                           <div>
                             <h5 className="font-semibold text-gray-800 mb-2">Creative Prompt</h5>
                             <p className="text-gray-700 bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded border border-purple-200">
@@ -674,89 +772,131 @@ const AnalysisSection = ({
       {analysisResults.length > 0 && (
         <div className="space-y-2">
           <h5 className="text-sm font-medium text-purple-700">Analysis Results:</h5>
-          {analysisResults.map((result: AnalysisResult, resultIndex: number) => (
-            <div key={`${result.videoId}-${resultIndex}`} className="space-y-2">
-              <div className="text-xs font-medium text-purple-600 flex items-center gap-2">
-                Query: "{result.query}"
-                {result.usingMock && (
-                  <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded">
-                    Mock
+          {analysisResults.map((result: AnalysisResult, resultIndex: number) => {
+            const resultId = `${result.videoId}-${resultIndex}`
+            const isExpanded = expandedAnalysis.has(resultId)
+            
+            return (
+              <div key={resultId} className="space-y-2">
+                <div className="text-xs font-medium text-purple-600 flex items-center gap-2">
+                  Query: "{result.query}"
+                  {result.usingMock && (
+                    <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded">
+                      Mock
+                    </span>
+                  )}
+                  <span className="text-gray-500">
+                    ({result.analysis.length} result{result.analysis.length !== 1 ? 's' : ''})
                   </span>
-                )}
-                <span className="text-gray-500">
-                  ({result.analysis.length} result{result.analysis.length !== 1 ? 's' : ''})
-                </span>
-              </div>
-              
-              {result.analysis.map((analysis: TranscriptAnalysis, analysisIndex: number) => {
-                const resultId = `${result.videoId}-${resultIndex}-${analysisIndex}`
-                const isExpanded = expandedAnalysis.has(resultId)
+                </div>
                 
-                return (
-                  <div key={resultId} className="border border-purple-200 rounded-md bg-white ml-4">
-                    <button
-                      onClick={() => toggleAnalysisExpansion(resultId)}
-                      className="w-full px-3 py-2 text-left flex items-center justify-between hover:bg-purple-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-purple-700">
-                          Result #{analysisIndex + 1}
-                        </span>
-                        <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded">
-                          {Math.round(analysis.confidence * 100)}% confidence
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-purple-600 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatTimestamp(analysis.timestamp)}
-                        </span>
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-purple-600" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-purple-600" />
-                        )}
-                      </div>
-                    </button>
-                    
-                    {isExpanded && (
-                      <div className="px-3 pb-3 space-y-3 border-t border-purple-100">
-                        <div>
-                          <h6 className="text-xs font-semibold text-purple-700 mb-1">Summary:</h6>
-                          <p className="text-sm text-gray-700">{analysis.summary}</p>
+                {result.analysis.map((analysis: TranscriptAnalysis, analysisIndex: number) => {
+                  const resultId = `${result.videoId}-${resultIndex}-${analysisIndex}`
+                  const isExpanded = expandedAnalysis.has(resultId)
+                  
+                  return (
+                    <div key={resultId} className="border border-purple-200 rounded-md bg-white ml-4">
+                      <button
+                        onClick={() => toggleAnalysisExpansion(resultId)}
+                        className="w-full px-3 py-2 text-left flex items-center justify-between hover:bg-purple-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-purple-700">
+                            Result #{analysisIndex + 1}
+                          </span>
+                          <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded">
+                            {Math.round(analysis.confidence * 100)}% confidence
+                          </span>
                         </div>
-                        
-                        <div>
-                          <h6 className="text-xs font-semibold text-purple-700 mb-1">Relevant Content:</h6>
-                          <p className="text-sm text-gray-600 italic bg-gray-50 p-2 rounded">
-                            "{analysis.relevantContent}"
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-purple-600 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatTimestamp(analysis.timestamp)}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-purple-600" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-purple-600" />
+                          )}
                         </div>
-                        
-                        <div className="flex justify-between items-center text-xs text-purple-600">
-                          <span>Confidence: {Math.round(analysis.confidence * 100)}%</span>
-                          <div className="flex items-center gap-2">
-                            {analysis.youtubeUrl && (
-                              <a
-                                href={analysis.youtubeUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                Watch at {formatTimestamp(analysis.timestamp)}
-                              </a>
-                            )}
-                            <span>Analyzed: {new Date(result.timestamp).toLocaleString()}</span>
+                      </button>
+                      
+                      {isExpanded && (
+                        <div className="px-3 pb-3 space-y-3 border-t border-purple-100">
+                          <div>
+                            <h6 className="text-xs font-semibold text-purple-700 mb-1">Summary:</h6>
+                            <p className="text-sm text-gray-700">{analysis.summary}</p>
+                          </div>
+                          
+                          {analysis.keyQuotes && analysis.keyQuotes.length > 0 && (
+                            <div>
+                              <h6 className="text-xs font-semibold text-purple-700 mb-1">Key Quotes:</h6>
+                              <div className="space-y-1">
+                                {analysis.keyQuotes.map((quote: string, quoteIndex: number) => (
+                                  <div key={quoteIndex} className="text-sm text-gray-700 bg-yellow-50 p-2 rounded border-l-2 border-yellow-400">
+                                    <span className="text-yellow-700 font-medium">"</span>
+                                    {quote}
+                                    <span className="text-yellow-700 font-medium">"</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {analysis.dramaticElements && analysis.dramaticElements.length > 0 && (
+                            <div>
+                              <h6 className="text-xs font-semibold text-purple-700 mb-1">Dramatic Elements:</h6>
+                              <div className="flex flex-wrap gap-1">
+                                {analysis.dramaticElements.map((element: string, elemIndex: number) => (
+                                  <span key={elemIndex} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
+                                    {element}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div>
+                            <h6 className="text-xs font-semibold text-purple-700 mb-1">Relevant Content:</h6>
+                            <p className="text-sm text-gray-600 italic bg-gray-50 p-2 rounded">
+                              {analysis.relevantContent}
+                            </p>
+                          </div>
+                          
+                          {analysis.contextualInfo && (
+                            <div>
+                              <h6 className="text-xs font-semibold text-purple-700 mb-1">Context & Significance:</h6>
+                              <p className="text-sm text-blue-700 bg-blue-50 p-2 rounded">
+                                {analysis.contextualInfo}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="flex justify-between items-center text-xs text-purple-600">
+                            <span>Confidence: {Math.round(analysis.confidence * 100)}%</span>
+                            <div className="flex items-center gap-2">
+                              {analysis.youtubeUrl && (
+                                <a
+                                  href={analysis.youtubeUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Watch at {formatTimestamp(analysis.timestamp)}
+                                </a>
+                              )}
+                              <span>Analyzed: {new Date(result.timestamp).toLocaleString()}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -813,7 +953,10 @@ export default function YouTubeSearch() {
       return
     }
 
-    dispatch(generateSubtitles(searchResults.selectedVideos))
+    // Limit to 10 videos maximum
+    const videosToProcess = searchResults.selectedVideos.slice(0, 10)
+    
+    dispatch(generateSubtitles(videosToProcess))
   }
 
   const handleAnalyzeTranscript = (videoId: string, subtitleFile: SubtitleFile) => {
@@ -1211,7 +1354,11 @@ export default function YouTubeSearch() {
                       <button
                         onClick={handleGenerateSubtitles}
                         disabled={searchResults.selectedVideos.length === 0 || subtitleGeneration.generatingSubtitles}
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2"
+                        className={`font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2 ${
+                          searchResults.selectedVideos.length > 10 
+                            ? 'bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400' 
+                            : 'bg-green-600 hover:bg-green-700 disabled:bg-gray-400'
+                        } text-white`}
                       >
                         {subtitleGeneration.generatingSubtitles ? (
                           <>
@@ -1221,7 +1368,10 @@ export default function YouTubeSearch() {
                         ) : (
                           <>
                             <FileText className="h-4 w-4" />
-                            Generate Subtitles ({searchResults.selectedVideos.length})
+                            {searchResults.selectedVideos.length > 10 
+                              ? `Generate Subtitles (First 10 of ${searchResults.selectedVideos.length})`
+                              : `Generate Subtitles (${searchResults.selectedVideos.length})`
+                            }
                           </>
                         )}
                       </button>
@@ -1252,7 +1402,13 @@ export default function YouTubeSearch() {
                     </p>
                   )}
                   
-                  {searchResults.selectedVideos.length > 0 && getVideosWithSubtitlesCount() === 0 && (
+                  {searchResults.selectedVideos.length > 10 && (
+                    <p className="text-sm text-orange-600 mt-2">
+                      ⚠️ You have selected {searchResults.selectedVideos.length} videos. Only the first 10 videos will be processed for subtitle generation due to processing limitations.
+                    </p>
+                  )}
+                  
+                  {searchResults.selectedVideos.length > 0 && searchResults.selectedVideos.length <= 10 && getVideosWithSubtitlesCount() === 0 && (
                     <p className="text-sm text-blue-600 mt-2">
                       Generate subtitles first to enable video summarization.
                     </p>
@@ -1472,6 +1628,43 @@ export default function YouTubeSearch() {
                                 ))}
                               </ul>
                             </div>
+                            
+                            {video.keyQuotes && video.keyQuotes.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700">Key Quotes:</h5>
+                                <div className="space-y-1">
+                                  {video.keyQuotes.map((quote, quoteIndex) => (
+                                    <div key={quoteIndex} className="text-sm text-gray-700 bg-yellow-50 p-2 rounded border-l-2 border-yellow-400">
+                                      <span className="text-yellow-700 font-medium">"</span>
+                                      {quote}
+                                      <span className="text-yellow-700 font-medium">"</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {video.dramaticElements && video.dramaticElements.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700">Dramatic Elements:</h5>
+                                <div className="flex flex-wrap gap-1">
+                                  {video.dramaticElements.map((element, elemIndex) => (
+                                    <span key={elemIndex} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
+                                      {element}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {video.contextualInfo && (
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700">Context & Significance:</h5>
+                                <p className="text-sm text-blue-700 bg-blue-50 p-2 rounded">
+                                  {video.contextualInfo}
+                                </p>
+                              </div>
+                            )}
                           </div>
                           
                           {video.timestamp && (

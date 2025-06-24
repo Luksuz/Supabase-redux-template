@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/lib/supabase/server'
+import { removeYouTubeTimestamps } from '@/utils/youtube-utils'
 
 const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 const elevenlabs = elevenLabsApiKey ? new ElevenLabsClient({ apiKey: elevenLabsApiKey }) : null;
@@ -118,6 +119,10 @@ export async function POST(request: Request) {
       // Return mock success response for testing
       console.log("⚠️ ElevenLabs API key not found. Returning mock audio generation response.");
       
+      // Clean text for consistent behavior
+      const cleanedText = removeYouTubeTimestamps(text);
+      console.log(`📝 Mock generation using cleaned text: ${cleanedText.substring(0, 100)}...`);
+      
       // Update section with mock audio generation status if sectionId provided
       if (sectionId) {
         try {
@@ -140,7 +145,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         audioData: "", // Empty for mock
-        audioSize: text.length * 10, // Mock size calculation
+        audioSize: cleanedText.length * 10, // Mock size calculation
         chunksGenerated: 1,
         totalChunks: 1,
         voiceId,
@@ -154,8 +159,12 @@ export async function POST(request: Request) {
     console.log("🎵 Starting real ElevenLabs audio generation...");
     
     try {
+      // Clean text
+      const cleanedText = removeYouTubeTimestamps(text);
+      console.log(`📝 Cleaned text: ${cleanedText}`);
+      
       // Split text into manageable chunks
-      const textChunks = chunkText(text);
+      const textChunks = chunkText(cleanedText);
       console.log(`📝 Split text into ${textChunks.length} chunks`);
       
       // Generate audio for each chunk in parallel

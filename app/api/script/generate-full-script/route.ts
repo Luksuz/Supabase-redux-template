@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
       promptId, // New parameter for using stored prompts
       customPrompt: customPromptParam, // New parameter for edited prompt content
       model: requestedModel, // Add support for custom model
+      additionalResearch, // YouTube research data
+      youtubeLinks, // YouTube video links with timestamps
+      timestamps, // Specific timestamps for this section
       // Legacy parameter names for backward compatibility
       sectionTitle, 
       projectTheme, 
@@ -75,6 +78,9 @@ export async function POST(request: NextRequest) {
       tone,
       stylePreferences,
       additionalContext,
+      additionalResearch: additionalResearch ? `${additionalResearch.length} characters` : 'none',
+      youtubeLinks: youtubeLinks ? `${youtubeLinks.length} links` : 'none',
+      timestamps: timestamps ? `${timestamps.length} timestamps` : 'none',
       usingStoredPrompt: !!finalPrompt,
       model: requestedModel
     })
@@ -118,9 +124,8 @@ export async function POST(request: NextRequest) {
 
     try {
       // Use custom prompt if provided, otherwise use the default style guide
-      const prompt = finalPrompt || `CRIME DYNASTY SCRIPTWRITING STYLE GUIDE:
-
-Follow these style rules for every script and section you write.
+      let prompt = `
+Follow these style rules for every script and section you write. by default, you should aim to generate at least 1000 words unless otherwise specified.
 
 INTROS:
 - Keep intros short (30-50 words max), in medias res, simple, and straight to the point
@@ -169,16 +174,40 @@ SECTION DETAILS:
 - Writing Instructions: ${finalInstructions}
 
 REQUIREMENTS:
-- Write a complete and detalied(at least 1000 words), polished script for this specific section
+- Write a complete and detailed (at least 1000 words), polished script for this specific section
 - Follow the writing instructions precisely
 - Target the specified audience with the appropriate tone
 - Ensure the content fits naturally within the overall project theme
 - Make it engaging, professional, and ready for production use
 - Use natural, conversational language appropriate for voiceover
 - Include proper pacing and flow
-- Do not include stage directions or formatting - just the pure script content
+- Do not include stage directions or formatting - just the pure script content`
 
-Write the script now:`
+      // Add YouTube links and timestamps at the beginning if provided
+      if (youtubeLinks && youtubeLinks.length > 0) {
+        prompt += `\n\nYOUTUBE REFERENCES:
+IMPORTANT: Start your script with YouTube reference links in this exact format: [[YT_LINK: {url}, {timestamps}]]
+For example: [[YT_LINK: https://youtube.com/watch?v=abc123, 2:15-3:30, 5:45-6:20]]
+
+YouTube Links and Timestamps for this section:
+${youtubeLinks.map((link: any, index: number) => 
+  `${index + 1}. ${link.url} - Timestamps: ${link.timestamps || 'Full video'}`
+).join('\n')}
+
+Use these references at the very beginning of your script in the standardized format shown above.`
+      }
+
+      // Add research data if provided
+      if (additionalResearch) {
+        prompt += `\n\nRESEARCH DATA:
+Use the following research data to ground your script in real facts, quotes, and insights:
+
+${additionalResearch}
+
+IMPORTANT: Incorporate relevant information from this research data into your script. Use specific quotes, facts, and insights where appropriate.`
+      }
+
+      prompt += `\n\nWrite the script now:`
 
       console.log('Sending request to OpenAI...')
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
@@ -188,7 +217,7 @@ Write the script now:`
         messages: [
           {
             role: "system",
-            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud."
+            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. When YouTube links and timestamps are provided, ALWAYS start your script with them in the exact format: [[YT_LINK: {url}, {timestamps}]] before beginning the actual script content."
           },
           {
             role: "user",

@@ -1,13 +1,14 @@
 import GoogleProvider from "next-auth/providers/google";
-import type { NextAuthOptions, Session as NextAuthSession, User as NextAuthUser } from 'next-auth';
+import { NextAuthOptions, Session, User, Account, Profile } from 'next-auth';
+import { JWT } from 'next-auth/jwt';
 
 
 // Define custom Session and User types
-interface CustomUser extends NextAuthUser {
-  // id is inherited from NextAuthUser, no need to redefine
+interface CustomUser extends User {
+  // id is inherited from User, no need to redefine
 }
 
-interface CustomSession extends NextAuthSession {
+interface CustomSession extends Session {
   accessToken?: string;
   refreshToken?: string;
   expiresAt?: number;
@@ -32,7 +33,7 @@ export const authOptions: NextAuthOptions = {
       }),
     ],
     callbacks: {
-      async jwt({ token, account, profile }) {
+      async jwt({ token, account, profile }: { token: JWT; account: Account | null; profile?: Profile }) {
         if (account) {
           token.accessToken = account.access_token;
           token.refreshToken = account.refresh_token;
@@ -43,7 +44,7 @@ export const authOptions: NextAuthOptions = {
         }
         return token;
       },
-      async session({ session, token }) {
+      async session({ session, token }: { session: Session; token: JWT }) {
         // Use the custom session type here implicitly through assignment
         const customSession = session as CustomSession;
         customSession.accessToken = token.accessToken as string;
@@ -58,4 +59,5 @@ export const authOptions: NextAuthOptions = {
     session: {
       strategy: 'jwt',
     },
+    debug: process.env.NODE_ENV === 'development', // Enable debug in development
   };

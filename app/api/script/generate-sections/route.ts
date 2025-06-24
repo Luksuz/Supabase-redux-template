@@ -3,6 +3,152 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js'
 
+
+const themeToSystem = {
+  "crime": "You are a specialized content analyst and scriptwriter for true crime media, with deep expertise in courtroom proceedings and legal journalism. Your role is to transform raw court documentation, police records, and media coverage into compelling narrative scripts while maintaining strict factual accuracy.\n\nYour core responsibilities:\n- Analyze court transcripts, police reports, and media coverage to identify key dramatic moments\n- Structure narratives that balance emotional impact with legal accuracy\n- Maintain appropriate tone when covering sensitive cases\n- Ensure all dialogue and quotes are verbatim from official records\n- Follow ethical guidelines for crime reporting\n\nKey constraints:\n- Never sensationalize or embellish facts\n- Maintain victim dignity and respect\n- Verify all quotes and details against primary sources\n- Consider impact on affected families\n- Follow legal guidelines for court reporting\n\nRequired expertise:\n- Criminal court procedures\n- Legal terminology\n- Investigative journalism\n- Narrative structure\n- True crime media conventions\n- Ethical reporting standards",
+  "rap": "You are an expert content creator specializing in hip-hop culture and street documentaries. Your role is to create engaging, authentic content that captures the raw reality of rap culture while maintaining journalistic integrity. You should:\n\n- Balance entertainment value with responsible reporting\n- Use appropriate street terminology and slang naturally\n- Maintain cultural authenticity and sensitivity\n- Avoid glorifying violence while acknowledging its presence\n- Structure narratives to build tension and drama\n- Verify facts and include multiple perspectives\n- Consider the impact on affected communities\n\nYour expertise includes deep knowledge of rap history, street culture, social media dynamics, and urban youth movements. While covering intense topics, maintain professionalism and avoid sensationalism.",
+  "general": "You are an expert content creator and scriptwriter with versatile expertise across multiple genres and formats. Your role is to create compelling, well-structured content that engages audiences while maintaining high editorial standards. You should:\n\n- Adapt your writing style to match the target audience and tone\n- Create clear, engaging narratives with strong structure\n- Balance entertainment value with informational content\n- Use appropriate language and terminology for the subject matter\n- Maintain factual accuracy and cite sources when needed\n- Consider ethical implications of content choices\n\nYour expertise includes storytelling techniques, audience psychology, content strategy, and cross-platform media production."
+}
+
+type ThemePromptParams = {
+  theme: string;
+  title?: string;
+  target_audience?: string;
+  tone?: string;
+  style_preferences?: string;
+  additionalContext?: string;
+  additionalResearch?: string;
+  targetWordCount?: number;
+  targetSections?: number;
+};
+
+function themeToUserPrompt({
+  theme,
+  title,
+  target_audience,
+  tone,
+  style_preferences,
+  additionalContext,
+  additionalResearch,
+  targetWordCount,
+  targetSections,
+}: ThemePromptParams) {
+  let basePrompt = ''
+  
+  if (theme === "rap") {
+    basePrompt = `I need help creating a script about dangerous moments rappers faced while livestreaming. The title is "${title}". The theme focuses on hip-hop culture and street confrontations, targeting an audience of ${target_audience || "hip-hop fans aged 18-55 who follow rap beef and street culture"}. The tone should be ${tone || "streetwise and dramatic while maintaining authenticity"}.
+
+Style-wise, I want to use ${style_preferences || "urban slang naturally and build suspense through storytelling"}. The narrative should emphasize real consequences of social media behavior in street culture.`
+  } else if (theme === "crime") {
+    basePrompt = `I need help crafting a script about dramatic courtroom cases and legal proceedings. The title is "${title}". The theme should focus on sudden violence in courtrooms and ongoing debates about legal procedures. This is aimed at ${target_audience || "an adult true crime audience aged 25-65 who follow high-profile court cases"}. The tone should be ${tone || "serious and analytical while building tension"}. Style preferences: ${style_preferences || "clear chronological structure with strategic pauses for impact"}.`
+  } else {
+    basePrompt = `I need help creating a compelling script with the title "${title}". The content should target ${target_audience || "a general audience"} with a ${tone || "engaging and informative"} tone. Style preferences: ${style_preferences || "clear structure with engaging storytelling elements"}.`
+  }
+
+  // Add additional context if provided
+  if (additionalContext) {
+    basePrompt += `\n\nAdditional context: ${additionalContext}`
+  }
+
+  // Add research materials if provided
+  if (additionalResearch) {
+    basePrompt += `\n\nAdditional research materials: ${additionalResearch}`
+  }
+
+  // Add section generation instructions
+  const sectionsToGenerate = targetSections || 5
+  const wordsPerSection = targetWordCount ? Math.round(targetWordCount / sectionsToGenerate) : 800
+  
+  basePrompt += `\n\nPlease create exactly ${sectionsToGenerate} detailed script sections that would work well for this theme and content. ${targetWordCount ? `The total target word count is ${targetWordCount} words, so each section should be approximately ${wordsPerSection} words.` : 'Each section should be approximately 800 words.'} Each section should include:
+
+1. **title**: A compelling section title
+2. **writingInstructions**: Detailed instructions for what this section should cover, including specific narrative elements, pacing, key points to address, and how to incorporate any research data provided
+
+The sections should flow logically and create a compelling narrative arc. Make the writing instructions specific and actionable - they will be used to generate the actual script content later.
+
+Format your response as a JSON object with a "sections" array containing the section objects.`
+
+  return basePrompt
+}
+
+function buildEnhancedSystemPrompt(theme: string, additionalResearch?: string) {
+  let systemPrompt = themeToSystem[theme as keyof typeof themeToSystem] || themeToSystem.general
+  
+  if (additionalResearch && additionalResearch.includes('YOUTUBE RESEARCH DATA')) {
+    systemPrompt += `\n\nIMPORTANT: You have been provided with comprehensive YouTube research data including video transcripts, analysis results, and research summaries. Use this data to:\n- Ground your script sections in real examples and insights from the research\n- Reference specific quotes, themes, and patterns found in the analyzed content\n- Incorporate relevant timestamps and video references where appropriate\n- Build upon the narrative themes and character insights identified\n- Use the creative prompts and story ideas as inspiration for section development\n\nWhen creating sections, prioritize authenticity by drawing from the actual research data provided rather than generic examples.`
+  }
+  
+  return systemPrompt
+}
+
+// Helper function to extract YouTube links and timestamps from research data
+function extractYouTubeLinksAndTimestamps(additionalResearch?: string): Array<{
+  url: string
+  timestamps?: string
+  title?: string
+}> {
+  if (!additionalResearch) return []
+  
+  const youtubeLinks: Array<{
+    url: string
+    timestamps?: string
+    title?: string
+  }> = []
+  
+  // Extract YouTube URLs using regex
+  const youtubeUrlRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/g
+  const timestampRegex = /(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)/g
+  
+  let match
+  while ((match = youtubeUrlRegex.exec(additionalResearch)) !== null) {
+    const fullUrl = match[0].startsWith('http') ? match[0] : `https://youtube.com/watch?v=${match[1]}`
+    
+    // Look for timestamps near this URL (within 200 characters)
+    const urlIndex = match.index
+    const contextStart = Math.max(0, urlIndex - 100)
+    const contextEnd = Math.min(additionalResearch.length, urlIndex + 200)
+    const context = additionalResearch.substring(contextStart, contextEnd)
+    
+    const timestamps = []
+    let timestampMatch
+    while ((timestampMatch = timestampRegex.exec(context)) !== null) {
+      timestamps.push(timestampMatch[1])
+    }
+    
+    youtubeLinks.push({
+      url: fullUrl,
+      timestamps: timestamps.length > 0 ? timestamps.join(', ') : undefined,
+      title: `Video ${youtubeLinks.length + 1}`
+    })
+  }
+  
+  return youtubeLinks
+}
+
+// Helper function to distribute YouTube links across sections
+function distributeYouTubeLinksToSections(
+  sections: any[], 
+  youtubeLinks: Array<{url: string, timestamps?: string, title?: string}>
+): any[] {
+  if (youtubeLinks.length === 0) return sections
+  
+  // Distribute links evenly across sections
+  const sectionsWithLinks = sections.map((section, index) => {
+    const linksPerSection = Math.ceil(youtubeLinks.length / sections.length)
+    const startIndex = index * linksPerSection
+    const endIndex = Math.min(startIndex + linksPerSection, youtubeLinks.length)
+    const sectionLinks = youtubeLinks.slice(startIndex, endIndex)
+    
+    return {
+      ...section,
+      youtubeLinks: sectionLinks.length > 0 ? sectionLinks : undefined,
+      timestamps: sectionLinks.length > 0 ? sectionLinks.map(link => link.timestamps).filter(Boolean) : undefined
+    }
+  })
+  
+  return sectionsWithLinks
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -14,7 +160,6 @@ const supabase = createClient(
 
 // Zod schema for structured output
 const ScriptSectionSchema = z.object({
-  id: z.string(),
   title: z.string(),
   writingInstructions: z.string(),
 });
@@ -41,6 +186,9 @@ export async function POST(request: NextRequest) {
       promptId,
       customPrompt: customPromptParam,
       model: requestedModel,
+      additionalResearch,
+      targetWordCount,
+      targetSections,
     } = requestBody;
 
     console.log("Extracted values:", {
@@ -53,6 +201,17 @@ export async function POST(request: NextRequest) {
       promptId,
       customPrompt: customPromptParam ? customPromptParam : null,
       model: requestedModel,
+      additionalResearch: additionalResearch ? `${additionalResearch.length} characters` : 'undefined',
+      targetWordCount,
+      targetSections,
+    });
+
+    console.log("🔍 Detailed parameter analysis:", {
+      theme: theme || 'MISSING',
+      title: title || 'MISSING',
+      additionalContext: additionalContext || 'MISSING',
+      additionalResearchLength: additionalResearch?.length || 0,
+      additionalResearchPreview: additionalResearch ? additionalResearch.substring(0, 100) + '...' : 'NO RESEARCH DATA'
     });
 
     if (!theme) {
@@ -94,12 +253,18 @@ export async function POST(request: NextRequest) {
         theme,
         target_audience,
         tone,
-        style_preferences
+        style_preferences,
+        targetSections
       );
-      console.log("Generated mock sections:", mockSections.length);
+      
+      // Extract YouTube links and add to mock sections
+      const youtubeLinks = extractYouTubeLinksAndTimestamps(additionalResearch)
+      const mockSectionsWithLinks = distributeYouTubeLinksToSections(mockSections, youtubeLinks)
+      
+      console.log("Generated mock sections:", mockSectionsWithLinks.length);
       return NextResponse.json({
         success: true,
-        sections: mockSections,
+        sections: mockSectionsWithLinks,
         usingMock: true,
         requiresApproval: true,
       });
@@ -111,176 +276,106 @@ export async function POST(request: NextRequest) {
     const modelToUse = requestedModel || "gpt-4.1-mini";
     console.log(`Using model: ${modelToUse}`);
 
-    try {
-      const prompt = finalPrompt || `CRIME DYNASTY SCRIPTWRITING STYLE GUIDE:
+    // Build enhanced system prompt
+    const systemPrompt = buildEnhancedSystemPrompt(theme, additionalResearch)
 
-Follow these style rules for every script and section you write.
+    // Build user prompt with all parameters
+    const userPrompt = themeToUserPrompt({
+      theme,
+      title,
+      target_audience,
+      tone,
+      style_preferences,
+      additionalContext,
+      additionalResearch,
+      targetWordCount,
+      targetSections,
+    })
 
-INTROS:
-- Keep intros short (30-50 words max), in medias res, simple, and straight to the point
-- Avoid long sentences and complex words - if a 5th grader can't understand it, it's too complex
-- Fit the "what", "who", "how", and "when" without being verbose
-- Dive straight into action instead of lengthy introductions
-- Make it appealing to the ear for voiceover
+    console.log("Sending request to OpenAI...");
+    console.log("Prompt preview:", userPrompt.substring(0, 200) + "...");
 
-CONVERSATIONAL WRITING:
-- Write like you talk, for voiceover narration
-- Use short sentences, active voice, simple words, and natural transitions
-- Avoid filler like 'uhh'/'umm', but add personal narrator comments when appropriate
-- Read your script out loud - it should sound like talking, not writing
-- Use transitional words/devices to improve flow
-
-DATES AND STRUCTURE:
-- Use dates at the start of sentences when applicable, but never write 'On May 15th' - just 'May 15th'
-- Use in medias res often, especially for intros and top 10/5 entries
-- Vary entry structure - don't follow the same format for every entry
-- For top 5/10 scripts about people, use only the person's name as the subheading
-
-SOURCES AND CLIPS:
-- For every article, video, tweet, or photo referenced, attach the link in the script for the editor
-- When adding clips, write "(Play this)" and include timestamp links
-- Don't spoil clips or repeat what's shown unless it truly adds value
-
-GENERAL PRINCIPLES:
-- Remain unbiased, especially on sensitive topics
-- Grammar must be perfect
-- Use adverbs to sensationalize main events, but don't overdo it
-- The best trick is knowing what to leave out - avoid unnecessary details
-- Stay on topic and pick the most interesting, valuable, and exciting information
-
-EXAMPLES:
-- "July 7th, 2022, a Tiktoker shut down a bridge in Mexico... Here are five times TikTokers messed with the wrong cartel." (49 words, all key info, in medias res)
-- Add personal narrator comments for emphasis when appropriate
-- Keep background stories brief to maintain engagement
-
-ALWAYS follow these rules. Focus on creating engaging, conversational content that flows naturally when spoken aloud.
-
-You are a professional script writer. Create a detailed outline for a script with the following specifications:
-
-Theme: ${theme}
-Target Audience: ${target_audience || 'General audience'}
-Tone: ${tone || 'Professional'}
-Style Preferences: ${style_preferences || 'Clear and engaging'}
-Additional Context: ${additionalContext || 'None provided'}
-
-Generate 10-20 script sections that would make up a complete script. Each section should have:
-1. A clear, descriptive title
-2. Detailed writing instructions that specify the tone, content, style, and purpose of that section, and that follow the Scriptwriting Style Guide above.
-
-The sections should flow logically and cover the complete narrative or content structure. Make the writing instructions specific and actionable - they will be used to generate the actual script content later.
-
-Return the response in the exact JSON format specified.`;
-
-      console.log("Sending request to OpenAI...");
-      console.log("Prompt preview:", prompt.substring(0, 200) + "...");
-
-      const response = await openai.chat.completions.create({
-        model: modelToUse,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a professional script writer who creates detailed, structured outlines. Always respond with valid JSON in the exact format requested.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "script_sections",
-            schema: {
-              type: "object",
-              properties: {
-                sections: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      id: {
-                        type: "string",
-                        description: "Unique identifier for the section",
-                      },
-                      title: {
-                        type: "string",
-                        description: "Clear, descriptive title for the section",
-                      },
-                      writingInstructions: {
-                        type: "string",
-                        description:
-                          "Detailed instructions for writing this section, including tone, style, content focus, and purpose",
-                      },
+    const response = await openai.chat.completions.create({
+      model: modelToUse,
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: userPrompt
+        }
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "sections",
+          schema: {
+            type: "object",
+            properties: {
+              sections: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: {
+                      type: "string",
+                      description: "Clear, descriptive title for the section",
                     },
-                    required: ["id", "title", "writingInstructions"],
+                    writingInstructions: {
+                      type: "string",
+                      description:
+                        "Detailed instructions for writing this section, including tone, style, content focus, and purpose",
+                    },
                   },
+                  required: ["title", "writingInstructions"],
                 },
               },
-              required: ["sections"],
             },
+            required: ["sections"],
           },
         },
-        max_tokens: 1500,
-        temperature: 0.7,
-      });
+      },
+      max_tokens: 16384,
+      temperature: 0.7,
+    });
 
-      console.log("OpenAI response received");
-      const responseText = response.choices[0]?.message?.content?.trim();
-      console.log("Response text length:", responseText?.length || 0);
+    console.log("OpenAI response received");
+    const responseText = response.choices[0]?.message?.content?.trim();
+    console.log("Response text length:", responseText?.length || 0);
 
-      if (!responseText) {
-        throw new Error("No response from OpenAI");
-      }
-
-      console.log("Parsing OpenAI response...");
-      // Parse and validate the response
-      const parsedResponse = JSON.parse(responseText);
-      console.log("Parsed response structure:", Object.keys(parsedResponse));
-
-      const validatedResponse =
-        ScriptSectionsResponseSchema.parse(parsedResponse);
-      console.log(
-        `✅ Generated ${validatedResponse.sections.length} sections for theme: ${theme}`
-      );
-      console.log(
-        "Section titles:",
-        validatedResponse.sections.map((s) => s.title)
-      );
-
-      return NextResponse.json({
-        success: true,
-        sections: validatedResponse.sections,
-        usingMock: false,
-        requiresApproval: true,
-      });
-    } catch (openaiError: any) {
-      console.error(`❌ OpenAI API error for theme ${theme}:`, openaiError);
-      console.error("OpenAI error details:", {
-        name: openaiError.name,
-        message: openaiError.message,
-        status: openaiError.status,
-        type: openaiError.type,
-      });
-
-      // Fallback to mock if OpenAI fails
-      console.log("Falling back to mock sections...");
-      const mockSections = generateMockSections(
-        theme,
-        target_audience,
-        tone,
-        style_preferences
-      );
-      console.log("Generated fallback mock sections:", mockSections.length);
-
-      return NextResponse.json({
-        success: true,
-        sections: mockSections,
-        usingMock: true,
-        requiresApproval: true,
-        error: openaiError.message,
-      });
+    if (!responseText) {
+      throw new Error("No response from OpenAI");
     }
+
+    console.log("Parsing OpenAI response...");
+    // Parse and validate the response
+    const parsedResponse = JSON.parse(responseText);
+    console.log("Parsed response structure:", Object.keys(parsedResponse));
+
+    const validatedResponse =
+      ScriptSectionsResponseSchema.parse(parsedResponse);
+    console.log(
+      `✅ Generated ${validatedResponse.sections.length} sections for theme: ${theme}`
+    );
+    console.log(
+      "Section titles:",
+      validatedResponse.sections.map((s) => s.title)
+    );
+
+    // Extract YouTube links and timestamps
+    const youtubeLinks = extractYouTubeLinksAndTimestamps(additionalResearch)
+
+    // Distribute YouTube links across sections
+    const sectionsWithLinks = distributeYouTubeLinksToSections(validatedResponse.sections, youtubeLinks)
+
+    return NextResponse.json({
+      success: true,
+      sections: sectionsWithLinks,
+      usingMock: false,
+      requiresApproval: true,
+    });
   } catch (error) {
     console.error("Unexpected error in generate-sections:", error);
     console.error("Error details:", {
@@ -300,20 +395,21 @@ function generateMockSections(
   theme: string,
   target_audience?: string,
   tone?: string,
-  style_preferences?: string
+  style_preferences?: string,
+  targetSections?: number
 ) {
   console.log("Generating mock sections with:", {
     theme,
     target_audience,
     tone,
     style_preferences,
+    targetSections,
   });
 
-  const baseId = Date.now();
+  const sectionsToGenerate = targetSections || 5;
 
-  const sections = [
+  const baseSections = [
     {
-      id: `${baseId}-1`,
       title: "Opening Hook",
       writingInstructions: `Create an engaging opening that immediately captures attention related to the theme "${theme}". ${
         target_audience ? `Target this for ${target_audience}.` : ""
@@ -322,7 +418,6 @@ function generateMockSections(
       } Set the context and establish credibility. Use a compelling hook that makes the audience want to continue.`,
     },
     {
-      id: `${baseId}-2`,
       title: "Main Content - Part 1",
       writingInstructions: `Develop the core content focusing on the primary aspects of "${theme}". ${
         target_audience ? `Keep ${target_audience} in mind.` : ""
@@ -333,21 +428,18 @@ function generateMockSections(
       }`,
     },
     {
-      id: `${baseId}-3`,
       title: "Main Content - Part 2",
       writingInstructions: `Continue building on the foundation from Part 1. Deepen the exploration of "${theme}" with additional insights, examples, or narrative development. ${
         tone ? `Keep the ${tone} tone consistent.` : ""
       } Maintain momentum and ensure smooth transitions.`,
     },
     {
-      id: `${baseId}-4`,
       title: "Key Insights",
       writingInstructions: `Highlight the most important takeaways or pivotal moments related to "${theme}". ${
         target_audience ? `Make it relevant for ${target_audience}.` : ""
       } This section should provide clarity and reinforcement of the main messages. Make it memorable and actionable.`,
     },
     {
-      id: `${baseId}-5`,
       title: "Conclusion",
       writingInstructions: `Provide a strong, satisfying conclusion that ties together all elements of the theme "${theme}". ${
         tone ? `End with a ${tone} tone.` : ""
@@ -355,9 +447,30 @@ function generateMockSections(
     },
   ];
 
+  // If we need more sections than the base 5, add additional content sections
+  const sections = [...baseSections];
+  
+  if (sectionsToGenerate > 5) {
+    for (let i = 6; i <= sectionsToGenerate; i++) {
+      sections.splice(-1, 0, {
+        title: `Content Development - Part ${i - 2}`,
+        writingInstructions: `Continue developing the theme "${theme}" with additional depth and detail. ${
+          target_audience ? `Keep ${target_audience} engaged.` : ""
+        } ${
+          tone ? `Maintain the ${tone} tone.` : ""
+        } Provide new insights, examples, or perspectives that add value to the overall narrative. ${
+          style_preferences ? `Style: ${style_preferences}` : ""
+        }`,
+      });
+    }
+  } else if (sectionsToGenerate < 5) {
+    // If we need fewer sections, keep only the essential ones
+    sections.splice(sectionsToGenerate);
+  }
+
   console.log(
     "Mock sections created:",
-    sections.map((s) => ({ id: s.id, title: s.title }))
+    sections.map((s) => ({ title: s.title }))
   );
   return sections;
 }

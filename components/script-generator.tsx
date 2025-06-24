@@ -22,7 +22,6 @@ import {
   savePromptChangesThunk,
   setSelectedPromptContent,
   setShowPromptEditor,
-  mergeYouTubeDataWithPromptThunk,
   // New imports for approval workflow
   setPendingSections,
   startApprovingSections,
@@ -34,7 +33,8 @@ import {
   rejectPendingScript,
   updatePendingScripts,
   type PendingSection,
-  type PendingScript
+  type PendingScript,
+  generateAudioThunk
 } from '../lib/features/scripts/scriptsSlice'
 import { initializeAuth, loginUser, logoutUser } from '../lib/features/user/userSlice'
 import { Button } from './ui/button'
@@ -309,7 +309,9 @@ export function ScriptGenerator() {
     pendingSections,
     pendingScripts,
     approvingSections,
-    approvingScript
+    approvingScript,
+    // Audio generation state
+    audioGeneration
   } = useAppSelector(state => state.scripts)
   
   // Get YouTube data from Redux
@@ -325,6 +327,10 @@ export function ScriptGenerator() {
   const [targetAudience, setTargetAudience] = useState('')
   const [tone, setTone] = useState('')
   const [stylePreferences, setStylePreferences] = useState('')
+  
+  // Word count and sections calculation
+  const [targetWordCount, setTargetWordCount] = useState<number>(4000)
+  const calculatedSections = Math.max(1, Math.ceil(targetWordCount / 800))
   
   // Model selection
   const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini')
@@ -396,127 +402,6 @@ export function ScriptGenerator() {
     } else {
       showMessage(result?.error || 'Failed to save prompt', 'error')
     }
-  }
-
-  // Merge YouTube data with current prompt
-  const handleMergeYouTubeData = async () => {
-    if (!selectedPromptContent) {
-      showMessage('Please select a prompt first', 'error')
-      return
-    }
-
-    // Collect YouTube data from various sources
-    const youtubeData = []
-
-    // Add Google research summaries
-    youtubeState.googleResearchSummaries?.forEach(research => {
-      youtubeData.push({
-        type: 'google_research',
-        title: `Google Research: ${research.query}`,
-        summary: research.insights,
-        keyInsights: research.keyFindings,
-        recommendations: research.recommendations,
-        sources: research.sources,
-        timestamp: research.timestamp
-      })
-    })
-
-    // Add YouTube research summaries
-    youtubeState.youtubeResearchSummaries?.forEach(research => {
-      youtubeData.push({
-        type: 'youtube_research',
-        title: `YouTube Research: ${research.query}`,
-        summary: research.videosSummary.overallTheme,
-        keyInsights: research.videosSummary.keyInsights,
-        narrativeThemes: research.videosSummary.narrativeThemes,
-        characterInsights: research.videosSummary.characterInsights,
-        conflictElements: research.videosSummary.conflictElements,
-        storyIdeas: research.videosSummary.storyIdeas,
-        creativePrompt: research.videosSummary.creativePrompt,
-        timestamp: research.timestamp
-      })
-    })
-
-    // Add video summaries if available
-    if (youtubeState.videosSummary) {
-      youtubeData.push({
-        type: 'summary',
-        title: 'Video Collection Summary',
-        summary: youtubeState.videosSummary.overallTheme,
-        keyInsights: youtubeState.videosSummary.keyInsights,
-        narrativeThemes: youtubeState.videosSummary.narrativeThemes,
-        characterInsights: youtubeState.videosSummary.characterInsights,
-        conflictElements: youtubeState.videosSummary.conflictElements,
-        storyIdeas: youtubeState.videosSummary.storyIdeas,
-        creativePrompt: youtubeState.videosSummary.creativePrompt
-      })
-
-      // Add individual video summaries
-      youtubeState.videosSummary.videoSummaries.forEach(video => {
-        youtubeData.push({
-          type: 'video_summary',
-          title: video.title,
-          summary: `Main Topic: ${video.mainTopic}. Emotional Tone: ${video.emotionalTone}`,
-          keyInsights: video.keyPoints,
-          narrativeElements: video.narrativeElements,
-          timestamp: video.timestamp
-        })
-      })
-    }
-
-    // Add transcript analysis results
-    youtubeState.analysisResults.forEach(result => {
-      result.analysis.forEach(analysis => {
-        youtubeData.push({
-          type: 'analysis',
-          title: `Analysis: "${result.query}"`,
-          analysis: analysis.summary,
-          relevantContent: analysis.relevantContent,
-          timestamp: analysis.timestamp,
-          confidence: analysis.confidence
-        })
-      })
-    })
-
-    // Add subtitle content (first few for context)
-    youtubeState.subtitleFiles.slice(0, 3).forEach(subtitle => {
-      if (subtitle.status === 'completed') {
-        // Extract first few lines of subtitle for context
-        const lines = subtitle.srtContent.split('\n').slice(0, 20).join('\n')
-        youtubeData.push({
-          type: 'transcript',
-          title: subtitle.title,
-          summary: 'Video transcript content',
-          relevantContent: lines
-        })
-      }
-    })
-
-    if (youtubeData.length === 0) {
-      showMessage('No research data found. Please perform Google research, analyze YouTube videos, or generate summaries first.', 'error')
-      return
-    }
-
-    try {
-      const result = await dispatch(mergeYouTubeDataWithPromptThunk(youtubeData, currentJob?.theme || theme))
-      if (result?.success) {
-        const mockMessage = result.usingMock ? ' (Using mock data - Set OPENAI_API_KEY for AI-powered merging)' : ''
-        showMessage(`Successfully merged ${youtubeData.length} research items with prompt!${mockMessage}`, 'success')
-      } else {
-        showMessage(result?.error || 'Failed to merge research data with prompt', 'error')
-      }
-    } catch (error) {
-      showMessage('Failed to merge research data with prompt', 'error')
-    }
-  }
-
-  // Check if research data is available for merging
-  const hasYouTubeData = () => {
-    return youtubeState.videosSummary || 
-           youtubeState.analysisResults.length > 0 || 
-           youtubeState.subtitleFiles.some(sf => sf.status === 'completed') ||
-           youtubeState.googleResearchSummaries?.length > 0 ||
-           youtubeState.youtubeResearchSummaries?.length > 0
   }
 
   // Handle authentication
@@ -606,12 +491,85 @@ export function ScriptGenerator() {
     showMessage('Generating script sections...', 'info')
 
     try {
+      // Build research context if YouTube data is available
+      let additionalContext = ''
+      let additionalResearch = ''
+      
+      // Check if we have YouTube research data available
+      const hasVideosSummary = !!youtubeState.videosSummary
+      const hasAnalysisResults = youtubeState.analysisResults && youtubeState.analysisResults.length > 0
+      const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
+      const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
+      const hasCompletedSubtitles = youtubeState.subtitleFiles && youtubeState.subtitleFiles.filter(sf => sf.status === 'completed').length > 0
+      
+      if (hasVideosSummary || hasAnalysisResults || hasGoogleResearch || hasYouTubeResearch || hasCompletedSubtitles) {
+        additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
+        
+        // Build simple research context
+        let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
+        
+        if (hasVideosSummary) {
+          context += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
+          context += `Overall Theme: ${youtubeState.videosSummary?.overallTheme}\n\n`
+          context += 'Key Insights:\n'
+          youtubeState.videosSummary?.keyInsights.forEach((insight, i) => {
+            context += `${i + 1}. ${insight}\n`
+          })
+          
+          // Add individual video summaries with URLs
+          if (youtubeState.videosSummary?.videoSummaries && youtubeState.videosSummary.videoSummaries.length > 0) {
+            context += '\n--- INDIVIDUAL VIDEO SUMMARIES ---\n'
+            youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
+              const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
+              context += `\nVideo ${i + 1}: ${video.title}\n`
+              context += `URL: ${videoUrl}\n`
+              context += `Main Topic: ${video.mainTopic}\n`
+              context += `Key Points: ${video.keyPoints.join('; ')}\n`
+              if (video.keyQuotes && video.keyQuotes.length > 0) {
+                context += `Key Quotes: ${video.keyQuotes.join('; ')}\n`
+              }
+              if (video.timestamp) {
+                context += `Important Timestamp: ${video.timestamp}\n`
+              }
+              context += `Emotional Tone: ${video.emotionalTone}\n`
+              context += '---\n'
+            })
+          }
+        }
+        
+        if (hasGoogleResearch) {
+          context += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
+          youtubeState.googleResearchSummaries.forEach((research, i) => {
+            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+            context += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
+            context += `Insights: ${research.insights}\n`
+          })
+        }
+        
+        if (hasYouTubeResearch) {
+          context += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
+          youtubeState.youtubeResearchSummaries.forEach((research, i) => {
+            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+            context += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
+            context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
+          })
+        }
+        
+        context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
+        additionalResearch = context
+      }
+
       const requestBody: any = {
         theme: currentJob.theme,
+        title: currentJob.name,
         target_audience: targetAudience,
         tone: tone,
         style_preferences: stylePreferences,
-        model: selectedModel
+        model: selectedModel,
+        additionalContext,
+        additionalResearch,
+        targetWordCount: targetWordCount,
+        targetSections: calculatedSections
       }
 
       // Add promptId if a custom prompt is selected
@@ -623,6 +581,14 @@ export function ScriptGenerator() {
       if (selectedPromptId && selectedPromptId !== 'default' && selectedPromptContent) {
         requestBody.customPrompt = selectedPromptContent
       }
+
+      console.log('🚀 Sending section generation request with:', {
+        theme: requestBody.theme,
+        title: requestBody.title,
+        hasAdditionalContext: !!additionalContext,
+        additionalResearchLength: additionalResearch.length,
+        model: requestBody.model
+      })
 
       const response = await fetch('/api/script/generate-sections', {
         method: 'POST',
@@ -647,7 +613,9 @@ export function ScriptGenerator() {
       dispatch(setPendingSections(pendingSections))
       const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
       const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
-      showMessage(`Sections generated! Please review and approve.${modelMessage}${promptMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
+      const youtubeMessage = additionalResearch ? ' (Enhanced with YouTube data)' : ''
+      const wordCountMessage = ` (${calculatedSections} sections for ${targetWordCount} words)`
+      showMessage(`Sections generated! Please review and approve.${modelMessage}${promptMessage}${youtubeMessage}${wordCountMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
     } catch (error) {
       showMessage('Failed to generate sections', 'error')
     }
@@ -664,6 +632,72 @@ export function ScriptGenerator() {
     dispatch(startGeneratingScript(section.id))
 
     try {
+      // Build YouTube research context if available
+      let additionalContext = ''
+      let additionalResearch = ''
+      
+      // Check if we have YouTube research data available
+      const hasVideosSummary = !!youtubeState.videosSummary
+      const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
+      const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
+      
+      if (hasVideosSummary || hasGoogleResearch || hasYouTubeResearch) {
+        additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
+        
+        // Build comprehensive research context
+        let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
+        
+        if (hasVideosSummary) {
+          context += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
+          context += `Overall Theme: ${youtubeState.videosSummary?.overallTheme}\n\n`
+          context += 'Key Insights:\n'
+          youtubeState.videosSummary?.keyInsights.forEach((insight, i) => {
+            context += `${i + 1}. ${insight}\n`
+          })
+          
+          // Add individual video summaries with URLs
+          if (youtubeState.videosSummary?.videoSummaries && youtubeState.videosSummary.videoSummaries.length > 0) {
+            context += '\n--- INDIVIDUAL VIDEO SUMMARIES ---\n'
+            youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
+              const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
+              context += `\nVideo ${i + 1}: ${video.title}\n`
+              context += `URL: ${videoUrl}\n`
+              context += `Main Topic: ${video.mainTopic}\n`
+              context += `Key Points: ${video.keyPoints.join('; ')}\n`
+              if (video.keyQuotes && video.keyQuotes.length > 0) {
+                context += `Key Quotes: ${video.keyQuotes.join('; ')}\n`
+              }
+              if (video.timestamp) {
+                context += `Important Timestamp: ${video.timestamp}\n`
+              }
+              context += `Emotional Tone: ${video.emotionalTone}\n`
+              context += '---\n'
+            })
+          }
+        }
+        
+        if (hasGoogleResearch) {
+          context += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
+          youtubeState.googleResearchSummaries.forEach((research, i) => {
+            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+            context += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
+            context += `Insights: ${research.insights}\n`
+          })
+        }
+        
+        if (hasYouTubeResearch) {
+          context += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
+          youtubeState.youtubeResearchSummaries.forEach((research, i) => {
+            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+            context += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
+            context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
+          })
+        }
+        
+        context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
+        additionalResearch = context
+      }
+
       const requestBody: any = {
         title: section.title,
         writingInstructions: section.writing_instructions,
@@ -671,7 +705,10 @@ export function ScriptGenerator() {
         targetAudience: targetAudience,
         tone: tone,
         stylePreferences: stylePreferences,
-        model: selectedModel
+        model: selectedModel,
+        additionalContext,
+        additionalResearch,
+        youtubeLinks: section.youtubeLinks || []
       }
 
       // Add promptId if a custom prompt is selected
@@ -704,13 +741,15 @@ export function ScriptGenerator() {
         generatedScript: data.script,
         tempId: `temp-${Date.now()}-${Math.random()}`,
         characterCount: data.script.length,
-        wordCount: data.script.trim().split(/\s+/).length
+        wordCount: data.script.trim().split(/\s+/).length,
+        youtubeLinks: section.youtubeLinks
       }
       
       dispatch(setPendingScript(pendingScript))
       const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
       const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
-      showMessage(`Script generated! Please review and approve.${modelMessage}${promptMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
+      const youtubeMessage = additionalResearch ? ' (Enhanced with YouTube data)' : ''
+      showMessage(`Script generated! Please review and approve.${modelMessage}${promptMessage}${youtubeMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
     } catch (error) {
       showMessage('Failed to generate script', 'error')
     }
@@ -731,6 +770,72 @@ export function ScriptGenerator() {
 
     const promises = currentJob.sections.map(async (section: FineTuningSection) => {
       try {
+        // Build YouTube research context if available
+        let additionalContext = ''
+        let additionalResearch = ''
+        
+        // Check if we have YouTube research data available
+        const hasVideosSummary = !!youtubeState.videosSummary
+        const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
+        const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
+        
+        if (hasVideosSummary || hasGoogleResearch || hasYouTubeResearch) {
+          additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
+          
+          // Build comprehensive research context
+          let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
+          
+          if (hasVideosSummary) {
+            context += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
+            context += `Overall Theme: ${youtubeState.videosSummary?.overallTheme}\n\n`
+            context += 'Key Insights:\n'
+            youtubeState.videosSummary?.keyInsights.forEach((insight, i) => {
+              context += `${i + 1}. ${insight}\n`
+            })
+            
+            // Add individual video summaries with URLs
+            if (youtubeState.videosSummary?.videoSummaries && youtubeState.videosSummary.videoSummaries.length > 0) {
+              context += '\n--- INDIVIDUAL VIDEO SUMMARIES ---\n'
+              youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
+                const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
+                context += `\nVideo ${i + 1}: ${video.title}\n`
+                context += `URL: ${videoUrl}\n`
+                context += `Main Topic: ${video.mainTopic}\n`
+                context += `Key Points: ${video.keyPoints.join('; ')}\n`
+                if (video.keyQuotes && video.keyQuotes.length > 0) {
+                  context += `Key Quotes: ${video.keyQuotes.join('; ')}\n`
+                }
+                if (video.timestamp) {
+                  context += `Important Timestamp: ${video.timestamp}\n`
+                }
+                context += `Emotional Tone: ${video.emotionalTone}\n`
+                context += '---\n'
+              })
+            }
+          }
+          
+          if (hasGoogleResearch) {
+            context += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
+            youtubeState.googleResearchSummaries.forEach((research, i) => {
+              const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+              context += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
+              context += `Insights: ${research.insights}\n`
+            })
+          }
+          
+          if (hasYouTubeResearch) {
+            context += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
+            youtubeState.youtubeResearchSummaries.forEach((research, i) => {
+              const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+              context += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
+              context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
+            })
+          }
+          
+          context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
+          additionalResearch = context
+        }
+
         const requestBody: any = {
           title: section.title,
           writingInstructions: section.writing_instructions,
@@ -738,7 +843,10 @@ export function ScriptGenerator() {
           targetAudience: targetAudience,
           tone: tone,
           stylePreferences: stylePreferences,
-          model: selectedModel
+          model: selectedModel,
+          additionalContext,
+          additionalResearch,
+          youtubeLinks: section.youtubeLinks || []
         }
 
         // Add promptId if a custom prompt is selected
@@ -771,7 +879,8 @@ export function ScriptGenerator() {
           generatedScript: data.script,
           tempId: `temp-${Date.now()}-${Math.random()}-${section.id}`,
           characterCount: data.script.length,
-          wordCount: data.script.trim().split(/\s+/).length
+          wordCount: data.script.trim().split(/\s+/).length,
+          youtubeLinks: section.youtubeLinks
         }
         
         return { sectionId: section.id, pendingScript, success: true }
@@ -801,14 +910,20 @@ export function ScriptGenerator() {
     const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
     const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
     
+    // Check if YouTube data was used
+    const hasYouTubeData = !!youtubeState.videosSummary || 
+                          (youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0) ||
+                          (youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0)
+    const youtubeMessage = hasYouTubeData ? ' (Enhanced with YouTube data)' : ''
+    
     if (successCount === results.length) {
       showMessage(
-        `Generated ${successCount} scripts successfully! Please review and approve them below.${modelMessage}${promptMessage}`,
+        `Generated ${successCount} scripts successfully! Please review and approve them below.${modelMessage}${promptMessage}${youtubeMessage}`,
         'success'
       )
     } else {
       showMessage(
-        `Generated ${successCount}/${results.length} scripts successfully! Please review and approve them below.${modelMessage}${promptMessage}`,
+        `Generated ${successCount}/${results.length} scripts successfully! Please review and approve them below.${modelMessage}${promptMessage}${youtubeMessage}`,
         'info'
       )
     }
@@ -844,6 +959,53 @@ export function ScriptGenerator() {
     URL.revokeObjectURL(url)
     
     showMessage('Scripts downloaded!', 'success')
+  }
+
+  // Generate audio from all scripts combined
+  const generateCombinedAudio = async () => {
+    if (!currentJob) return
+    
+    const sectionsWithScripts = currentJob.sections.filter((s: FineTuningSection) => s.texts && s.texts.length > 0)
+    
+    if (sectionsWithScripts.length === 0) {
+      showMessage('No approved scripts found to generate audio from', 'error')
+      return
+    }
+
+    // Concatenate all scripts and remove YouTube timestamps
+    const combinedScript = sectionsWithScripts
+      .map((s: FineTuningSection) => s.texts?.[0]?.generated_script || '')
+      .join('\n\n')
+    
+    // Import the removeYouTubeTimestamps function
+    const { removeYouTubeTimestamps } = await import('../utils/youtube-utils')
+    const cleanedScript = removeYouTubeTimestamps(combinedScript)
+    
+    if (!cleanedScript.trim()) {
+      showMessage('No content available after cleaning timestamps', 'error')
+      return
+    }
+
+    showMessage('Generating audio from combined scripts...', 'info')
+    
+    try {
+      // Use existing audioGeneration state
+      const result = await dispatch(generateAudioThunk({
+        sectionId: 'combined-all-scripts',
+        text: cleanedScript,
+        voiceId: audioGeneration.selectedVoice || 'EXAVITQu4vr4xnSDxMaL', // Default voice
+        modelId: audioGeneration.selectedModel || 'eleven_multilingual_v2'
+      }))
+
+      if (result.success) {
+        showMessage(`Audio generated successfully from ${sectionsWithScripts.length} combined scripts!`, 'success')
+      } else {
+        showMessage(result.error || 'Failed to generate combined audio', 'error')
+      }
+    } catch (error) {
+      console.error('Error generating combined audio:', error)
+      showMessage('Failed to generate combined audio', 'error')
+    }
   }
 
   // Handle section rating
@@ -1121,12 +1283,18 @@ export function ScriptGenerator() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Fine-Tuning Script Generator</h1>
           <p className="text-gray-600 mt-1">Create training data for your custom script generation model</p>
-          {/* Download Button */}
+          {/* Action Buttons */}
           {hasGeneratedScripts && user.isLoggedIn && (
-            <Button onClick={downloadAllScripts} variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Download All Scripts
-            </Button>
+            <div className="flex gap-2 mt-3">
+              <Button onClick={downloadAllScripts} variant="outline" className="flex items-center gap-2">
+                <Download className="h-4 w-4" />
+                Download All Scripts
+              </Button>
+              <Button onClick={generateCombinedAudio} variant="outline" className="flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Generate Combined Audio
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -1373,6 +1541,44 @@ export function ScriptGenerator() {
                       />
                     </div>
 
+                    {/* YouTube Links Display */}
+                    {pendingScript.youtubeLinks && pendingScript.youtubeLinks.length > 0 && (
+                      <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Play className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-800">YouTube References</span>
+                          <Badge variant="secondary">{pendingScript.youtubeLinks.length} link(s)</Badge>
+                        </div>
+                        <div className="space-y-2">
+                          {pendingScript.youtubeLinks.map((link: any, index: number) => (
+                            <div key={index} className="bg-white rounded p-2 text-sm border">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-blue-600">
+                                  {link.title || `Video ${index + 1}`}:
+                                </span>
+                                <a 
+                                  href={link.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 hover:underline truncate flex-1"
+                                >
+                                  {link.url}
+                                </a>
+                              </div>
+                              {link.timestamps && (
+                                <div className="text-gray-600 text-xs mt-1">
+                                  Timestamps: {link.timestamps}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-blue-600 mt-2">
+                          These references will be included at the beginning of generated scripts in the format: [[YT_LINK: url, timestamps]]
+                        </p>
+                      </div>
+                    )}
+                    
                     {/* Editable Generated Script */}
                     <div className="bg-white rounded p-4 border space-y-3">
                       <div className="flex items-center gap-2 mb-3">
@@ -1398,7 +1604,7 @@ export function ScriptGenerator() {
                       >
                         {approvingScript === pendingScript.tempId ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             Approving...
                           </>
                         ) : (
@@ -1541,6 +1747,35 @@ export function ScriptGenerator() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Word Count Configuration */}
+                    <div className="space-y-2">
+                      <Label htmlFor="targetWordCount">Target Word Count</Label>
+                      <div className="flex items-center gap-4">
+                        <Input
+                          id="targetWordCount"
+                          type="number"
+                          min="800"
+                          max="20000"
+                          step="100"
+                          placeholder="e.g., 4000"
+                          value={targetWordCount}
+                          onChange={(e) => setTargetWordCount(Number(e.target.value) || 4000)}
+                          className="flex-1"
+                        />
+                        <div className="bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-sm">
+                          <span className="text-blue-600 font-medium">
+                            {calculatedSections} section{calculatedSections !== 1 ? 's' : ''}
+                          </span>
+                          <span className="text-blue-500 text-xs ml-1">
+                            (~{Math.round(targetWordCount / calculatedSections)} words each)
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        The script will be divided into {calculatedSections} section{calculatedSections !== 1 ? 's' : ''} of approximately 800 words each.
+                      </p>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="targetAudience">Target Audience</Label>
@@ -1570,34 +1805,6 @@ export function ScriptGenerator() {
                         />
                 </div>
                             </div>
-
-                {/* Merge YouTube Data Button */}
-                {hasYouTubeData() && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">YouTube Research Integration</Label>
-                    <Button
-                      onClick={handleMergeYouTubeData}
-                      disabled={!selectedPromptContent || mergingData}
-                      variant="outline"
-                      className="w-full flex items-center justify-center gap-2 border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800"
-                    >
-                      {mergingData ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Merging Research Data...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="h-4 w-4" />
-                          Merge YouTube Research with Prompt
-                        </>
-                      )}
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      Enhance your prompt with YouTube video summaries, analysis results, and transcript data using AI
-                    </p>
-                  </div>
-                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="selectedPrompt">Select Prompt (Optional)</Label>
@@ -1657,6 +1864,10 @@ export function ScriptGenerator() {
                           ))}
                         </>
                       )}
+                      <SelectItem disabled value="divider" className="font-semibold text-blue-600">
+                        --- Your Fine-Tuned Models ---
+                      </SelectItem>
+                      <SelectItem value="ft:gpt-4.1-2025-04-14:pletfree-creations-ltd:initial-model:Blhdq95X">Initial Model (GPT-4.1)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
@@ -1715,12 +1926,12 @@ export function ScriptGenerator() {
                   {currentJob.isGeneratingSections ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating Sections...
+                      Generating {calculatedSections} Sections...
                                   </>
                                 ) : (
                                   <>
                       <Edit3 className="h-4 w-4" />
-                      Generate Script Sections
+                      Generate {calculatedSections} Script Sections
                                   </>
                                 )}
                 </Button>
@@ -1799,6 +2010,44 @@ export function ScriptGenerator() {
                             placeholder="Writing instructions for this section..."
                             className="min-h-[80px]"
                           />
+                          
+                          {/* YouTube Links Display */}
+                          {section.youtubeLinks && section.youtubeLinks.length > 0 && (
+                            <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Play className="h-4 w-4 text-blue-600" />
+                                <span className="text-sm font-medium text-blue-800">YouTube References</span>
+                                <Badge variant="secondary">{section.youtubeLinks.length} link(s)</Badge>
+                              </div>
+                              <div className="space-y-2">
+                                {section.youtubeLinks.map((link, index) => (
+                                  <div key={index} className="bg-white rounded p-2 text-sm border">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-blue-600">
+                                        {link.title || `Video ${index + 1}`}:
+                                      </span>
+                                      <a 
+                                        href={link.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-blue-500 hover:underline truncate flex-1"
+                                      >
+                                        {link.url}
+                                      </a>
+                                    </div>
+                                    {link.timestamps && (
+                                      <div className="text-gray-600 text-xs mt-1">
+                                        Timestamps: {link.timestamps}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-xs text-blue-600 mt-2">
+                                These references will be included at the beginning of generated scripts in the format: [[YT_LINK: url, timestamps]]
+                              </p>
+                            </div>
+                          )}
                           
                           {/* Section Rating */}
                           <div className="mt-3">

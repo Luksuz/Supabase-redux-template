@@ -5,9 +5,12 @@ import { z } from 'zod'
 // Zod schema for individual timestamp result
 const TimestampResultSchema = z.object({
   timestamp: z.string().describe("Timestamp in SRT format (HH:MM:SS,mmm) where the relevant content starts"),
-  summary: z.string().describe("Summary of the relevant transcript section"),
-  relevantContent: z.string().describe("The actual transcript content that matches the query"),
-  confidence: z.number().min(0).max(1).describe("Confidence score of the match (0-1)")
+  summary: z.string().describe("Detailed summary with specific quotes and dramatic elements"),
+  relevantContent: z.string().describe("The actual transcript content that matches the query with exact quotes"),
+  confidence: z.number().min(0).max(1).describe("Confidence score of the match (0-1)"),
+  dramaticElements: z.array(z.string()).describe("Key dramatic moments, conflicts, or tensions identified"),
+  keyQuotes: z.array(z.string()).describe("Most impactful direct quotes from the transcript"),
+  contextualInfo: z.string().describe("Background context and significance of this moment")
 })
 
 // Zod schema for structured output with up to 3 results
@@ -91,14 +94,16 @@ export async function POST(request: NextRequest) {
       // Bind schema to model using structured output
       const modelWithStructure = model.withStructuredOutput(TranscriptAnalysisSchema)
 
-      const prompt = `You are an expert transcript analyzer. I will provide you with an SRT subtitle file and a specific query. Your task is to:
+      const prompt = `You are an expert transcript analyzer specializing in extracting dramatic moments, conflicts, and compelling quotes from video content. Your analysis should be detailed and reference-rich, similar to court transcripts and news reports.
 
-1. Find up to 3 most relevant sections in the transcript that match the user's query
-2. Extract the precise timestamp where each relevant content starts
-3. Provide a concise summary of what's discussed starting from each timestamp
-4. Include the actual relevant transcript content for each result
-5. Rate your confidence in each match
-6. Order results by relevance (most relevant first)
+I will provide you with an SRT subtitle file and a specific query. Your task is to:
+
+1. Find up to 3 most relevant sections that match the user's query
+2. Extract precise timestamps where dramatic or relevant content occurs
+3. Provide detailed summaries with specific quotes and dramatic elements
+4. Identify key conflicts, tensions, or compelling moments
+5. Extract the most impactful direct quotes from the transcript
+6. Provide contextual background for each moment's significance
 
 Video Title: ${videoTitle}
 User Query: "${query}"
@@ -106,19 +111,28 @@ User Query: "${query}"
 SRT Transcript:
 ${srtContent}
 
-Instructions:
-- Look for content that directly relates to the user's query
-- If the query mentions specific phrases, prioritize exact or near-exact matches
-- If it's a topical query, find where that topic is discussed throughout the video
-- Provide up to 3 different timestamps where relevant discussion occurs
-- Each result should represent a distinct section or moment in the video
-- Avoid duplicate or overlapping content - each result should be meaningfully different
-- The summary for each should be concise but informative (2-3 sentences)
-- Confidence should be high (0.8+) for exact matches, lower for topical matches
-- Return only the timestamp where each content starts (not end timestamps)
-- Order results from most relevant to least relevant
+ANALYSIS REQUIREMENTS:
+- Focus on dramatic moments, conflicts, confrontations, or emotionally charged content
+- Extract direct quotes verbatim from the transcript
+- Identify specific details like names, locations, events mentioned
+- Look for moments of tension, surprise, revelation, or conflict
+- Provide rich contextual information about what's happening
+- Format summaries like detailed news reports or court documentation
+- Include specific references to what people said, when they said it, and the circumstances
 
-Return only the structured data without any additional text or formatting.`
+EXAMPLE FORMAT FOR SUMMARIES:
+"At timestamp 00:15:23, the speaker revealed: 'I never thought this would happen to me.' This moment marked a dramatic shift in the narrative as tensions escalated. The speaker's voice became noticeably strained, and background voices can be heard expressing shock. This revelation occurred immediately after [context], making it particularly significant because [explanation]."
+
+Return structured data with:
+- timestamp: Exact SRT timestamp
+- summary: Detailed narrative summary with quotes and dramatic elements
+- relevantContent: Exact transcript text with quotation marks around spoken words
+- confidence: Your confidence in the relevance (0-1)
+- dramaticElements: Array of key dramatic moments identified
+- keyQuotes: Array of the most impactful direct quotes
+- contextualInfo: Background context and significance
+
+Order results by dramatic impact and relevance to the query.`
 
       console.log('Sending request to OpenAI via LangChain...')
       console.log('Query:', query)
@@ -212,37 +226,56 @@ function generateMockAnalysis(query: string, srtContent: string, videoId?: strin
     timestamps.push("00:00:05,000")
   }
 
-  // Create contextual mock results based on query
+  // Create contextual mock results based on query with dramatic elements
   const mockResults = timestamps.map((timestamp, index) => {
-    let mockContent = `This is mock analysis result ${index + 1} for "${query}". `
+    let mockContent = ''
+    let dramaticElements: string[] = []
+    let keyQuotes: string[] = []
+    let contextualInfo = ''
     let confidence = 0.75 - (index * 0.1) // Decreasing confidence for subsequent results
   
-  if (query.toLowerCase().includes('time') || query.toLowerCase().includes('when')) {
-      mockContent += `The speaker discusses timing and scheduling in this segment (part ${index + 1}).`
-      confidence = 0.8 - (index * 0.1)
-  } else if (query.toLowerCase().includes('how')) {
-      mockContent += `The speaker explains the process and methodology (aspect ${index + 1}).`
-      confidence = 0.85 - (index * 0.1)
-  } else if (query.toLowerCase().includes('what')) {
-      mockContent += `The speaker defines and describes the concept (definition ${index + 1}).`
+    if (query.toLowerCase().includes('confrontation') || query.toLowerCase().includes('fight') || query.toLowerCase().includes('drama')) {
+      mockContent = `At timestamp ${timestamp}, tensions reached a breaking point when the speaker declared: 'This ends right now!' The confrontation escalated as voices became increasingly agitated. Background audio reveals multiple people speaking over each other, creating a chaotic atmosphere.`
+      dramaticElements = ['Heated confrontation', 'Escalating tensions', 'Multiple voices arguing', 'Emotional outburst']
+      keyQuotes = ['This ends right now!', 'You don\'t understand what\'s happening', 'I can\'t believe this is real']
+      contextualInfo = 'This moment represents a critical turning point in the narrative, occurring during a period of heightened stress and conflict.'
       confidence = 0.9 - (index * 0.1)
-  } else {
-      mockContent += `The speaker covers the topic mentioned in your query (section ${index + 1}).`
-  }
+    } else if (query.toLowerCase().includes('reveal') || query.toLowerCase().includes('secret') || query.toLowerCase().includes('truth')) {
+      mockContent = `At timestamp ${timestamp}, a shocking revelation emerged when the speaker admitted: 'I never told anyone this before, but...' The admission was followed by a long pause, suggesting the weight of the disclosure. The speaker's tone shifted noticeably, becoming more vulnerable and hesitant.`
+      dramaticElements = ['Shocking revelation', 'Emotional vulnerability', 'Long dramatic pause', 'Tone shift']
+      keyQuotes = ['I never told anyone this before', 'The truth is finally coming out', 'I can\'t keep this secret anymore']
+      contextualInfo = 'This disclosure appears to be a pivotal moment of honesty and transparency, breaking down previously maintained barriers.'
+      confidence = 0.85 - (index * 0.1)
+    } else if (query.toLowerCase().includes('reaction') || query.toLowerCase().includes('response')) {
+      mockContent = `At timestamp ${timestamp}, an intense reaction unfolded as the speaker exclaimed: 'I can't believe what I'm seeing!' The response was immediate and visceral, with audible gasps and exclamations from others present. The emotional intensity of the moment is palpable through the audio.`
+      dramaticElements = ['Visceral reaction', 'Audible gasps', 'Immediate response', 'Emotional intensity']
+      keyQuotes = ['I can\'t believe what I\'m seeing!', 'This is absolutely insane', 'My heart is racing right now']
+      contextualInfo = 'This reaction suggests a moment of genuine surprise or shock, captured in real-time with authentic emotional responses.'
+      confidence = 0.8 - (index * 0.1)
+    } else {
+      mockContent = `At timestamp ${timestamp}, a significant moment occurred when the speaker stated: 'This changes everything we thought we knew.' The declaration was made with conviction, followed by a detailed explanation of the implications. Other participants can be heard expressing agreement and concern.`
+      dramaticElements = ['Paradigm shift', 'Conviction in voice', 'Group concern', 'Detailed explanation']
+      keyQuotes = ['This changes everything we thought we knew', 'Nothing will be the same after this', 'We need to rethink our approach']
+      contextualInfo = 'This moment appears to mark a significant shift in understanding or perspective, with implications for future developments.'
+      confidence = 0.75 - (index * 0.1)
+    }
 
-  const result: any = {
-    timestamp: timestamp,
-      summary: `Mock summary ${index + 1}: ${mockContent} This is simulated content for demonstration purposes.`,
-    relevantContent: `"${mockContent} [Mock transcript content would appear here]"`,
-      confidence: Math.max(confidence, 0.5) // Ensure minimum confidence of 0.5
-  }
+    const result: any = {
+      timestamp: timestamp,
+      summary: mockContent + ` [Mock analysis result ${index + 1} for demonstration purposes]`,
+      relevantContent: `"${keyQuotes[0]}" - [Mock transcript content showing the dramatic exchange and surrounding context]`,
+      confidence: Math.max(confidence, 0.5), // Ensure minimum confidence of 0.5
+      dramaticElements: dramaticElements,
+      keyQuotes: keyQuotes,
+      contextualInfo: contextualInfo + ` This is simulated analysis data for testing purposes.`
+    }
 
-  // Add YouTube URL if videoId is provided
-  if (videoId) {
-    result.youtubeUrl = generateYouTubeUrl(videoId, timestamp)
-  }
+    // Add YouTube URL if videoId is provided
+    if (videoId) {
+      result.youtubeUrl = generateYouTubeUrl(videoId, timestamp)
+    }
 
-  return result
+    return result
   })
 
   return mockResults

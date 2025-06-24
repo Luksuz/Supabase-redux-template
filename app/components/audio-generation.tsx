@@ -27,6 +27,17 @@ export function AudioGeneration() {
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [customText, setCustomText] = useState('')
   const [customTitle, setCustomTitle] = useState('')
+  const [bulkGenerationProgress, setBulkGenerationProgress] = useState<{
+    isGenerating: boolean
+    current: number
+    total: number
+    currentSection: string
+  }>({
+    isGenerating: false,
+    current: 0,
+    total: 0,
+    currentSection: ''
+  })
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -113,6 +124,103 @@ export function AudioGeneration() {
       )
     } else {
       showMessage(result.error || 'Failed to generate custom audio', 'error')
+    }
+  }
+
+  // Generate audio for all sections that have scripts but no audio
+  const generateAudioForAll = async () => {
+    if (!audioGeneration.selectedVoice) {
+      showMessage('Please select a voice first', 'error')
+      return
+    }
+
+    if (!user.isLoggedIn) {
+      showMessage('Please log in to generate audio', 'error')
+      return
+    }
+
+    if (!currentJob || sectionsWithScripts.length === 0) {
+      showMessage('No scripts available to generate audio from', 'error')
+      return
+    }
+
+    // Find sections that have scripts but don't have audio generated yet
+    const sectionsNeedingAudio = sectionsWithScripts.filter(section => {
+      const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
+      return !audioState?.result?.success && !audioState?.isGenerating
+    })
+
+    if (sectionsNeedingAudio.length === 0) {
+      showMessage('All sections already have audio generated or are currently generating', 'info')
+      return
+    }
+
+    // Initialize progress tracking
+    setBulkGenerationProgress({
+      isGenerating: true,
+      current: 0,
+      total: sectionsNeedingAudio.length,
+      currentSection: ''
+    })
+
+    showMessage(`Starting audio generation for ${sectionsNeedingAudio.length} sections...`, 'info')
+
+    let successCount = 0
+    let errorCount = 0
+
+    // Generate audio for each section sequentially to avoid overwhelming the API
+    for (let i = 0; i < sectionsNeedingAudio.length; i++) {
+      const section = sectionsNeedingAudio[i]
+      
+      // Update progress
+      setBulkGenerationProgress(prev => ({
+        ...prev,
+        current: i + 1,
+        currentSection: section.title
+      }))
+
+      try {
+        const scriptText = section.texts[0].generated_script
+        const result = await dispatch(generateAudioThunk({
+          sectionId: section.id,
+          text: scriptText,
+          voiceId: audioGeneration.selectedVoice,
+          modelId: audioGeneration.selectedModel
+        }))
+
+        if (result.success) {
+          successCount++
+          console.log(`✅ Audio generated for section: ${section.title}`)
+        } else {
+          errorCount++
+          console.error(`❌ Failed to generate audio for section: ${section.title}`, result.error)
+        }
+
+        // Add a small delay between requests to avoid rate limiting
+        if (i < sectionsNeedingAudio.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+      } catch (error) {
+        errorCount++
+        console.error(`❌ Error generating audio for section: ${section.title}`, error)
+      }
+    }
+
+    // Reset progress tracking
+    setBulkGenerationProgress({
+      isGenerating: false,
+      current: 0,
+      total: 0,
+      currentSection: ''
+    })
+
+    // Show final results
+    if (successCount > 0 && errorCount === 0) {
+      showMessage(`🎉 Successfully generated audio for all ${successCount} sections!`, 'success')
+    } else if (successCount > 0 && errorCount > 0) {
+      showMessage(`⚠️ Generated audio for ${successCount} sections, ${errorCount} failed`, 'info')
+    } else {
+      showMessage(`❌ Failed to generate audio for all ${errorCount} sections`, 'error')
     }
   }
 
@@ -502,10 +610,117 @@ export function AudioGeneration() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Project Scripts</CardTitle>
-              <CardDescription>Generate audio from your project scripts</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Project Scripts</CardTitle>
+                  <CardDescription>Generate audio from your project scripts</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const sectionsNeedingAudio = sectionsWithScripts.filter(section => {
+                      const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
+                      return !audioState?.result?.success && !audioState?.isGenerating
+                    })
+                    const isGeneratingAny = audioGeneration.sectionAudioStates.some(s => s.isGenerating && !s.sectionId.startsWith('custom-'))
+                    
+                    return (
+                      <>
+                        {sectionsNeedingAudio.length > 0 && (
+                          <Badge variant="outline" className="text-orange-600 border-orange-300">
+                            {sectionsNeedingAudio.length} need audio
+                          </Badge>
+                        )}
+                        <Button
+                          onClick={generateAudioForAll}
+                          disabled={sectionsNeedingAudio.length === 0 || isGeneratingAny || !audioGeneration.selectedVoice || bulkGenerationProgress.isGenerating}
+                          variant="default"
+                          size="sm"
+                        >
+                          {bulkGenerationProgress.isGenerating ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              Generating {bulkGenerationProgress.current}/{bulkGenerationProgress.total}
+                            </>
+                          ) : isGeneratingAny ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Music className="h-4 w-4 mr-2" />
+                              Generate Audio for All ({sectionsNeedingAudio.length})
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
             </CardHeader>
           </Card>
+
+          {/* Bulk Generation Info */}
+          {(() => {
+            const sectionsNeedingAudio = sectionsWithScripts.filter(section => {
+              const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
+              return !audioState?.result?.success && !audioState?.isGenerating
+            })
+            const isGeneratingAny = audioGeneration.sectionAudioStates.some(s => s.isGenerating && !s.sectionId.startsWith('custom-'))
+            
+            if (sectionsNeedingAudio.length > 1 && !isGeneratingAny) {
+              return (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Music className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">💡 Bulk Audio Generation Available</p>
+                      <p>
+                        You have {sectionsNeedingAudio.length} sections ready for audio generation. 
+                        Use the "Generate Audio for All" button above to process all sections automatically with a 2-second delay between each request to respect API rate limits.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
+
+          {/* Bulk Generation Progress */}
+          {bulkGenerationProgress.isGenerating && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+                      <span className="font-medium text-orange-900">
+                        Bulk Audio Generation in Progress
+                      </span>
+                    </div>
+                    <Badge variant="outline" className="text-orange-600 border-orange-300">
+                      {bulkGenerationProgress.current} of {bulkGenerationProgress.total}
+                    </Badge>
+                  </div>
+                  
+                  <Progress 
+                    value={(bulkGenerationProgress.current / bulkGenerationProgress.total) * 100} 
+                    className="w-full"
+                  />
+                  
+                  <div className="text-sm text-orange-800">
+                    <p className="font-medium">Currently processing:</p>
+                    <p className="truncate">{bulkGenerationProgress.currentSection}</p>
+                    <p className="text-xs mt-2 text-orange-600">
+                      ⏱️ Each section takes 2-5 minutes to generate. Please be patient.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {sectionsWithScripts.map((section) => {
             const sectionAudioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
