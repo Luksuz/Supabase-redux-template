@@ -27,9 +27,6 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-# Initialize YouTube Transcript API
-youtube_api = YouTubeTranscriptApi()
-
 def extract_video_id(url_or_id: str) -> Optional[str]:
     """
     Extract YouTube video ID from various URL formats or return the ID if already provided.
@@ -155,14 +152,16 @@ def extract_multiple():
                 
                 logger.info(f"Fetching captions for video: {extracted_id}")
                 
-                # Fetch transcript
-                transcript = youtube_api.fetch(extracted_id, languages=[language])
-                
-                # Convert to raw data
-                raw_data = transcript.to_raw_data()
+                # Fetch transcript using static method with proxy support
+                transcript = YouTubeTranscriptApi.get_transcript(
+                    extracted_id, 
+                    languages=[language],
+                    proxies={"http": "http://otknvhqu:1xy56rpgg2in@198.23.239.134:6540", 
+                            "https": "http://otknvhqu:1xy56rpgg2in@198.23.239.134:6540"}
+                )
                 
                 # Convert to SRT format
-                srt_content = convert_to_srt_format(raw_data)
+                srt_content = convert_to_srt_format(transcript)
                 
                 # Get video title (we'll use video ID as fallback since we don't have title from transcript API)
                 video_title = f"Video {extracted_id}"
