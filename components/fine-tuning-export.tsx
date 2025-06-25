@@ -1,7 +1,38 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAppSelector } from '../lib/hooks'
+import { useAppSelector, useAppDispatch } from '../lib/hooks'
+import {
+  // Import Redux actions
+  addSelectedFilesMetadata,
+  removeFile,
+  updateProcessedFileStatus,
+  setIsProcessingFiles,
+  setDocxTrainingData,
+  addDocxTrainingDataItem,
+  clearDocxData,
+  setIsGeneratingDataset,
+  setAutoDataset,
+  setDatasetSummary,
+  clearAutoDataset,
+  setSelectedModel,
+  setIsFineTuningDocx,
+  setIsFineTuningAuto,
+  setFineTuningResults,
+  setFineTunedModels,
+  setLoadingModels,
+  setMessage,
+  clearMessage,
+  resetDocxTab,
+  resetAutoTab,
+  // Import types and selectors
+  type TrainingDataItem,
+  type FileMetadata,
+  selectFineTuningExport,
+  selectDocxProcessing,
+  selectAutoDataset,
+  selectFineTuningState
+} from '../lib/features/fineTuningExport/fineTuningExportSlice'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Input } from './ui/input'
@@ -13,81 +44,62 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Download, FileText, Loader2, Eye, AlertCircle, CheckCircle, Database, Settings, Layers, Upload, Cloud, Zap, X } from 'lucide-react'
 
-interface TrainingDataItem {
-  messages: Array<{
-    role: string
-    content: string
-  }>
-  metadata?: {
-    filename?: string
-    source?: string
-  }
-}
-
-interface ProcessedFile {
-  filename: string
-  status: 'pending' | 'parsing' | 'processing' | 'completed' | 'error'
-  content?: string
-  trainingData?: {
-    systemPrompt: string
-    userPrompt: string
-    assistantResponse: string
-  }
-  error?: string
-}
-
 export function FineTuningExport() {
+  const dispatch = useAppDispatch()
   const user = useAppSelector(state => state.user)
   
-  // DOCX processing state
+  // Get Redux state
+  const fineTuningExport = useAppSelector(selectFineTuningExport)
+  const docxProcessing = useAppSelector(selectDocxProcessing)
+  const autoDataset = useAppSelector(selectAutoDataset)
+  const fineTuningState = useAppSelector(selectFineTuningState)
+  
+  // Local state for File objects (can't be serialized in Redux)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [processedFiles, setProcessedFiles] = useState<ProcessedFile[]>([])
-  const [isProcessingFiles, setIsProcessingFiles] = useState(false)
-  const [docxTrainingData, setDocxTrainingData] = useState<TrainingDataItem[]>([])
-  
-  // Auto dataset state
-  const [isGeneratingDataset, setIsGeneratingDataset] = useState(false)
-  const [autoDataset, setAutoDataset] = useState<TrainingDataItem[]>([])
-  const [datasetSummary, setDatasetSummary] = useState<any>(null)
-  
-  // Fine-tuning state
-  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini-2024-07-18')
-  const [isFineTuningDocx, setIsFineTuningDocx] = useState(false)
-  const [isFineTuningAuto, setIsFineTuningAuto] = useState(false)
-  const [fineTuningResults, setFineTuningResults] = useState<any>(null)
-  
-  // Fine-tuned models state
-  const [fineTunedModels, setFineTunedModels] = useState<any[]>([])
-  const [loadingModels, setLoadingModels] = useState(false)
-  
-  // Message state
-  const [message, setMessage] = useState('')
-  const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+
+  // Handle message auto-clearing
+  useEffect(() => {
+    if (fineTuningExport.message) {
+      const timer = setTimeout(() => dispatch(clearMessage()), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [fineTuningExport.message, dispatch])
+
+  // Handle state mismatch after navigation (when processing state exists but no local files)
+  useEffect(() => {
+    // If Redux shows we're processing files or have processed files, but no local files exist
+    const hasReduxFileState = docxProcessing.processedFiles.length > 0
+    const hasLocalFiles = selectedFiles.length > 0
+    const isProcessing = docxProcessing.isProcessingFiles
+    
+    if (hasReduxFileState && !hasLocalFiles && !isProcessing) {
+      // Files exist in Redux but not locally - show info message for reselection if needed
+      showMessage('Your files are ready. Select the same files again if you want to reprocess any of them.', 'info')
+    }
+  }, [docxProcessing.processedFiles.length, selectedFiles.length, docxProcessing.isProcessingFiles, dispatch])
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setMessage(msg)
-    setMessageType(type)
-    setTimeout(() => setMessage(''), 5000)
+    dispatch(setMessage({ message: msg, type }))
   }
 
   // Load fine-tuned models on component mount
   const loadFineTunedModels = async () => {
     if (!user.isLoggedIn) return
 
-    setLoadingModels(true)
+    dispatch(setLoadingModels(true))
     try {
       const response = await fetch('/api/fine-tuning/models')
       const data = await response.json()
 
       if (response.ok && data.success) {
-        setFineTunedModels(data.models)
+        dispatch(setFineTunedModels(data.models))
       } else {
         console.error('Failed to load fine-tuned models:', data.error)
       }
     } catch (error) {
       console.error('Failed to load fine-tuned models:', error)
     } finally {
-      setLoadingModels(false)
+      dispatch(setLoadingModels(false))
     }
   }
 
@@ -106,20 +118,65 @@ export function FineTuningExport() {
       showMessage('Only DOCX files are supported', 'error')
     }
     
-    setSelectedFiles(prev => [...prev, ...docxFiles])
-    setProcessedFiles(prev => [
-      ...prev,
-      ...docxFiles.map(file => ({
-        filename: file.name,
-        status: 'pending' as const
+    // If Redux already has files, try to match them with selected files
+    const existingFiles = docxProcessing.processedFiles
+    if (existingFiles.length > 0) {
+      // Match files by name and size
+      const matchedFiles: File[] = []
+      const newFiles: File[] = []
+      
+      docxFiles.forEach(file => {
+        const existingFile = existingFiles.find(ef => 
+          ef.filename === file.name && 
+          docxProcessing.selectedFilesMetadata.find(meta => 
+            meta.name === file.name && meta.size === file.size
+          )
+        )
+        
+        if (existingFile) {
+          matchedFiles.push(file)
+        } else {
+          newFiles.push(file)
+        }
+      })
+      
+      // Update local state with all files (matched + new)
+      setSelectedFiles(prev => [...prev, ...docxFiles])
+      
+      // Only add metadata for truly new files
+      if (newFiles.length > 0) {
+        const newFilesMetadata: FileMetadata[] = newFiles.map(file => ({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified
+        }))
+        dispatch(addSelectedFilesMetadata(newFilesMetadata))
+      }
+      
+      if (matchedFiles.length > 0) {
+        showMessage(`Matched ${matchedFiles.length} existing files. Ready to continue processing.`, 'success')
+      }
+    } else {
+      // No existing files, add all as new
+      setSelectedFiles(prev => [...prev, ...docxFiles])
+      
+      const filesMetadata: FileMetadata[] = docxFiles.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
       }))
-    ])
+      dispatch(addSelectedFilesMetadata(filesMetadata))
+    }
   }
 
   // Remove a file from the list
-  const removeFile = (index: number) => {
+  const removeFileFromList = (index: number) => {
+    // Update local File state
     setSelectedFiles(prev => prev.filter((_, i) => i !== index))
-    setProcessedFiles(prev => prev.filter((_, i) => i !== index))
+    // Update Redux state
+    dispatch(removeFile(index))
   }
 
   // Process all DOCX files
@@ -129,16 +186,15 @@ export function FineTuningExport() {
       return
     }
 
-    setIsProcessingFiles(true)
-    const trainingDataItems: TrainingDataItem[] = []
-
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const file = selectedFiles[i]
-      
+    dispatch(setIsProcessingFiles(true))
+    
+    // Process all files in parallel
+    const processingPromises = selectedFiles.map(async (file, index) => {
       // Update status to parsing
-      setProcessedFiles(prev => prev.map((pf, idx) => 
-        idx === i ? { ...pf, status: 'parsing' } : pf
-      ))
+      dispatch(updateProcessedFileStatus({
+        index,
+        status: 'parsing'
+      }))
 
       try {
         // Parse DOCX
@@ -157,9 +213,11 @@ export function FineTuningExport() {
         }
 
         // Update status to processing
-        setProcessedFiles(prev => prev.map((pf, idx) => 
-          idx === i ? { ...pf, status: 'processing', content: parseData.content } : pf
-        ))
+        dispatch(updateProcessedFileStatus({
+          index,
+          status: 'processing',
+          content: parseData.content
+        }))
 
         // Generate training data
         const structureResponse = await fetch('/api/structure-data-from-script', {
@@ -189,38 +247,56 @@ export function FineTuningExport() {
           }
         }
 
-        trainingDataItems.push(trainingDataItem)
-
         // Update status to completed
-        setProcessedFiles(prev => prev.map((pf, idx) => 
-          idx === i ? { 
-            ...pf, 
-            status: 'completed',
-            trainingData: {
-              systemPrompt: structureData.systemPrompt,
-              userPrompt: structureData.userPrompt,
-              assistantResponse: structureData.assistantResponse
-            }
-          } : pf
-        ))
+        dispatch(updateProcessedFileStatus({
+          index,
+          status: 'completed',
+          trainingData: {
+            systemPrompt: structureData.systemPrompt,
+            userPrompt: structureData.userPrompt,
+            assistantResponse: structureData.assistantResponse
+          }
+        }))
+
+        return trainingDataItem
 
       } catch (error) {
         console.error(`Error processing ${file.name}:`, error)
-        setProcessedFiles(prev => prev.map((pf, idx) => 
-          idx === i ? { 
-            ...pf, 
-            status: 'error',
-            error: (error as Error).message
-          } : pf
-        ))
+        dispatch(updateProcessedFileStatus({
+          index,
+          status: 'error',
+          error: (error as Error).message
+        }))
+        return null
       }
-    }
+    })
 
-    setDocxTrainingData(trainingDataItems)
-    setIsProcessingFiles(false)
-    
-    if (trainingDataItems.length > 0) {
-      showMessage(`Successfully processed ${trainingDataItems.length} files into training data`, 'success')
+    // Wait for all files to complete processing
+    try {
+      const results = await Promise.all(processingPromises)
+      const successfulItems = results.filter(item => item !== null) as TrainingDataItem[]
+      
+      // Update training data with all successful results
+      dispatch(setDocxTrainingData(successfulItems))
+      
+      const totalFiles = selectedFiles.length
+      const successfulFiles = successfulItems.length
+      const failedFiles = totalFiles - successfulFiles
+      
+      if (successfulFiles > 0) {
+        if (failedFiles > 0) {
+          showMessage(`Processing completed: ${successfulFiles} succeeded, ${failedFiles} failed`, 'info')
+        } else {
+          showMessage(`Successfully processed all ${successfulFiles} files into training data`, 'success')
+        }
+      } else {
+        showMessage('All files failed to process. Please check the error messages above.', 'error')
+      }
+    } catch (error) {
+      console.error('Error in parallel processing:', error)
+      showMessage('An unexpected error occurred during processing', 'error')
+    } finally {
+      dispatch(setIsProcessingFiles(false))
     }
   }
 
@@ -231,7 +307,7 @@ export function FineTuningExport() {
       return
     }
 
-    setIsGeneratingDataset(true)
+    dispatch(setIsGeneratingDataset(true))
     try {
       const response = await fetch('/api/fine-tuning/export-sections', {
         method: 'POST',
@@ -244,8 +320,8 @@ export function FineTuningExport() {
       const data = await response.json()
 
       if (response.ok && data.success) {
-        setAutoDataset(data.trainingData)
-        setDatasetSummary(data.summary)
+        dispatch(setAutoDataset(data.trainingData))
+        dispatch(setDatasetSummary(data.summary))
         showMessage(`Generated dataset with ${data.trainingData.length} training examples`, 'success')
       } else {
         showMessage(data.error || 'Failed to generate dataset', 'error')
@@ -253,24 +329,24 @@ export function FineTuningExport() {
     } catch (error) {
       showMessage('Failed to generate dataset', 'error')
     } finally {
-      setIsGeneratingDataset(false)
+      dispatch(setIsGeneratingDataset(false))
     }
   }
 
   // Start fine-tuning with DOCX data
   const startDocxFineTuning = async () => {
-    if (docxTrainingData.length === 0) {
+    if (docxProcessing.docxTrainingData.length === 0) {
       showMessage('Please process DOCX files first', 'error')
       return
     }
 
-    setIsFineTuningDocx(true)
+    dispatch(setIsFineTuningDocx(true))
     try {
       const response = await fetch('/api/fine-tuning/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          trainingData: docxTrainingData,
+          trainingData: docxProcessing.docxTrainingData,
           filename: 'docx_training_data.jsonl',
           type: 'docx'
         })
@@ -288,7 +364,7 @@ export function FineTuningExport() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileId: uploadData.file.id,
-          model: selectedModel,
+          model: fineTuningState.selectedModel,
           uploadId: uploadData.upload?.id
         })
       })
@@ -296,7 +372,7 @@ export function FineTuningExport() {
       const jobData = await jobResponse.json()
 
       if (jobResponse.ok && jobData.success) {
-        setFineTuningResults(jobData)
+        dispatch(setFineTuningResults(jobData))
         showMessage(`Fine-tuning job started successfully! Job ID: ${jobData.openaiJob.id}`, 'success')
       } else {
         throw new Error(jobData.error || 'Failed to start fine-tuning job')
@@ -304,24 +380,24 @@ export function FineTuningExport() {
     } catch (error) {
       showMessage('Failed to start fine-tuning: ' + (error as Error).message, 'error')
     } finally {
-      setIsFineTuningDocx(false)
+      dispatch(setIsFineTuningDocx(false))
     }
   }
 
   // Start fine-tuning with auto dataset
   const startAutoFineTuning = async () => {
-    if (autoDataset.length === 0) {
+    if (autoDataset.autoDataset.length === 0) {
       showMessage('Please generate dataset first', 'error')
       return
     }
 
-    setIsFineTuningAuto(true)
+    dispatch(setIsFineTuningAuto(true))
     try {
       const response = await fetch('/api/fine-tuning/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          trainingData: autoDataset,
+          trainingData: autoDataset.autoDataset,
           filename: 'auto_dataset_training.jsonl',
           type: 'sections'
         })
@@ -339,7 +415,7 @@ export function FineTuningExport() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileId: uploadData.file.id,
-          model: selectedModel,
+          model: fineTuningState.selectedModel,
           uploadId: uploadData.upload?.id
         })
       })
@@ -347,7 +423,7 @@ export function FineTuningExport() {
       const jobData = await jobResponse.json()
 
       if (jobResponse.ok && jobData.success) {
-        setFineTuningResults(jobData)
+        dispatch(setFineTuningResults(jobData))
         showMessage(`Fine-tuning job started successfully! Job ID: ${jobData.openaiJob.id}`, 'success')
       } else {
         throw new Error(jobData.error || 'Failed to start fine-tuning job')
@@ -355,7 +431,7 @@ export function FineTuningExport() {
     } catch (error) {
       showMessage('Failed to start fine-tuning: ' + (error as Error).message, 'error')
     } finally {
-      setIsFineTuningAuto(false)
+      dispatch(setIsFineTuningAuto(false))
     }
   }
 
@@ -398,17 +474,17 @@ export function FineTuningExport() {
       </div>
 
       {/* Message Display */}
-      {message && (
+      {fineTuningExport.message && (
         <div className={`p-4 rounded-lg ${
-          messageType === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
-          messageType === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+          fineTuningExport.messageType === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+          fineTuningExport.messageType === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
           'bg-blue-50 text-blue-800 border border-blue-200'
         }`}>
           <div className="flex items-center gap-2">
-            {messageType === 'success' && <CheckCircle className="h-4 w-4" />}
-            {messageType === 'error' && <AlertCircle className="h-4 w-4" />}
-            {messageType === 'info' && <FileText className="h-4 w-4" />}
-            {message}
+            {fineTuningExport.messageType === 'success' && <CheckCircle className="h-4 w-4" />}
+            {fineTuningExport.messageType === 'error' && <AlertCircle className="h-4 w-4" />}
+            {fineTuningExport.messageType === 'info' && <FileText className="h-4 w-4" />}
+            {fineTuningExport.message}
           </div>
         </div>
       )}
@@ -455,11 +531,11 @@ export function FineTuningExport() {
               </div>
 
               {/* File List */}
-              {selectedFiles.length > 0 && (
+              {docxProcessing.processedFiles.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Selected Files</Label>
+                  <Label>Files</Label>
                   <div className="space-y-2">
-                    {processedFiles.map((file, index) => (
+                    {docxProcessing.processedFiles.map((file, index) => (
                       <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex items-center gap-3">
                           <FileText className="h-4 w-4" />
@@ -478,24 +554,33 @@ export function FineTuningExport() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeFile(index)}
-                          disabled={isProcessingFiles}
+                          onClick={() => removeFileFromList(index)}
+                          disabled={docxProcessing.isProcessingFiles}
                         >
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
                     ))}
                   </div>
+                  
+                  {/* Show message if files exist but no local File objects */}
+                  {selectedFiles.length === 0 && docxProcessing.processedFiles.length > 0 && !docxProcessing.isProcessingFiles && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-800">
+                        💡 To reprocess files or add new ones, select your DOCX files again using the file input above.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div className="flex gap-2">
                 <Button
                   onClick={processAllFiles}
-                  disabled={isProcessingFiles || selectedFiles.length === 0}
+                  disabled={docxProcessing.isProcessingFiles || selectedFiles.length === 0}
                   className="flex items-center gap-2"
                 >
-                  {isProcessingFiles ? (
+                  {docxProcessing.isProcessingFiles ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Processing Files...
@@ -508,9 +593,9 @@ export function FineTuningExport() {
                   )}
                 </Button>
 
-                {docxTrainingData.length > 0 && (
+                {docxProcessing.docxTrainingData.length > 0 && (
                   <Button
-                    onClick={() => downloadJsonl(docxTrainingData, 'docx_training_data.jsonl')}
+                    onClick={() => downloadJsonl(docxProcessing.docxTrainingData, 'docx_training_data.jsonl')}
                     variant="outline"
                     className="flex items-center gap-2"
                   >
@@ -523,17 +608,17 @@ export function FineTuningExport() {
           </Card>
 
           {/* DOCX Training Data Display */}
-          {docxTrainingData.length > 0 && (
+          {docxProcessing.docxTrainingData.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Generated Training Data</CardTitle>
                 <CardDescription>
-                  {docxTrainingData.length} training examples generated from DOCX files
+                  {docxProcessing.docxTrainingData.length} training examples generated from DOCX files
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {docxTrainingData.slice(0, 3).map((item, index) => (
+                  {docxProcessing.docxTrainingData.slice(0, 3).map((item, index) => (
                     <div key={index} className="border rounded-lg p-4 bg-blue-50">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="secondary">Example {index + 1}</Badge>
@@ -568,9 +653,9 @@ export function FineTuningExport() {
                   ))}
                 </div>
 
-                {docxTrainingData.length > 3 && (
+                {docxProcessing.docxTrainingData.length > 3 && (
                   <div className="text-center text-sm text-gray-600">
-                    ... and {docxTrainingData.length - 3} more training examples
+                    ... and {docxProcessing.docxTrainingData.length - 3} more training examples
                   </div>
                 )}
 
@@ -578,7 +663,7 @@ export function FineTuningExport() {
                 <div className="border-t pt-4 space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="model-select-docx">Select Model for Fine-Tuning</Label>
-                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <Select value={fineTuningState.selectedModel} onValueChange={(value) => dispatch(setSelectedModel(value))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a model" />
                       </SelectTrigger>
@@ -587,12 +672,12 @@ export function FineTuningExport() {
                         <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 (2025-04-14)</SelectItem>
                         <SelectItem value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (2025-04-14)</SelectItem>
                         <SelectItem value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (2025-04-14)</SelectItem>
-                        {fineTunedModels.length > 0 && (
+                        {fineTuningState.fineTunedModels.length > 0 && (
                           <>
                             <SelectItem disabled value="divider" className="font-semibold text-blue-600">
                               --- Your Fine-Tuned Models ---
                             </SelectItem>
-                            {fineTunedModels.map((model) => (
+                            {fineTuningState.fineTunedModels.map((model) => (
                               <SelectItem key={model.id} value={model.id}>
                                 {model.name.split(':').pop()} (based on {model.baseModel})
                               </SelectItem>
@@ -601,7 +686,7 @@ export function FineTuningExport() {
                         )}
                       </SelectContent>
                     </Select>
-                    {loadingModels && (
+                    {fineTuningState.loadingModels && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         Loading your fine-tuned models...
@@ -611,11 +696,11 @@ export function FineTuningExport() {
 
                   <Button
                     onClick={startDocxFineTuning}
-                    disabled={isFineTuningDocx}
+                    disabled={fineTuningState.isFineTuningDocx}
                     className="w-full"
                     size="lg"
                   >
-                    {isFineTuningDocx ? (
+                    {fineTuningState.isFineTuningDocx ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         Starting Fine-Tuning...
@@ -623,7 +708,7 @@ export function FineTuningExport() {
                     ) : (
                       <>
                         <Zap className="h-4 w-4 mr-2" />
-                        Start Fine-Tuning with {selectedModel}
+                        Start Fine-Tuning with {fineTuningState.selectedModel}
                       </>
                     )}
                   </Button>
@@ -649,10 +734,10 @@ export function FineTuningExport() {
               <div className="flex gap-2">
                 <Button
                   onClick={generateAutoDataset}
-                  disabled={isGeneratingDataset}
+                  disabled={autoDataset.isGeneratingDataset}
                   className="flex items-center gap-2"
                 >
-                  {isGeneratingDataset ? (
+                  {autoDataset.isGeneratingDataset ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Generating Dataset...
@@ -665,9 +750,9 @@ export function FineTuningExport() {
                   )}
                 </Button>
 
-                {autoDataset.length > 0 && (
+                {autoDataset.autoDataset.length > 0 && (
                   <Button
-                    onClick={() => downloadJsonl(autoDataset, 'auto_dataset.jsonl')}
+                    onClick={() => downloadJsonl(autoDataset.autoDataset, 'auto_dataset.jsonl')}
                     variant="outline"
                     className="flex items-center gap-2"
                   >
@@ -678,18 +763,18 @@ export function FineTuningExport() {
               </div>
 
               {/* Dataset Summary */}
-              {datasetSummary && (
+              {autoDataset.datasetSummary && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{datasetSummary.totalJobs}</div>
+                    <div className="text-2xl font-bold text-blue-600">{autoDataset.datasetSummary.totalJobs}</div>
                     <div className="text-sm text-gray-600">Total Jobs</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{datasetSummary.filteredJobs}</div>
+                    <div className="text-2xl font-bold text-green-600">{autoDataset.datasetSummary.filteredJobs}</div>
                     <div className="text-sm text-gray-600">Training Examples</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">{datasetSummary.totalSections}</div>
+                    <div className="text-2xl font-bold text-purple-600">{autoDataset.datasetSummary.totalSections}</div>
                     <div className="text-sm text-gray-600">Total Sections</div>
                   </div>
                 </div>
@@ -698,17 +783,17 @@ export function FineTuningExport() {
           </Card>
 
           {/* Auto Dataset Display */}
-          {autoDataset.length > 0 && (
+          {autoDataset.autoDataset.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Generated Auto Dataset</CardTitle>
                 <CardDescription>
-                  {autoDataset.length} training examples generated from existing jobs
+                  {autoDataset.autoDataset.length} training examples generated from existing jobs
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {autoDataset.slice(0, 3).map((item, index) => (
+                  {autoDataset.autoDataset.slice(0, 3).map((item, index) => (
                     <div key={index} className="border rounded-lg p-4 bg-green-50">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="secondary">Example {index + 1}</Badge>
@@ -743,9 +828,9 @@ export function FineTuningExport() {
                   ))}
                 </div>
 
-                {autoDataset.length > 3 && (
+                {autoDataset.autoDataset.length > 3 && (
                   <div className="text-center text-sm text-gray-600">
-                    ... and {autoDataset.length - 3} more training examples
+                    ... and {autoDataset.autoDataset.length - 3} more training examples
                   </div>
                 )}
 
@@ -753,7 +838,7 @@ export function FineTuningExport() {
                 <div className="border-t pt-4 space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="model-select-auto">Select Model for Fine-Tuning</Label>
-                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <Select value={fineTuningState.selectedModel} onValueChange={(value) => dispatch(setSelectedModel(value))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a model" />
                       </SelectTrigger>
@@ -762,12 +847,12 @@ export function FineTuningExport() {
                         <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 (2025-04-14)</SelectItem>
                         <SelectItem value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (2025-04-14)</SelectItem>
                         <SelectItem value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (2025-04-14)</SelectItem>
-                        {fineTunedModels.length > 0 && (
+                        {fineTuningState.fineTunedModels.length > 0 && (
                           <>
                             <SelectItem disabled value="divider" className="font-semibold text-blue-600">
                               --- Your Fine-Tuned Models ---
                             </SelectItem>
-                            {fineTunedModels.map((model) => (
+                            {fineTuningState.fineTunedModels.map((model) => (
                               <SelectItem key={model.id} value={model.id}>
                                 {model.name.split(':').pop()} (based on {model.baseModel})
                               </SelectItem>
@@ -776,7 +861,7 @@ export function FineTuningExport() {
                         )}
                       </SelectContent>
                     </Select>
-                    {loadingModels && (
+                    {fineTuningState.loadingModels && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         Loading your fine-tuned models...
@@ -786,11 +871,11 @@ export function FineTuningExport() {
 
                   <Button
                     onClick={startAutoFineTuning}
-                    disabled={isFineTuningAuto}
+                    disabled={fineTuningState.isFineTuningAuto}
                     className="w-full"
                     size="lg"
                   >
-                    {isFineTuningAuto ? (
+                    {fineTuningState.isFineTuningAuto ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         Starting Fine-Tuning...
@@ -798,7 +883,7 @@ export function FineTuningExport() {
                     ) : (
                       <>
                         <Zap className="h-4 w-4 mr-2" />
-                        Start Fine-Tuning with {selectedModel}
+                        Start Fine-Tuning with {fineTuningState.selectedModel}
                       </>
                     )}
                   </Button>
@@ -810,7 +895,7 @@ export function FineTuningExport() {
       </Tabs>
 
       {/* Fine-Tuning Results */}
-      {fineTuningResults && (
+      {fineTuningState.fineTuningResults && (
         <Card>
           <CardHeader>
             <CardTitle>Fine-Tuning Job Started</CardTitle>
@@ -840,9 +925,9 @@ export function FineTuningExport() {
               <p className="text-sm text-green-600 mt-1">
                 Your training data has been uploaded and fine-tuning is now in progress.
               </p>
-              {fineTuningResults.openaiJob?.id && (
+              {fineTuningState.fineTuningResults.openaiJob?.id && (
                 <p className="text-xs text-green-600 mt-2 font-mono">
-                  Job ID: {fineTuningResults.openaiJob.id}
+                  Job ID: {fineTuningState.fineTuningResults.openaiJob.id}
                 </p>
               )}
             </div>

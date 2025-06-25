@@ -55,7 +55,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
     },
     {
       id: 'fine-tuning-export' as NavigationView,
-      label: 'Fine-Tuning Export',
+      label: 'Fine-Tuning',
       icon: Database,
       description: 'Export training data in JSONL format for OpenAI fine-tuning',
       hasData: false,
@@ -64,7 +64,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
     },
     {
       id: 'fine-tuning-sessions' as NavigationView,
-      label: 'Fine-Tuning Sessions',
+      label: 'Fine-Tuning Jobs',
       icon: Activity,
       description: 'Monitor and manage your OpenAI fine-tuning jobs',
       hasData: false,

@@ -124,9 +124,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { minSections = 3 } = await request.json()
-
-    console.log('Fetching jobs with filters:', { minSections })
+    console.log('Fetching jobs with filters:')
     
     // Fetch all jobs with their sections
     const { data: jobs, error } = await supabase
@@ -167,10 +165,9 @@ export async function POST(request: NextRequest) {
       totalJobs++
       
       // Apply filters - only include jobs with enough sections and a prompt
-      const hasEnoughSections = job.fine_tuning_outline_sections && job.fine_tuning_outline_sections.length >= minSections
       const hasPrompt = job.prompt_used
       
-      if (hasEnoughSections && hasPrompt) {
+      if (hasPrompt) {
         filteredJobs++
         
         // Get the first section's metadata for context (target_audience, tone, style_preferences)
@@ -224,7 +221,7 @@ export async function POST(request: NextRequest) {
         totalJobs: jobs?.length || 0,
         filteredJobs,
         totalSections: jobs?.reduce((acc: number, job: any) => acc + (job.fine_tuning_outline_sections?.length || 0), 0) || 0,
-        filters: { minSections }
+        filters: {}
       }
     })
 

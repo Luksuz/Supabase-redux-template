@@ -58,9 +58,10 @@ export async function POST(request: NextRequest) {
 
     // Create ChatAnthropic model
     const model = new ChatAnthropic({
-      modelName: "claude-opus-4-20250514",
+      modelName: "claude-sonnet-4-20250514",
       temperature: 0.7,
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      maxTokens: 20000,
     })
 
     console.log('Sending request to Anthropic via LangChain...')

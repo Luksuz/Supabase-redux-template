@@ -123,12 +123,12 @@ export function TerminologyInfo({ isOpen, onClose }: TerminologyInfoProps) {
           definition: "Convert any text or generated scripts into high-quality speech using ElevenLabs text-to-speech technology."
         },
         {
-          term: "Fine-Tuning Export",
+          term: "Fine-Tuning",
           icon: Database,
           definition: "Export your rated scripts as JSONL training data for OpenAI fine-tuning, with quality filtering options."
         },
         {
-          term: "Fine-Tuning Sessions",
+          term: "Fine-Tuning Jobs",
           icon: Activity,
           definition: "Monitor and manage your OpenAI fine-tuning jobs, track training progress, and deploy custom models."
         }
