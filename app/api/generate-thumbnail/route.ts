@@ -18,7 +18,7 @@ if (FAL_API_KEY) {
   });
 }
 
-type ThumbnailProvider = 'openai' | 'leonardo' | 'leonardo-phoenix' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax';
+type ThumbnailProvider = 'openai' | 'gpt-image-1' | 'leonardo' | 'leonardo-phoenix' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax';
 
 interface LeonardoGenerationResponse {
   sdGenerationJob: {
@@ -136,6 +136,42 @@ async function generateOpenAIThumbnail(prompt: string, width: number, height: nu
 
   if (!response.data?.[0]?.b64_json) {
     throw new Error('No image data received from DALL-E 3');
+  }
+
+  return `data:image/png;base64,${response.data[0].b64_json}`;
+}
+
+// Generate thumbnail using GPT Image 1
+async function generateGPTImage1Thumbnail(prompt: string, width: number, height: number): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized - check API key');
+  }
+
+  console.log(`🎨 Generating GPT Image 1 thumbnail with size: ${width}x${height}`);
+  
+  // Determine the closest supported size for GPT Image 1
+  let gptImageSize: '1024x1024' | '1536x1024' | '1024x1536' = '1024x1024';
+  const aspectRatio = width / height;
+  
+  if (aspectRatio > 1.5) {
+    gptImageSize = '1536x1024'; // Landscape
+  } else if (aspectRatio < 0.7) {
+    gptImageSize = '1024x1536'; // Portrait
+  } else {
+    gptImageSize = '1024x1024'; // Square
+  }
+
+  const response = await openai.images.generate({
+    model: "gpt-image-1",
+    prompt: prompt,
+    n: 1,
+    size: gptImageSize,
+    quality: "auto", // Use auto quality for thumbnails
+    response_format: "b64_json"
+  });
+
+  if (!response.data?.[0]?.b64_json) {
+    throw new Error('No image data received from GPT Image 1');
   }
 
   return `data:image/png;base64,${response.data[0].b64_json}`;
@@ -404,6 +440,11 @@ export async function POST(request: Request) {
       case 'openai':
         thumbnailUrl = await generateOpenAIThumbnail(finalPrompt, width, height);
         console.log('✅ OpenAI DALL-E 3 thumbnail generated successfully');
+        break;
+
+      case 'gpt-image-1':
+        thumbnailUrl = await generateGPTImage1Thumbnail(finalPrompt, width, height);
+        console.log('✅ GPT Image 1 thumbnail generated successfully');
         break;
 
       case 'flux-dev':

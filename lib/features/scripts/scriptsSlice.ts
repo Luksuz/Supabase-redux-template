@@ -253,7 +253,7 @@ const initialSectionedWorkflowState: SectionedWorkflowState = {
   themeId: '',
   emotionalTone: '',
   additionalInstructions: '',
-  selectedModel: 'claude-3-5-sonnet-20241022',
+  selectedModel: 'claude-sonnet-4-20250514',
   selectedStyle: null,
   quote: {
     text: '',
@@ -510,7 +510,7 @@ export const scriptsSlice = createSlice({
     startRegeneratingSection: (state, action: PayloadAction<string>) => {
       const sectionId = action.payload
       const section = state.sectionedWorkflow.sections.find(s => s.id === sectionId)
-      if (section) {
+        if (section) {
         section.isRegenerating = true
       }
     },
@@ -547,12 +547,22 @@ export const scriptsSlice = createSlice({
         }
       })
       
-      // Update fullScript with all completed sections
-      state.sectionedWorkflow.fullScript = state.sectionedWorkflow.sections
+      // Update fullScript with all completed sections and quote if enabled
+      let fullScript = ''
+      
+      // Add quote if enabled and available
+      if (state.sectionedWorkflow.quote.enabled && state.sectionedWorkflow.quote.text && state.sectionedWorkflow.quote.author) {
+        fullScript += `"${state.sectionedWorkflow.quote.text}"\n\n— ${state.sectionedWorkflow.quote.author}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
+      }
+      
+      // Add sections
+      fullScript += state.sectionedWorkflow.sections
         .filter(s => s.generatedScript.trim() && !s.generatedScript.includes('[Error generating content'))
         .sort((a, b) => a.order - b.order)
         .map(s => s.generatedScript)
         .join('\n\n')
+        
+      state.sectionedWorkflow.fullScript = fullScript
     },
 
     setDetailedScript: (state, action: PayloadAction<{ sectionId: string; script: string; wordCount: number }>) => {
@@ -563,12 +573,22 @@ export const scriptsSlice = createSlice({
         section.wordCount = wordCount
         section.isGenerating = false
         
-        // Update fullScript with all completed sections
-        state.sectionedWorkflow.fullScript = state.sectionedWorkflow.sections
+        // Update fullScript with all completed sections and quote if enabled
+        let fullScript = ''
+        
+        // Add quote if enabled and available
+        if (state.sectionedWorkflow.quote.enabled && state.sectionedWorkflow.quote.text && state.sectionedWorkflow.quote.author) {
+          fullScript += `"${state.sectionedWorkflow.quote.text}"\n\n— ${state.sectionedWorkflow.quote.author}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
+        }
+        
+        // Add sections
+        fullScript += state.sectionedWorkflow.sections
           .filter(s => s.generatedScript.trim())
           .sort((a, b) => a.order - b.order)
           .map(s => s.generatedScript)
           .join('\n\n')
+          
+        state.sectionedWorkflow.fullScript = fullScript
       }
     },
 
@@ -767,17 +787,27 @@ export const scriptsSlice = createSlice({
         }
       })
       
-      // Update fullScript with all completed sections
-      state.sectionedWorkflow.fullScript = state.sectionedWorkflow.sections
+      // Update fullScript with all completed sections and quote if enabled
+      let fullScript = ''
+      
+      // Add quote if enabled and available
+      if (state.sectionedWorkflow.quote.enabled && state.sectionedWorkflow.quote.text && state.sectionedWorkflow.quote.author) {
+        fullScript += `"${state.sectionedWorkflow.quote.text}"\n\n— ${state.sectionedWorkflow.quote.author}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
+      }
+      
+      // Add sections
+      fullScript += state.sectionedWorkflow.sections
         .filter(s => s.generatedScript.trim() && !s.generatedScript.includes('[Error generating content'))
         .sort((a, b) => a.order - b.order)
         .map(s => s.generatedScript)
         .join('\n\n')
+        
+      state.sectionedWorkflow.fullScript = fullScript
     }
   }
 })
 
-export const { 
+export const {
   // Legacy actions
   setPrompt,
   setScripts, 

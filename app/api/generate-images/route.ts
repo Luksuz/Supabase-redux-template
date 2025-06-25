@@ -100,6 +100,30 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
   }
 }
 
+// Generate image using GPT Image 1 via OpenAI
+async function generateGPTImage1(prompt: string, size: '1024x1024' | '1536x1024' | '1024x1536' = '1024x1024'): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized - check API key');
+  }
+
+  console.log(`🎨 Generating GPT Image 1 with size: ${size}`);
+  
+  const response = await openai.images.generate({
+    model: "gpt-image-1",
+    prompt: prompt,
+    n: 1,
+    size: size,
+  });
+
+  console.log('GPT Image 1 response received');
+  if (!response.data?.[0]?.b64_json) {
+    throw new Error('No image data received from GPT Image 1');
+  }
+
+  // Return as data URL for immediate use
+  return `data:image/png;base64,${response.data[0].b64_json}`;
+}
+
 // Generate image using DALL-E 3 via OpenAI
 async function generateDalleImage(prompt: string, size: '1024x1024' | '1792x1024' | '1024x1792' = '1024x1024'): Promise<string> {
   if (!openai) {
@@ -281,6 +305,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key is not configured for DALL-E 3.' }, { status: 500 });
     }
 
+    if (provider === 'gpt-image-1' && !OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'OpenAI API key is not configured for GPT Image 1.' }, { status: 500 });
+    }
+
     if (provider === 'leonardo-phoenix' && !LEONARDO_API_KEY) {
       return NextResponse.json({ error: 'Leonardo API key is not configured for Phoenix model.' }, { status: 500 });
     }
@@ -403,6 +431,43 @@ export async function POST(request: NextRequest) {
       imageUrls.push(...validImageUrls);
       
       console.log(`✅ DALL-E 3 batch complete: ${validImageUrls.length}/${numberOfImages} images generated successfully`);
+    } else if (provider === 'gpt-image-1') {
+      // GPT Image 1 generation with efficient batch processing
+      console.log(`Generating ${numberOfImages} image(s) with GPT Image 1 in parallel...`);
+      
+      // Determine image size based on aspect ratio
+      let gptImageSize: '1024x1024' | '1536x1024' | '1024x1536' = '1024x1024';
+      switch (minimaxAspectRatio) {
+        case '16:9':
+          gptImageSize = '1536x1024';
+          break;
+        case '1:1':
+          gptImageSize = '1024x1024';
+          break;
+        case '9:16':
+          gptImageSize = '1024x1536';
+          break;
+      }
+
+      // Process all GPT Image 1 requests in parallel (batch size 20)
+      const requestPromises = Array.from({ length: numberOfImages }, async (_, index) => {
+        try {
+          console.log(`Starting GPT Image 1 generation ${index + 1} of ${numberOfImages}...`);
+          const imageUrl = await generateGPTImage1(prompt, gptImageSize);
+          console.log(`✅ Successfully generated GPT Image 1 ${index + 1}`);
+          return imageUrl;
+        } catch (error) {
+          console.error(`❌ Error generating GPT Image 1 ${index + 1}:`, error);
+          return null;
+        }
+      });
+
+      // Wait for all GPT Image 1 requests to complete
+      const results = await Promise.all(requestPromises);
+      const validImageUrls = results.filter((url): url is string => url !== null);
+      imageUrls.push(...validImageUrls);
+      
+      console.log(`✅ GPT Image 1 batch complete: ${validImageUrls.length}/${numberOfImages} images generated successfully`);
     } else if (provider === 'leonardo-phoenix') {
       // Leonardo Phoenix generation
       console.log(`Generating ${numberOfImages} image(s) with Leonardo Phoenix...`);

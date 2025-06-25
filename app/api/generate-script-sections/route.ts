@@ -327,9 +327,10 @@ Each section should be approximately ${avgWordsPerSection} words and packed with
 
 CRITICAL WORD COUNT REQUIREMENT:
 - Each section MUST be a minimum of 500 words
-- Target approximately ${avgWordsPerSection} words per section
-- If a section is shorter than 500 words, expand with additional examples, explanations, or insights
-- Better to go over the target than significantly under
+- Section 1 (Introduction): Maximum 170 words - capture attention through genuine intrigue and establish credibility
+- Sections 2-${numSections}: Target approximately ${avgWordsPerSection} words each (minimum 800 words)
+- If a section is shorter than the minimum, expand with additional examples, explanations, or insights
+- Better to go over the target than fall significantly short
 - The total script should aim for ${wordCount} words across all sections
 
 ${forbiddenWords ? `IMPORTANT: Avoid using any of these forbidden words: ${forbiddenWords}` : ''}
@@ -441,7 +442,6 @@ ${contextInstructions}
 
 ANTI-AI CONTENT REQUIREMENTS:
 - NEVER use repetitive catchphrases or formulaic expressions
-- AVOID dramatic declarations like "Your life is a lie" or "They don't want you to know" unless used sparingly and contextually
 - ELIMINATE generic, interchangeable language that could apply to any topic
 - REJECT artificial excitement or forced urgency
 - NEVER repeat the same rhetorical devices or sentence structures across sections
@@ -461,7 +461,7 @@ CONTENT DEPTH REQUIREMENTS:
 - Provide specific, actionable insights that viewers can verify or apply
 - Explain underlying mechanisms and causalities, not just surface-level claims
 - Include historical context, comparative examples, or case studies
-- Address complexity and nuance rather than oversimplifying
+- Address complexity and nuance rather than oversimplifying, but not too much to keep it WIDE TAM & broadly understandable
 - Connect individual concepts to broader frameworks or principles
 - Offer practical next steps or applications for the information shared
 
@@ -522,8 +522,13 @@ For each section, provide:
    - Methods for building credibility and trust with the audience
 
 CRITICAL WORD COUNT ENFORCEMENT:
+- Section 1 (Introduction): Maximum 170 words - capture attention through genuine intrigue and establish credibility
+- The first section (introduction) of the script should be 170 words MAXIMUM, and its purpose is to REEL the viewer into watching the full video, it must spark curiosity to keep watching
+- Sections 2-${numSections}: Target approximately ${avgWordsPerSection} words each (minimum 500 words)
 - Include sufficient detail in writing instructions (200 words minimum)
 - Better to exceed targets than fall short - aim for substantial, valuable content
+- Special note for sections in this batch (${startSection + 1} to ${endSection}):
+  ${startSection === 0 ? '  * Section 1 is the INTRODUCTION - limit to 170 words maximum while establishing credibility' : '  * All sections in this batch should target ~' + avgWordsPerSection + ' words each with minimum 500 words'}
 
 ${forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${forbiddenWords}` : ''}
 
@@ -598,7 +603,7 @@ IMPORTANT CTA REQUIREMENT: You must incorporate a short CTA to our newsletter ca
     
     case 'engagement':
       return `
-IMPORTANT CTA REQUIREMENT: You must incorporate this engagement CTA smoothly into the content: "If this video resonated with you, let us know by commenting, 'I understood it.'" This should feel natural and be integrated seamlessly with the surrounding content. Make it feel like a genuine request for engagement rather than a forced call-to-action.`;
+IMPORTANT CTA REQUIREMENT: You must incorporate this engagement CTA: "If this video resonated with you, let us know by commenting, 'I understood it.'" CRITICAL: When this CTA is positioned in the final section (end positioning), it MUST be the very last sentence of the entire section. For other positions, integrate it smoothly within the content flow. This should feel natural and be integrated seamlessly with the surrounding content. Make it feel like a genuine request for engagement rather than a forced call-to-action.`;
     
     case 'custom':
       return content ? `

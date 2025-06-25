@@ -270,6 +270,67 @@ export function ScriptGenerator() {
     dispatch(setCurrentStep(Math.max(sectionedWorkflow.currentStep - 1, 0)))
   }
 
+  // Download script functionality
+  const handleDownloadScript = () => {
+    if (!sectionedWorkflow.fullScript.trim() && sectionedWorkflow.sections.length === 0) {
+      showMessage('No script available to download. Please generate a script first.', 'error')
+      return
+    }
+
+    // Build the complete script with quote if enabled
+    let scriptContent = `=== SCRIPT: ${sectionedWorkflow.videoTitle} ===
+Generated on: ${new Date().toLocaleString()}
+Word Count: ${sectionedWorkflow.sections.reduce((total, section) => total + section.wordCount, 0)} words
+Sections: ${sectionedWorkflow.sections.filter(s => s.generatedScript.trim()).length}
+${sectionedWorkflow.ctas.filter(cta => cta.enabled).length > 0 ? `CTAs: ${sectionedWorkflow.ctas.filter(cta => cta.enabled).length} included` : ''}
+
+`
+
+    // Add quote if enabled and available
+    if (sectionedWorkflow.quote.enabled && sectionedWorkflow.quote.text && sectionedWorkflow.quote.author) {
+      scriptContent += `╔════════════════════════════════════════════════════════════════╗
+║                              OPENING QUOTE                             ║
+╚════════════════════════════════════════════════════════════════╝
+
+"${sectionedWorkflow.quote.text}"
+
+— ${sectionedWorkflow.quote.author}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+`
+    }
+
+    // Add sections
+    const completedSections = sectionedWorkflow.sections
+      .filter(section => section.generatedScript.trim())
+      .sort((a, b) => a.order - b.order)
+
+    if (completedSections.length > 0) {
+      completedSections.forEach((section, index) => {
+        scriptContent += `**${section.title}**\n\n${section.generatedScript}`
+        if (index < completedSections.length - 1) {
+          scriptContent += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+        }
+      })
+    } else if (sectionedWorkflow.fullScript.trim()) {
+      scriptContent += sectionedWorkflow.fullScript
+    }
+
+    // Create and download the file
+    const blob = new Blob([scriptContent], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${sectionedWorkflow.videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-script.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    showMessage('Script downloaded successfully!', 'success')
+  }
+
   // Helper function to show script prompt  
   const showOutlinePrompt = () => {
     // Get theme instructions if theme is selected
@@ -299,7 +360,142 @@ CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phras
     const numSections = Math.max(1, Math.ceil(sectionedWorkflow.wordCount / 800));
     const avgWordsPerSection = Math.round(sectionedWorkflow.wordCount / numSections);
 
-    const promptExample = `You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Your goal is to educate and engage through natural human communication, not AI-generated content patterns.
+    // Get the selected outline method
+    const selectedMethod = sectionedWorkflow.outlineMethod || 'standard';
+    
+    let promptExample = '';
+    let modalTitle = '';
+
+    // Generate method-specific prompts
+    switch (selectedMethod) {
+      case 'title-only':
+        modalTitle = '📝 Title-Only Outline Generation Prompt';
+        promptExample = `=== OUTLINE GENERATION METHOD: TITLE-ONLY ===
+This method creates a complete script outline using ONLY the provided title as the starting point.
+
+You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Based on the title: **${sectionedWorkflow.videoTitle}**
+
+TARGET SPECIFICATIONS:
+- Total word count: ${sectionedWorkflow.wordCount} words
+- Number of sections: ${numSections}
+- Average words per section: ${avgWordsPerSection} words
+- Introduction section limit: 170 words maximum
+- Other sections: ~${avgWordsPerSection} words each
+
+FUNDAMENTAL WRITING PRINCIPLES:
+[Style guide content from uploaded style or default feeder_script_style.txt]
+
+THEMATIC DIRECTION:
+${themeInstructions}
+
+${sectionedWorkflow.targetAudience ? `TARGET AUDIENCE: ${sectionedWorkflow.targetAudience}` : ''}
+${sectionedWorkflow.emotionalTone ? `EMOTIONAL TONE: ${sectionedWorkflow.emotionalTone}` : ''}
+
+${research.analysis ? `
+RESEARCH FOUNDATION:
+Analysis: ${JSON.stringify(research.analysis || {}, null, 2).substring(0, 300)}...
+Key Findings: [Research results from your search]
+` : ''}
+
+CRITICAL WORD COUNT REQUIREMENTS:
+- Section 1 (Introduction): Maximum 170 words - capture attention through genuine intrigue
+- The first section (introduction) of the script should be 170 words MAXIMUM, and its purpose is to REEL the viewer into watching the full video, it must spark curiosity to keep watching
+- Sections 2-${numSections}: Target approximately ${avgWordsPerSection} words each (minimum 800 words)
+- Total script should aim for ${sectionedWorkflow.wordCount} words
+
+${sectionedWorkflow.forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${sectionedWorkflow.forbiddenWords}` : ''}
+
+Create exactly ${numSections} sections that will form a comprehensive, value-packed video script totaling ${sectionedWorkflow.wordCount} words.`;
+        break;
+
+      case 'script-extractor':
+        modalTitle = '🔄 Script Extractor Outline Generation Prompt';
+        promptExample = `=== OUTLINE GENERATION METHOD: SCRIPT EXTRACTOR ===
+This method takes an existing script and reorganizes it into a structured outline format.
+
+You are a master storyteller and researcher creating compelling, authentic video content. Based on the existing script content provided below, extract and reorganize it into a structured outline format.
+
+ORIGINAL SCRIPT TO EXTRACT FROM:
+"${sectionedWorkflow.scriptContent?.substring(0, 500) || 'No script content provided'}..."
+
+TARGET SPECIFICATIONS:
+- Total word count: ${sectionedWorkflow.wordCount} words
+- Number of sections: ${numSections}
+- Average words per section: ${avgWordsPerSection} words
+- Introduction section limit: 170 words maximum
+
+METHOD: SCRIPT EXTRACTOR
+This method takes an existing script and:
+- Analyzes the provided script content for key themes and concepts
+- Identifies natural section breaks and logical groupings
+- Extracts the most valuable insights and information
+- Reorganizes content into a coherent, structured outline format
+- Maintains the original script's core message while improving organization
+
+EXTRACTION REQUIREMENTS:
+1. Analyze the provided script content for key themes, concepts, and narrative flow
+2. Identify natural section breaks and logical groupings of content
+3. Extract the most valuable insights and information from the original script
+4. Reorganize content into a coherent, structured outline format
+5. Maintain the original script's core message while improving organization
+
+CRITICAL WORD COUNT REQUIREMENTS:
+- Section 1 (Introduction): Maximum 170 words - capture attention through genuine intrigue
+- The first section (introduction) of the script should be 170 words MAXIMUM, and its purpose is to REEL the viewer into watching the full video, it must spark curiosity to keep watching
+- Sections 2-${numSections}: Target approximately ${avgWordsPerSection} words each (minimum 800 words)
+
+${sectionedWorkflow.forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${sectionedWorkflow.forbiddenWords}` : ''}
+
+Extract and reorganize the provided script into exactly ${numSections} structured sections.`;
+        break;
+
+      case 'custom-info':
+        modalTitle = '📚 Custom Information Outline Generation Prompt';
+        promptExample = `=== OUTLINE GENERATION METHOD: CUSTOM INFORMATION ===
+This method transforms provided custom information/articles into structured video content.
+
+You are a master storyteller and researcher creating compelling, authentic video content. Based on the title: **${sectionedWorkflow.videoTitle}** and the custom information provided below, create a comprehensive script outline.
+
+CUSTOM INFORMATION TO TRANSFORM:
+"${sectionedWorkflow.customInformation?.substring(0, 500) || 'No custom information provided'}..."
+
+TARGET SPECIFICATIONS:
+- Total word count: ${sectionedWorkflow.wordCount} words
+- Number of sections: ${numSections}
+- Average words per section: ${avgWordsPerSection} words
+- Introduction section limit: 170 words maximum
+
+METHOD: CUSTOM INFORMATION TRANSFORMATION
+This method transforms provided custom information/articles into video content by:
+- Analyzing the main themes and insights from the provided content
+- Identifying key concepts, facts, and supporting evidence
+- Structuring information for maximum viewer engagement
+- Extracting actionable insights and practical applications
+- Creating a compelling narrative flow for presenting the information
+
+CONTENT TRANSFORMATION REQUIREMENTS:
+1. Analyze the main themes and insights from the provided custom information
+2. Identify key concepts, facts, and supporting evidence within the source material
+3. Understand how to structure this information for maximum viewer engagement
+4. Extract actionable insights and practical applications from the content
+5. Determine the most compelling narrative flow for presenting this information
+
+CRITICAL WORD COUNT REQUIREMENTS:
+- Section 1 (Introduction): Maximum 170 words - capture attention through genuine intrigue
+- The first section (introduction) of the script should be 170 words MAXIMUM, and its purpose is to REEL the viewer into watching the full video, it must spark curiosity to keep watching
+- Sections 2-${numSections}: Target approximately ${avgWordsPerSection} words each (minimum 800 words)
+
+${sectionedWorkflow.forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${sectionedWorkflow.forbiddenWords}` : ''}
+
+Create exactly ${numSections} sections based on the provided custom information.`;
+        break;
+
+      default: // 'standard'
+        modalTitle = '⚙️ Standard Outline Generation Prompt';
+        promptExample = `=== OUTLINE GENERATION METHOD: STANDARD ===
+This method creates a comprehensive script outline using the title along with all configuration parameters.
+
+You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights.
 
 TITLE: "${sectionedWorkflow.videoTitle}"
 CURRENT BATCH: Sections 1 to ${numSections} of ${numSections} total sections
@@ -318,7 +514,7 @@ ${research.analysis ? `
 RESEARCH FOUNDATION:
 Incorporate these research insights to create authoritative, fact-based content:
 
-Analysis: ${JSON.stringify(research.analysis || {}, null, 2)}
+Analysis: ${JSON.stringify(research.analysis || {}, null, 2).substring(0, 300)}...
 Key Findings: [Research results from your search]
 
 INTEGRATION REQUIREMENTS:
@@ -337,7 +533,6 @@ ${sectionedWorkflow.additionalInstructions}
 
 ANTI-AI CONTENT REQUIREMENTS:
 - NEVER use repetitive catchphrases or formulaic expressions
-- AVOID dramatic declarations like "Your life is a lie" or "They don't want you to know" unless used sparingly and contextually
 - ELIMINATE generic, interchangeable language that could apply to any topic
 - REJECT artificial excitement or forced urgency
 - NEVER repeat the same rhetorical devices or sentence structures across sections
@@ -357,7 +552,7 @@ CONTENT DEPTH REQUIREMENTS:
 - Provide specific, actionable insights that viewers can verify or apply
 - Explain underlying mechanisms and causalities, not just surface-level claims
 - Include historical context, comparative examples, or case studies
-- Address complexity and nuance rather than oversimplifying
+- Address complexity and nuance rather than oversimplifying, but not too much to keep it WIDE TAM & broadly understandable
 - Connect individual concepts to broader frameworks or principles
 - Offer practical next steps or applications for the information shared
 
@@ -428,9 +623,11 @@ CRITICAL WORD COUNT ENFORCEMENT:
 
 ${sectionedWorkflow.forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${sectionedWorkflow.forbiddenWords}` : ''}
 
-[Structured output format instructions for generating sections array]`
+[Structured output format instructions for generating sections array]`;
+        break;
+    }
 
-    setModalTitle('Script Sections Generation Prompt')
+    setModalTitle(modalTitle)
     setModalPrompt(promptExample)
     setShowPromptModal(true)
   }
@@ -502,7 +699,7 @@ ${activeCTAs.map((ctaItem) => {
   if (ctaItem.type === 'newsletter') {
     ctaContent = `Include a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube. Mention that the viewer will receive a free ebook copy of "The Kybalion" upon signing up for a limited time only. The CTA must be incorporated smoothly and naturally into the content flow and can only be 2 sentences max. Make it persuasive and create urgency.`;
   } else if (ctaItem.type === 'engagement') {
-    ctaContent = `Include this engagement CTA naturally: "If this video resonated with you, let us know by commenting, 'I understood it.'" Integrate it seamlessly with the surrounding content.`;
+    ctaContent = `Include this engagement CTA: "If this video resonated with you, let us know by commenting, 'I understood it.'" CRITICAL: When this CTA is positioned in the final section (end positioning), it MUST be the very last sentence of the entire section. For other positions, integrate it smoothly within the content flow. This should feel natural and be integrated seamlessly with the surrounding content.`;
   } else if (ctaItem.type === 'custom' && ctaItem.content) {
     ctaContent = `Include this custom CTA naturally: ${ctaItem.content}`;
   }
@@ -596,13 +793,13 @@ Write the authentic, expert-level script content now:`
           }`}>
             <CardContent className="p-6 text-center space-y-4">
               <Lightbulb className="h-12 w-12 mx-auto text-purple-500" />
-              <div>
+          <div>
                 <h3 className="font-semibold text-lg">Intimate Philosophical</h3>
                 <p className="text-sm text-gray-600">
                   Conversational yet profound tone with deep psychological insights and therapeutic guidance
                 </p>
-              </div>
-              <Button 
+        </div>
+        <Button
                 variant={sectionedWorkflow.selectedStyle === 'intimate-philosophical' ? "default" : "outline"}
                 onClick={() => {
                   handleFieldChange('selectedStyle', 'intimate-philosophical')
@@ -612,7 +809,7 @@ Write the authentic, expert-level script content now:`
                 className="w-full"
               >
                 {sectionedWorkflow.selectedStyle === 'intimate-philosophical' ? 'Selected' : 'Select Style'}
-              </Button>
+        </Button>
             </CardContent>
           </Card>
 
@@ -681,23 +878,23 @@ Write the authentic, expert-level script content now:`
             <div className="flex items-center gap-2 mb-3">
               <Zap className="h-5 w-5 text-orange-600" />
               <span className="font-medium text-orange-800">Breaking Free Persuasive Style</span>
-            </div>
+              </div>
             <div className="text-sm text-orange-700 space-y-2">
               <p><strong>Key Features:</strong> Confident revelation, controlled intensity, evidence-based persuasion, empowering direction</p>
               <p><strong>Best For:</strong> Challenging conventional thinking, paradigm shift topics, awareness content, empowerment</p>
               <div className="mt-3 p-3 bg-white border border-orange-100 rounded text-xs italic">
                 <strong>Example:</strong> "Think about the last time you made a major life decision. How many of the factors you considered—what success looks like, what others would think, what's 'realistic'—actually came from your own experience versus what you absorbed from family, media, and culture? Most of us are living by rules we never consciously chose."
-              </div>
             </div>
           </div>
+          </div>
         )}
-
+        
         {sectionedWorkflow.uploadedStyle && (
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
               <span className="font-medium text-green-800">Custom style reference uploaded!</span>
-            </div>
+              </div>
             <p className="text-sm text-green-700 mt-1">
               Your scripts will match the style and tone of your reference content.
             </p>
@@ -736,7 +933,7 @@ Write the authentic, expert-level script content now:`
                   placeholder="Enter your video title..."
                   className="w-full"
                 />
-              </div>
+      </div>
 
               <div className="space-y-2">
                 <Label htmlFor="word-count">Target Word Count *</Label>
@@ -750,8 +947,8 @@ Write the authentic, expert-level script content now:`
                   max="10000"
                   className="w-full"
                 />
-              </div>
-            </div>
+        </div>
+      </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -763,7 +960,7 @@ Write the authentic, expert-level script content now:`
                   placeholder="e.g., Young professionals, entrepreneurs..."
                   className="w-full"
                 />
-              </div>
+    </div>
 
               <div className="space-y-2">
                 <Label htmlFor="emotional-tone">Emotional Tone</Label>
@@ -1242,7 +1439,7 @@ This style works best for content that challenges conventional thinking while pr
       }
 
       const response = await fetch('/api/generate-detailed-script', {
-            method: 'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
           sections: [section],
@@ -1258,15 +1455,15 @@ This style works best for content that challenges conventional thinking while pr
           researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
           generateQuote: sectionedWorkflow.quote.enabled
         }),
-          })
+      })
 
-          if (!response.ok) {
+      if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to generate detailed script')
-          }
+      }
 
-          const data = await response.json()
-          
+      const data = await response.json()
+      
       if (data.detailedSections && data.detailedSections.length > 0) {
         const detailedSection = data.detailedSections[0]
       dispatch(setDetailedScript({
@@ -1278,7 +1475,7 @@ This style works best for content that challenges conventional thinking while pr
         dispatch(markStepCompleted(4))
       }
 
-        } catch (error) {
+    } catch (error) {
       const errorMessage = (error as Error).message
       showMessage(`Failed to generate script: ${errorMessage}`, 'error')
       // Stop the loading state
@@ -1411,8 +1608,8 @@ This style works best for content that challenges conventional thinking while pr
       }
 
       const response = await fetch('/api/generate-detailed-script', {
-              method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
           sections: sectionedWorkflow.sections,
           title: sectionedWorkflow.videoTitle,
@@ -1427,15 +1624,15 @@ This style works best for content that challenges conventional thinking while pr
           researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
           generateQuote: sectionedWorkflow.quote.enabled
         }),
-            })
+        })
 
-            if (!response.ok) {
+        if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to generate detailed scripts')
-            }
+        }
 
-            const data = await response.json()
-            
+        const data = await response.json()
+        
       if (data.detailedSections && data.detailedSections.length > 0) {
         const scriptResults = data.detailedSections.map((section: any) => ({
             id: section.id,
@@ -1599,11 +1796,17 @@ This style works best for content that challenges conventional thinking while pr
           apiEndpoint = '/api/generate-outline-title-only'
           requestBody = {
             title: sectionedWorkflow.videoTitle,
+            wordCount: sectionedWorkflow.wordCount,
             targetAudience: sectionedWorkflow.targetAudience,
             emotionalTone: sectionedWorkflow.emotionalTone,
             selectedModel: sectionedWorkflow.selectedModel,
             themeId: sectionedWorkflow.themeId,
-            additionalInstructions: sectionedWorkflow.additionalInstructions
+            additionalInstructions: sectionedWorkflow.additionalInstructions,
+            uploadedStyle: styleToUse,
+            ctas: sectionedWorkflow.ctas,
+            forbiddenWords: sectionedWorkflow.forbiddenWords,
+            researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
+            generateQuote: sectionedWorkflow.quote.enabled
           }
           break
         case 'script-extractor':
@@ -1615,11 +1818,17 @@ This style works best for content that challenges conventional thinking while pr
           requestBody = {
             title: sectionedWorkflow.videoTitle,
             script: sectionedWorkflow.scriptContent,
+            wordCount: sectionedWorkflow.wordCount,
             targetAudience: sectionedWorkflow.targetAudience,
             emotionalTone: sectionedWorkflow.emotionalTone,
             selectedModel: sectionedWorkflow.selectedModel,
             themeId: sectionedWorkflow.themeId,
-            additionalInstructions: sectionedWorkflow.additionalInstructions
+            additionalInstructions: sectionedWorkflow.additionalInstructions,
+            uploadedStyle: styleToUse,
+            ctas: sectionedWorkflow.ctas,
+            forbiddenWords: sectionedWorkflow.forbiddenWords,
+            researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
+            generateQuote: sectionedWorkflow.quote.enabled
           }
           break
         case 'custom-info':
@@ -1631,11 +1840,17 @@ This style works best for content that challenges conventional thinking while pr
           requestBody = {
             title: sectionedWorkflow.videoTitle,
             customInformation: sectionedWorkflow.customInformation,
+            wordCount: sectionedWorkflow.wordCount,
             targetAudience: sectionedWorkflow.targetAudience,
             emotionalTone: sectionedWorkflow.emotionalTone,
             selectedModel: sectionedWorkflow.selectedModel,
             themeId: sectionedWorkflow.themeId,
-            additionalInstructions: sectionedWorkflow.additionalInstructions
+            additionalInstructions: sectionedWorkflow.additionalInstructions,
+            uploadedStyle: styleToUse,
+            ctas: sectionedWorkflow.ctas,
+            forbiddenWords: sectionedWorkflow.forbiddenWords,
+            researchData: research.analysis ? { analysis: research.analysis, searchResults: research.searchResults } : null,
+            generateQuote: sectionedWorkflow.quote.enabled
           }
           break
         default:
@@ -1649,7 +1864,7 @@ This style works best for content that challenges conventional thinking while pr
       try {
         const response = await fetch(apiEndpoint, {
           method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
         })
 
@@ -1688,16 +1903,16 @@ This style works best for content that challenges conventional thinking while pr
 
     return (
       <div className="space-y-6">
-        <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
               <List className="h-5 w-5" />
               Generate Script Outline
-                </CardTitle>
-                <CardDescription>
+              </CardTitle>
+              <CardDescription>
               Choose your preferred method to create structured sections for your video script
-                </CardDescription>
-              </CardHeader>
+              </CardDescription>
+            </CardHeader>
           <CardContent className="space-y-6">
             {/* Outline Method Selection */}
             <div className="space-y-4">
@@ -1746,12 +1961,12 @@ This style works best for content that challenges conventional thinking while pr
                     <p className="text-xs text-gray-600 mt-1">From articles & information</p>
                   </CardContent>
                 </Card>
-              </div>
+                </div>
               </div>
 
             {/* Method-specific inputs */}
             {sectionedWorkflow.outlineMethod === 'script-extractor' && (
-            <div className="space-y-2">
+                <div className="space-y-2">
                 <Label htmlFor="scriptContent">Script Content to Extract From</Label>
             <Textarea
                   id="scriptContent"
@@ -1764,13 +1979,13 @@ This style works best for content that challenges conventional thinking while pr
                 <p className="text-xs text-gray-500">
                   The system will analyze this script and create an outline based on its structure and content.
                 </p>
-            </div>
+              </div>
             )}
 
             {sectionedWorkflow.outlineMethod === 'custom-info' && (
-          <div className="space-y-2">
+                    <div className="space-y-2">
                 <Label htmlFor="customInformation">Custom Information & Articles</Label>
-            <Textarea
+                      <Textarea
                   id="customInformation"
                   value={sectionedWorkflow.customInformation}
                   onChange={(e) => dispatch(setCustomInformation(e.target.value))}
@@ -1781,50 +1996,50 @@ This style works best for content that challenges conventional thinking while pr
             <p className="text-xs text-gray-500">
                   The system will analyze this information and create an engaging script outline from it.
             </p>
-                </div>
+                    </div>
             )}
-
+                
             {/* Generate Button */}
             <div className="flex justify-center items-center gap-2">
-              <Button
+                  <Button
                 onClick={() => handleGenerateOutline(sectionedWorkflow.outlineMethod)} 
                 disabled={sectionedWorkflow.sectionsProgress.isActive}
                 className="px-8 py-2"
               >
                 {sectionedWorkflow.sectionsProgress.isActive ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Generating...
-                </>
-              ) : (
-                <>
+                      </>
+                    ) : (
+                      <>
                     <Zap className="h-4 w-4 mr-2" />
                     Generate Outline ({sectionedWorkflow.outlineMethod.replace('-', ' ')})
-                </>
-              )}
-              </Button>
+                      </>
+                    )}
+                  </Button>
               
-              <Button
-                variant="outline"
+                  <Button
+                    variant="outline"
                 size="sm"
                 onClick={() => showOutlinePrompt()}
                 title="🔍 View exact prompt that will be sent to AI for outline generation"
                 className="px-3"
-              >
+                  >
                 <Info className="h-4 w-4" />
-              </Button>
-            </div>
+                  </Button>
+                </div>
 
             {/* Generated Sections Display */}
             {sectionedWorkflow.sections.length > 0 && (
               <div className="space-y-4 mt-6">
-              <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Script Outline ({sectionedWorkflow.sections.length} sections)</h3>
                   <Button variant="outline" onClick={() => handleGenerateOutline(sectionedWorkflow.outlineMethod)}>
                     <RotateCcw className="h-4 w-4 mr-2" />
                     Regenerate
-            </Button>
-      </div>
+                    </Button>
+                  </div>
 
                 {sectionedWorkflow.sections.map((section, index) => {
                   // Check if this section has a CTA
@@ -1851,7 +2066,7 @@ This style works best for content that challenges conventional thinking while pr
                       className={sectionHasCTA ? 'border-l-4 border-l-orange-500 bg-orange-50/30' : 'border-l-4 border-l-blue-500'}
                     >
                       <CardContent className="pt-4">
-                        <div className="space-y-2">
+                    <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <h4 className="font-semibold text-blue-900 flex items-center gap-2">
                               {index + 1}. {section.title}
@@ -1864,8 +2079,8 @@ This style works best for content that challenges conventional thinking while pr
                                 </div>
                               )}
                             </h4>
-                          </div>
-                          
+                    </div>
+
                           {sectionHasCTA && (
                             <div className="bg-orange-100 border border-orange-200 rounded-lg p-2 text-xs">
                               <div className="flex items-center gap-2 mb-1">
@@ -1873,7 +2088,7 @@ This style works best for content that challenges conventional thinking while pr
                                 <span className="font-medium text-orange-800">
                                   Planned CTA{sectionCTAs.length > 1 ? 's' : ''}:
                                 </span>
-                              </div>
+                    </div>
                               <div className="space-y-1 text-orange-700">
                                 {sectionCTAs.map((cta) => (
                                   <div key={cta.id} className="text-xs">
@@ -1893,13 +2108,13 @@ This style works best for content that challenges conventional thinking while pr
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-xs">
                               ~{section.wordCount} words
-                            </Badge>
+                        </Badge>
                             {sectionHasCTA && (
                               <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
                                 Will contain CTA
                               </Badge>
                             )}
-                          </div>
+                      </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1922,7 +2137,7 @@ This style works best for content that challenges conventional thinking while pr
               </CardContent>
             </Card>
           )}
-                  </div>
+                    </div>
     )
   }
 
@@ -1951,33 +2166,33 @@ This style works best for content that challenges conventional thinking while pr
                         <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Script Sections</h3>
                 <div className="flex items-center gap-2">
-                  <Button 
+                      <Button
                     onClick={handleGenerateAllScripts}
                     disabled={sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating)}
-                  >
+                      >
                     {sectionedWorkflow.detailedScriptProgress.isActive || sectionedWorkflow.sections.some(s => s.isGenerating) ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Generating...
-                      </>
-                    ) : (
-                      <>
+                          </>
+                        ) : (
+                          <>
                         <Zap className="h-4 w-4 mr-2" />
                         Generate All Scripts
-                      </>
-                    )}
-                  </Button>
+                          </>
+                        )}
+                      </Button>
                   
-                  <Button
-                    variant="outline"
-                    size="sm"
+                      <Button
+                        variant="outline"
+                        size="sm"
                     onClick={() => showDetailedScriptPrompt()}
                     title="🔍 View exact prompt that will be sent to AI for script generation"
                     className="px-3"
-                  >
+                      >
                     <Info className="h-4 w-4" />
-                  </Button>
-                </div>
+                      </Button>
+                    </div>
             </div>
                       
               {sectionedWorkflow.sections.map((section, index) => {
@@ -2006,7 +2221,7 @@ This style works best for content that challenges conventional thinking while pr
                   >
                     <CardContent className="pt-4">
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                           <h4 className="font-semibold flex items-center gap-2">
                             {section.title}
                             {sectionHasCTA && (
@@ -2014,11 +2229,11 @@ This style works best for content that challenges conventional thinking while pr
                                 <Megaphone className="h-4 w-4 text-orange-600" />
                                 <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
                                   {sectionCTAs.length} CTA{sectionCTAs.length > 1 ? 's' : ''}
-                                </Badge>
-                              </div>
-                            )}
-                          </h4>
+                          </Badge>
                         </div>
+                      )}
+                          </h4>
+                    </div>
                         
                         {sectionHasCTA && (
                           <div className="bg-orange-100 border border-orange-200 rounded-lg p-3 text-sm">
@@ -2027,7 +2242,7 @@ This style works best for content that challenges conventional thinking while pr
                               <span className="font-medium text-orange-800">
                                 CTA{sectionCTAs.length > 1 ? 's' : ''} in this section:
                               </span>
-                            </div>
+                    </div>
                             <div className="space-y-1 text-orange-700">
                               {sectionCTAs.map((cta, ctaIndex) => (
                                 <div key={cta.id} className="text-xs">
@@ -2035,10 +2250,10 @@ This style works best for content that challenges conventional thinking while pr
                                   {cta.type === 'newsletter' && ' - Insights Academy signup with "The Kybalion" ebook'}
                                   {cta.type === 'engagement' && ' - "If this video resonated with you, let us know by commenting, \'I understood it.\'"'}
                                   {cta.type === 'custom' && cta.content && ` - ${cta.content.substring(0, 50)}${cta.content.length > 50 ? '...' : ''}`}
-                                </div>
+                  </div>
                               ))}
+                </div>
                             </div>
-                          </div>
                         )}
                         
                         {section.generatedScript ? (
@@ -2053,26 +2268,26 @@ This style works best for content that challenges conventional thinking while pr
                                   </Badge>
                                 )}
                               </div>
-                              <Button 
+                    <Button
                                 size="sm"
-                                variant="outline"
+                      variant="outline"
                                 onClick={() => handleGenerateDetailedScript(section.id)}
                                 disabled={section.isGenerating}
-                              >
+                    >
                                 {section.isGenerating ? (
-                                  <>
+                        <>
                                     <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                                     Regenerating...
-                                  </>
-                                ) : (
-                                  <>
+                        </>
+                      ) : (
+                        <>
                                     <RotateCcw className="h-3 w-3 mr-1" />
                                     Regenerate
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
                         ) : (
                           <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded">
                             <p className="text-gray-500 mb-2">Script not generated yet</p>
@@ -2090,15 +2305,15 @@ This style works best for content that challenges conventional thinking while pr
                                 'Generate Script'
                               )}
                             </Button>
-                          </div>
+                </div>
                         )}
                       </div>
                     </CardContent>
                   </Card>
                 );
               })}
-                        </div>
-          )}
+                  </div>
+                )}
         </CardContent>
       </Card>
 
@@ -2111,26 +2326,26 @@ This style works best for content that challenges conventional thinking while pr
               total={sectionedWorkflow.detailedScriptProgress.totalSections}
               message={sectionedWorkflow.detailedScriptProgress.message}
             />
-          </CardContent>
-        </Card>
-      )}
+                        </CardContent>
+                      </Card>
+              )}
 
       {/* Full Script Preview */}
       {sectionedWorkflow.fullScript && (
-        <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+                <Card>
+                  <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Complete Script Preview
-              </CardTitle>
-              <CardDescription>
+                      </CardTitle>
+                    <CardDescription>
               Combined script from all generated sections
               {sectionedWorkflow.quote.enabled && sectionedWorkflow.quote.text && (
                 <span className="ml-2 text-blue-600">• Quote included</span>
               )}
-              </CardDescription>
-            </CardHeader>
-          <CardContent>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
             {/* Quote Display */}
             {sectionedWorkflow.quote.enabled && sectionedWorkflow.quote.text && (
               <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r">
@@ -2142,8 +2357,8 @@ This style works best for content that challenges conventional thinking while pr
                 </cite>
                 <div className="mt-2 text-xs text-blue-600">
                   ✨ Auto-generated quote
-                </div>
-              </div>
+                          </div>
+                              </div>
             )}
             
             <div className="bg-gray-50 p-4 rounded border max-h-96 overflow-y-auto">
@@ -2158,15 +2373,15 @@ This style works best for content that challenges conventional thinking while pr
                       </h3>
                       <div className="text-gray-800 whitespace-pre-wrap">
                         {section.generatedScript}
-                </div>
+                        </div>
                       {index < sectionedWorkflow.sections.filter(s => s.generatedScript.trim()).length - 1 && (
                         <hr className="my-4 border-gray-300" />
                             )}
-                          </div>
+                                      </div>
                   ))
                 }
                               </div>
-                          </div>
+                            </div>
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-4">
                 <Badge variant="outline">
@@ -2179,16 +2394,16 @@ This style works best for content that challenges conventional thinking while pr
                   <Badge variant="outline" className="bg-orange-50 text-orange-700">
                     {sectionedWorkflow.ctas.filter(cta => cta.enabled).length} CTAs included
                     </Badge>
-                  )}
-                  </div>
-              <Button variant="outline" size="sm">
+                          )}
+                                  </div>
+              <Button variant="outline" size="sm" onClick={handleDownloadScript}>
                 <Download className="h-4 w-4 mr-2" />
                 Download Script
               </Button>
-                </div>
-              </CardContent>
-          </Card>
-      )}
+                              </div>
+                  </CardContent>
+                </Card>
+                  )}
     </div>
   )
 
@@ -2205,7 +2420,7 @@ This style works best for content that challenges conventional thinking while pr
             Translate your generated script to other languages
                 </CardDescription>
               </CardHeader>
-      </Card>
+                </Card>
       
       <ScriptTranslator />
                 </div>
@@ -2258,14 +2473,14 @@ This style works best for content that challenges conventional thinking while pr
 
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between pt-6 border-t">
-                                <Button
+                                    <Button
                                   variant="outline"
           onClick={handlePrevious}
           disabled={sectionedWorkflow.currentStep === 0}
-                                >
+                  >
           <ChevronLeft className="h-4 w-4 mr-2" />
           Previous
-                                </Button>
+                                    </Button>
 
         <div className="text-sm text-gray-500">
           Step {sectionedWorkflow.currentStep + 1} of {steps.length}

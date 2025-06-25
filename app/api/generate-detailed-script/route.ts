@@ -155,7 +155,7 @@ ${sectionCTAs.map((ctaItem: any) => {
   if (ctaItem.type === 'newsletter') {
     ctaContent = `Include a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube. Mention that the viewer will receive a free ebook copy of "The Kybalion" upon signing up for a limited time only. The CTA must be incorporated smoothly and naturally into the content flow and can only be 2 sentences max. Make it persuasive and create urgency.`;
   } else if (ctaItem.type === 'engagement') {
-    ctaContent = `Include this engagement CTA naturally: "If this video resonated with you, let us know by commenting, 'I understood it.'" Integrate it seamlessly with the surrounding content.`;
+    ctaContent = `Include this engagement CTA: "If this video resonated with you, let us know by commenting, 'I understood it.' it MUST be the very last sentence of the entire section.`
   } else if (ctaItem.type === 'custom' && ctaItem.content) {
     ctaContent = `Include this custom CTA naturally: ${ctaItem.content}`;
   }
@@ -166,7 +166,7 @@ CRITICAL: CTAs must be integrated naturally into the content flow. Do NOT use tr
 `;
         }
 
-        const prompt = `You are a master storyteller and researcher writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}". Your goal is to create authentic, expert-level content that sounds like a passionate human sharing genuine insights.
+        const prompt = `You are a master storyteller and researcher writing section ${index + 1} of ${sections.length} for a compelling video script titled "${title}". Your goal is to create authentic, expert-level content that sounds like a passionate human sharing genuine insights. 
 
 SECTION TITLE: "${section.title}"
 WRITING INSTRUCTIONS: ${section.writingInstructions}
@@ -186,7 +186,7 @@ ${forbiddenWords ? `LANGUAGE RESTRICTIONS: Completely avoid these terms: ${forbi
 ${researchData ? `
 RESEARCH FOUNDATION:
 Use insights from this research to create authoritative, fact-based content:
-${JSON.stringify(researchData, null, 2).substring(0, 1000)}...
+${JSON.stringify(researchData, null, 2)}...
 
 INTEGRATION REQUIREMENTS:
 - Weave specific facts, statistics, and insights naturally into the narrative
@@ -199,10 +199,9 @@ ${ctaInstructions}
 
 ANTI-AI CONTENT REQUIREMENTS:
 - NEVER use repetitive catchphrases or formulaic expressions
-- AVOID dramatic declarations like "Your life is a lie" or "They don't want you to know" unless used sparingly and contextually
 - ELIMINATE generic, interchangeable language that could apply to any topic
 - REJECT artificial excitement or forced urgency
-- NEVER repeat the same rhetorical devices or sentence structures
+- NEVER repeat the same rhetorical devices or sentence structures across sections
 - AVOID lists of vague benefits or empty promises
 - CREATE unique, topic-specific insights that demonstrate genuine expertise
 
@@ -219,9 +218,9 @@ CONTENT DEPTH REQUIREMENTS:
 - Provide specific, actionable insights that viewers can verify or apply
 - Explain underlying mechanisms and causalities, not just surface-level claims
 - Include historical context, comparative examples, or case studies
-- Address complexity and nuance rather than oversimplifying
+- Address complexity and nuance rather than oversimplifying, but not too much to keep it WIDE TAM & broadly understandable
 - Connect individual concepts to broader frameworks or principles
-- Offer practical next steps or applications for the information shared
+- Offer practical steps or applications for the information shared
 
 CRITICAL WRITING REQUIREMENTS:
 - Write ONLY the script content for this section - no stage directions, titles, or meta-commentary
@@ -237,14 +236,15 @@ ${emotionalTone ? `- Maintain the ${emotionalTone} emotional tone throughout whi
 ${targetAudience ? `- Speak directly to ${targetAudience} with relevant examples and appropriate language` : ''}
 
 CRITICAL WORD COUNT REQUIREMENTS:
-- This section should be AT LEAST 500 words minimum
-- Target approximately 700-900 words for optimal depth and engagement
-- If your initial draft is under 500 words, expand with additional examples, case studies, or deeper explanations
+${index === 0 ? `- This is the INTRODUCTION section - MAXIMUM 170 words
+- Focus on capturing attention through genuine intrigue rather than dramatic claims
+- Establish credibility and value while staying under the 170-word limit
+- Be concise but compelling - every word must count
+- The first section (introduction) of the script should be 170 words MAXIMUM, and its purpose is to REEL the viewer into watching the full video, it must spark curiosity to keep watching` : `- This section should be AT LEAST 800 words minimum
+- Target approximately 800-1000 words for optimal depth and engagement
+- If your initial draft is under 800 words, expand with additional examples, case studies, or deeper explanations
 - Better to exceed the target than fall significantly short
-- Focus on providing substantial value rather than reaching a word count through filler
-
-INTRODUCTION SECTION SPECIAL REQUIREMENT:
-${index === 0 ? 'This is the introduction section - capture attention through genuine intrigue rather than dramatic claims, and limit to 160 words maximum while establishing credibility and value.' : ''}
+- Focus on providing substantial value rather than reaching a word count through filler`}
 
 QUALITY VERIFICATION:
 Before finalizing, ensure your content:

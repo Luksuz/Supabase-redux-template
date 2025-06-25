@@ -88,6 +88,13 @@ const MODEL_INFO: Record<ImageProvider, {
     rateLimit: '10/min per batch',
     features: ['High quality', 'Text understanding', 'Creative interpretation', 'Base64 output']
   },
+  'gpt-image-1': {
+    name: 'GPT Image 1',
+    description: 'OpenAI\'s newest image generation model with enhanced instruction following',
+    batchSize: 5,
+    rateLimit: '5/min per batch',
+    features: ['Superior instruction following', 'Photorealistic images', 'World knowledge', 'Enhanced quality', 'Base64 output']
+  },
   'leonardo-phoenix': {
     name: 'Leonardo Phoenix',
     description: 'Leonardo\'s Phoenix model with enhanced contrast and quality',
@@ -343,6 +350,49 @@ export function AIImageGenerator() {
       }))
 
       return imageUrls
+    } else if (selectedModel === 'gpt-image-1') {
+      // For GPT Image 1: send requests in parallel (batch size 5)
+      const requestPromises = batchPrompts.map(async (prompt, index) => {
+        try {
+          const response = await fetch('/api/generate-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: selectedModel,
+              prompt: applyImageStyle(prompt),
+              numberOfImages: 1,
+              minimaxAspectRatio: aspectRatio,
+              userId: 'user-123',
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error(`Failed to generate GPT Image 1 ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+            return []
+          }
+
+          const data = await response.json()
+          return data.imageUrls ? data.imageUrls : []
+        } catch (error) {
+          console.error(`Error generating GPT Image 1 ${index + 1} in batch ${batchIndex + 1}:`, error)
+          return []
+        }
+      })
+
+      // Wait for all GPT Image 1 requests in the batch to complete
+      const results = await Promise.all(requestPromises)
+      const imageUrls = results.flat()
+
+      // Update progress for the entire batch
+      setBatchProgress(prev => ({ 
+        ...prev, 
+        current: prev.current + batchPrompts.length 
+      }))
+
+      return imageUrls
     } else if (selectedModel === 'leonardo-phoenix') {
       // For Leonardo Phoenix: send requests sequentially with rate limiting
       const requestPromises = batchPrompts.map(async (prompt, index) => {
@@ -506,10 +556,18 @@ export function AIImageGenerator() {
           ))
 
           // Different wait times based on model capabilities
-          if (selectedModel === 'minimax' || selectedModel === 'dalle-3') {
-            // MiniMax and DALL-E 3 have different rate limits, shorter wait
+          if (selectedModel === 'minimax' || selectedModel === 'dalle-3' || selectedModel === 'gpt-image-1') {
+            // MiniMax, DALL-E 3, and GPT Image 1 have different rate limits
             if (batchIndex < totalBatches - 1) {
-              const waitTime = selectedModel === 'dalle-3' ? 10 : 8; // DALL-E 3: 10s, MiniMax: 8s (now parallel)
+              let waitTime: number;
+              if (selectedModel === 'gpt-image-1') {
+                waitTime = 60; // GPT Image 1: 60 seconds (1 minute)
+              } else if (selectedModel === 'dalle-3') {
+                waitTime = 10; // DALL-E 3: 10 seconds
+              } else {
+                waitTime = 8; // MiniMax: 8 seconds
+              }
+              
               dispatch(updateGenerationInfo(
                 `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting ${waitTime} seconds before next batch...`
               ))
@@ -1470,6 +1528,8 @@ export function AIImageGenerator() {
                     ? 'MiniMax processes images in batches of 5 with parallel execution. Please wait while all batches complete.'
                     : selectedModel === 'dalle-3'
                     ? 'DALL-E 3 processes images in batches of 10 with parallel execution. Please wait while all batches complete.'
+                    : selectedModel === 'gpt-image-1'
+                    ? 'GPT Image 1 processes images in batches of 5 with enhanced instruction following. Please wait while all batches complete.'
                     : selectedModel === 'leonardo-phoenix'
                     ? 'Leonardo Phoenix processes images in batches of 10 with enhanced quality. Please wait while all batches complete.'
                     : `${currentModel.name} processes images in batches of 10. Please wait while all batches complete.`

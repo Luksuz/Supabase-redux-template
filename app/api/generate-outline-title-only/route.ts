@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { StructuredOutputParser } from "langchain/output_parsers";
 import { createModelInstance } from "../../../lib/utils/model-factory";
 import { getModelById } from "../../../types/models";
 import { THEME_OPTIONS } from "../../../lib/features/scripts/scriptsSlice";
-import { scriptSectionsSchema } from "../../../types/script-section";
-import { writeFileSync, existsSync, mkdirSync } from "fs";
+import { scriptSectionsResponseSchema } from "../../../types/script-section";
+import { writeFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
 
 // Helper function to log prompts to files
@@ -39,11 +38,17 @@ export async function POST(request: NextRequest) {
   try {
     const { 
       title,
+      wordCount,
       targetAudience,
       emotionalTone,
       selectedModel,
       themeId,
-      additionalInstructions
+      additionalInstructions,
+      uploadedStyle,
+      ctas,
+      forbiddenWords,
+      researchData,
+      generateQuote
     } = await request.json();
     
     if (!title || !title.trim()) {
@@ -53,10 +58,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!wordCount) {
+      return NextResponse.json(
+        { error: "Word count is required" },
+        { status: 400 }
+      );
+    }
+
     const modelId = selectedModel || 'gpt-4o-mini';
     const modelConfig = getModelById(modelId);
     
     console.log(`🚀 Generating title-only outline for: "${title}" using ${modelConfig?.name || modelId}`);
+    console.log(`📊 Target word count: ${wordCount} words`);
+
+    // Calculate the number of sections based on word count
+    const numSections = Math.max(1, Math.ceil(wordCount / 800)); // Aim for ~800 words per section
+    const avgWordsPerSection = Math.round(wordCount / numSections);
+    
+    console.log(`📊 Word distribution: ${wordCount} total words → ${numSections} sections → ~${avgWordsPerSection} words per section`);
+
+    // Handle multiple CTAs
+    const activeCTAs = ctas && Array.isArray(ctas) ? ctas.filter((c: any) => c.enabled) : [];
+    
+    // Determine which sections should contain CTAs
+    const ctaSectionIndices: number[] = [];
+    activeCTAs.forEach((ctaItem: any) => {
+      let ctaSectionIndex = -1;
+      if (ctaItem.placement === 'beginning') {
+        ctaSectionIndex = 0;
+      } else if (ctaItem.placement === 'middle') {
+        ctaSectionIndex = Math.floor(numSections / 2);
+      } else if (ctaItem.placement === 'end') {
+        ctaSectionIndex = numSections - 1;
+      } else if (ctaItem.placement === 'custom' && ctaItem.customPosition !== undefined) {
+        ctaSectionIndex = Math.min(ctaItem.customPosition - 1, numSections - 1); // Convert to 0-based index
+      }
+      
+      if (ctaSectionIndex >= 0) {
+        ctaSectionIndices.push(ctaSectionIndex);
+      }
+    });
+
+    console.log(`📢 CTA placements: sections ${ctaSectionIndices.map(i => i + 1).join(', ')} of ${numSections} total`);
+    if (activeCTAs.length > 0) {
+      console.log(`📋 Active CTAs:`, activeCTAs.map(cta => `${cta.type} (${cta.placement})`).join(', '));
+    }
 
     // Get theme instructions if theme is selected
     const selectedTheme = themeId ? THEME_OPTIONS.find(t => t.id === themeId) : null;
@@ -78,121 +124,259 @@ CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phras
 - Provide specific guidance for how to implement these approaches in each section
 ` : '';
 
-    // Initialize the model and parser
+    // Generate quote if requested
+    let generatedQuote = null;
+    if (generateQuote) {
+      console.log('📜 Generating relevant quote...');
+      try {
+        const quoteModel = createModelInstance(selectedModel || 'gpt-4o-mini', 0.3);
+        
+        const scriptAnalysisPrompt = `Analyze this video script content and identify the main subject, key themes, and any prominent figures mentioned:
+
+TITLE: "${title}"
+THEME: ${selectedTheme ? selectedTheme.name : 'General'}
+${researchData ? `RESEARCH CONTEXT: ${JSON.stringify(researchData.analysis || {}).substring(0, 500)}` : ''}
+
+Based on this information, identify:
+1. The PRIMARY subject/topic of this script
+2. The main THEMES being explored 
+3. Any SPECIFIC HISTORICAL FIGURES, experts, or authorities mentioned or relevant to this topic
+4. The PHILOSOPHICAL or PRACTICAL approach being taken
+
+Respond with a brief analysis in this format:
+PRIMARY SUBJECT: [main topic]
+KEY THEMES: [2-3 main themes]
+RELEVANT AUTHORITIES: [specific people who are experts on this subject]
+APPROACH: [philosophical, practical, historical, etc.]`;
+
+        const analysisResponse = await quoteModel.invoke(scriptAnalysisPrompt);
+        let analysisContent = "";
+        if (typeof analysisResponse.content === 'string') {
+          analysisContent = analysisResponse.content;
+        } else if (Array.isArray(analysisResponse.content)) {
+          analysisContent = analysisResponse.content
+            .map((item: any) => {
+              if (typeof item === 'string') return item;
+              if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
+              return '';
+            })
+            .join('\n');
+        }
+
+        const quotePrompt = `Based on this script analysis, find a profound, verified quote that perfectly captures the essence of this content:
+
+${analysisContent}
+
+SCRIPT DETAILS:
+Title: "${title}"
+Theme: ${selectedTheme ? selectedTheme.name : 'General'}
+${themeInstructions ? `Theme Context: ${themeInstructions.substring(0, 300)}` : ''}
+
+QUOTE REQUIREMENTS:
+- Must be from a REAL, credible authority figure directly relevant to the subject matter
+- Must be PROFOUND and thought-provoking, not generic motivational quotes
+- Should capture the CORE ESSENCE of what this script is exploring
+- Must be VERIFIED and authentic (not misattributed)
+
+Return ONLY the quote and author in this exact format:
+"Quote text here" - Author Name
+
+Do NOT include any explanation, context, or additional text.`;
+
+        const quoteResponse = await quoteModel.invoke(quotePrompt);
+        let quoteContent = "";
+        if (typeof quoteResponse.content === 'string') {
+          quoteContent = quoteResponse.content;
+        } else if (Array.isArray(quoteResponse.content)) {
+          quoteContent = quoteResponse.content
+            .map((item: any) => {
+              if (typeof item === 'string') return item;
+              if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
+              return '';
+            })
+            .join('\n');
+        }
+
+        const quoteMatch = quoteContent.match(/"([^"]+)"\s*-\s*(.+)/);
+        if (quoteMatch && quoteMatch[1] && quoteMatch[2]) {
+          generatedQuote = {
+            text: quoteMatch[1].trim(),
+            author: quoteMatch[2].trim()
+          };
+          console.log(`✅ Generated contextual quote: "${generatedQuote.text}" - ${generatedQuote.author}`);
+        }
+      } catch (quoteError) {
+        console.error('❌ Quote generation failed:', quoteError);
+      }
+    }
+
+    // Use uploaded style if available, otherwise read the feeder script style file
+    let styleContent: string;
+    
+    if (uploadedStyle && uploadedStyle.trim().length > 0) {
+      styleContent = uploadedStyle;
+      console.log('📄 Using uploaded style guide for title-only outline');
+    } else {
+      const stylePath = join(process.cwd(), 'lib', 'data', 'feeder_script_style.txt');
+      styleContent = readFileSync(stylePath, 'utf-8');
+      console.log('📄 Using default feeder script style for title-only outline');
+    }
+
+    // Initialize the model
     const model = createModelInstance(modelId, 0.7);
-    const parser = StructuredOutputParser.fromZodSchema(scriptSectionsSchema);
 
-    const prompt = `Based on the title: **${title}**
+    // Build additional instructions
+    let additionalInstructionsText = "";
+    
+    if (forbiddenWords && forbiddenWords.trim()) {
+      const wordsList = forbiddenWords.split(',').map((word: string) => word.trim()).filter(Boolean);
+      if (wordsList.length > 0) {
+        additionalInstructionsText += `
+FORBIDDEN WORDS: Completely avoid these terms: ${wordsList.join(', ')}.
+`;
+      }
+    }
+    
+    if (additionalInstructions && additionalInstructions.trim()) {
+      additionalInstructionsText += `
+ADDITIONAL INSTRUCTIONS: ${additionalInstructions.trim()}
+`;
+    }
 
-Research the title and write an comprehensive information text/script outline like below on what this video can be about. Make sure it's packed with value to the viewer and provides detailed guidance for script creation.
+    const prompt = `You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Based on the title: **${title}**
+
+TARGET SPECIFICATIONS:
+- Total word count: ${wordCount} words
+- Number of sections: ${numSections}
+- Average words per section: ${avgWordsPerSection} words
+- Introduction section limit: 170 words maximum
+- Other sections: ~${avgWordsPerSection} words each
+
+FUNDAMENTAL WRITING PRINCIPLES:
+${styleContent}
+
+THEMATIC DIRECTION:
+${themeInstructions}
 
 ${targetAudience ? `TARGET AUDIENCE: ${targetAudience}` : ''}
 ${emotionalTone ? `EMOTIONAL TONE: ${emotionalTone}` : ''}
-${themeInstructions}
-${additionalInstructions ? `ADDITIONAL INSTRUCTIONS: ${additionalInstructions}` : ''}
 
-Create a comprehensive script analysis and outline that follows this structure:
+${researchData ? `
+RESEARCH FOUNDATION:
+Incorporate these research insights to create authoritative, fact-based content:
 
-## Script Analysis and Outline
+Analysis: ${JSON.stringify(researchData.analysis || {}, null, 2)}
+Key Findings: ${researchData.searchResults ? researchData.searchResults.slice(0, 5).map((result: any) => `- ${result.title}: ${result.description}`).join('\n') : 'No search results available'}
 
-## Overall Theme and Structure
-[Provide a comprehensive overview of what this video should be about, the main theme, and how it should be structured as a flowing narrative]
+INTEGRATION REQUIREMENTS:
+- Weave specific facts, statistics, and insights naturally into the narrative
+- Use research to support claims with concrete examples
+- Reference current developments and real-world applications
+- Build authority through demonstrated knowledge, not dramatic claims
+` : ''}
 
-## Detailed Information Outline
+${additionalInstructionsText}
 
-### **Chapter 1: [Opening Hook/Introduction Title]**
-- **Core Concept**: [Main concept for this section]
-- **Key Points**:
-    - [Specific point 1 with supporting details]
-    - [Specific point 2 with examples or evidence]
-    - [Specific point 3 with practical applications]
-    - [Specific point 4 with expert perspectives]
+${activeCTAs.length > 0 ? `
+CTA INTEGRATION REQUIREMENTS:
+${activeCTAs.map((ctaItem: any, ctaIndex: number) => {
+  const ctaSectionIndex = ctaSectionIndices[ctaIndex];
+  if (ctaSectionIndex >= 0) {
+    return `- Section ${ctaSectionIndex + 1} must include the following CTA:
+${getCTAInstructions(ctaItem.type, ctaItem.content)}${ctaItem.type === 'custom' && ctaItem.content ? `\nCustom CTA Content: ${ctaItem.content}` : ''}
+CRITICAL: Integrate the CTA naturally into the content flow.`;
+  }
+  return '';
+}).filter(Boolean).join('\n')}
+` : ''}
 
-### **Chapter 2: [Second Section Title]**
-- **[Section Focus]**: [What this section addresses in detail]
-- **Key Insights**:
-    - [Insight 1 with concrete examples]
-    - [Insight 2 with historical context]
-    - [Insight 3 with practical implications]
-    - [Insight 4 with expert validation]
+ANTI-AI CONTENT REQUIREMENTS:
+- NEVER use repetitive catchphrases or formulaic expressions
+- ELIMINATE generic, interchangeable language that could apply to any topic
+- REJECT artificial excitement or forced urgency
+- NEVER repeat the same rhetorical devices or sentence structures across sections
+- AVOID lists of vague benefits or empty promises
+- CREATE unique, topic-specific insights that demonstrate genuine expertise
 
-[Continue with up to 20 chapters total, each following similar detailed structure]
+NATURAL HUMAN COMMUNICATION STANDARDS:
+- Write as if you're a knowledgeable friend sharing fascinating discoveries
+- Use varied sentence structures and natural speech patterns
+- Include specific, verifiable details and examples
+- Show genuine curiosity and intellectual engagement with the topic
+- Build arguments through logic and evidence, not repetitive assertions
+- Respect your audience's intelligence and critical thinking abilities
+- Connect ideas to real-world experiences and practical applications
 
-## Key Psychological and Philosophical Frameworks
-[List the main frameworks, concepts, or approaches that should be incorporated throughout the script with specific applications]
+CONTENT DEPTH REQUIREMENTS:
+- Provide specific, actionable insights that viewers can verify or apply
+- Explain underlying mechanisms and causalities, not just surface-level claims
+- Include historical context, comparative examples, or case studies
+- Address complexity and nuance rather than oversimplifying, but not too much to keep it WIDE TAM & broadly understandable
 
-## Expert Perspectives and Supporting Evidence
-[Identify key authorities, studies, or sources that should be referenced to build credibility]
+CRITICAL WORD COUNT REQUIREMENTS:
+- Section 1 (Introduction): Maximum 170 words - capture attention through genuine intrigue
+- The first section (introduction) of the script should be 170 words MAXIMUM, and its purpose is to REEL the viewer into watching the full video, it must spark curiosity to keep watching
+- Sections 2-${numSections}: Target approximately ${avgWordsPerSection} words each (minimum 800 words)
+- Total script should aim for ${wordCount} words across all sections
+- Better to exceed targets than fall short - focus on substantial, valuable content
 
-## Practical Applications and Takeaways
-[Specific actionable insights viewers should gain from each section]
+For each section, provide:
+1. A compelling, specific title that captures unique value
+2. Comprehensive writing instructions (minimum 200 words) detailing:
+   - The authentic intellectual journey viewers should experience
+   - Specific content points with supporting evidence and examples
+   - Natural engagement techniques that respect audience intelligence
+   - How this section contributes to the overall educational narrative
+   - Smooth transition strategies maintaining conversational flow
+   - Concrete examples, analogies, or case studies to include
+   - Key questions to address or insights to reveal
+   - Emotional pacing and tonal shifts throughout the section
+   - Specific facts, statistics, or expert perspectives to reference
+   - How to connect abstract concepts to tangible experiences
+   - Methods for building credibility and trust with the audience
 
-After creating this comprehensive outline, convert it into the required JSON format with sections that can be used for script generation. Each chapter should become a section with DETAILED writing instructions (minimum 200 words each) that include:
+${forbiddenWords ? `FINAL REMINDER: Completely avoid these prohibited terms: ${forbiddenWords}` : ''}
 
-- Specific talking points and content to cover
-- Concrete examples or case studies to include
-- How to open, develop, and conclude the section
-- Engagement techniques and rhetorical strategies
-- Transition methods to maintain narrative flow
-- Emotional pacing and tonal guidance
-- Methods for building credibility and authority
-- How to connect abstract concepts to practical experience
+Create exactly ${numSections} sections that will form a comprehensive, value-packed video script totaling ${wordCount} words.`;
 
-${parser.getFormatInstructions()}
+    console.log(`🚀 Generating title-only outline: "${title}" with ${numSections} sections`);
 
-Make sure each section's writing instructions capture the depth and value outlined in the detailed analysis, provide specific guidance beyond general direction, and create a comprehensive, value-packed video script with up to 20 sections. Each writing instruction should be detailed enough that a script writer could create compelling content without additional research.`;
-
-    console.log(`🚀 Generating title-only outline: "${title}"`);
-
-    const response = await model.invoke(prompt);
+    const response = await (model as any).withStructuredOutput(scriptSectionsResponseSchema).invoke(prompt);
     
     // Log the prompt for debugging
     const sanitizedTitle = title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
     logPromptToFile(prompt, `title_only_${sanitizedTitle}`, 'outline');
 
-    let contentString = "";
-    if (typeof response.content === 'string') {
-      contentString = response.content;
-    } else if (Array.isArray(response.content)) {
-      contentString = response.content
-        .map(item => {
-          if (typeof item === 'string') return item;
-          if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
-          return '';
-        })
-        .join('\n');
-    }
+    console.log(`✅ Generated ${response.sections.length} sections for title-only outline: "${title}"`);
 
-    try {
-      const parsedResponse = await parser.parse(contentString);
-      let sections: any[] = [];
-      
-      if (Array.isArray(parsedResponse)) {
-        sections = parsedResponse;
-      } else {
-        sections = [parsedResponse];
+    return NextResponse.json({
+      success: true,
+      sections: response.sections,
+      quote: generatedQuote,
+      meta: {
+        title,
+        wordCount,
+        numSections,
+        avgWordsPerSection,
+        generationType: 'title-only',
+        theme: selectedTheme ? {
+          id: selectedTheme.id,
+          name: selectedTheme.name
+        } : null,
+        ctas: activeCTAs.length > 0 ? {
+          enabled: true,
+          count: activeCTAs.length,
+          placements: ctaSectionIndices.map(idx => idx + 1),
+          types: activeCTAs.map((cta: any) => cta.type)
+        } : { enabled: false },
+        quote: generatedQuote ? {
+          generated: true,
+          text: generatedQuote.text,
+          author: generatedQuote.author
+        } : { generated: false },
+        researchUsed: !!researchData
       }
-
-      console.log(`✅ Generated ${sections.length} sections for title-only outline: "${title}"`);
-
-      return NextResponse.json({
-        success: true,
-        sections: sections,
-        meta: {
-          title,
-          generationType: 'title-only',
-          theme: selectedTheme ? {
-            id: selectedTheme.id,
-            name: selectedTheme.name
-          } : null
-        }
-      });
-
-    } catch (parseError) {
-      console.error('Failed to parse structured response:', parseError);
-      console.log("Raw content:", contentString.substring(0, 500) + "...");
-      throw parseError;
-    }
+    });
 
   } catch (error) {
     console.error('Error generating title-only outline:', error);
@@ -201,4 +385,24 @@ Make sure each section's writing instructions capture the depth and value outlin
       { status: 500 }
     );
   }
-} 
+}
+
+// Define CTA instructions based on type
+const getCTAInstructions = (type: string, content?: string) => {
+  switch (type) {
+    case 'newsletter':
+      return `
+IMPORTANT CTA REQUIREMENT: You must incorporate a short CTA to our newsletter called "Insights Academy" (make it clear that it is a free newsletter) where we share more hidden knowledge exclusively. Frame the CTA as if some things are too confidential to share on YouTube. Mention that the viewer will receive a free ebook copy of "The Kybalion" upon signing up for a limited time only. The CTA must be incorporated smoothly and naturally into the content flow and can only be 2 sentences max. Make it persuasive and create urgency.`;
+    
+    case 'engagement':
+      return `
+IMPORTANT CTA REQUIREMENT: You must incorporate this engagement CTA: "If this video resonated with you, let us know by commenting, 'I understood it.'" CRITICAL: When this CTA is positioned in the final section (end positioning), it MUST be the very last sentence of the entire section. For other positions, integrate it smoothly within the content flow. This should feel natural and be integrated seamlessly with the surrounding content.`;
+    
+    case 'custom':
+      return content ? `
+IMPORTANT CTA REQUIREMENT: You must incorporate this custom CTA smoothly into the content: "${content}" This should feel natural and be integrated seamlessly with the surrounding content.` : '';
+    
+    default:
+      return '';
+  }
+}; 
