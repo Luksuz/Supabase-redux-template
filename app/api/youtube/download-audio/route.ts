@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { promises as fs } from 'fs'
 import { createWriteStream, createReadStream } from 'fs'
-// Replace ytdl-core with yt-dlp-exec for better reliability
-import { exec } from 'yt-dlp-exec'
+// @ts-ignore - ytdl-core doesn't have proper TypeScript definitions
+import ytdl from 'ytdl-core'
 import path from 'path'
 import os from 'os'
 import { spawn } from 'child_process'
@@ -248,75 +248,59 @@ async function downloadAndTranscribeVideo(videoId: string): Promise<SubtitleFile
   const url = `https://www.youtube.com/watch?v=${videoId}`
   
   try {
+    // Validate URL
+    const isValid = ytdl.validateURL(url)
+    if (!isValid) {
+      throw new Error('Invalid YouTube URL')
+    }
+
+    // Get video info
+    const info = await ytdl.getInfo(url)
+    const videoTitle = info.videoDetails.title.replace(/[<>:"/\\|?*]+/g, "") // sanitize filename
+    
     // Create temporary directory for this download
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'youtube-audio-'))
-    const tempOutput = path.join(tempDir, `${videoId}_temp.%(ext)s`)
-    const finalOutput = path.join(tempDir, `${videoId}.mp3`)
+    const tempOutput = path.join(tempDir, `${videoTitle}_temp.mp3`)
+    const finalOutput = path.join(tempDir, `${videoTitle}.mp3`)
 
-    console.log(`📥 Downloading audio for video: ${videoId}`)
+    console.log(`📥 Downloading audio for: ${videoTitle}`)
     
-    // Use yt-dlp with anti-bot measures
-    const ytDlpOptions = {
-      format: 'bestaudio[ext=mp3]/bestaudio/best',
-      output: tempOutput,
-      extractAudio: true,
-      audioFormat: 'mp3',
-      audioQuality: '32',
-      // Anti-bot measures
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      sleep: 1,
-      maxSleepInterval: 5,
-      // Use different client to avoid detection
-      extractor: 'youtube:web',
-      // Additional headers
-      headers: {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-us,en;q=0.5',
-        'Accept-Encoding': 'gzip,deflate',
-        'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
-        'Keep-Alive': '115',
-        'Connection': 'keep-alive',
-      }
-    }
+    // Download audio
+    await new Promise<void>((resolve, reject) => {
+      const writeStream = createWriteStream(tempOutput)
+      
+      ytdl(url, { 
+        quality: "highestaudio",
+        filter: "audioonly",
+        format: "mp3"
+      })
+        .pipe(writeStream)
+        .on("finish", () => {
+          console.log(`Downloaded raw audio for ${videoTitle}`)
+          resolve()
+        })
+        .on("error", (err: Error) => {
+          console.error("Error writing file:", err)
+          reject(err)
+        })
+    })
 
-    // Download with yt-dlp
-    const result = await exec(url, ytDlpOptions)
-    
-    // Find the downloaded file
-    const files = await fs.readdir(tempDir)
-    const audioFile = files.find(file => file.includes(videoId) && (file.endsWith('.mp3') || file.endsWith('.webm') || file.endsWith('.m4a')))
-    
-    if (!audioFile) {
-      throw new Error('Downloaded audio file not found')
-    }
-    
-    const downloadedPath = path.join(tempDir, audioFile)
-    
-    // Get video title from yt-dlp result or use videoId as fallback
-    const videoTitle = (result.title || `Video_${videoId}`).replace(/[<>:"/\\|?*]+/g, "")
-    
-    console.log(`📥 Downloaded audio for: ${videoTitle}`)
-
-    // Compress with FFmpeg if needed
-    let processedAudioPath = downloadedPath
-    if (!audioFile.endsWith('.mp3') || audioFile.includes('temp')) {
-      try {
-        await compressAudioWithFFmpeg(downloadedPath, finalOutput)
-        await fs.unlink(downloadedPath) // Remove temp file
-        processedAudioPath = finalOutput
-        console.log("🧹 Cleaned up temporary file")
-      } catch (ffmpegError: unknown) {
-        const errorMessage = ffmpegError instanceof Error ? ffmpegError.message : 'Unknown FFmpeg error'
-        console.warn("FFmpeg compression failed, using original file:", errorMessage)
-        processedAudioPath = downloadedPath
-      }
+    // Compress with FFmpeg
+    try {
+      await compressAudioWithFFmpeg(tempOutput, finalOutput)
+      await fs.unlink(tempOutput) // Remove temp file
+      console.log("🧹 Cleaned up temporary file")
+    } catch (ffmpegError: unknown) {
+      const errorMessage = ffmpegError instanceof Error ? ffmpegError.message : 'Unknown FFmpeg error'
+      console.warn("FFmpeg compression failed, using original file:", errorMessage)
+      await fs.rename(tempOutput, finalOutput)
     }
 
     // Generate subtitles
-    const { srtContent, size } = await generateSubtitles(processedAudioPath, videoTitle)
+    const { srtContent, size } = await generateSubtitles(finalOutput, videoTitle)
 
     // Clean up audio file
-    await fs.unlink(processedAudioPath)
+    await fs.unlink(finalOutput)
     await fs.rmdir(tempDir)
 
     return {
