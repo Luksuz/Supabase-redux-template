@@ -7,7 +7,9 @@ A Flask API server for retrieving YouTube video captions/transcripts.
 import os
 import re
 import logging
-from typing import Dict, List, Optional, Any
+import random
+import requests
+from typing import Dict, List, Optional, Any, Tuple
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -26,6 +28,176 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Webshare.io API configuration
+WEBSHARE_API_TOKEN = "zo1xnhylf67y6pg94bhvz951wgcc27l55hh6j14n"
+WEBSHARE_API_URL = "https://proxy.webshare.io/api/v2/proxy/list/"
+
+# Available proxies from webshare.io (fallback list)
+PROXY_LIST = [
+    {
+        'address': '198.23.239.134',
+        'port': 6540,
+        'username': 'otknvhqu',
+        'password': '1xy56rpgg2in'
+    },
+    {
+        'address': '207.244.217.165',
+        'port': 6712,
+        'username': 'otknvhqu',
+        'password': '1xy56rpgg2in'
+    },
+    {
+        'address': '107.172.163.27',
+        'port': 6543,
+        'username': 'otknvhqu',
+        'password': '1xy56rpgg2in'
+    },
+    {
+        'address': '23.94.138.75',
+        'port': 6349,
+        'username': 'otknvhqu',
+        'password': '1xy56rpgg2in'
+    },
+    {
+        'address': '216.10.27.159',
+        'port': 6837,
+        'username': 'otknvhqu',
+        'password': '1xy56rpgg2in'
+    },
+    {
+        'address': '136.0.207.84',
+        'port': 6661,
+        'username': 'otknvhqu',
+        'password': '1xy56rpgg2in'
+    },
+    {
+        'address': '64.64.118.149',
+        'port': 6732,
+        'username': 'otknvhqu',
+        'password': '1xy56rpgg2in'
+    }
+]
+
+def fetch_fresh_proxies() -> List[Dict[str, Any]]:
+    """
+    Fetch fresh proxy list from webshare.io API.
+    
+    Returns:
+        List of proxy configurations or empty list if API call fails
+    """
+    try:
+        headers = {
+            'Authorization': f'Token {WEBSHARE_API_TOKEN}'
+        }
+        
+        params = {
+            'mode': 'direct',
+            'page': '1',
+            'page_size': '25'
+        }
+        
+        response = requests.get(WEBSHARE_API_URL, headers=headers, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        fresh_proxies = []
+        
+        for proxy in data.get('results', []):
+            if proxy.get('valid', False):  # Only use valid proxies
+                fresh_proxies.append({
+                    'address': proxy['proxy_address'],
+                    'port': proxy['port'],
+                    'username': proxy['username'],
+                    'password': proxy['password']
+                })
+        
+        logger.info(f"Fetched {len(fresh_proxies)} fresh proxies from webshare.io API")
+        return fresh_proxies
+        
+    except Exception as e:
+        logger.warning(f"Failed to fetch fresh proxies from API: {str(e)}")
+        return []
+
+def get_proxy_list() -> List[Dict[str, Any]]:
+    """
+    Get proxy list, attempting to fetch fresh proxies first, falling back to static list.
+    
+    Returns:
+        List of proxy configurations
+    """
+    fresh_proxies = fetch_fresh_proxies()
+    if fresh_proxies:
+        return fresh_proxies
+    else:
+        logger.info("Using fallback proxy list")
+        return PROXY_LIST
+
+def get_proxy_config(proxy_info: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Convert proxy info to the format expected by YouTubeTranscriptApi.
+    
+    Args:
+        proxy_info: Dictionary containing proxy address, port, username, password
+        
+    Returns:
+        Proxy configuration dictionary
+    """
+    proxy_url = f"http://{proxy_info['username']}:{proxy_info['password']}@{proxy_info['address']}:{proxy_info['port']}"
+    return {
+        "http": proxy_url,
+        "https": proxy_url
+    }
+
+def fetch_transcript_with_proxy_rotation(video_id: str, language: str = 'en') -> Tuple[List[Dict], Optional[str]]:
+    """
+    Fetch transcript using proxy rotation. Try each proxy until one works.
+    
+    Args:
+        video_id: YouTube video ID
+        language: Language code for transcript
+        
+    Returns:
+        Tuple of (transcript_data, successful_proxy_address) or raises exception if all proxies fail
+    """
+    # Randomize proxy order to distribute load
+    shuffled_proxies = get_proxy_list().copy()
+    random.shuffle(shuffled_proxies)
+    
+    last_error = None
+    
+    for proxy_info in shuffled_proxies:
+        try:
+            proxy_config = get_proxy_config(proxy_info)
+            proxy_address = f"{proxy_info['address']}:{proxy_info['port']}"
+            
+            logger.info(f"Attempting to fetch transcript for {video_id} using proxy {proxy_address}")
+            
+            # Attempt to fetch transcript with current proxy
+            transcript = YouTubeTranscriptApi.get_transcript(
+                video_id, 
+                languages=[language],
+                proxies=proxy_config
+            )
+            
+            logger.info(f"Successfully fetched transcript for {video_id} using proxy {proxy_address}")
+            return transcript, proxy_address
+            
+        except YouTubeRequestFailed as e:
+            logger.warning(f"Proxy {proxy_address} failed for video {video_id}: {str(e)}")
+            last_error = e
+            continue
+        except Exception as e:
+            logger.warning(f"Unexpected error with proxy {proxy_address} for video {video_id}: {str(e)}")
+            last_error = e
+            continue
+    
+    # If we get here, all proxies failed
+    logger.error(f"All proxies failed for video {video_id}. Last error: {str(last_error)}")
+    if last_error:
+        raise last_error
+    else:
+        raise YouTubeRequestFailed("All proxies failed")
 
 def extract_video_id(url_or_id: str) -> Optional[str]:
     """
@@ -152,13 +324,8 @@ def extract_multiple():
                 
                 logger.info(f"Fetching captions for video: {extracted_id}")
                 
-                # Fetch transcript using static method with proxy support
-                transcript = YouTubeTranscriptApi.get_transcript(
-                    extracted_id, 
-                    languages=[language],
-                    proxies={"http": "http://otknvhqu:1xy56rpgg2in@198.23.239.134:6540", 
-                            "https": "http://otknvhqu:1xy56rpgg2in@198.23.239.134:6540"}
-                )
+                # Fetch transcript using proxy rotation
+                transcript, proxy_address = fetch_transcript_with_proxy_rotation(extracted_id, language)
                 
                 # Convert to SRT format
                 srt_content = convert_to_srt_format(transcript)
@@ -171,7 +338,8 @@ def extract_multiple():
                     'videoId': extracted_id,
                     'success': True,
                     'srtContent': srt_content,
-                    'videoTitle': video_title
+                    'videoTitle': video_title,
+                    'proxyAddress': proxy_address
                 })
                 
                 logger.info(f"Successfully extracted captions for {extracted_id}")
@@ -198,12 +366,21 @@ def extract_multiple():
                     'error': 'Video is unavailable'
                 })
             except YouTubeRequestFailed as e:
-                logger.error(f"YouTube request failed for video {video_id}: {str(e)}")
-                results.append({
-                    'videoId': video_id,
-                    'success': False,
-                    'error': f'YouTube request failed: {str(e)}'
-                })
+                error_message = str(e)
+                if "All proxies failed" in error_message:
+                    logger.error(f"All proxies failed for video {video_id}: {error_message}")
+                    results.append({
+                        'videoId': video_id,
+                        'success': False,
+                        'error': 'All proxies failed - YouTube may be blocking requests'
+                    })
+                else:
+                    logger.error(f"YouTube request failed for video {video_id}: {error_message}")
+                    results.append({
+                        'videoId': video_id,
+                        'success': False,
+                        'error': f'YouTube request failed: {error_message}'
+                    })
             except Exception as e:
                 logger.error(f"Unexpected error processing video {video_id}: {str(e)}")
                 results.append({
@@ -231,6 +408,52 @@ def extract_multiple():
             'success': False,
             'error': 'Internal server error',
             'details': str(e)
+        }), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Health check endpoint that also tests proxy functionality.
+    
+    Response:
+    {
+        "status": "healthy",
+        "proxies": {
+            "total": 10,
+            "fresh_available": true,
+            "fallback_count": 7
+        },
+        "server": {
+            "port": 3001,
+            "debug": false
+        }
+    }
+    """
+    try:
+        # Test proxy availability
+        fresh_proxies = fetch_fresh_proxies()
+        proxy_info = {
+            "total": len(get_proxy_list()),
+            "fresh_available": len(fresh_proxies) > 0,
+            "fallback_count": len(PROXY_LIST)
+        }
+        
+        server_info = {
+            "port": int(os.environ.get('PORT', 3001)),
+            "debug": os.environ.get('DEBUG', 'False').lower() == 'true'
+        }
+        
+        return jsonify({
+            "status": "healthy",
+            "proxies": proxy_info,
+            "server": server_info
+        })
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e)
         }), 500
 
 @app.errorhandler(404)
