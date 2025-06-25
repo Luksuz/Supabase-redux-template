@@ -97,6 +97,16 @@ function ReviewItem({ text, section, job, onRatingUpdate }: ReviewItemProps) {
           </div>
         </div>
 
+        {/* Research Data if available */}
+        {section.researchData && section.researchData.trim() && (
+          <div>
+            <Label className="text-sm font-medium text-gray-600">Research Data References</Label>
+            <div className="mt-1 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+              <p className="whitespace-pre-wrap">{section.researchData}</p>
+            </div>
+          </div>
+        )}
+
         {/* Rating Section */}
         <div className="border-t pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

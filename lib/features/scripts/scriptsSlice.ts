@@ -85,6 +85,7 @@ export interface FineTuningSection {
   id: string
   title: string
   writing_instructions: string
+  researchData?: string
   target_audience?: string
   tone?: string
   style_preferences?: string

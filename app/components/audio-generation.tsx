@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAppSelector, useAppDispatch } from '../../lib/hooks'
 import { 
   loadVoicesThunk, 
@@ -23,6 +23,9 @@ export function AudioGeneration() {
   const { currentJob, audioGeneration } = useAppSelector(state => state.scripts)
   const user = useAppSelector(state => state.user)
   
+  // Add ref to store current audio instance
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [customText, setCustomText] = useState('')
@@ -38,6 +41,22 @@ export function AudioGeneration() {
     total: 0,
     currentSection: ''
   })
+
+  // Helper function to strip research data brackets from script text
+  const stripResearchData = (text: string): string => {
+    // Remove content within double brackets [[...]]
+    return text.replace(/\[\[.*?\]\]/g, '').trim()
+  }
+
+  // Cleanup audio when component unmounts
+  useEffect(() => {
+    return () => {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause()
+        currentAudioRef.current = null
+      }
+    }
+  }, [])
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -72,9 +91,12 @@ export function AudioGeneration() {
       return
     }
 
+    // Strip research data brackets before sending to audio generation
+    const cleanScriptText = stripResearchData(scriptText)
+
     const result = await dispatch(generateAudioThunk({
       sectionId,
-      text: scriptText,
+      text: cleanScriptText,
       voiceId: audioGeneration.selectedVoice,
       modelId: audioGeneration.selectedModel
     }))
@@ -181,9 +203,12 @@ export function AudioGeneration() {
 
       try {
         const scriptText = section.texts[0].generated_script
+        // Strip research data brackets before sending to audio generation
+        const cleanScriptText = stripResearchData(scriptText)
+        
         const result = await dispatch(generateAudioThunk({
           sectionId: section.id,
-          text: scriptText,
+          text: cleanScriptText,
           voiceId: audioGeneration.selectedVoice,
           modelId: audioGeneration.selectedModel
         }))
@@ -198,7 +223,7 @@ export function AudioGeneration() {
 
         // Add a small delay between requests to avoid rate limiting
         if (i < sectionsNeedingAudio.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 2000))
+          await new Promise(resolve => setTimeout(resolve, 1000))
         }
       } catch (error) {
         errorCount++
@@ -206,7 +231,7 @@ export function AudioGeneration() {
       }
     }
 
-    // Reset progress tracking
+    // Reset progress
     setBulkGenerationProgress({
       isGenerating: false,
       current: 0,
@@ -214,8 +239,8 @@ export function AudioGeneration() {
       currentSection: ''
     })
 
-    // Show final results
-    if (successCount > 0 && errorCount === 0) {
+    // Show final result
+    if (successCount === sectionsNeedingAudio.length) {
       showMessage(`🎉 Successfully generated audio for all ${successCount} sections!`, 'success')
     } else if (successCount > 0 && errorCount > 0) {
       showMessage(`⚠️ Generated audio for ${successCount} sections, ${errorCount} failed`, 'info')
@@ -229,16 +254,44 @@ export function AudioGeneration() {
     
     if (isCurrentlyPlaying) {
       // Pause current audio
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause()
+        currentAudioRef.current = null
+      }
       dispatch(setAudioPlaying({ sectionId: null, isPlaying: false }))
     } else {
-      // Play this audio
-      dispatch(setAudioPlaying({ sectionId, isPlaying: true }))
+      // Stop any currently playing audio first
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause()
+        currentAudioRef.current = null
+      }
       
+      // Create and play new audio
       const audio = new Audio(audioUrl)
+      currentAudioRef.current = audio
+      
+      // Set up event listeners
       audio.addEventListener('ended', () => {
         dispatch(setAudioPlaying({ sectionId: null, isPlaying: false }))
+        currentAudioRef.current = null
       })
-      audio.play()
+      
+      audio.addEventListener('error', (e) => {
+        console.error('Audio playback error:', e)
+        dispatch(setAudioPlaying({ sectionId: null, isPlaying: false }))
+        currentAudioRef.current = null
+        showMessage('Audio playback failed', 'error')
+      })
+      
+      // Update state first, then play
+      dispatch(setAudioPlaying({ sectionId, isPlaying: true }))
+      
+      audio.play().catch(error => {
+        console.error('Audio play failed:', error)
+        dispatch(setAudioPlaying({ sectionId: null, isPlaying: false }))
+        currentAudioRef.current = null
+        showMessage('Failed to play audio', 'error')
+      })
     }
   }
 

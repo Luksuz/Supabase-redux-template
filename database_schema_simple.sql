@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.fine_tuning_outline_sections (
   job_id UUID NOT NULL REFERENCES public.fine_tuning_jobs(id) ON DELETE CASCADE,
   title TEXT NOT NULL CHECK (length(title) > 0),
   writing_instructions TEXT NOT NULL CHECK (length(writing_instructions) > 0),
+  research_data TEXT DEFAULT '',
   target_audience TEXT,
   tone TEXT,
   style_preferences TEXT,

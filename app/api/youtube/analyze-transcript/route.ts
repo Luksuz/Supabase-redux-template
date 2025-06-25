@@ -15,7 +15,7 @@ const TimestampResultSchema = z.object({
 
 // Zod schema for structured output with up to 3 results
 const TranscriptAnalysisSchema = z.object({
-  results: z.array(TimestampResultSchema).min(1).max(3).describe("Up to 3 most relevant timestamp results, ordered by relevance")
+  results: z.array(TimestampResultSchema).min(1).max(3).describe("Up to 3 most relevant timestamp results, ordered by relevance, no longer than 3 minutes each")
 })
 
 interface AnalyzeTranscriptRequest {
@@ -98,8 +98,8 @@ export async function POST(request: NextRequest) {
 
 I will provide you with an SRT subtitle file and a specific query. Your task is to:
 
-1. Find up to 3 most relevant sections that match the user's query
-2. Extract precise timestamps where dramatic or relevant content occurs
+1. Find up to 10 most relevant sections that match the user's query
+2. Extract precise timestamps where dramatic or relevant content occurs, no longer than 3 minutes each
 3. Provide detailed summaries with specific quotes and dramatic elements
 4. Identify key conflicts, tensions, or compelling moments
 5. Extract the most impactful direct quotes from the transcript

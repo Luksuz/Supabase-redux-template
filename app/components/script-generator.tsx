@@ -114,6 +114,9 @@ export default function ScriptGenerator() {
 
     let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
     
+    // Collect all YouTube links and timestamps for easy reference
+    const youtubeLinks: Array<{ url: string; timestamp?: string; title?: string; description?: string }> = []
+    
     // Add note about applied research (prioritized)
     const appliedGoogleResearch = youtubeState.googleResearchSummaries?.filter(r => r.appliedToScript) || []
     const appliedYouTubeResearch = youtubeState.youtubeResearchSummaries?.filter(r => r.appliedToScript) || []
@@ -174,10 +177,23 @@ export default function ScriptGenerator() {
       
       context += `\nCreative Prompt: ${youtubeState.videosSummary.creativePrompt}\n`
       
-      // Add individual video summaries with enhanced fields
+      // Add individual video summaries with enhanced fields and YouTube links
       context += '\n--- INDIVIDUAL VIDEO ANALYSIS ---\n'
       youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
+        // Generate YouTube URL from videoId
+        const youtubeUrl = `https://www.youtube.com/watch?v=${video.videoId}`
+        youtubeLinks.push({
+          url: youtubeUrl,
+          timestamp: video.timestamp,
+          title: video.title,
+          description: `Video ${i + 1}: ${video.mainTopic}`
+        })
+        
         context += `\nVideo ${i + 1}: ${video.title}\n`
+        context += `YouTube Link: ${youtubeUrl}\n`
+        if (video.timestamp) {
+          context += `Key Timestamp: ${video.timestamp} (${youtubeUrl}&t=${Math.floor(srtToSeconds(video.timestamp))}s)\n`
+        }
         context += `Main Topic: ${video.mainTopic}\n`
         context += `Emotional Tone: ${video.emotionalTone}\n`
         
@@ -201,14 +217,10 @@ export default function ScriptGenerator() {
         if (video.contextualInfo) {
           context += `Contextual Information: ${video.contextualInfo}\n`
         }
-        
-        if (video.timestamp) {
-          context += `Key Timestamp: ${video.timestamp}\n`
-        }
       })
     }
 
-    // Add transcript analysis results
+    // Add transcript analysis results with YouTube links
     if (youtubeState.analysisResults && youtubeState.analysisResults.length > 0) {
       context += '\n--- TRANSCRIPT ANALYSIS RESULTS ---\n'
       youtubeState.analysisResults.forEach((result, i) => {
@@ -219,6 +231,17 @@ export default function ScriptGenerator() {
           context += `- Relevant Content: "${analysis.relevantContent}"\n`
           context += `- Timestamp: ${analysis.timestamp}\n`
           context += `- Confidence: ${Math.round(analysis.confidence * 100)}%\n`
+          
+          // Add YouTube URL with timestamp if available
+          if (analysis.youtubeUrl) {
+            context += `- YouTube Link: ${analysis.youtubeUrl}\n`
+            youtubeLinks.push({
+              url: analysis.youtubeUrl,
+              timestamp: analysis.timestamp,
+              title: `Analysis: ${result.query}`,
+              description: analysis.summary
+            })
+          }
           
           // Add enhanced analysis fields
           if (analysis.keyQuotes && analysis.keyQuotes.length > 0) {
@@ -247,6 +270,14 @@ export default function ScriptGenerator() {
         research.keyFindings.forEach(finding => context += `- ${finding}\n`)
         context += 'Recommendations:\n'
         research.recommendations.forEach(rec => context += `- ${rec}\n`)
+        
+        // Add web search result links
+        if (research.webResults && research.webResults.length > 0) {
+          context += 'Source Links:\n'
+          research.webResults.slice(0, 3).forEach((webResult, idx) => {
+            context += `- ${webResult.title}: ${webResult.link}\n`
+          })
+        }
       })
     }
 
@@ -259,6 +290,21 @@ export default function ScriptGenerator() {
         context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
         context += 'Key Insights:\n'
         research.videosSummary.keyInsights.forEach(insight => context += `- ${insight}\n`)
+        
+        // Add YouTube links from video summaries
+        if (research.videosSummary.videoSummaries) {
+          context += 'Video References:\n'
+          research.videosSummary.videoSummaries.forEach((video, vidIdx) => {
+            const youtubeUrl = `https://www.youtube.com/watch?v=${video.videoId}`
+            context += `- ${video.title}: ${youtubeUrl}\n`
+            youtubeLinks.push({
+              url: youtubeUrl,
+              timestamp: video.timestamp,
+              title: video.title,
+              description: `YouTube Research: ${research.query}`
+            })
+          })
+        }
       })
     }
 
@@ -267,19 +313,53 @@ export default function ScriptGenerator() {
     if (completedSubtitles.length > 0) {
       context += '\n--- TRANSCRIPT EXCERPTS ---\n'
       completedSubtitles.slice(0, 3).forEach((subtitle, i) => {
+        const youtubeUrl = `https://www.youtube.com/watch?v=${subtitle.videoId}`
         context += `\nTranscript ${i + 1}: ${subtitle.title}\n`
+        context += `YouTube Link: ${youtubeUrl}\n`
         // Extract first few lines of subtitle for context
         const lines = subtitle.srtContent.split('\n').slice(0, 20).join('\n')
         context += `Content Preview:\n${lines}\n...\n`
+        
+        youtubeLinks.push({
+          url: youtubeUrl,
+          title: subtitle.title,
+          description: `Transcript: ${subtitle.title}`
+        })
+      })
+    }
+
+    // Add summary of all YouTube links found
+    if (youtubeLinks.length > 0) {
+      context += '\n--- YOUTUBE LINKS SUMMARY ---\n'
+      context += `Total YouTube references found: ${youtubeLinks.length}\n`
+      youtubeLinks.forEach((link, i) => {
+        context += `${i + 1}. ${link.title}: ${link.url}`
+        if (link.timestamp) {
+          context += ` (at ${link.timestamp})`
+        }
+        context += `\n`
       })
     }
 
     context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
     
     console.log('📝 Generated YouTube research context length:', context.length)
+    console.log('📝 YouTube links found:', youtubeLinks.length)
     console.log('📝 Context preview:', context.substring(0, 300) + '...')
     
     return context
+  }
+
+  // Helper function to convert SRT timestamp to seconds
+  const srtToSeconds = (srtTimestamp: string): number => {
+    try {
+      const [time, ms] = srtTimestamp.split(',')
+      const [hours, minutes, seconds] = time.split(':').map(Number)
+      return hours * 3600 + minutes * 60 + seconds + (Number(ms) || 0) / 1000
+    } catch (error) {
+      console.warn('Failed to parse SRT timestamp:', srtTimestamp)
+      return 0
+    }
   }
 
   const loadJobsFromDB = async () => {
@@ -415,12 +495,74 @@ export default function ScriptGenerator() {
         contextLength: youtubeContext.length
       })
       
+      // Extract YouTube links and timestamps for researchData
+      let extractedYouTubeLinks: Array<{ url: string; timestamp?: string; title?: string }> = []
+      let formattedResearchData = ''
+      
       if (hasYouTubeData && hasActualYouTubeData) {
         additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
         additionalResearch = youtubeContext
         
+        // Extract YouTube links from analysis results
+        if (youtubeState.analysisResults && youtubeState.analysisResults.length > 0) {
+          youtubeState.analysisResults.forEach((result) => {
+            result.analysis.forEach((analysis) => {
+              if (analysis.youtubeUrl) {
+                extractedYouTubeLinks.push({
+                  url: analysis.youtubeUrl,
+                  timestamp: analysis.timestamp,
+                  title: `${result.query}: ${analysis.summary.substring(0, 100)}...`
+                })
+              }
+            })
+          })
+        }
+        
+        // Extract YouTube links from video summaries
+        if (youtubeState.videosSummary?.videoSummaries) {
+          youtubeState.videosSummary.videoSummaries.forEach((video) => {
+            const youtubeUrl = `https://www.youtube.com/watch?v=${video.videoId}`
+            if (video.timestamp) {
+              const timestampUrl = `${youtubeUrl}&t=${Math.floor(srtToSeconds(video.timestamp))}s`
+              extractedYouTubeLinks.push({
+                url: timestampUrl,
+                timestamp: video.timestamp,
+                title: video.title
+              })
+            } else {
+              extractedYouTubeLinks.push({
+                url: youtubeUrl,
+                title: video.title
+              })
+            }
+          })
+        }
+        
+        // Extract YouTube links from subtitle files
+        const completedSubtitles = youtubeState.subtitleFiles?.filter(sf => sf.status === 'completed') || []
+        completedSubtitles.forEach((subtitle) => {
+          const youtubeUrl = `https://www.youtube.com/watch?v=${subtitle.videoId}`
+          extractedYouTubeLinks.push({
+            url: youtubeUrl,
+            title: subtitle.title
+          })
+        })
+        
+        // Format research data with YouTube links in double brackets
+        if (extractedYouTubeLinks.length > 0) {
+          formattedResearchData = extractedYouTubeLinks.map((link, index) => {
+            let linkText = `[[${link.title || `YouTube Video ${index + 1}`}: ${link.url}`
+            if (link.timestamp) {
+              linkText += ` (at ${link.timestamp})`
+            }
+            linkText += ']]'
+            return linkText
+          }).join('\n')
+        }
+        
         console.log('✅ YouTube research data included in section generation')
         console.log('📊 Research context length:', youtubeContext.length)
+        console.log('🔗 YouTube links extracted:', extractedYouTubeLinks.length)
         console.log('📋 Research context preview:', youtubeContext.substring(0, 200) + '...')
       } else {
         console.log('❌ No YouTube research data found or not enabled')
@@ -463,7 +605,7 @@ export default function ScriptGenerator() {
       if (response.ok && data.sections) {
         console.log('✅ Sections generated successfully:', data.sections.length)
         
-        // Save sections to database
+        // Save sections to database with research data
         const sectionsResponse = await fetch('/api/fine-tuning/sections', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -473,7 +615,9 @@ export default function ScriptGenerator() {
               ...section,
               target_audience: targetAudience,
               tone: tone,
-              style_preferences: stylePreferences
+              style_preferences: stylePreferences,
+              // Add formatted research data to each section
+              researchData: formattedResearchData || section.researchData || ''
             }))
           })
         })
@@ -486,6 +630,7 @@ export default function ScriptGenerator() {
             texts: []
           }))))
           console.log('✅ Sections saved to database and Redux state updated')
+          console.log('🔗 Research data added to', sectionsData.sections.length, 'sections')
         } else {
           console.error('❌ Failed to save sections to database:', sectionsData.error)
           dispatch(setError(sectionsData.error || 'Failed to save sections'))
@@ -553,6 +698,12 @@ export default function ScriptGenerator() {
       const data = await response.json()
 
       if (response.ok && data.script) {
+        // Prepend research data to the beginning of the script if it exists
+        let finalScript = data.script
+        if (section.researchData && section.researchData.trim()) {
+          finalScript = `${section.researchData}\n\n${data.script}`
+        }
+
         // Save text to database
         const textResponse = await fetch('/api/fine-tuning/texts', {
           method: 'POST',
@@ -560,7 +711,7 @@ export default function ScriptGenerator() {
           body: JSON.stringify({
             outline_section_id: section.id,
             input_text: `Theme: ${currentJob?.theme}\nTitle: ${section.title}\nInstructions: ${enhancedInstructions}`,
-            generated_script: data.script,
+            generated_script: finalScript,
             text_order: section.texts?.length || 0
           })
         })

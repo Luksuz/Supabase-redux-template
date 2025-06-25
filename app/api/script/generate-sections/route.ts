@@ -63,6 +63,8 @@ Style-wise, I want to use ${style_preferences || "urban slang naturally and buil
 
 1. **title**: A compelling section title
 2. **writingInstructions**: Detailed instructions for what this section should cover, including specific narrative elements, pacing, key points to address, and how to incorporate any research data provided
+3. **researchData**: A string containing relevant YouTube links, timestamps, quotes, or specific research references from the provided materials that should be incorporated into this section. Extract the most relevant pieces from the research data provided. If no specific research is relevant to this section, use an empty string.
+the research data should be in doble [ ] brackets, for example: [[youtube link, timestamp, quote, etc.]]
 
 The sections should flow logically and create a compelling narrative arc. Make the writing instructions specific and actionable - they will be used to generate the actual script content later.
 
@@ -81,74 +83,6 @@ function buildEnhancedSystemPrompt(theme: string, additionalResearch?: string) {
   return systemPrompt
 }
 
-// Helper function to extract YouTube links and timestamps from research data
-function extractYouTubeLinksAndTimestamps(additionalResearch?: string): Array<{
-  url: string
-  timestamps?: string
-  title?: string
-}> {
-  if (!additionalResearch) return []
-  
-  const youtubeLinks: Array<{
-    url: string
-    timestamps?: string
-    title?: string
-  }> = []
-  
-  // Extract YouTube URLs using regex
-  const youtubeUrlRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/g
-  const timestampRegex = /(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)/g
-  
-  let match
-  while ((match = youtubeUrlRegex.exec(additionalResearch)) !== null) {
-    const fullUrl = match[0].startsWith('http') ? match[0] : `https://youtube.com/watch?v=${match[1]}`
-    
-    // Look for timestamps near this URL (within 200 characters)
-    const urlIndex = match.index
-    const contextStart = Math.max(0, urlIndex - 100)
-    const contextEnd = Math.min(additionalResearch.length, urlIndex + 200)
-    const context = additionalResearch.substring(contextStart, contextEnd)
-    
-    const timestamps = []
-    let timestampMatch
-    while ((timestampMatch = timestampRegex.exec(context)) !== null) {
-      timestamps.push(timestampMatch[1])
-    }
-    
-    youtubeLinks.push({
-      url: fullUrl,
-      timestamps: timestamps.length > 0 ? timestamps.join(', ') : undefined,
-      title: `Video ${youtubeLinks.length + 1}`
-    })
-  }
-  
-  return youtubeLinks
-}
-
-// Helper function to distribute YouTube links across sections
-function distributeYouTubeLinksToSections(
-  sections: any[], 
-  youtubeLinks: Array<{url: string, timestamps?: string, title?: string}>
-): any[] {
-  if (youtubeLinks.length === 0) return sections
-  
-  // Distribute links evenly across sections
-  const sectionsWithLinks = sections.map((section, index) => {
-    const linksPerSection = Math.ceil(youtubeLinks.length / sections.length)
-    const startIndex = index * linksPerSection
-    const endIndex = Math.min(startIndex + linksPerSection, youtubeLinks.length)
-    const sectionLinks = youtubeLinks.slice(startIndex, endIndex)
-    
-    return {
-      ...section,
-      youtubeLinks: sectionLinks.length > 0 ? sectionLinks : undefined,
-      timestamps: sectionLinks.length > 0 ? sectionLinks.map(link => link.timestamps).filter(Boolean) : undefined
-    }
-  })
-  
-  return sectionsWithLinks
-}
-
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -162,6 +96,7 @@ const supabase = createClient(
 const ScriptSectionSchema = z.object({
   title: z.string(),
   writingInstructions: z.string(),
+  researchData: z.string(),
 });
 
 const ScriptSectionsResponseSchema = z.object({
@@ -257,14 +192,10 @@ export async function POST(request: NextRequest) {
         targetSections
       );
       
-      // Extract YouTube links and add to mock sections
-      const youtubeLinks = extractYouTubeLinksAndTimestamps(additionalResearch)
-      const mockSectionsWithLinks = distributeYouTubeLinksToSections(mockSections, youtubeLinks)
-      
-      console.log("Generated mock sections:", mockSectionsWithLinks.length);
+      console.log("Generated mock sections:", mockSections.length);
       return NextResponse.json({
         success: true,
-        sections: mockSectionsWithLinks,
+        sections: mockSections,
         usingMock: true,
         requiresApproval: true,
       });
@@ -328,8 +259,13 @@ export async function POST(request: NextRequest) {
                       description:
                         "Detailed instructions for writing this section, including tone, style, content focus, and purpose",
                     },
+                    researchData: {
+                      type: "string",
+                      description:
+                        "Relevant YouTube links, timestamps, quotes, or research references from the provided materials for this section",
+                    },
                   },
-                  required: ["title", "writingInstructions"],
+                  required: ["title", "writingInstructions", "researchData"],
                 },
               },
             },
@@ -364,15 +300,9 @@ export async function POST(request: NextRequest) {
       validatedResponse.sections.map((s) => s.title)
     );
 
-    // Extract YouTube links and timestamps
-    const youtubeLinks = extractYouTubeLinksAndTimestamps(additionalResearch)
-
-    // Distribute YouTube links across sections
-    const sectionsWithLinks = distributeYouTubeLinksToSections(validatedResponse.sections, youtubeLinks)
-
     return NextResponse.json({
       success: true,
-      sections: sectionsWithLinks,
+      sections: validatedResponse.sections,
       usingMock: false,
       requiresApproval: true,
     });
@@ -416,6 +346,7 @@ function generateMockSections(
       } ${
         tone ? `Use a ${tone} tone.` : ""
       } Set the context and establish credibility. Use a compelling hook that makes the audience want to continue.`,
+      researchData: "",
     },
     {
       title: "Main Content - Part 1",
@@ -426,24 +357,28 @@ function generateMockSections(
       } Provide valuable information that supports the main theme. ${
         style_preferences ? `Style: ${style_preferences}` : ""
       }`,
+      researchData: "",
     },
     {
       title: "Main Content - Part 2",
       writingInstructions: `Continue building on the foundation from Part 1. Deepen the exploration of "${theme}" with additional insights, examples, or narrative development. ${
         tone ? `Keep the ${tone} tone consistent.` : ""
       } Maintain momentum and ensure smooth transitions.`,
+      researchData: "",
     },
     {
       title: "Key Insights",
       writingInstructions: `Highlight the most important takeaways or pivotal moments related to "${theme}". ${
         target_audience ? `Make it relevant for ${target_audience}.` : ""
       } This section should provide clarity and reinforcement of the main messages. Make it memorable and actionable.`,
+      researchData: "",
     },
     {
       title: "Conclusion",
       writingInstructions: `Provide a strong, satisfying conclusion that ties together all elements of the theme "${theme}". ${
         tone ? `End with a ${tone} tone.` : ""
       } Reinforce the key messages and leave the audience with a clear understanding or call to action. End on a high note.`,
+      researchData: "",
     },
   ];
 
@@ -461,6 +396,7 @@ function generateMockSections(
         } Provide new insights, examples, or perspectives that add value to the overall narrative. ${
           style_preferences ? `Style: ${style_preferences}` : ""
         }`,
+        researchData: "",
       });
     }
   } else if (sectionsToGenerate < 5) {

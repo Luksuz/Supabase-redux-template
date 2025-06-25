@@ -376,11 +376,11 @@ def extract_multiple():
                     })
                 else:
                     logger.error(f"YouTube request failed for video {video_id}: {error_message}")
-                    results.append({
-                        'videoId': video_id,
-                        'success': False,
+                results.append({
+                    'videoId': video_id,
+                    'success': False,
                         'error': f'YouTube request failed: {error_message}'
-                    })
+                })
             except Exception as e:
                 logger.error(f"Unexpected error processing video {video_id}: {str(e)}")
                 results.append({
