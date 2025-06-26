@@ -521,7 +521,7 @@ export const generateSubtitlesIndividually = createAsyncThunk(
         dispatch(updateSubtitleStatus({
           videoId,
           status: 'downloading',
-          progress: 'Starting download...'
+          progress: 'Starting transcript extraction...'
         }))
 
         // Make API call for individual video
@@ -533,28 +533,26 @@ export const generateSubtitlesIndividually = createAsyncThunk(
           body: JSON.stringify({ videoId }),
         })
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const data = await response.json()
+
+        if (!response.ok || !data.success) {
+          // Handle API error response
+          const errorMessage = data.details || data.error || `HTTP ${response.status}: Failed to extract transcript`
+          throw new Error(errorMessage)
         }
 
         // Update status to transcribing
         dispatch(updateSubtitleStatus({
           videoId,
           status: 'transcribing',
-          progress: 'Generating subtitles with AI...'
+          progress: 'Processing transcript data...'
         }))
-
-        const data = await response.json()
-
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to process video')
-        }
 
         // Update with completed result
         const subtitleFile = data.subtitleFile
         dispatch(addSubtitleFile({
           ...subtitleFile,
-          method: 'whisper'
+          method: 'supadata'
         }))
 
         // Increment completed count
@@ -565,11 +563,12 @@ export const generateSubtitlesIndividually = createAsyncThunk(
       } catch (error) {
         console.error(`Error processing video ${videoId}:`, error)
         
-        // Update with error status
+        // Update with error status and detailed error message
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
         dispatch(updateSubtitleStatus({
           videoId,
           status: 'error',
-          progress: error instanceof Error ? error.message : 'Unknown error'
+          progress: errorMessage
         }))
 
         // Still increment completed count for failed videos
