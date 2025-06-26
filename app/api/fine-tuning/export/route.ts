@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
     let totalTexts = 0
     
     jobs?.forEach((job: any) => {
-      const jobPrompt = job.prompt_used || 'You are a professional script writer specializing in Crime Dynasty style content.'
+      const jobPrompt = job.prompt_used || 'You are a professional script writer.'
       
       job.fine_tuning_outline_sections?.forEach((section: any) => {
         section.fine_tuning_texts?.forEach((text: any) => {

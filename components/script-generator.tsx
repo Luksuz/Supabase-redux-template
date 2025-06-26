@@ -1084,7 +1084,7 @@ export function ScriptGenerator() {
         }
       }
     }
-    return 'Default Crime Dynasty Prompt'
+    return 'Default Prompt'
   }
 
   // Approve pending sections
@@ -1816,7 +1816,7 @@ export function ScriptGenerator() {
                       <SelectValue placeholder={promptsLoading ? "Loading prompts..." : "Use default prompt or select custom"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="default">Default Crime Dynasty Prompt</SelectItem>
+                      <SelectItem value="default">Default prompt</SelectItem>
                       {prompts.map((prompt) => (
                         <SelectItem key={prompt.id} value={prompt.id}>
                           {prompt.title}
@@ -1825,7 +1825,7 @@ export function ScriptGenerator() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Choose a custom prompt from your library or use the default Crime Dynasty style guide
+                    Choose a custom prompt from your library or use the default style guide
                   </p>
                 </div>
 
