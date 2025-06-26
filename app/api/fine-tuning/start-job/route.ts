@@ -25,7 +25,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File ID and model are required' }, { status: 400 })
     }
 
-    const validModels = ['gpt-4.1-2025-04-14', 'gpt-4.1-mini-2025-04-14', 'gpt-4.1-nano-2025-04-14', 'gpt-4o-mini-2024-07-18']
+    const validModels = [
+      'gpt-4.1-2025-04-14',
+      'gpt-4.1-mini-2025-04-14',
+      'gpt-4.1-nano-2025-04-14',
+      'gpt-4o-mini-2024-07-18',
+      'ft:gpt-4.1-2025-04-14:pletfree-creations-ltd:initial-model:Blhdq95X'
+    ]
     if (!validModels.includes(model)) {
       return NextResponse.json({ error: 'Invalid model. Must be one of: ' + validModels.join(', ') }, { status: 400 })
     }

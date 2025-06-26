@@ -684,6 +684,8 @@ export function FineTuningExport() {
                             ))}
                           </>
                         )}
+                                              <SelectItem value="ft:gpt-4.1-2025-04-14:pletfree-creations-ltd:initial-model:Blhdq95X">Initial Model (GPT-4.1)</SelectItem>
+
                       </SelectContent>
                     </Select>
                     {fineTuningState.loadingModels && (
@@ -859,6 +861,8 @@ export function FineTuningExport() {
                             ))}
                           </>
                         )}
+                                              <SelectItem value="ft:gpt-4.1-2025-04-14:pletfree-creations-ltd:initial-model:Blhdq95X">Initial Model (GPT-4.1)</SelectItem>
+
                       </SelectContent>
                     </Select>
                     {fineTuningState.loadingModels && (

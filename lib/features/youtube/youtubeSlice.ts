@@ -20,7 +20,7 @@ export interface SubtitleFile {
   filename: string
   srtContent: string
   size: number
-  status: 'processing' | 'completed' | 'error' | 'downloading' | 'transcribing' | 'extracting'
+  status: 'processing' | 'completed' | 'error' | 'downloading' | 'transcribing' | 'extracting' | 'pending'
   progress?: string
   method?: 'yt-dlp' | 'whisper'
 }
@@ -260,6 +260,8 @@ interface YouTubeState {
   // Subtitle generation
   subtitleFiles: SubtitleFile[]
   generatingSubtitles: boolean
+  totalVideosProcessing: number
+  completedVideosCount: number
   
   // Transcript analysis
   analysisResults: AnalysisResult[]
@@ -299,6 +301,8 @@ const initialState: YouTubeState = {
   // Subtitle generation
   subtitleFiles: [],
   generatingSubtitles: false,
+  totalVideosProcessing: 0,
+  completedVideosCount: 0,
   
   // Transcript analysis
   analysisResults: [],
@@ -440,7 +444,7 @@ export const searchVideos = createAsyncThunk(
   }
 )
 
-// Updated async thunk for generating subtitles with yt-dlp first, then fallback
+// Original async thunk for generating subtitles with yt-dlp first, then fallback (keep for compatibility)
 export const generateSubtitles = createAsyncThunk(
   'youtube/generateSubtitles',
   async (videoIds: string[], { dispatch }) => {
@@ -498,6 +502,94 @@ export const generateSubtitles = createAsyncThunk(
 
     console.log(`🎉 Subtitle generation complete: ${allSubtitleFiles.length} total files`)
     return allSubtitleFiles
+  }
+)
+
+// New async thunk for generating subtitles with individual progress tracking
+export const generateSubtitlesIndividually = createAsyncThunk(
+  'youtube/generateSubtitlesIndividually',
+  async (videoIds: string[], { dispatch }) => {
+    console.log(`🎬 Starting individual subtitle generation for ${videoIds.length} videos`)
+    
+    // Initialize subtitle files and counters
+    dispatch(initializeSubtitleFiles(videoIds))
+    
+    // Process each video individually in parallel
+    const processingPromises = videoIds.map(async (videoId) => {
+      try {
+        // Update status to downloading
+        dispatch(updateSubtitleStatus({
+          videoId,
+          status: 'downloading',
+          progress: 'Starting download...'
+        }))
+
+        // Make API call for individual video
+        const response = await fetch('/api/youtube/download-single', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ videoId }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        // Update status to transcribing
+        dispatch(updateSubtitleStatus({
+          videoId,
+          status: 'transcribing',
+          progress: 'Generating subtitles with AI...'
+        }))
+
+        const data = await response.json()
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to process video')
+        }
+
+        // Update with completed result
+        const subtitleFile = data.subtitleFile
+        dispatch(addSubtitleFile({
+          ...subtitleFile,
+          method: 'whisper'
+        }))
+
+        // Increment completed count
+        dispatch(incrementCompletedVideos())
+
+        return subtitleFile
+
+      } catch (error) {
+        console.error(`Error processing video ${videoId}:`, error)
+        
+        // Update with error status
+        dispatch(updateSubtitleStatus({
+          videoId,
+          status: 'error',
+          progress: error instanceof Error ? error.message : 'Unknown error'
+        }))
+
+        // Still increment completed count for failed videos
+        dispatch(incrementCompletedVideos())
+
+        return null
+      }
+    })
+
+    // Wait for all videos to complete
+    const results = await Promise.all(processingPromises)
+    const successfulResults = results.filter(result => result !== null)
+    
+    console.log(`🎉 Individual subtitle generation complete: ${successfulResults.length}/${videoIds.length} successful`)
+    
+    return {
+      totalVideos: videoIds.length,
+      successfulVideos: successfulResults.length,
+      subtitleFiles: successfulResults
+    }
   }
 )
 
@@ -841,6 +933,42 @@ export const youtubeSlice = createSlice({
     resetAll: (state) => {
       return { ...initialState }
     },
+
+    // Initialize subtitle files for processing
+    initializeSubtitleFiles: (state, action: PayloadAction<string[]>) => {
+      const videoIds = action.payload
+      state.totalVideosProcessing = videoIds.length
+      state.completedVideosCount = 0
+      
+      videoIds.forEach(videoId => {
+        const existingFile = state.subtitleFiles.find(sf => sf.videoId === videoId)
+        if (!existingFile) {
+          state.subtitleFiles.push({
+            videoId,
+            title: `Video ${videoId}`,
+            filename: '',
+            srtContent: '',
+            size: 0,
+            status: 'pending'
+          })
+        } else {
+          // Reset existing file status
+          existingFile.status = 'pending'
+          existingFile.progress = undefined
+        }
+      })
+    },
+
+    // Increment completed videos count
+    incrementCompletedVideos: (state) => {
+      state.completedVideosCount += 1
+    },
+
+    // Reset processing counters
+    resetProcessingCounters: (state) => {
+      state.totalVideosProcessing = 0
+      state.completedVideosCount = 0
+    },
   },
   extraReducers: (builder) => {
     // Search videos
@@ -879,6 +1007,26 @@ export const youtubeSlice = createSlice({
         state.generatingSubtitles = false
         state.error = action.error.message || 'Network error occurred while generating subtitles'
       })
+    
+    // Generate subtitles individually
+    .addCase(generateSubtitlesIndividually.pending, (state) => {
+      state.generatingSubtitles = true
+      state.error = null
+    })
+    .addCase(generateSubtitlesIndividually.fulfilled, (state, action) => {
+      state.generatingSubtitles = false
+      state.error = null
+      // Reset counters when done
+      state.totalVideosProcessing = 0
+      state.completedVideosCount = 0
+    })
+    .addCase(generateSubtitlesIndividually.rejected, (state, action) => {
+      state.generatingSubtitles = false
+      state.error = action.error.message || 'Network error occurred while generating subtitles individually'
+      // Reset counters on error
+      state.totalVideosProcessing = 0
+      state.completedVideosCount = 0
+    })
     
     // Analyze transcript
     builder
@@ -970,6 +1118,9 @@ export const {
   markGoogleResearchAsApplied,
   markYouTubeResearchAsApplied,
   markMultipleResearchAsApplied,
+  initializeSubtitleFiles,
+  incrementCompletedVideos,
+  resetProcessingCounters,
 } = youtubeSlice.actions
 
 // Export reducer
@@ -993,6 +1144,8 @@ export const selectSearchResults = (state: { youtube: YouTubeState }) => ({
 export const selectSubtitleGeneration = (state: { youtube: YouTubeState }) => ({
   subtitleFiles: state.youtube.subtitleFiles,
   generatingSubtitles: state.youtube.generatingSubtitles,
+  totalVideosProcessing: state.youtube.totalVideosProcessing,
+  completedVideosCount: state.youtube.completedVideosCount,
 })
 
 export const selectTranscriptAnalysis = (state: { youtube: YouTubeState }) => ({

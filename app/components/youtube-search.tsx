@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Loader2, LogOut, Download, FileText, Eye, Search, ChevronDown, ChevronRight, Clock, BarChart3, Zap, Mic, ExternalLink, Lightbulb, Target, TrendingUp, Users, Zap as Spark, BookOpen, PenTool, Globe, FileSearch, Brain } from 'lucide-react'
@@ -18,6 +18,7 @@ import {
   clearError,
   searchVideos,
   generateSubtitles,
+  generateSubtitlesIndividually,
   analyzeTranscript,
   summarizeVideos,
   clearVideosSummary,
@@ -956,7 +957,8 @@ export default function YouTubeSearch() {
     // Limit to 10 videos maximum
     const videosToProcess = searchResults.selectedVideos.slice(0, 10)
     
-    dispatch(generateSubtitles(videosToProcess))
+    // Always use individual processing for real-time progress tracking
+    dispatch(generateSubtitlesIndividually(videosToProcess))
   }
 
   const handleAnalyzeTranscript = (videoId: string, subtitleFile: SubtitleFile) => {
@@ -1051,6 +1053,7 @@ export default function YouTubeSearch() {
 
   const getStatusDisplay = (subtitleFile: SubtitleFile) => {
     const statusMessages = {
+      pending: 'Pending',
       extracting: 'Extracting Subtitles',
       downloading: 'Downloading Audio',
       transcribing: 'Generating Subtitles',
@@ -1060,6 +1063,7 @@ export default function YouTubeSearch() {
     }
 
     const statusColors = {
+      pending: 'text-gray-600',
       extracting: 'text-blue-600',
       downloading: 'text-blue-600',
       transcribing: 'text-purple-600',
@@ -1338,7 +1342,7 @@ export default function YouTubeSearch() {
 
                 {/* Selection Controls */}
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-md mb-4">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center mb-3">
                     <div>
                       <button
                         onClick={handleSelectAll}
@@ -1350,51 +1354,77 @@ export default function YouTubeSearch() {
                         {searchResults.selectedVideos.length} of {searchResults.videos.length} videos selected
                       </span>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleGenerateSubtitles}
-                        disabled={searchResults.selectedVideos.length === 0 || subtitleGeneration.generatingSubtitles}
-                        className={`font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2 ${
-                          searchResults.selectedVideos.length > 10 
-                            ? 'bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400' 
-                            : 'bg-green-600 hover:bg-green-700 disabled:bg-gray-400'
-                        } text-white`}
-                      >
-                        {subtitleGeneration.generatingSubtitles ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Generating Subtitles...
-                          </>
-                        ) : (
-                          <>
-                            <FileText className="h-4 w-4" />
-                            {searchResults.selectedVideos.length > 10 
-                              ? `Generate Subtitles (First 10 of ${searchResults.selectedVideos.length})`
-                              : `Generate Subtitles (${searchResults.selectedVideos.length})`
-                            }
-                          </>
-                        )}
-                      </button>
-                      
-                      <button
-                        onClick={handleSummarizeVideos}
-                        disabled={getVideosWithSubtitlesCount() === 0 || videoSummarization.summarizingVideos}
-                        className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2"
-                      >
-                        {videoSummarization.summarizingVideos ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Summarizing...
-                          </>
-                        ) : (
-                          <>
-                            <Lightbulb className="h-4 w-4" />
-                            Summarize ({getVideosWithSubtitlesCount()})
-                          </>
-                        )}
-                      </button>
-                    </div>
                   </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleGenerateSubtitles}
+                      disabled={searchResults.selectedVideos.length === 0 || subtitleGeneration.generatingSubtitles}
+                      className={`font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2 ${
+                        searchResults.selectedVideos.length > 10 
+                          ? 'bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400' 
+                          : 'bg-green-600 hover:bg-green-700 disabled:bg-gray-400'
+                      } text-white`}
+                    >
+                      {subtitleGeneration.generatingSubtitles ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Processing Videos...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4" />
+                          {searchResults.selectedVideos.length > 10 
+                            ? `Generate Subtitles (First 10 of ${searchResults.selectedVideos.length})`
+                            : `Generate Subtitles (${searchResults.selectedVideos.length})`
+                          }
+                        </>
+                      )}
+                    </button>
+                    
+                    <button
+                      onClick={handleSummarizeVideos}
+                      disabled={getVideosWithSubtitlesCount() === 0 || videoSummarization.summarizingVideos}
+                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2"
+                    >
+                      {videoSummarization.summarizingVideos ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Summarizing...
+                        </>
+                      ) : (
+                        <>
+                          <Lightbulb className="h-4 w-4" />
+                          Summarize ({getVideosWithSubtitlesCount()})
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Overall Progress Bar */}
+                  {subtitleGeneration.generatingSubtitles && subtitleGeneration.totalVideosProcessing > 0 && (
+                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-green-800">
+                          Processing Videos ({subtitleGeneration.completedVideosCount}/{subtitleGeneration.totalVideosProcessing})
+                        </span>
+                        <span className="text-sm text-green-600">
+                          {Math.round((subtitleGeneration.completedVideosCount / subtitleGeneration.totalVideosProcessing) * 100)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-green-200 rounded-full h-3">
+                        <div 
+                          className="bg-green-600 h-3 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${(subtitleGeneration.completedVideosCount / subtitleGeneration.totalVideosProcessing) * 100}%` 
+                          }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-green-700 mt-1">
+                        Videos are being processed in parallel. Each completed video will update this progress bar.
+                      </p>
+                    </div>
+                  )}
                   
                   {searchResults.selectedVideos.length === 0 && (
                     <p className="text-sm text-blue-600 mt-2">

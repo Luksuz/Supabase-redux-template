@@ -270,6 +270,8 @@ export function StructureDataFromScript() {
                     <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 (2025-04-14)</SelectItem>
                     <SelectItem value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (2025-04-14)</SelectItem>
                     <SelectItem value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (2025-04-14)</SelectItem>
+                    <SelectItem value="ft:gpt-4.1-2025-04-14:pletfree-creations-ltd:initial-model:Blhdq95X">Initial Model (GPT-4.1)</SelectItem>
+
                   </SelectContent>
                 </Select>
               </div>
@@ -473,6 +475,8 @@ export function StructureDataFromScript() {
                         <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 (2025-04-14)</SelectItem>
                         <SelectItem value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (2025-04-14)</SelectItem>
                         <SelectItem value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (2025-04-14)</SelectItem>
+                        <SelectItem value="ft:gpt-4.1-2025-04-14:pletfree-creations-ltd:initial-model:Blhdq95X">Initial Model (GPT-4.1)</SelectItem>
+
                       </SelectContent>
                     </Select>
                   </div>
