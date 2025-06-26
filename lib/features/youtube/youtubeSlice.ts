@@ -22,7 +22,7 @@ export interface SubtitleFile {
   size: number
   status: 'processing' | 'completed' | 'error' | 'downloading' | 'transcribing' | 'extracting' | 'pending'
   progress?: string
-  method?: 'yt-dlp' | 'whisper'
+  method?: 'yt-dlp' | 'whisper' | 'supadata'
 }
 
 // Transcript Analysis interface

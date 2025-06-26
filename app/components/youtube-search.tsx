@@ -1091,6 +1091,12 @@ export default function YouTubeSearch() {
           <Mic className="h-3 w-3 text-purple-600" />
         </div>
       )
+    } else if (method === 'supadata') {
+      return (
+        <div title="Direct transcript via Supadata">
+          <FileText className="h-3 w-3 text-green-600" />
+        </div>
+      )
     }
     return null
   }
@@ -1527,7 +1533,7 @@ export default function YouTubeSearch() {
                                 {getMethodIcon(subtitleFile.method)}
                                 {subtitleFile.method && (
                                   <span className="text-xs text-gray-400">
-                                    via {subtitleFile.method === 'yt-dlp' ? 'yt-dlp' : 'Whisper AI'}
+                                    via {subtitleFile.method === 'yt-dlp' ? 'yt-dlp' : subtitleFile.method === 'whisper' ? 'Whisper AI' : 'Supadata'}
                                   </span>
                                 )}
                               </div>
