@@ -165,7 +165,8 @@ export async function POST(request: NextRequest) {
       format: outputFormat,
       fps: 25,
       quality: quality === "sd" ? "low" : "high",
-      aspectRatio: "16:9" // Note: 1080x720 is actually 3:2 ratio, but keeping 16:9 for compatibility
+      aspectRatio: "16:9", // Note: 1080x720 is actually 3:2 ratio, but keeping 16:9 for compatibility
+      resolution: quality === "sd" ? "480p" : "720p"
     };
 
     // Create Shotstack edit
