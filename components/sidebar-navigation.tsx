@@ -1,12 +1,11 @@
 'use client'
 
-import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Images } from 'lucide-react'
 
-type NavigationView = 'process-images' | 'script-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
+type NavigationView = 'script-processor' | 'batch-image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -15,28 +14,32 @@ interface SidebarNavigationProps {
 
 export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigationProps) {
   const { hasProcessedImages, originalImages, savedImagesCount } = useAppSelector(state => state.images)
-  const { hasGeneratedScripts, scripts } = useAppSelector(state => state.scripts)
+  const { scripts, hasGeneratedScripts } = useAppSelector(state => state.scripts)
+  const { scriptProcessor } = useAppSelector(state => state)
+  const { batchImageGenerator } = useAppSelector(state => state)
   const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
   const { currentGeneration: videoGeneration, generationHistory, isGeneratingVideo } = useAppSelector(state => state.video)
   const user = useAppSelector(state => state.user)
 
   const navigationItems = [
     {
-      id: 'process-images' as NavigationView,
-      label: 'Process Images',
-      icon: ImageIcon,
-      description: 'Upload and process ZIP files',
-      hasData: hasProcessedImages,
-      dataCount: originalImages.length
+      id: 'script-processor' as NavigationView,
+      label: 'Script Processor',
+      icon: FileText,
+      description: 'Process scripts and generate prompts',
+      hasData: scriptProcessor.hasGeneratedPrompts,
+      dataCount: scriptProcessor.prompts.filter((p: any) => p.generated).length,
+      disabled: false,
     },
     {
-      id: 'script-generator' as NavigationView,
-      label: 'Script Generator',
-      icon: FileText,
-      description: 'Generate narration scripts',
-      hasData: hasGeneratedScripts,
-      dataCount: scripts.filter(s => s.generated).length,
-      disabled: !hasProcessedImages
+      id: 'batch-image-generator' as NavigationView,
+      label: 'Batch Image Generator',
+      icon: Images,
+      description: 'Generate images from script prompts',
+      hasData: batchImageGenerator.totalGenerated > 0,
+      dataCount: batchImageGenerator.totalGenerated,
+      disabled: !scriptProcessor.hasGeneratedPrompts,
+      isGenerating: batchImageGenerator.isGenerating,
     },
     {
       id: 'audio-generator' as NavigationView,
@@ -45,7 +48,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       description: 'Convert scripts to audio',
       hasData: !!audioGeneration,
       dataCount: audioGeneration ? 1 : 0,
-      disabled: !hasGeneratedScripts
+      disabled: !scriptProcessor.pastedScript && !scriptProcessor.fileName
     },
     {
       id: 'video-generator' as NavigationView,
@@ -81,7 +84,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
     <div className="w-64 bg-white border-r border-gray-200 h-full">
       <div className="p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Content Creator</h2>
-        <p className="text-sm text-gray-500">Images • Scripts • Audio • Video</p>
+        <p className="text-sm text-gray-500">Scripts • Prompts • Audio • Video</p>
       </div>
       
       <nav className="p-4 space-y-2">
@@ -176,15 +179,15 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
               </div>
               
               {/* Helper hints for disabled items */}
-              {item.id === 'script-generator' && !hasProcessedImages && (
+              {item.id === 'batch-image-generator' && !scriptProcessor.hasGeneratedPrompts && (
                 <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                  Process images first to enable script generation
+                  Generate script prompts first to enable image generation
                 </div>
               )}
               
-              {item.id === 'audio-generator' && !hasGeneratedScripts && (
+              {item.id === 'audio-generator' && !scriptProcessor.pastedScript && !scriptProcessor.fileName && (
                 <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                  Generate scripts first to enable audio generation
+                  Generate script first to enable audio generation
                 </div>
               )}
               
@@ -205,18 +208,16 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
             <div className="font-medium text-gray-700">Status Summary</div>
             <div className="text-gray-500 space-y-1">
               <div className="flex justify-between">
-                <span>Images processed:</span>
-                <span className="font-medium">{originalImages.length}</span>
+                <span>Script chunks:</span>
+                <span className="font-medium">{scriptProcessor.chunks.length}</span>
               </div>
-              {savedImagesCount > 0 && (
-                <div className="flex justify-between">
-                  <span>Saved to Supabase:</span>
-                  <span className="font-medium text-green-600">{savedImagesCount}</span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span>Generated prompts:</span>
+                <span className="font-medium">{scriptProcessor.prompts.filter((p: any) => p.generated).length}</span>
+              </div>
               <div className="flex justify-between">
                 <span>Scripts generated:</span>
-                <span className="font-medium">{scripts.filter(s => s.generated).length}</span>
+                <span className="font-medium">{scripts.filter((s: any) => s.generated).length}</span>
               </div>
               <div className="flex justify-between">
                 <span>Audio generations:</span>
@@ -226,12 +227,6 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
                 <span>Video generations:</span>
                 <span className="font-medium">{generationHistory.length + (videoGeneration ? 1 : 0)}</span>
               </div>
-              {isGeneratingVideo && (
-                <div className="flex justify-between">
-                  <span>Video processing:</span>
-                  <span className="font-medium text-orange-600">Active</span>
-                </div>
-              )}
             </div>
           </div>
         </Card>

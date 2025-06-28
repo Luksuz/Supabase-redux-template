@@ -5,6 +5,8 @@ import scriptsReducer from './features/scripts/scriptsSlice'
 import audioReducer from './features/audio/audioSlice'
 import videoReducer from './features/video/videoSlice'
 import progressReducer from './features/progress/progressSlice'
+import scriptProcessorReducer from './features/scriptProcessor/scriptProcessorSlice'
+import batchImageGeneratorReducer from './features/batchImageGenerator/batchImageGeneratorSlice'
 
 // This is our Redux store - the single source of truth for our app's state
 export const store = configureStore({
@@ -13,6 +15,8 @@ export const store = configureStore({
     user: userReducer,
     images: imagesReducer,
     scripts: scriptsReducer,
+    scriptProcessor: scriptProcessorReducer,
+    batchImageGenerator: batchImageGeneratorReducer,
     audio: audioReducer,
     video: videoReducer,
     progress: progressReducer,
@@ -30,6 +34,7 @@ export type AppDispatch = typeof store.dispatch
 //   user: { id: 'abc123', email: 'user@example.com', isLoggedIn: true, ... },
 //   images: { originalImages: [...], currentImages: [...], selectedColor: '#fff', ... },
 //   scripts: { prompt: '...', scripts: [...], hasGeneratedScripts: true, ... },
+//   scriptProcessor: { pastedScript: '...', chunks: [...], prompts: [...], ... },
 //   audio: { currentGeneration: {...}, isGeneratingAudio: false, selectedVoice: 3, ... },
 //   video: { currentGeneration: {...}, isGeneratingVideo: false, settings: {...}, ... },
 //   progress: { ... }

@@ -1,13 +1,25 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
+export type AudioProvider = 'murf' | 'elevenlabs'
+
+export interface MusicTrack {
+  id: number;
+  title: string;
+  thumbnail_url: string;
+  waveform_url: string;
+  preview_url: string;
+  duration: number;
+}
+
 export interface AudioGeneration {
   id: string
   audioUrl: string | null
   subtitlesUrl: string | null
   duration: number | null
   generatedAt: string
-  voice: number
+  voice: string // voiceId for both Murf and ElevenLabs
   model: string
+  provider: AudioProvider
   generateSubtitles: boolean
   status: 'idle' | 'generating' | 'completed' | 'error'
   error: string | null
@@ -30,9 +42,16 @@ interface AudioState {
     completed: number
     phase: 'chunks' | 'concatenating' | 'subtitles' | 'completed'
   }
-  selectedVoice: number
+  selectedProvider: AudioProvider
+  selectedVoice: string // voiceId for both Murf and ElevenLabs
   selectedModel: string
   generateSubtitles: boolean
+  musicSearchQuery: string;
+  musicSearchResults: MusicTrack[];
+  selectedMusicTrack: MusicTrack | null;
+  isSearchingMusic: boolean;
+  musicSearchError: string | null;
+  uploadedMusicUrl: string | null;
 }
 
 const initialState: AudioState = {
@@ -45,16 +64,35 @@ const initialState: AudioState = {
     completed: 0,
     phase: 'chunks'
   },
-  selectedVoice: 3,
-  selectedModel: 'caruso',
-  generateSubtitles: false
+  selectedProvider: 'murf',
+  selectedVoice: 'en-US-ken', // Default Murf voice
+  selectedModel: 'standard', // Murf doesn't have models in the same way
+  generateSubtitles: false,
+  musicSearchQuery: '',
+  musicSearchResults: [],
+  selectedMusicTrack: null,
+  isSearchingMusic: false,
+  musicSearchError: null,
+  uploadedMusicUrl: null,
 }
 
 export const audioSlice = createSlice({
   name: 'audio',
   initialState,
   reducers: {
-    setSelectedVoice: (state, action: PayloadAction<number>) => {
+    setSelectedProvider: (state, action: PayloadAction<AudioProvider>) => {
+      state.selectedProvider = action.payload
+      // Reset voice selection when switching providers
+      if (action.payload === 'murf') {
+        state.selectedVoice = 'en-US-ken' // Default Murf voice
+        state.selectedModel = 'standard'
+      } else if (action.payload === 'elevenlabs') {
+        state.selectedVoice = '21m00Tcm4TlvDq8ikWAM' // Default ElevenLabs voice (Rachel)
+        state.selectedModel = 'eleven_multilingual_v2'
+      }
+    },
+    
+    setSelectedVoice: (state, action: PayloadAction<string>) => {
       state.selectedVoice = action.payload
     },
     
@@ -78,8 +116,8 @@ export const audioSlice = createSlice({
       state.audioProgress = { ...state.audioProgress, ...action.payload }
     },
     
-    startAudioGeneration: (state, action: PayloadAction<{ id: string; voice: number; model: string; generateSubtitles: boolean }>) => {
-      const { id, voice, model, generateSubtitles } = action.payload
+    startAudioGeneration: (state, action: PayloadAction<{ id: string; voice: string; model: string; provider: AudioProvider; generateSubtitles: boolean }>) => {
+      const { id, voice, model, provider, generateSubtitles } = action.payload
       state.currentGeneration = {
         id,
         audioUrl: null,
@@ -88,6 +126,7 @@ export const audioSlice = createSlice({
         generatedAt: new Date().toISOString(),
         voice,
         model,
+        provider,
         generateSubtitles,
         status: 'generating',
         error: null
@@ -141,20 +180,38 @@ export const audioSlice = createSlice({
     },
     
     clearAllAudioData: (state) => {
-      state.currentGeneration = null
-      state.generationHistory = []
-      state.isGeneratingAudio = false
-      state.isGeneratingSubtitles = false
-      state.audioProgress = {
-        total: 0,
-        completed: 0,
-        phase: 'chunks'
-      }
-    }
+      return initialState
+    },
+
+    setMusicSearchQuery: (state, action: PayloadAction<string>) => {
+      state.musicSearchQuery = action.payload;
+    },
+    startMusicSearch: (state) => {
+      state.isSearchingMusic = true;
+      state.musicSearchError = null;
+      state.musicSearchResults = [];
+    },
+    setMusicSearchResults: (state, action: PayloadAction<MusicTrack[]>) => {
+      state.musicSearchResults = action.payload;
+      state.isSearchingMusic = false;
+    },
+    setMusicSearchError: (state, action: PayloadAction<string>) => {
+      state.musicSearchError = action.payload;
+      state.isSearchingMusic = false;
+    },
+    setSelectedMusicTrack: (state, action: PayloadAction<MusicTrack | null>) => {
+      state.selectedMusicTrack = action.payload;
+      state.uploadedMusicUrl = null; // Clear uploaded music when a track is selected from search
+    },
+    setUploadedMusicUrl: (state, action: PayloadAction<string | null>) => {
+      state.uploadedMusicUrl = action.payload;
+      state.selectedMusicTrack = null; // Clear selected music when a track is uploaded
+    },
   }
 })
 
 export const {
+  setSelectedProvider,
   setSelectedVoice,
   setSelectedModel,
   setGenerateSubtitles,
@@ -167,7 +224,13 @@ export const {
   setAudioGenerationError,
   saveGenerationToHistory,
   clearCurrentGeneration,
-  clearAllAudioData
+  clearAllAudioData,
+  setMusicSearchQuery,
+  startMusicSearch,
+  setMusicSearchResults,
+  setMusicSearchError,
+  setSelectedMusicTrack,
+  setUploadedMusicUrl,
 } = audioSlice.actions
 
 export default audioSlice.reducer 

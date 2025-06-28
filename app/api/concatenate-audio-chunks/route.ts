@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadFileToSupabase } from '@/lib/wellsaid-utils'
 import fs from 'fs/promises'
 import path from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import os from 'os'
+import { uploadFileToSupabase } from '@/lib/upload-file'
 
 const execAsync = promisify(exec)
 
@@ -14,6 +13,7 @@ interface AudioChunk {
   text: string
   duration: number
 }
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,7 +36,9 @@ export async function POST(request: NextRequest) {
     console.log(`🔗 Starting audio concatenation for ${audioChunks.length} chunks`)
     console.log(`📊 Total expected duration: ${audioChunks.reduce((sum: number, chunk: AudioChunk) => sum + chunk.duration, 0).toFixed(2)}s`)
 
-    const tempDir = path.join(os.tmpdir(), 'wellsaid-audio', sessionId)
+    // Dynamically determine the temp directory from the first chunk's path
+    const firstChunkPath = audioChunks[0].localFilePath;
+    const tempDir = path.dirname(firstChunkPath);
 
     try {
       // Verify all chunk files exist locally
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
       console.log(`📝 Concat file created with ${sortedChunks.length} entries`)
 
       // Run ffmpeg concatenation
-      const finalFileName = `wellsaid-final-${Date.now()}.mp3`
+      const finalFileName = `final-audio-${Date.now()}.mp3`
       const finalFilePath = path.join(tempDir, finalFileName)
       
       const ffmpegCommand = `ffmpeg -f concat -safe 0 -i "${concatFilePath}" -c copy "${finalFilePath}"`
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
 
       // Upload final audio to Supabase
       console.log(`☁️ Uploading final audio to Supabase`)
-      const finalSupabaseDestination = `audio/final/${Date.now()}-${finalFileName}`
+      const finalSupabaseDestination = `audio/final/${Date.now()}-${path.basename(finalFilePath)}`
       const finalPublicUrl = await uploadFileToSupabase(
         finalFilePath,
         finalSupabaseDestination,
