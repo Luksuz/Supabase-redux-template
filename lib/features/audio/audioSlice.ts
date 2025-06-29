@@ -39,7 +39,10 @@ interface AudioState {
     total: number
     completed: number
     phase: 'chunks' | 'waiting' | 'concatenating' | 'subtitles' | 'completed'
+    waitUntil: number | null
   }
+  textToProcess: string | null
+  successfulChunkUrls: string[]
   selectedVoice: number
   selectedModel: string
   generateSubtitles: boolean
@@ -66,8 +69,11 @@ const initialState: AudioState = {
   audioProgress: {
     total: 0,
     completed: 0,
-    phase: 'chunks'
+    phase: 'chunks',
+    waitUntil: null,
   },
+  textToProcess: null,
+  successfulChunkUrls: [],
   selectedVoice: 3,
   selectedModel: 'caruso',
   generateSubtitles: false,
@@ -113,8 +119,17 @@ export const audioSlice = createSlice({
       state.audioProgress = { ...state.audioProgress, ...action.payload }
     },
     
-    startAudioGeneration: (state, action: PayloadAction<{ id: string; voice: number; model: string; generateSubtitles: boolean }>) => {
-      const { id, voice, model, generateSubtitles } = action.payload
+    startAudioGeneration: (state, action: PayloadAction<{ id: string; voice: number; model: string; generateSubtitles: boolean; textToProcess: string; totalChunks: number }>) => {
+      const { id, voice, model, generateSubtitles, textToProcess, totalChunks } = action.payload;
+      state.isGeneratingAudio = true;
+      state.textToProcess = textToProcess;
+      state.successfulChunkUrls = [];
+      state.audioProgress = {
+        total: totalChunks,
+        completed: 0,
+        phase: 'chunks',
+        waitUntil: null,
+      };
       state.currentGeneration = {
         id,
         audioUrl: null,
@@ -129,9 +144,23 @@ export const audioSlice = createSlice({
         status: 'generating',
         error: null
       }
-      state.isGeneratingAudio = true
     },
     
+    addSuccessfulChunkUrl: (state, action: PayloadAction<string>) => {
+      state.successfulChunkUrls.push(action.payload);
+      state.audioProgress.completed = state.successfulChunkUrls.length;
+    },
+
+    setWaitingPhase: (state, action: PayloadAction<{ waitUntil: number }>) => {
+      state.audioProgress.phase = 'waiting';
+      state.audioProgress.waitUntil = action.payload.waitUntil;
+    },
+
+    setProcessingPhase: (state) => {
+      state.audioProgress.phase = 'chunks';
+      state.audioProgress.waitUntil = null;
+    },
+
     completeAudioGeneration: (state, action: PayloadAction<{ audioUrl: string; compressedAudioUrl?: string; duration: number; scriptDurations?: AudioGeneration['scriptDurations'] }>) => {
       if (state.currentGeneration) {
         state.currentGeneration.audioUrl = action.payload.audioUrl
@@ -145,6 +174,8 @@ export const audioSlice = createSlice({
         state.currentGeneration.status = 'completed'
       }
       state.isGeneratingAudio = false
+      state.textToProcess = null;
+      state.successfulChunkUrls = [];
     },
     
     addSubtitlesToGeneration: (state, action: PayloadAction<{ subtitlesUrl: string; subtitlesContent?: string }>) => {
@@ -161,6 +192,8 @@ export const audioSlice = createSlice({
       if (state.currentGeneration) {
         state.currentGeneration.subtitlesContent = action.payload.subtitlesContent
       }
+      state.isGeneratingAudio = false
+      state.isGeneratingSubtitles = false
     },
     
     setAudioGenerationError: (state, action: PayloadAction<string>) => {
@@ -182,10 +215,13 @@ export const audioSlice = createSlice({
     
     clearCurrentGeneration: (state) => {
       state.currentGeneration = null
+      state.textToProcess = null;
+      state.successfulChunkUrls = [];
       state.audioProgress = {
         total: 0,
         completed: 0,
-        phase: 'chunks'
+        phase: 'chunks',
+        waitUntil: null,
       }
     },
     
@@ -194,10 +230,13 @@ export const audioSlice = createSlice({
       state.generationHistory = []
       state.isGeneratingAudio = false
       state.isGeneratingSubtitles = false
+      state.textToProcess = null;
+      state.successfulChunkUrls = [];
       state.audioProgress = {
         total: 0,
         completed: 0,
-        phase: 'chunks'
+        phase: 'chunks',
+        waitUntil: null,
       }
     },
 
@@ -281,6 +320,9 @@ export const {
   setIsGeneratingSubtitles,
   setAudioProgress,
   startAudioGeneration,
+  addSuccessfulChunkUrl,
+  setWaitingPhase,
+  setProcessingPhase,
   completeAudioGeneration,
   addSubtitlesToGeneration,
   updateSubtitleContent,
