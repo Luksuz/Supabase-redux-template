@@ -570,6 +570,13 @@ export function AudioGenerator() {
           const progress = Math.round(((successfulChunkUrls.length) / totalChunks) * 100);
           dispatch(setAudioProgress({ completed: successfulChunkUrls.length, total: totalChunks, phase: 'chunks' }));
         });
+
+        if (i + BATCH_SIZE < totalChunks) {
+          dispatch(setAudioProgress({ phase: 'waiting' }));
+          setGenerationStatusMessage(`Batch complete. Waiting 60 seconds before sending the next batch...`);
+          await new Promise(resolve => setTimeout(resolve, 60000));
+          dispatch(setAudioProgress({ phase: 'chunks' }));
+        }
       }
 
       if (successfulChunkUrls.length === 0) {
@@ -941,7 +948,11 @@ export function AudioGenerator() {
               <div className="space-y-2 p-4 bg-blue-50 rounded-lg">
                 <div className="flex justify-between text-sm">
                   <span>Generating Audio with {currentProvider?.name}</span>
-                  <span>{audioProgress.phase === 'chunks' ? `${Math.round((audioProgress.completed / audioProgress.total) * 100)}%` : 'Finalizing...'}</span>
+                  <span>
+                    {audioProgress.phase === 'chunks' && `${Math.round((audioProgress.completed / audioProgress.total) * 100)}%`}
+                    {audioProgress.phase === 'waiting' && 'Waiting...'}
+                    {audioProgress.phase === 'concatenating' && 'Finalizing...'}
+                  </span>
                 </div>
                 <Progress value={audioProgress.total > 0 ? (audioProgress.completed / audioProgress.total) * 100 : 0} className="h-2" />
                 <div className="text-xs text-gray-500 text-center">
