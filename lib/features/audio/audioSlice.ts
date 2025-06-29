@@ -30,6 +30,17 @@ export interface AudioGeneration {
   }>
 }
 
+interface BatchState {
+  currentBatchIndex: number
+  totalBatches: number
+  batchSize: number
+  isWaiting: boolean
+  waitUntil: number | null
+  waitTimeMs: number
+  lastBatchStartTime: number | null
+  processedChunks: number
+}
+
 interface AudioState {
   currentGeneration: AudioGeneration | null
   generationHistory: AudioGeneration[]
@@ -38,10 +49,11 @@ interface AudioState {
   audioProgress: {
     total: number
     completed: number
-    phase: 'chunks' | 'waiting' | 'concatenating' | 'subtitles' | 'completed'
-    waitUntil: number | null
+    phase: 'idle' | 'batching' | 'waiting' | 'finalizing' | 'completed'
   }
+  batchState: BatchState
   textToProcess: string | null
+  textChunks: string[]
   successfulChunkUrls: string[]
   selectedVoice: number
   selectedModel: string
@@ -61,6 +73,17 @@ interface AudioState {
   editingVoiceId: number | null
 }
 
+const initialBatchState: BatchState = {
+  currentBatchIndex: 0,
+  totalBatches: 0,
+  batchSize: 5,
+  isWaiting: false,
+  waitUntil: null,
+  waitTimeMs: 60000, // 1 minute
+  lastBatchStartTime: null,
+  processedChunks: 0
+}
+
 const initialState: AudioState = {
   currentGeneration: null,
   generationHistory: [],
@@ -69,10 +92,11 @@ const initialState: AudioState = {
   audioProgress: {
     total: 0,
     completed: 0,
-    phase: 'chunks',
-    waitUntil: null,
+    phase: 'idle'
   },
+  batchState: initialBatchState,
   textToProcess: null,
+  textChunks: [],
   successfulChunkUrls: [],
   selectedVoice: 3,
   selectedModel: 'caruso',
@@ -115,21 +139,35 @@ export const audioSlice = createSlice({
       state.isGeneratingSubtitles = action.payload
     },
     
-    setAudioProgress: (state, action: PayloadAction<Partial<AudioState['audioProgress']>>) => {
-      state.audioProgress = { ...state.audioProgress, ...action.payload }
-    },
-    
-    startAudioGeneration: (state, action: PayloadAction<{ id: string; voice: number; model: string; generateSubtitles: boolean; textToProcess: string; totalChunks: number }>) => {
-      const { id, voice, model, generateSubtitles, textToProcess, totalChunks } = action.payload;
+    startAudioGeneration: (state, action: PayloadAction<{ 
+      id: string; 
+      voice: number; 
+      model: string; 
+      generateSubtitles: boolean; 
+      textToProcess: string; 
+      textChunks: string[];
+      batchSize?: number;
+    }>) => {
+      const { id, voice, model, generateSubtitles, textToProcess, textChunks, batchSize = 5 } = action.payload;
+      const totalBatches = Math.ceil(textChunks.length / batchSize);
+      
       state.isGeneratingAudio = true;
       state.textToProcess = textToProcess;
+      state.textChunks = textChunks;
       state.successfulChunkUrls = [];
+      
       state.audioProgress = {
-        total: totalChunks,
+        total: textChunks.length,
         completed: 0,
-        phase: 'chunks',
-        waitUntil: null,
+        phase: 'batching',
       };
+      
+      state.batchState = {
+        ...initialBatchState,
+        totalBatches,
+        batchSize,
+      };
+      
       state.currentGeneration = {
         id,
         audioUrl: null,
@@ -146,22 +184,53 @@ export const audioSlice = createSlice({
       }
     },
     
-    addSuccessfulChunkUrl: (state, action: PayloadAction<string>) => {
-      state.successfulChunkUrls.push(action.payload);
+    startBatch: (state) => {
+      state.batchState.isWaiting = false;
+      state.batchState.waitUntil = null;
+      state.batchState.lastBatchStartTime = Date.now();
+      state.audioProgress.phase = 'batching';
+    },
+    
+    completeBatch: (state, action: PayloadAction<{ chunkUrls: string[] }>) => {
+      const { chunkUrls } = action.payload;
+      
+      // Add successful URLs
+      state.successfulChunkUrls.push(...chunkUrls);
       state.audioProgress.completed = state.successfulChunkUrls.length;
+      state.batchState.processedChunks += chunkUrls.length;
+      state.batchState.currentBatchIndex += 1;
+      
+      // Check if more batches needed
+      if (state.batchState.currentBatchIndex >= state.batchState.totalBatches) {
+        // All batches done, move to finalization
+        state.audioProgress.phase = 'finalizing';
+        state.batchState.isWaiting = false;
+        state.batchState.waitUntil = null;
+      } else {
+        // Start waiting for next batch
+        state.batchState.isWaiting = true;
+        state.batchState.waitUntil = Date.now() + state.batchState.waitTimeMs;
+        state.audioProgress.phase = 'waiting';
+      }
     },
-
-    setWaitingPhase: (state, action: PayloadAction<{ waitUntil: number }>) => {
-      state.audioProgress.phase = 'waiting';
-      state.audioProgress.waitUntil = action.payload.waitUntil;
+    
+    // Check if wait time is over and ready for next batch
+    checkWaitStatus: (state) => {
+      if (state.batchState.isWaiting && state.batchState.waitUntil) {
+        if (Date.now() >= state.batchState.waitUntil) {
+          state.batchState.isWaiting = false;
+          state.batchState.waitUntil = null;
+          state.audioProgress.phase = 'batching';
+        }
+      }
     },
-
-    setProcessingPhase: (state) => {
-      state.audioProgress.phase = 'chunks';
-      state.audioProgress.waitUntil = null;
-    },
-
-    completeAudioGeneration: (state, action: PayloadAction<{ audioUrl: string; compressedAudioUrl?: string; duration: number; scriptDurations?: AudioGeneration['scriptDurations'] }>) => {
+    
+    completeAudioGeneration: (state, action: PayloadAction<{ 
+      audioUrl: string; 
+      compressedAudioUrl?: string; 
+      duration: number; 
+      scriptDurations?: AudioGeneration['scriptDurations'] 
+    }>) => {
       if (state.currentGeneration) {
         state.currentGeneration.audioUrl = action.payload.audioUrl
         if (action.payload.compressedAudioUrl) {
@@ -174,8 +243,11 @@ export const audioSlice = createSlice({
         state.currentGeneration.status = 'completed'
       }
       state.isGeneratingAudio = false
+      state.audioProgress.phase = 'completed'
       state.textToProcess = null;
+      state.textChunks = [];
       state.successfulChunkUrls = [];
+      state.batchState = initialBatchState;
     },
     
     addSubtitlesToGeneration: (state, action: PayloadAction<{ subtitlesUrl: string; subtitlesContent?: string }>) => {
@@ -203,6 +275,8 @@ export const audioSlice = createSlice({
       }
       state.isGeneratingAudio = false
       state.isGeneratingSubtitles = false
+      state.audioProgress.phase = 'idle'
+      state.batchState = initialBatchState;
     },
     
     saveGenerationToHistory: (state) => {
@@ -216,13 +290,14 @@ export const audioSlice = createSlice({
     clearCurrentGeneration: (state) => {
       state.currentGeneration = null
       state.textToProcess = null;
+      state.textChunks = [];
       state.successfulChunkUrls = [];
       state.audioProgress = {
         total: 0,
         completed: 0,
-        phase: 'chunks',
-        waitUntil: null,
+        phase: 'idle'
       }
+      state.batchState = initialBatchState;
     },
     
     clearAllAudioData: (state) => {
@@ -231,13 +306,14 @@ export const audioSlice = createSlice({
       state.isGeneratingAudio = false
       state.isGeneratingSubtitles = false
       state.textToProcess = null;
+      state.textChunks = [];
       state.successfulChunkUrls = [];
       state.audioProgress = {
         total: 0,
         completed: 0,
-        phase: 'chunks',
-        waitUntil: null,
+        phase: 'idle'
       }
+      state.batchState = initialBatchState;
     },
 
     // Voice management actions
@@ -318,11 +394,10 @@ export const {
   setGenerateSubtitles,
   setIsGeneratingAudio,
   setIsGeneratingSubtitles,
-  setAudioProgress,
   startAudioGeneration,
-  addSuccessfulChunkUrl,
-  setWaitingPhase,
-  setProcessingPhase,
+  startBatch,
+  completeBatch,
+  checkWaitStatus,
   completeAudioGeneration,
   addSubtitlesToGeneration,
   updateSubtitleContent,

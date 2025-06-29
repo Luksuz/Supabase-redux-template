@@ -190,42 +190,38 @@ export async function POST(request: NextRequest) {
         );
         console.log("✅ All chunks downloaded.");
 
-        // 2. Join chunks
+        // 2. Join chunks to temporary file
         const voiceName = (googleTtsVoiceName || elevenLabsVoiceId || fishAudioVoiceId || voice || 'unknown_voice').replace(/[^a-zA-Z0-9]/g, '_');
-        const finalFileName = `${provider}-${voiceName}-${uuidv4()}-final.mp3`;
-        const joinedAudioPath = await joinAudioChunks(downloadedChunkPaths, finalFileName, tempDir);
+        const tempJoinedFileName = `${provider}-${voiceName}-${uuidv4()}-temp.mp3`;
+        const tempJoinedAudioPath = await joinAudioChunks(downloadedChunkPaths, tempJoinedFileName, tempDir);
 
-        // 3. Upload joined audio
-        const supabaseDestinationPath = `user_${userId}/audio/${path.basename(joinedAudioPath)}`;
-        const finalAudioSupabaseUrl = await uploadFileToSupabase(joinedAudioPath, supabaseDestinationPath, 'audio/mpeg');
-        if (!finalAudioSupabaseUrl) throw new Error("Failed to upload final audio.");
-        console.log(`☁️ Final audio uploaded: ${finalAudioSupabaseUrl}`);
-
-        // 4. Create and upload compressed audio
-        let compressedAudioSupabaseUrl: string | null = null;
-        try {
-            const compressedAudioPath = await createCompressedAudio(joinedAudioPath, tempDir);
-            const compressedSupabasePath = `user_${userId}/audio/compressed/${path.basename(compressedAudioPath)}`;
-            compressedAudioSupabaseUrl = await uploadFileToSupabase(compressedAudioPath, compressedSupabasePath, 'audio/mpeg');
-            console.log(`☁️ Compressed audio uploaded: ${compressedAudioSupabaseUrl}`);
-        } catch(compressionError) {
-            console.warn(`⚠️ Could not create or upload compressed audio.`, compressionError)
+        // 3. Create compressed audio directly from the joined audio
+        console.log(`🗜️ Creating compressed audio (skipping original upload to save storage)...`);
+        const compressedAudioPath = await createCompressedAudio(tempJoinedAudioPath, tempDir);
+        
+        // 4. Upload only the compressed audio
+        const compressedSupabasePath = `user_${userId}/audio/compressed/${path.basename(compressedAudioPath)}`;
+        const compressedAudioSupabaseUrl = await uploadFileToSupabase(compressedAudioPath, compressedSupabasePath, 'audio/mpeg');
+        
+        if (!compressedAudioSupabaseUrl) {
+            throw new Error("Failed to upload compressed audio to Supabase Storage.");
         }
         
-        // 5. Generate subtitles
+        console.log(`☁️ Compressed audio uploaded: ${compressedAudioSupabaseUrl}`);
+        
+        // 5. Generate subtitles using compressed audio
         let subtitlesUrl: string | null = null;
         try {
-            const audioUrlForSubtitles = compressedAudioSupabaseUrl || finalAudioSupabaseUrl;
-            subtitlesUrl = await generateSubtitlesFromAudio(audioUrlForSubtitles, userId);
+            subtitlesUrl = await generateSubtitlesFromAudio(compressedAudioSupabaseUrl, userId);
         } catch(subtitleError) {
             console.warn(`⚠️ Could not generate subtitles.`, subtitleError)
         }
         
-        // 6. Return final URLs
+        // 6. Return compressed audio URL as the main audio URL (no original audio saved)
         return NextResponse.json({
             success: true,
-            audioUrl: finalAudioSupabaseUrl,
-            compressedAudioUrl: compressedAudioSupabaseUrl,
+            audioUrl: compressedAudioSupabaseUrl, // Use compressed audio as main audio
+            compressedAudioUrl: compressedAudioSupabaseUrl, // Keep this for backward compatibility
             subtitlesUrl: subtitlesUrl,
             subtitlesGenerated: !!subtitlesUrl
         });

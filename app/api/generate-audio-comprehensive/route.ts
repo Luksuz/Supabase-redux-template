@@ -72,7 +72,7 @@ async function generateSingleAudioChunk(
         break;
 
       case "minimax":
-        const minimaxTTSModel = model || "speech-02";
+        const minimaxTTSModel = model || "speech-02-hd";
         console.log(`🤖 [Chunk ${chunkIndex}] MiniMax: voice=${voice}, model=${minimaxTTSModel}`);
         const minimaxResponse = await fetch(`https://api.minimaxi.chat/v1/t2a_v2?GroupId=${MINIMAX_GROUP_ID}`, {
           method: 'POST',

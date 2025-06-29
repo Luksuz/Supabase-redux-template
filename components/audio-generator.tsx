@@ -6,11 +6,10 @@ import {
   setSelectedVoice, 
   setSelectedModel, 
   setGenerateSubtitles,
-  setAudioProgress,
   startAudioGeneration,
-  addSuccessfulChunkUrl,
-  setWaitingPhase,
-  setProcessingPhase,
+  startBatch,
+  completeBatch,
+  checkWaitStatus,
   completeAudioGeneration,
   addSubtitlesToGeneration,
   updateSubtitleContent,
@@ -38,74 +37,60 @@ interface TTSProvider {
 
 const TTS_PROVIDERS: Record<string, TTSProvider> = {
   openai: {
-    name: "OpenAI TTS",
+    name: "OpenAI",
     voices: [
-      { id: "alloy", name: "Alloy" },
-      { id: "echo", name: "Echo" },
-      { id: "fable", name: "Fable" },
-      { id: "onyx", name: "Onyx" },
-      { id: "nova", name: "Nova" },
-      { id: "shimmer", name: "Shimmer" },
-      { id: "ash", name: "Ash" },
-      { id: "ballad", name: "Ballad" },
-      { id: "coral", name: "Coral" },
-      { id: "sage", name: "Sage" }
+      { id: "alloy", name: "Alloy (Natural & Balanced)" },
+      { id: "echo", name: "Echo (Male, Clear)" },
+      { id: "fable", name: "Fable (British Male)" },
+      { id: "onyx", name: "Onyx (Deep Male)" },
+      { id: "nova", name: "Nova (Young Female)" },
+      { id: "shimmer", name: "Shimmer (Whispery Female)" },
+      { id: "ash", name: "Ash (Male, Professional)" },
+      { id: "ballad", name: "Ballad (Male, Soothing)" },
+      { id: "coral", name: "Coral (Female, Warm)" },
+      { id: "sage", name: "Sage (Female, Authoritative)" }
     ],
     models: [
-      { id: "tts-1", name: "TTS-1 (Standard)" },
-      { id: "tts-1-hd", name: "TTS-1 HD (High Quality)" }
+      { id: "tts-1", name: "Standard Quality" },
+      { id: "tts-1-hd", name: "High Definition" }
     ]
   },
   minimax: {
     name: "MiniMax",
     voices: [
-      // New voices
-      { id: "moss_audio_af6166c7-4f84-11f0-a038-1eedf694f526", name: "Test - Erinome" },
-      { id: "moss_audio_dabbf83c-4f84-11f0-bf87-a6350041d731", name: "Peter" },
-      // Prioritized Female
-      { id: "English_radiant_girl", name: "Radiant Girl" },
-      { id: "English_captivating_female1", name: "Captivating Female" },
-      { id: "English_Steady_Female_1", name: "Steady Women" },
-      // Prioritized Male
-      { id: "English_CaptivatingStoryteller", name: "Captivating Storyteller" },
-      { id: "English_Deep-VoicedGentleman", name: "Man With Deep Voice" },
-      { id: "English_magnetic_voiced_man", name: "Magnetic-voiced Male" },
-      { id: "English_ReservedYoungMan", name: "Reserved Young Man" },
-      // Remaining voices
-      { id: "English_expressive_narrator", name: "Expressive Narrator" },
-      { id: "English_compelling_lady1", name: "Compelling Lady" },
-      { id: "English_CalmWoman", name: "Calm Woman" },
-      { id: "English_Graceful_Lady", name: "Graceful Lady" },
-      { id: "English_MaturePartner", name: "Mature Partner" },
-      { id: "English_MatureBoss", name: "Bossy Lady" },
-      { id: "English_Wiselady", name: "Wise Lady" },
-      { id: "English_patient_man_v1", name: "Patient Man" },
-      { id: "English_Female_Narrator", name: "Female Narrator" },
-      { id: "English_Trustworth_Man", name: "Trustworthy Man" },
-      { id: "English_Gentle-voiced_man", name: "Gentle-voiced Man" },
-      { id: "English_Upbeat_Woman", name: "Upbeat Woman" },
-      { id: "English_Friendly_Female_3", name: "Friendly Women" }
+      { id: "audiobook_male_1", name: "Audiobook Male 1" },
+      { id: "audiobook_male_2", name: "Audiobook Male 2" },
+      { id: "audiobook_female_1", name: "Audiobook Female 1" },
+      { id: "audiobook_female_2", name: "Audiobook Female 2" },
+      { id: "male-qn-qingse", name: "Male Qingse" },
+      { id: "male-qn-jingying", name: "Male Jingying" },
+      { id: "male-qn-badao", name: "Male Badao" },
+      { id: "male-qn-daxuesheng", name: "Male Daxuesheng" },
+      { id: "female-shaonv", name: "Female Shaonv" },
+      { id: "female-yujie", name: "Female Yujie" },
+      { id: "female-chengshu", name: "Female Chengshu" },
+      { id: "female-tianmei", name: "Female Tianmei" },
+      { id: "broadcaster_male", name: "Broadcaster Male" },
+      { id: "broadcaster_female", name: "Broadcaster Female" },
+      { id: "caruso", name: "Caruso (Emotional)" }
     ],
     models: [
-      { id: "speech-02-hd", name: "Speech 02 HD" },
-      { id: "speech-02-turbo", name: "Speech 02 Turbo" },
-      { id: "speech-01-hd", name: "Speech 01 HD" },
-      { id: "speech-01-turbo", name: "Speech 01 Turbo" }
+      { id: "speech-02-hd", name: "HD Model - Superior rhythm & stability" },
+      { id: "speech-02-turbo", name: "Turbo Model - Enhanced multilingual" },
+      { id: "speech-01-hd", name: "HD V1 - Rich voices & expressive emotions" },
+      { id: "speech-01-turbo", name: "Turbo V1 - Excellent performance & low latency" }
     ]
   },
   "fish-audio": {
     name: "Fish Audio",
     voices: [
-      { id: "474887f7949b4d1ab3e626cddf82613a", name: "OS1 Samantha (Scarlett Johansson) - Her (2013) v2" },
-      { id: "728f6ff2240d49308e8137ffe66008e2", name: "Adam" },
-      { id: "3509853b4279468a86100a000ef287ee", name: "Bill" },
-      { id: "058e3e7df4c94303a7ce22576fc81ec8", name: "Lisa: English Woman (US) - Advertisement" },
-      { id: "ecc977e5dca94390926fab1e0c2ba292", name: "Katie: English Woman (US) - Training" },
-      { id: "125d6460953a443d8c65909adf87ca3f", name: "Neil: English Man (US) - Audiobook" }
+      { id: "7f92f8afb8ec43bf81429cc1c9199cb1", name: "Gentle Female Voice" },
+      { id: "54a5170f9f8e4d60a2a10e8aae699282", name: "Professional Male Voice" },
+      { id: "custom", name: "Custom Voice ID" }
     ],
     models: [
-      { id: "speech-1.6", name: "Speech 1.6" },
-      { id: "speech-1.5", name: "Speech 1.5" }
+      { id: "speech-1", name: "Standard Quality" },
+      { id: "speech-1.6", name: "Enhanced Quality" }
     ]
   },
   elevenlabs: {
@@ -163,7 +148,6 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
 
 const AUDIO_CHUNK_MAX_LENGTH = 2500;
 const ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH = 1000;
-const BATCH_SIZE = 5; // Number of chunks to process concurrently
 
 export function AudioGenerator() {
   const dispatch = useAppDispatch()
@@ -174,12 +158,14 @@ export function AudioGenerator() {
     isGeneratingAudio,
     isGeneratingSubtitles,
     audioProgress,
+    batchState,
+    textToProcess,
+    textChunks,
+    successfulChunkUrls,
     selectedVoice,
     selectedModel,
     generateSubtitles,
-    customVoices,
-    textToProcess,
-    successfulChunkUrls
+    customVoices
   } = useAppSelector(state => state.audio)
   
   // Provider-specific state
@@ -202,7 +188,6 @@ export function AudioGenerator() {
 
   // Simple text input state
   const [inputText, setInputText] = useState<string>("")
-  const generationProcessRef = useRef<boolean>(false)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -228,6 +213,17 @@ export function AudioGenerator() {
     }
   }, []) // Only run on mount
 
+  // Fetch voices when provider changes to ElevenLabs or Google TTS
+  useEffect(() => {
+    if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
+      console.log(`🔄 Provider changed to ${selectedProvider}, fetching voices...`)
+      fetchApiVoices(selectedProvider)
+    } else {
+      // Clear API voices for other providers
+      setApiVoices([])
+    }
+  }, [selectedProvider])
+
   // Initialize language code properly for each provider
   useEffect(() => {
     if (selectedProvider === 'elevenlabs' && languageCode !== 'en') {
@@ -243,112 +239,113 @@ export function AudioGenerator() {
     showMessage(`Selected custom voice: ${voiceName}`, 'success')
   }
 
-  // Get voice options based on provider
-  const getVoiceOptions = () => {
-    // For ElevenLabs and Google TTS, use API-fetched voices
-    if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
-      const customVoicesForProvider = customVoices.filter(v => v.provider === selectedProvider)
-      
-      // Map API voices to consistent format
-      const mappedApiVoices = apiVoices.map((v, index) => {
-        if (selectedProvider === 'google-tts') {
-          // Google TTS voices have 'name' property, map it to 'id'
-          return {
-            id: v.name,
-            name: `${v.name} (${v.ssmlGender})`,
-            key: `api-${v.name || `unknown-${index}`}`,
-            isCustom: false
-          }
-        } else {
-          // ElevenLabs voices (already have proper structure)
-          return {
-            ...v,
-            key: `api-${v.id || `unknown-${index}`}`,
-            isCustom: false
-          }
-        }
-      })
-      
-      return [
-        ...mappedApiVoices,
-        ...customVoicesForProvider.map((v, index) => ({
-          id: v.voice_id,
-          name: `${v.name} (Custom)`,
-          key: `custom-${v.id}-${index}`,
-          isCustom: true
-        }))
-      ]
-    }
-    
-    // For other providers, use built-in + custom voices
-    const builtInVoices = TTS_PROVIDERS[selectedProvider]?.voices || []
-    const customVoicesForProvider = customVoices.filter(v => v.provider === selectedProvider)
-    
-    return [
-      ...builtInVoices.map((v, index) => ({
-        ...v,
-        key: `builtin-${v.id || `unknown-${index}`}`,
-        isCustom: false
-      })),
-      ...customVoicesForProvider.map((v, index) => ({
-        id: v.voice_id,
-        name: `${v.name} (Custom)`,
-        key: `custom-${v.id}-${index}`,
-        isCustom: true
-      }))
-    ]
-  }
-
-  // Fetch voices from API for ElevenLabs and Google TTS
+  // Fetch API voices for providers that support it
   const fetchApiVoices = async (provider: string) => {
-    if (provider !== 'elevenlabs' && provider !== 'google-tts') {
-      setApiVoices([])
-      return
-    }
-
+    console.log(`🔍 Fetching API voices for provider: ${provider}`)
+    setIsLoadingApiVoices(true)
     try {
-      setIsLoadingApiVoices(true)
+      let apiUrl = '';
       
-      const endpoint = provider === 'elevenlabs' 
-        ? '/api/list-elevenlabs-voices'
-        : '/api/list-google-voices'
-
-      const response = await fetch(endpoint)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to load ${provider} voices`)
-      }
-
-      const voices = data.voices || []
-      setApiVoices(voices)
-      
-      // Set first voice as default if no voice is selected
-      if (voices.length > 0 && !providerVoice) {
-        if (provider === 'google-tts') {
-          // For Google TTS, use the 'name' property
-          setProviderVoice(voices[0].name)
-                } else {
-          // For ElevenLabs, use the 'id' property
-          setProviderVoice(voices[0].id)
-        }
-      }
-
-      // Ensure language code is set for the provider
-      if (provider === 'elevenlabs' && !languageCode) {
-        setLanguageCode('en')
-      } else if (provider === 'google-tts' && !languageCode) {
-        setLanguageCode('en-US')
+      if (provider === 'elevenlabs') {
+        apiUrl = '/api/list-elevenlabs-voices';
+      } else if (provider === 'google-tts') {
+        apiUrl = '/api/list-google-voices';
+      } else {
+        console.warn(`No API voice fetching available for provider: ${provider}`);
+        setIsLoadingApiVoices(false);
+        return;
       }
       
-    } catch (error: any) {
-      console.error(`Error loading ${provider} voices:`, error)
-      showMessage(`Failed to load ${provider} voices: ${error.message}`, 'error')
+      console.log(`📡 Making API call to: ${apiUrl}`)
+      const response = await fetch(apiUrl)
+      console.log(`📥 API response status: ${response.status}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`📊 API response data:`, data)
+        setApiVoices(data.voices || [])
+        console.log(`✅ Loaded ${data.voices?.length || 0} voices for ${provider}`, data.voices)
+      } else {
+        const errorText = await response.text()
+        console.error(`❌ Failed to fetch ${provider} voices: ${response.status} - ${errorText}`)
+        setApiVoices([])
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching ${provider} voices:`, error)
       setApiVoices([])
     } finally {
       setIsLoadingApiVoices(false)
     }
   }
+  
+  // Get current provider config
+  const currentProvider = TTS_PROVIDERS[selectedProvider]
+
+  // Handle provider change
+  const handleProviderChange = (newProvider: string) => {
+    setSelectedProvider(newProvider);
+    const provider = TTS_PROVIDERS[newProvider];
+    
+    // Reset voice and model
+    setProviderVoice(provider.voices?.[0]?.id || "");
+    setProviderModel(provider.models?.[0]?.id || "");
+    
+    // Set appropriate language code
+    if (newProvider === 'google-tts') {
+      setLanguageCode('en-US');
+    } else if (newProvider === 'elevenlabs') {
+      setLanguageCode('en');
+    }
+    
+    // Fetch API voices if needed
+    if (newProvider === 'elevenlabs' || newProvider === 'google-tts') {
+      fetchApiVoices(newProvider);
+    }
+  };
+
+  // Text chunking functions
+  const chunkText = (text: string, provider: string): string[] => {
+    const maxChunkLength = provider === 'elevenlabs' ? ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH : AUDIO_CHUNK_MAX_LENGTH;
+    const sentences = text.match(/[^\.!?]+[\.!?]+/g) || [text];
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    for (const sentence of sentences) {
+      if ((currentChunk + sentence).length <= maxChunkLength) {
+        currentChunk += sentence;
+      } else {
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+          currentChunk = sentence;
+        } else {
+          // Handle very long sentences by splitting on words
+          const words = sentence.split(' ');
+          let wordChunk = '';
+          for (const word of words) {
+            if ((wordChunk + ' ' + word).length <= maxChunkLength) {
+              wordChunk += (wordChunk ? ' ' : '') + word;
+            } else {
+              if (wordChunk) {
+                chunks.push(wordChunk.trim());
+                wordChunk = word;
+              } else {
+                chunks.push(word); // Single very long word
+              }
+            }
+          }
+          if (wordChunk) {
+            currentChunk = wordChunk;
+          }
+        }
+      }
+    }
+
+    if (currentChunk) {
+      chunks.push(currentChunk.trim());
+    }
+
+    return chunks.filter(chunk => chunk.length > 0);
+  };
 
   // Get content for display and processing
   const getContentSummary = () => {
@@ -406,79 +403,7 @@ export function AudioGenerator() {
     }
   })
 
-  // Update defaults when provider changes
-  const handleProviderChange = (newProvider: string) => {
-    setSelectedProvider(newProvider)
-    setProviderVoice("") // Reset voice selection
-    
-    const provider = TTS_PROVIDERS[newProvider]
-    
-    // For ElevenLabs and Google TTS, fetch voices from API
-    if (newProvider === 'elevenlabs' || newProvider === 'google-tts') {
-      fetchApiVoices(newProvider)
-      } else {
-      // For other providers, set default voice from built-in list
-      if (provider.voices?.length > 0) {
-        setProviderVoice(provider.voices[0].id)
-      }
-      setApiVoices([]) // Clear API voices
-    }
-    
-    // Set default model
-    if (provider.models && provider.models.length > 0) {
-      setProviderModel(provider.models[0].id)
-    }
-    
-    // Set appropriate language code for providers that support it
-    if (newProvider === 'elevenlabs') {
-      setLanguageCode('en') // ElevenLabs uses simple codes
-    } else if (newProvider === 'google-tts') {
-      setLanguageCode('en-US') // Google TTS uses locale codes
-    }
-  }
-
-  const chunkText = (text: string, provider: string) => {
-    const maxLength = provider === 'elevenlabs' ? ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH : AUDIO_CHUNK_MAX_LENGTH;
-    if (!text || text.length <= maxLength) {
-      return [text];
-    }
-  
-    const chunks: string[] = [];
-    let currentPosition = 0;
-  
-    while (currentPosition < text.length) {
-      let chunkEnd = currentPosition + maxLength;
-      if (chunkEnd >= text.length) {
-        chunks.push(text.substring(currentPosition));
-        break;
-      }
-  
-      let splitPosition = -1;
-      const sentenceEndChars = /[.?!]\s+|[\n\r]+/g;
-      let match;
-      let lastMatchPosition = -1;
-      
-      const searchSubstr = text.substring(currentPosition, chunkEnd);
-      while((match = sentenceEndChars.exec(searchSubstr)) !== null) {
-          lastMatchPosition = currentPosition + match.index + match[0].length;
-      }
-  
-      if (lastMatchPosition > currentPosition && lastMatchPosition <= chunkEnd) {
-          splitPosition = lastMatchPosition;
-      } else {
-          let spacePosition = text.lastIndexOf(' ', chunkEnd);
-          if (spacePosition > currentPosition) {
-              splitPosition = spacePosition + 1;
-          } else {
-              splitPosition = chunkEnd;
-          }
-      }
-      chunks.push(text.substring(currentPosition, splitPosition).trim());
-      currentPosition = splitPosition;
-    }
-    return chunks.filter(chunk => chunk.length > 0);
-  }
-
+  // Handle generation start
   const handleGenerateAudio = async () => {
     const contentSummary = getContentSummary();
     if (!contentSummary || !contentSummary.textToProcess.trim()) {
@@ -492,7 +417,7 @@ export function AudioGenerator() {
     }
 
     const textToGenerate = contentSummary.textToProcess;
-    const textChunks = chunkText(textToGenerate, selectedProvider);
+    const chunks = chunkText(textToGenerate, selectedProvider);
     
     dispatch(startAudioGeneration({
       id: `audio_${Date.now()}`,
@@ -500,74 +425,87 @@ export function AudioGenerator() {
       model: selectedModel,
       generateSubtitles: false,
       textToProcess: textToGenerate,
-      totalChunks: textChunks.length
+      textChunks: chunks,
+      batchSize: 5
     }));
   };
 
+  // Simplified batching logic using polling
   useEffect(() => {
-    if (!isGeneratingAudio || generationProcessRef.current) {
-      return;
-    }
+    if (!isGeneratingAudio) return;
 
-    const processNextBatch = async () => {
-      if (!textToProcess) return;
-      const chunks = chunkText(textToProcess, selectedProvider);
-      const currentChunkIndex = successfulChunkUrls.length;
-  
-      if (currentChunkIndex >= chunks.length) {
-          dispatch(setAudioProgress({ phase: 'concatenating' }));
-          return;
-      }
-  
-      const batch = chunks.slice(currentChunkIndex, currentChunkIndex + BATCH_SIZE);
-      setGenerationStatusMessage(`Processing chunks ${currentChunkIndex + 1} to ${Math.min(currentChunkIndex + BATCH_SIZE, chunks.length)} of ${chunks.length}...`);
-  
-      const promises = batch.map(async (chunk, indexInBatch) => {
-        const chunkIndex = currentChunkIndex + indexInBatch;
+    const processBatch = async () => {
+      try {
+        dispatch(startBatch());
         
-        const requestBody: any = {
-          text: chunk, provider: selectedProvider, userId: 'current_user', chunkIndex,
-          voice: providerVoice, model: providerModel, fishAudioVoiceId: providerVoice, fishAudioModel: providerModel,
-          elevenLabsVoiceId: providerVoice, elevenLabsModelId: providerModel, languageCode: languageCode,
-          googleTtsVoiceName: providerVoice, googleTtsLanguageCode: languageCode
-        };
+        const startIndex = batchState.currentBatchIndex * batchState.batchSize;
+        const endIndex = Math.min(startIndex + batchState.batchSize, textChunks.length);
+        const currentBatch = textChunks.slice(startIndex, endIndex);
+        
+        setGenerationStatusMessage(`Processing batch ${batchState.currentBatchIndex + 1}/${batchState.totalBatches} (chunks ${startIndex + 1}-${endIndex})...`);
 
-        const response = await fetch('/api/generate-audio-comprehensive', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
+        const batchPromises = currentBatch.map(async (chunk, indexInBatch) => {
+          const chunkIndex = startIndex + indexInBatch;
+          
+          const requestBody: any = {
+            text: chunk, 
+            provider: selectedProvider, 
+            userId: 'current_user', 
+            chunkIndex,
+            voice: providerVoice, 
+            model: providerModel, 
+            fishAudioVoiceId: providerVoice, 
+            fishAudioModel: providerModel,
+            elevenLabsVoiceId: providerVoice, 
+            elevenLabsModelId: providerModel, 
+            languageCode: languageCode,
+            googleTtsVoiceName: providerVoice, 
+            googleTtsLanguageCode: languageCode
+          };
+
+          const response = await fetch('/api/generate-audio-comprehensive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Chunk ${chunkIndex + 1} failed: ${errorData.error}`);
+          }
+          
+          const result = await response.json();
+          if (!result.success) {
+            throw new Error(`Chunk ${chunkIndex + 1} failed: ${result.error}`);
+          }
+          
+          return result.audioUrl;
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Chunk ${chunkIndex + 1} failed: ${errorData.error}`);
+        const results = await Promise.allSettled(batchPromises);
+        const successfulUrls = results
+          .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+          .map(result => result.value);
+        
+        const failedCount = results.length - successfulUrls.length;
+        if (failedCount > 0) {
+          console.warn(`${failedCount} chunks failed in this batch`);
         }
-        return response.json();
-      });
 
-      const results = await Promise.allSettled(promises);
-      
-      results.forEach((result) => {
-        if (result.status === 'fulfilled' && result.value.success) {
-          dispatch(addSuccessfulChunkUrl(result.value.audioUrl));
-        } else {
-          const errorMessage = result.status === 'rejected' ? result.reason.message : `Chunk failed: ${result.value?.error || 'Unknown error'}`;
-          console.error(errorMessage);
-          showMessage(errorMessage, 'error');
-        }
-      });
-      
-      const newIndex = currentChunkIndex + batch.length;
-      if (newIndex >= chunks.length) {
-          dispatch(setAudioProgress({ phase: 'concatenating' }));
-      } else {
-          dispatch(setWaitingPhase({ waitUntil: Date.now() + 60000 }));
+        dispatch(completeBatch({ chunkUrls: successfulUrls }));
+
+      } catch (error: any) {
+        console.error('Batch processing error:', error);
+        dispatch(setAudioGenerationError(error.message));
+        showMessage(`Batch processing failed: ${error.message}`, 'error');
       }
     };
 
     const finalizeAudio = async () => {
-      setGenerationStatusMessage("All chunks generated. Joining audio files and generating subtitles...");
-      const finalizeBody: any = {
+      try {
+        setGenerationStatusMessage("Finalizing audio...");
+        
+        const finalizeBody: any = {
           chunkUrls: successfulChunkUrls,
           userId: 'current_user',
           provider: selectedProvider,
@@ -575,65 +513,81 @@ export function AudioGenerator() {
           elevenLabsVoiceId: providerVoice,
           fishAudioVoiceId: providerVoice,
           googleTtsVoiceName: providerVoice
-      };
+        };
 
-      const finalizeResponse = await fetch('/api/finalize-audio', {
+        const finalizeResponse = await fetch('/api/finalize-audio', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(finalizeBody)
-      });
-      
-      if (!finalizeResponse.ok) {
-        const errorData = await finalizeResponse.json();
-        throw new Error(`Failed to finalize audio: ${errorData.error}`);
-      }
-
-      const finalData = await finalizeResponse.json();
-      if (!finalData.success) throw new Error(finalData.error || 'Audio finalization failed');
-
-      dispatch(completeAudioGeneration({
-        audioUrl: finalData.audioUrl,
-        compressedAudioUrl: finalData.compressedAudioUrl,
-        duration: finalData.duration || 0
-      }));
-
-      if (finalData.subtitlesUrl) {
-        dispatch(addSubtitlesToGeneration({ subtitlesUrl: finalData.subtitlesUrl }));
-      }
-
-      dispatch(saveGenerationToHistory());
-      const subtitleMessage = finalData.subtitlesGenerated ? ' (with subtitles)' : '';
-      showMessage(`Successfully generated audio using ${TTS_PROVIDERS[selectedProvider]?.name}${subtitleMessage}!`, 'success');
-      setGenerationStatusMessage("");
-    };
-
-    const engine = async () => {
-      generationProcessRef.current = true;
-      try {
-        if (audioProgress.phase === 'chunks') {
-          await processNextBatch();
-        } else if (audioProgress.phase === 'waiting' && audioProgress.waitUntil) {
-            const remainingTime = audioProgress.waitUntil - Date.now();
-            if (remainingTime > 0) {
-                setGenerationStatusMessage(`Batch complete. Waiting ${Math.ceil(remainingTime / 1000)} seconds...`);
-                await new Promise(resolve => setTimeout(resolve, remainingTime));
-            }
-            dispatch(setProcessingPhase());
-        } else if (audioProgress.phase === 'concatenating') {
-          await finalizeAudio();
+        });
+        
+        if (!finalizeResponse.ok) {
+          const errorData = await finalizeResponse.json();
+          throw new Error(`Failed to finalize audio: ${errorData.error}`);
         }
+
+        const finalData = await finalizeResponse.json();
+        if (!finalData.success) throw new Error(finalData.error || 'Audio finalization failed');
+
+        dispatch(completeAudioGeneration({
+          audioUrl: finalData.audioUrl,
+          compressedAudioUrl: finalData.compressedAudioUrl,
+          duration: finalData.duration || 0
+        }));
+
+        if (finalData.subtitlesUrl) {
+          dispatch(addSubtitlesToGeneration({ subtitlesUrl: finalData.subtitlesUrl }));
+        }
+
+        dispatch(saveGenerationToHistory());
+        showMessage(`Successfully generated compressed audio using ${currentProvider?.name}! (Optimized for video generation and storage)`, 'success');
+        setGenerationStatusMessage("");
+        
       } catch (error: any) {
-        console.error('Audio generation engine error:', error);
+        console.error('Finalization error:', error);
         dispatch(setAudioGenerationError(error.message));
-        showMessage(`Audio generation failed: ${error.message}`, 'error');
-      } finally {
-        generationProcessRef.current = false;
+        showMessage(`Audio finalization failed: ${error.message}`, 'error');
       }
     };
 
-    engine();
+    // Track if we've already started processing the current batch
+    let isProcessingBatch = false;
 
-  }, [isGeneratingAudio, audioProgress.phase, audioProgress.waitUntil]);
+    // Polling mechanism that properly respects wait times
+    const interval = setInterval(() => {
+      dispatch(checkWaitStatus());
+      
+      if (audioProgress.phase === 'batching' && !isProcessingBatch) {
+        // Only start processing if we're not already processing a batch
+        isProcessingBatch = true;
+        processBatch().finally(() => {
+          isProcessingBatch = false;
+        });
+      } else if (audioProgress.phase === 'finalizing') {
+        finalizeAudio();
+        clearInterval(interval);
+      }
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, [isGeneratingAudio, audioProgress.phase, batchState.currentBatchIndex]);
+
+  // Status message updates
+  useEffect(() => {
+    if (audioProgress.phase === 'waiting' && batchState.waitUntil) {
+      const updateWaitMessage = () => {
+        const remainingTime = Math.max(0, batchState.waitUntil! - Date.now());
+        const seconds = Math.ceil(remainingTime / 1000);
+        if (seconds > 0) {
+          setGenerationStatusMessage(`Waiting ${seconds}s before next batch...`);
+        }
+      };
+      
+      updateWaitMessage();
+      const interval = setInterval(updateWaitMessage, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [audioProgress.phase, batchState.waitUntil]);
 
   // Download generated audio
   const handleDownloadAudio = (audioUrl: string, filename: string = 'script-audio.mp3') => {
@@ -655,122 +609,92 @@ export function AudioGenerator() {
     document.body.removeChild(link)
   }
 
-  // Fetch subtitle content for display
-  const fetchSubtitleContent = async (subtitlesUrl: string) => {
-    try {
-      const response = await fetch(subtitlesUrl)
-      if (response.ok) {
-        const content = await response.text()
-        dispatch(updateSubtitleContent({ subtitlesContent: content }))
-        return content
-      }
-    } catch (error) {
-      console.error('Error fetching subtitle content:', error)
+  // Voice display functions
+  const getDisplayVoices = () => {
+    console.log(`🎤 Getting display voices for provider: ${selectedProvider}`)
+    console.log(`📦 Static voices:`, currentProvider?.voices || [])
+    console.log(`📡 API voices:`, apiVoices)
+    console.log(`⏳ Loading API voices:`, isLoadingApiVoices)
+    
+    if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
+      // For API-based providers, prioritize API voices over static ones
+      const staticVoices = currentProvider?.voices || []
+      const dynamicVoices = apiVoices || []
+      
+      console.log(`🔗 Combining ${staticVoices.length} static + ${dynamicVoices.length} dynamic voices`)
+      
+      // Create a Map to handle duplicates, with API voices taking priority
+      const voiceMap = new Map()
+      
+      // Add static voices first
+      staticVoices.forEach(voice => {
+        if (voice.id) {
+          voiceMap.set(voice.id, voice)
+        }
+      })
+      
+      // Add API voices (these will override static ones with same ID)
+      dynamicVoices.forEach(voice => {
+        if (voice.id) {
+          voiceMap.set(voice.id, voice)
+        }
+      })
+      
+      const finalVoices = Array.from(voiceMap.values())
+      console.log(`✅ Final voices to display:`, finalVoices)
+      return finalVoices
     }
-    return null
+    
+    const staticVoicesOnly = currentProvider?.voices || []
+    console.log(`📋 Returning static voices only:`, staticVoicesOnly)
+    return staticVoicesOnly
   }
 
-  // Paste from clipboard function
-  const pasteFromClipboard = async () => {
-    try {
-      const clipboardText = await navigator.clipboard.readText()
-      if (clipboardText) {
-        setInputText(prev => prev + clipboardText)
-        showMessage("Text pasted from clipboard!", 'success')
-      }
-    } catch (error) {
-      showMessage("Failed to paste from clipboard. Please paste manually.", 'error')
-    }
+  const getVoiceDisplayName = (voiceId: string) => {
+    const allVoices = getDisplayVoices()
+    const voice = allVoices.find(v => v.id === voiceId)
+    return voice?.name || voiceId
   }
-
-  const currentProvider = TTS_PROVIDERS[selectedProvider]
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Text Input Section */}
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
+        <p className="text-gray-600">Generate high-quality audio from your content using various TTS providers</p>
+      </div>
+
+      {/* Simple Text Input */}
       <Card className="bg-white shadow-sm border border-gray-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Edit3 className="h-5 w-5" />
-            Text Input for Voice Generation
+            <FileText className="h-5 w-5" />
+            Text Input
           </CardTitle>
           <CardDescription>
-            Enter or paste your text content for audio generation
+            Enter custom text or use generated scripts below
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="text-input">Text Content</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={pasteFromClipboard}
-                className="text-xs h-7 px-2"
-              >
-                <Copy className="h-3 w-3 mr-1" />
-                Paste from Clipboard
-              </Button>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <Label>Custom Text</Label>
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Enter your text here to generate audio..."
+                className="w-full h-32 p-3 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              {inputText.trim() && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {inputText.trim().split(/\s+/).length} words, {inputText.length} characters
+                </p>
+              )}
             </div>
-            <textarea
-              id="text-input"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Enter your text here... You can paste content from clipboard or type directly."
-              rows={8}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 resize-vertical"
-            />
-            {inputText && (
-              <div className="text-xs text-gray-500">
-                {inputText.trim().split(/\s+/).length} words • {inputText.length} characters
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Content Summary */}
-      <Card className="bg-white shadow-sm border border-gray-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Scripts Ready for Audio Generation
-          </CardTitle>
-          <CardDescription>
-            {contentSummary ? 
-              `${contentSummary.type} available • ${contentSummary.wordCount} words • ${contentSummary.length} characters` :
-              'No content available'
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {contentSummary ? (
-            <div className="space-y-3">
-              <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm text-gray-700">
-                    {contentSummary.type}
-                    </span>
-                    <Badge variant="outline">
-                    {contentSummary.wordCount} words
-                    </Badge>
-                  </div>
-                <p className="text-sm text-gray-600 line-clamp-3">
-                  {contentSummary.content.substring(0, 200)}...
-                  </p>
-                </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p>No scripts available for audio generation</p>
-              <p className="text-sm">Go to Script Generator to create scripts first</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Audio Generation Settings */}
       {contentSummary && (
         <Card className="bg-white shadow-sm border border-gray-200">
           <CardHeader>
@@ -801,109 +725,70 @@ export function AudioGenerator() {
               </div>
 
             {/* Provider-specific settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Voice Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+            {currentProvider && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Voice Selection */}
+                <div className="space-y-2">
                   <Label>Voice</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowVoiceManager(!showVoiceManager)}
-                    className="text-xs h-6 px-2"
-                  >
-                    {showVoiceManager ? (
-                      <>
-                        <ChevronUp className="h-3 w-3 mr-1" />
-                        Hide Custom
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-3 w-3 mr-1" />
-                        Manage Custom
-                      </>
-                    )}
-                  </Button>
+                  {isLoadingApiVoices ? (
+                    <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading voices...
+                    </div>
+                  ) : (
+                    <Select value={providerVoice} onValueChange={setProviderVoice}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a voice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getDisplayVoices().map((voice, index) => (
+                          <SelectItem key={voice.id || `voice-${index}`} value={voice.id || `voice-${index}`}>
+                            {voice.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
-                <Select value={providerVoice} onValueChange={setProviderVoice}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={
-                      isLoadingApiVoices ? "Loading voices..." : "Select voice"
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isLoadingApiVoices ? (
-                      <div className="flex items-center justify-center gap-2 py-2 text-sm text-gray-500">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading voices...
-                      </div>
-                    ) : getVoiceOptions().length > 0 ? (
-                      getVoiceOptions().map((voice) => (
-                        <SelectItem key={voice.key} value={voice.id}>
-                          {voice.name}
-                      </SelectItem>
-                      ))
-                    ) : (
-                      <div className="flex items-center justify-center py-2 text-sm text-gray-500">
-                        No voices available
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-                {(selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') && (
-                  <p className="text-xs text-gray-500">
-                    Voices loaded from {selectedProvider === 'elevenlabs' ? 'ElevenLabs' : 'Google Cloud TTS'} API
-                  </p>
+
+                {/* Model Selection */}
+                {currentProvider.models && (
+                  <div className="space-y-2">
+                    <Label>Model</Label>
+                    <Select value={providerModel} onValueChange={setProviderModel}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {currentProvider.models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Language Selection for ElevenLabs and Google TTS */}
+                {(selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') && currentProvider.languages && (
+                  <div className="space-y-2">
+                    <Label>Language</Label>
+                    <Select value={languageCode} onValueChange={setLanguageCode}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {currentProvider.languages.map((lang) => (
+                          <SelectItem key={lang.code} value={lang.code}>
+                            {lang.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
               </div>
-
-              {/* Model Selection */}
-              {currentProvider?.models && currentProvider.models.length > 0 && (
-              <div className="space-y-2">
-                <Label>Model</Label>
-                  <Select value={providerModel} onValueChange={setProviderModel}>
-                  <SelectTrigger>
-                      <SelectValue placeholder="Select model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                      {currentProvider.models.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              )}
-
-              {/* Language Selection for ElevenLabs and Google TTS */}
-              {(selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') && currentProvider.languages && (
-              <div className="space-y-2">
-                  <Label>Language</Label>
-                  <Select value={languageCode} onValueChange={setLanguageCode}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currentProvider.languages.map((lang) => (
-                        <SelectItem key={lang.code} value={lang.code}>
-                          {lang.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              </div>
-
-            {/* Voice Manager */}
-            {showVoiceManager && (
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <VoiceManager
-                  selectedProvider={selectedProvider}
-                  onVoiceSelect={handleCustomVoiceSelect}
-                />
-            </div>
             )}
 
             {/* Custom Fish Audio Voice ID */}
@@ -926,14 +811,16 @@ export function AudioGenerator() {
                 <div className="flex justify-between text-sm">
                   <span>Generating Audio with {currentProvider?.name}</span>
                   <span>
-                    {audioProgress.phase === 'chunks' && `${Math.round((audioProgress.completed / audioProgress.total) * 100)}%`}
-                    {audioProgress.phase === 'waiting' && 'Waiting...'}
-                    {audioProgress.phase === 'concatenating' && 'Finalizing...'}
+                    {Math.round((audioProgress.completed / audioProgress.total) * 100)}%
                   </span>
                 </div>
                 <Progress value={audioProgress.total > 0 ? (audioProgress.completed / audioProgress.total) * 100 : 0} className="h-2" />
                 <div className="text-xs text-gray-500 text-center">
                   {generationStatusMessage || 'Please wait...'}
+                </div>
+                <div className="text-xs text-gray-400 text-center">
+                  Batch {batchState.currentBatchIndex + 1} of {batchState.totalBatches} • 
+                  {audioProgress.completed}/{audioProgress.total} chunks completed
                 </div>
               </div>
             )}
@@ -1011,7 +898,7 @@ export function AudioGenerator() {
               </div>
               <div>
                 <span className="text-gray-500">Voice:</span>
-                <p className="font-medium">{providerVoice}</p>
+                <p className="font-medium">{getVoiceDisplayName(providerVoice)}</p>
               </div>
               <div>
                 <span className="text-gray-500">Duration:</span>
@@ -1059,41 +946,31 @@ export function AudioGenerator() {
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-3">
                   <Subtitles className="h-5 w-5 text-blue-600" />
-                  <span className="font-medium text-blue-800">Subtitles Generated!</span>
+                  <span className="font-medium text-blue-800">Subtitles Generated</span>
                 </div>
-                <div className="flex gap-2 mb-3">
-                <Button
-                  onClick={() => handleDownloadSubtitles(currentGeneration.subtitlesUrl!, `subtitles-${currentGeneration.id}.srt`)}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Subtitles
-                </Button>
-                  {!currentGeneration.subtitlesContent && (
-                    <Button
-                      onClick={() => fetchSubtitleContent(currentGeneration.subtitlesUrl!)}
-                      size="sm"
-                      variant="outline"
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Preview
-                    </Button>
-                  )}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleDownloadSubtitles(currentGeneration.subtitlesUrl!, `subtitles-${currentGeneration.id}.srt`)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Subtitles
+                  </Button>
                 </div>
                 {currentGeneration.subtitlesContent && (
-                  <div className="mt-3 p-3 bg-white rounded border">
-                    <h4 className="text-sm font-medium mb-2">Subtitle Preview:</h4>
-                    <pre className="text-xs text-gray-600 whitespace-pre-wrap max-h-32 overflow-y-auto">
-                      {currentGeneration.subtitlesContent.substring(0, 500)}
-                      {currentGeneration.subtitlesContent.length > 500 && '...'}
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">
+                      View Subtitles Content
+                    </summary>
+                    <pre className="mt-2 p-2 bg-white border rounded text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {currentGeneration.subtitlesContent}
                     </pre>
-                  </div>
+                  </details>
                 )}
               </div>
             )}
 
-            {/* Error */}
             {currentGeneration.status === 'error' && currentGeneration.error && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-center gap-2">

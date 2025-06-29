@@ -3,6 +3,7 @@ import userReducer from './features/user/userSlice'
 import imagesReducer from './features/images/imagesSlice'
 import imageGenerationReducer from './features/images/imageGenerationSlice'
 import scriptsReducer from './features/scripts/scriptsSlice'
+import scriptProcessorReducer from './features/scriptProcessor/scriptProcessorSlice'
 import audioReducer from './features/audio/audioSlice'
 import videoReducer from './features/video/videoSlice'
 import progressReducer from './features/progress/progressSlice'
@@ -15,6 +16,7 @@ export const store = configureStore({
     images: imagesReducer,
     imageGeneration: imageGenerationReducer,
     scripts: scriptsReducer,
+    scriptProcessor: scriptProcessorReducer,
     audio: audioReducer,
     video: videoReducer,
     progress: progressReducer,
@@ -32,6 +34,7 @@ export type AppDispatch = typeof store.dispatch
 //   user: { id: 'abc123', email: 'user@example.com', isLoggedIn: true, ... },
 //   images: { originalImages: [...], currentImages: [...], selectedColor: '#fff', ... },
 //   scripts: { prompt: '...', scripts: [...], hasGeneratedScripts: true, ... },
+//   scriptProcessor: { pastedScript: '...', chunks: [...], prompts: [...], ... },
 //   audio: { currentGeneration: {...}, isGeneratingAudio: false, selectedVoice: 3, ... },
 //   video: { currentGeneration: {...}, isGeneratingVideo: false, settings: {...}, ... },
 //   progress: { ... }

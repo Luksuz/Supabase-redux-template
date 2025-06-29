@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
             prompt,
             numberOfImages = 1,
             outputFormat = "url", // Keep outputFormat, default to url
-            minimaxAspectRatio = "16:9", // Default to landscape
             userId = "unknown_user"
         } = body
 
@@ -173,7 +172,6 @@ export async function POST(request: NextRequest) {
                     const payload = {
                         model: "image-01",
                         prompt: promptToUse,
-                        aspect_ratio: minimaxAspectRatio,
                         response_format: "base64", // Always get base64
                         width: 1536,
                         height: 1024, 

@@ -373,13 +373,17 @@ export async function POST(request: NextRequest) {
       tracks.push(imageTrack);
     }
 
-    // Track for main audio (if audioUrl is present)
-    if (audioUrl) {
+    // Track for main audio (use compressed audio if available, fallback to regular audio)
+    const audioUrlToUse = compressedAudioUrl || audioUrl;
+    
+    if (audioUrlToUse) {
+        console.log(`🎵 Using ${compressedAudioUrl ? 'compressed' : 'original'} audio for video: ${audioUrlToUse}`);
+        
         const audioTrack = {
             clips: [{
                 asset: {
                     type: "audio",
-                    src: audioUrl,
+                    src: audioUrlToUse,
                     volume: 1 // Ensure audio is audible
                 },
                 start: 0,
@@ -387,6 +391,8 @@ export async function POST(request: NextRequest) {
             }]
         };
         tracks.push(audioTrack);
+    } else {
+        console.warn('⚠️ No audio URL provided for video generation');
     }
 
     // Prepend dust overlay track if available (becomes the first track)
