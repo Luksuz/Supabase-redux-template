@@ -38,7 +38,7 @@ interface AudioState {
   audioProgress: {
     total: number
     completed: number
-    phase: 'chunks' | 'concatenating' | 'subtitles' | 'completed'
+    phase: 'chunks' | 'waiting' | 'concatenating' | 'subtitles' | 'completed'
   }
   selectedVoice: number
   selectedModel: string
