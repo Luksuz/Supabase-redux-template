@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
 import { Volume2, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Subtitles, ChevronDown, ChevronUp, Edit3, Copy } from 'lucide-react'
+import { AIVoice } from '@/app/api/ai-voices/route'
 
 // TTS Provider configurations with proper typing
 interface TTSProvider {
@@ -128,20 +129,6 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
     name: "Google Cloud TTS",
     voices: [
       // Voices will be loaded from API
-    ],
-    languages: [
-      { code: "en-US", name: "English (US)" },
-      { code: "en-GB", name: "English (UK)" },
-      { code: "es-ES", name: "Spanish (Spain)" },
-      { code: "es-US", name: "Spanish (US)" },
-      { code: "fr-FR", name: "French (France)" },
-      { code: "de-DE", name: "German (Germany)" },
-      { code: "it-IT", name: "Italian (Italy)" },
-      { code: "pt-BR", name: "Portuguese (Brazil)" },
-      { code: "ru-RU", name: "Russian (Russia)" },
-      { code: "ja-JP", name: "Japanese (Japan)" },
-      { code: "ko-KR", name: "Korean (Korea)" },
-      { code: "zh-CN", name: "Chinese (Mandarin)" }
     ]
   }
 }
@@ -178,6 +165,13 @@ export function AudioGenerator() {
   const [apiVoices, setApiVoices] = useState<any[]>([])
   const [isLoadingApiVoices, setIsLoadingApiVoices] = useState<boolean>(false)
   
+  // Custom voices from database
+  const [dbVoices, setDbVoices] = useState<AIVoice[]>([])
+  const [isLoadingDbVoices, setIsLoadingDbVoices] = useState<boolean>(false)
+  
+  // Google TTS specific state
+  const [googleTtsLanguage, setGoogleTtsLanguage] = useState<string>("")
+  
   // Voice Manager state
   const [showVoiceManager, setShowVoiceManager] = useState<boolean>(false)
   
@@ -206,12 +200,45 @@ export function AudioGenerator() {
     }
   }, [message, messageType])
 
+  // Fetch custom voices from database
+  const fetchDbVoices = async () => {
+    console.log('🔍 Fetching custom voices from database...')
+    setIsLoadingDbVoices(true)
+    try {
+      const response = await fetch('/api/ai-voices')
+      if (!response.ok) {
+        throw new Error('Failed to fetch custom voices')
+      }
+      const data = await response.json()
+      console.log(`✅ Loaded ${data.voices?.length || 0} custom voices from database`, data.voices)
+      setDbVoices(data.voices || [])
+    } catch (error: any) {
+      console.error('❌ Error fetching custom voices:', error)
+      // Don't show error message for this, just log it
+    } finally {
+      setIsLoadingDbVoices(false)
+    }
+  }
+
   // Load API voices on component mount if using ElevenLabs or Google TTS
   useEffect(() => {
     if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
       fetchApiVoices(selectedProvider)
     }
   }, []) // Only run on mount
+
+  // Load custom voices on component mount
+  useEffect(() => {
+    fetchDbVoices()
+  }, [])
+
+  // Auto-populate input text when full script is generated
+  useEffect(() => {
+    if (hasFullScript && fullScript && fullScript.scriptCleaned && !inputText.trim()) {
+      setInputText(fullScript.scriptCleaned)
+      showMessage('Full script automatically loaded into text input!', 'success')
+    }
+  }, [hasFullScript, fullScript, inputText])
 
   // Fetch voices when provider changes to ElevenLabs or Google TTS
   useEffect(() => {
@@ -222,16 +249,41 @@ export function AudioGenerator() {
       // Clear API voices for other providers
       setApiVoices([])
     }
+    
+    // Reset Google TTS language when provider changes
+    if (selectedProvider === 'google-tts') {
+      setGoogleTtsLanguage("")
+      setProviderVoice("")
+    }
   }, [selectedProvider])
 
   // Initialize language code properly for each provider
   useEffect(() => {
     if (selectedProvider === 'elevenlabs' && languageCode !== 'en') {
       setLanguageCode('en')
-    } else if (selectedProvider === 'google-tts' && languageCode !== 'en-US') {
-      setLanguageCode('en-US')
     }
   }, [selectedProvider])
+
+  // Initialize Google TTS language when voices are loaded
+  useEffect(() => {
+    if (selectedProvider === 'google-tts' && apiVoices.length > 0 && !googleTtsLanguage) {
+      const availableLanguages = getAvailableLanguages()
+      if (availableLanguages.length > 0) {
+        // Default to English (US) if available, otherwise first available language
+        const defaultLang = availableLanguages.find(lang => lang.code === 'en-US') || availableLanguages[0]
+        setGoogleTtsLanguage(defaultLang.code)
+        console.log(`🌍 Initialized Google TTS language to: ${defaultLang.code}`)
+      }
+    }
+  }, [selectedProvider, apiVoices])
+
+  // Reset voice selection when Google TTS language changes
+  useEffect(() => {
+    if (selectedProvider === 'google-tts' && googleTtsLanguage) {
+      setProviderVoice("") // Reset voice selection
+      console.log(`🔄 Reset voice selection for language: ${googleTtsLanguage}`)
+    }
+  }, [googleTtsLanguage])
 
   // Handle custom voice selection from voice manager
   const handleCustomVoiceSelect = (voiceId: string, voiceName: string) => {
@@ -289,13 +341,6 @@ export function AudioGenerator() {
     // Reset voice and model
     setProviderVoice(provider.voices?.[0]?.id || "");
     setProviderModel(provider.models?.[0]?.id || "");
-    
-    // Set appropriate language code
-    if (newProvider === 'google-tts') {
-      setLanguageCode('en-US');
-    } else if (newProvider === 'elevenlabs') {
-      setLanguageCode('en');
-    }
     
     // Fetch API voices if needed
     if (newProvider === 'elevenlabs' || newProvider === 'google-tts') {
@@ -459,8 +504,7 @@ export function AudioGenerator() {
             elevenLabsVoiceId: providerVoice, 
             elevenLabsModelId: providerModel, 
             languageCode: languageCode,
-            googleTtsVoiceName: providerVoice, 
-            googleTtsLanguageCode: languageCode
+            googleTtsVoiceName: providerVoice
           };
 
           const response = await fetch('/api/generate-audio-comprehensive', {
@@ -529,6 +573,13 @@ export function AudioGenerator() {
         const finalData = await finalizeResponse.json();
         if (!finalData.success) throw new Error(finalData.error || 'Audio finalization failed');
 
+        console.log('🎵 Audio finalization complete:', {
+          audioUrl: finalData.audioUrl,
+          compressedAudioUrl: finalData.compressedAudioUrl,
+          duration: finalData.duration,
+          subtitlesUrl: finalData.subtitlesUrl
+        });
+
         dispatch(completeAudioGeneration({
           audioUrl: finalData.audioUrl,
           compressedAudioUrl: finalData.compressedAudioUrl,
@@ -540,7 +591,7 @@ export function AudioGenerator() {
         }
 
         dispatch(saveGenerationToHistory());
-        showMessage(`Successfully generated compressed audio using ${currentProvider?.name}! (Optimized for video generation and storage)`, 'success');
+        showMessage(`Successfully generated audio using ${currentProvider?.name}! Original quality for video, compressed version for subtitles.`, 'success');
         setGenerationStatusMessage("");
         
       } catch (error: any) {
@@ -614,16 +665,26 @@ export function AudioGenerator() {
     console.log(`🎤 Getting display voices for provider: ${selectedProvider}`)
     console.log(`📦 Static voices:`, currentProvider?.voices || [])
     console.log(`📡 API voices:`, apiVoices)
+    console.log(`🗃️ Database voices:`, dbVoices.filter(v => v.provider === selectedProvider))
     console.log(`⏳ Loading API voices:`, isLoadingApiVoices)
     
+    // Get static voices from provider config
+    const staticVoices = currentProvider?.voices || []
+    
+    // Get custom voices from database for this provider
+    const customVoicesForProvider = dbVoices.filter(voice => voice.provider === selectedProvider)
+      .map(voice => ({
+        id: voice.voice_id,
+        name: `${voice.name} (Custom)`
+      }))
+    
     if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
-      // For API-based providers, prioritize API voices over static ones
-      const staticVoices = currentProvider?.voices || []
+      // For API-based providers, combine static, API, and custom voices
       const dynamicVoices = apiVoices || []
       
-      console.log(`🔗 Combining ${staticVoices.length} static + ${dynamicVoices.length} dynamic voices`)
+      console.log(`🔗 Combining ${staticVoices.length} static + ${dynamicVoices.length} dynamic + ${customVoicesForProvider.length} custom voices`)
       
-      // Create a Map to handle duplicates, with API voices taking priority
+      // Create a Map to handle duplicates, with API voices taking priority over static
       const voiceMap = new Map()
       
       // Add static voices first
@@ -640,20 +701,133 @@ export function AudioGenerator() {
         }
       })
       
-      const finalVoices = Array.from(voiceMap.values())
+      // Add custom voices (these will override both static and API if same ID)
+      customVoicesForProvider.forEach(voice => {
+        if (voice.id) {
+          voiceMap.set(voice.id, voice)
+        }
+      })
+      
+      let finalVoices = Array.from(voiceMap.values())
+      
+      // Filter by language for Google TTS
+      if (selectedProvider === 'google-tts' && googleTtsLanguage) {
+        finalVoices = finalVoices.filter(voice => 
+          voice.id && (voice.id.startsWith(googleTtsLanguage) || voice.name?.includes('(Custom)'))
+        )
+        console.log(`🔍 Filtered to ${finalVoices.length} voices for language: ${googleTtsLanguage}`)
+      }
+      
       console.log(`✅ Final voices to display:`, finalVoices)
       return finalVoices
     }
     
-    const staticVoicesOnly = currentProvider?.voices || []
-    console.log(`📋 Returning static voices only:`, staticVoicesOnly)
-    return staticVoicesOnly
+    // For non-API providers, combine static and custom voices
+    const combinedVoices = [...staticVoices, ...customVoicesForProvider]
+    console.log(`📋 Returning combined voices (${staticVoices.length} static + ${customVoicesForProvider.length} custom):`, combinedVoices)
+    return combinedVoices
   }
 
   const getVoiceDisplayName = (voiceId: string) => {
     const allVoices = getDisplayVoices()
     const voice = allVoices.find(v => v.id === voiceId)
+    
+    // For Google TTS, show simplified name since language is already selected
+    if (selectedProvider === 'google-tts' && voice?.name) {
+      // Remove language part from display name (e.g., "en-US-Wavenet-D (en-US) - FEMALE" -> "Wavenet-D - FEMALE")
+      const simplifiedName = voice.name.replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/ \([^)]+\)/, '')
+      return simplifiedName
+    }
+    
     return voice?.name || voiceId
+  }
+
+  // Get available languages from Google TTS voices
+  const getAvailableLanguages = () => {
+    if (selectedProvider !== 'google-tts' || !apiVoices || apiVoices.length === 0) {
+      return []
+    }
+    
+    const languages = new Set<string>()
+    apiVoices.forEach(voice => {
+      if (voice.id) {
+        // Extract language code from voice name (e.g., "en-US-Wavenet-D" -> "en-US")
+        const langMatch = voice.id.match(/^([a-z]{2}-[A-Z]{2})/)
+        if (langMatch) {
+          languages.add(langMatch[1])
+        }
+      }
+    })
+    
+    const sortedLanguages = Array.from(languages).sort()
+    console.log(`🌍 Available languages for Google TTS:`, sortedLanguages)
+    return sortedLanguages.map(lang => ({
+      code: lang,
+      name: getLanguageDisplayName(lang)
+    }))
+  }
+
+  // Get display name for language code
+  const getLanguageDisplayName = (langCode: string): string => {
+    const languageNames: Record<string, string> = {
+      'ar-XA': 'Arabic',
+      'bn-IN': 'Bengali (India)',
+      'bg-BG': 'Bulgarian',
+      'ca-ES': 'Catalan',
+      'zh-CN': 'Chinese (Mandarin)',
+      'zh-TW': 'Chinese (Taiwan)',
+      'cs-CZ': 'Czech',
+      'da-DK': 'Danish',
+      'nl-BE': 'Dutch (Belgium)',
+      'nl-NL': 'Dutch (Netherlands)',
+      'en-AU': 'English (Australia)',
+      'en-GB': 'English (UK)',
+      'en-IN': 'English (India)',
+      'en-US': 'English (US)',
+      'et-EE': 'Estonian',
+      'fi-FI': 'Finnish',
+      'fr-CA': 'French (Canada)',
+      'fr-FR': 'French (France)',
+      'de-DE': 'German',
+      'el-GR': 'Greek',
+      'gu-IN': 'Gujarati',
+      'he-IL': 'Hebrew',
+      'hi-IN': 'Hindi',
+      'hu-HU': 'Hungarian',
+      'is-IS': 'Icelandic',
+      'id-ID': 'Indonesian',
+      'it-IT': 'Italian',
+      'ja-JP': 'Japanese',
+      'kn-IN': 'Kannada',
+      'ko-KR': 'Korean',
+      'lv-LV': 'Latvian',
+      'lt-LT': 'Lithuanian',
+      'ms-MY': 'Malay',
+      'ml-IN': 'Malayalam',
+      'mr-IN': 'Marathi',
+      'nb-NO': 'Norwegian',
+      'pl-PL': 'Polish',
+      'pt-BR': 'Portuguese (Brazil)',
+      'pt-PT': 'Portuguese (Portugal)',
+      'pa-IN': 'Punjabi',
+      'ro-RO': 'Romanian',
+      'ru-RU': 'Russian',
+      'sr-RS': 'Serbian',
+      'sk-SK': 'Slovak',
+      'sl-SI': 'Slovenian',
+      'es-ES': 'Spanish (Spain)',
+      'es-US': 'Spanish (US)',
+      'sv-SE': 'Swedish',
+      'ta-IN': 'Tamil',
+      'te-IN': 'Telugu',
+      'th-TH': 'Thai',
+      'tr-TR': 'Turkish',
+      'uk-UA': 'Ukrainian',
+      'ur-IN': 'Urdu',
+      'vi-VN': 'Vietnamese'
+    }
+    
+    return languageNames[langCode] || langCode
   }
 
   return (
@@ -726,7 +900,33 @@ export function AudioGenerator() {
 
             {/* Provider-specific settings */}
             {currentProvider && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`grid gap-4 ${selectedProvider === 'google-tts' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
+                {/* Google TTS Language Selection (First Step) */}
+                {selectedProvider === 'google-tts' && (
+                  <div className="space-y-2">
+                    <Label>Language</Label>
+                    {isLoadingApiVoices ? (
+                      <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading languages...
+                      </div>
+                    ) : (
+                      <Select value={googleTtsLanguage} onValueChange={setGoogleTtsLanguage}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableLanguages().map((lang) => (
+                            <SelectItem key={lang.code} value={lang.code}>
+                              {lang.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+
                 {/* Voice Selection */}
                 <div className="space-y-2">
                   <Label>Voice</Label>
@@ -734,6 +934,10 @@ export function AudioGenerator() {
                     <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading voices...
+                    </div>
+                  ) : selectedProvider === 'google-tts' && !googleTtsLanguage ? (
+                    <div className="p-2 text-sm text-gray-500 bg-gray-50 rounded border">
+                      Please select a language first
                     </div>
                   ) : (
                     <Select value={providerVoice} onValueChange={setProviderVoice}>
@@ -770,8 +974,8 @@ export function AudioGenerator() {
                   </div>
                 )}
 
-                {/* Language Selection for ElevenLabs and Google TTS */}
-                {(selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') && currentProvider.languages && (
+                {/* Language Selection for ElevenLabs only */}
+                {selectedProvider === 'elevenlabs' && currentProvider.languages && (
                   <div className="space-y-2">
                     <Label>Language</Label>
                     <Select value={languageCode} onValueChange={setLanguageCode}>
@@ -855,8 +1059,8 @@ export function AudioGenerator() {
                 isGeneratingAudio || 
                 !providerVoice || 
                 (selectedProvider === 'fish-audio' && providerVoice === 'custom' && !customText) ||
-                (selectedProvider === 'google-tts' && !languageCode) ||
-                (selectedProvider === 'elevenlabs' && !languageCode)
+                (selectedProvider === 'elevenlabs' && !languageCode) ||
+                (selectedProvider === 'google-tts' && !googleTtsLanguage)
               }
               className="w-full bg-purple-600 hover:bg-purple-700"
               size="lg"

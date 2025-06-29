@@ -42,18 +42,24 @@ export async function listGoogleTtsVoices(): Promise<GoogleVoice[]> {
  * Synthesizes speech using Google Cloud Text-to-Speech.
  * @param text The text to synthesize.
  * @param voiceName The name of the voice to use (e.g., "en-US-Wavenet-D").
- * @param languageCode The language code (e.g., "en-US").
- * @param ssmlGender The SSML gender ('MALE', 'FEMALE', 'NEUTRAL').
+ * @param audioEncoding The audio encoding format.
  * @returns A promise that resolves to the audio content as a Buffer.
  */
 export async function synthesizeGoogleTts(
   text: string,
   voiceName: string,
-  languageCode: string,
-  // ssmlGender: 'MALE' | 'FEMALE' | 'NEUTRAL', // Voice name is usually specific enough
   audioEncoding: 'MP3' | 'LINEAR16' | 'OGG_OPUS' = 'MP3'
 ): Promise<Buffer> {
   try {
+    // Extract language code from voice name (e.g., "en-US-Wavenet-D" -> "en-US")
+    const languageCodeMatch = voiceName.match(/^([a-z]{2}-[A-Z]{2})/);
+    if (!languageCodeMatch) {
+      throw new Error(`Cannot extract language code from voice name: ${voiceName}`);
+    }
+    const languageCode = languageCodeMatch[1];
+    
+    console.log(`🇬☁️ Google TTS: Using voice=${voiceName}, extracted language=${languageCode}`);
+    
     const request = {
       input: { text: text },
       voice: { languageCode: languageCode, name: voiceName },

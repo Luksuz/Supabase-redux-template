@@ -373,11 +373,11 @@ export async function POST(request: NextRequest) {
       tracks.push(imageTrack);
     }
 
-    // Track for main audio (use compressed audio if available, fallback to regular audio)
-    const audioUrlToUse = compressedAudioUrl || audioUrl;
+    // Track for main audio (use original audio for video, fallback to compressed)
+    const audioUrlToUse = audioUrl || compressedAudioUrl;
     
     if (audioUrlToUse) {
-        console.log(`🎵 Using ${compressedAudioUrl ? 'compressed' : 'original'} audio for video: ${audioUrlToUse}`);
+        console.log(`🎵 Using ${audioUrl ? 'original' : 'compressed'} audio for video: ${audioUrlToUse}`);
         
         const audioTrack = {
             clips: [{

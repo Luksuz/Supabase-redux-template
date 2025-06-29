@@ -167,14 +167,13 @@ async function generateSingleAudioChunk(
         
       case "google-tts":
         if (!googleTtsVoiceName) throw new Error(`Missing googleTtsVoiceName for Google TTS [Chunk ${chunkIndex}]`);
-        if (!languageCode) throw new Error(`Missing languageCode for Google TTS [Chunk ${chunkIndex}]`);
-        console.log(`🇬☁️ [Chunk ${chunkIndex}] Google TTS: voice=${googleTtsVoiceName}, language=${languageCode}`);
+        console.log(`🇬☁️ [Chunk ${chunkIndex}] Google TTS: voice=${googleTtsVoiceName}`);
         
         try {
-          audioBuffer = await synthesizeGoogleTts(textChunk, googleTtsVoiceName, languageCode);
+          audioBuffer = await synthesizeGoogleTts(textChunk, googleTtsVoiceName);
         } catch (error: any) {
-          if (error.message && error.message.includes("doesn't match the voice")) {
-            const friendlyError = `Google TTS Error [Chunk ${chunkIndex}]: Language code mismatch. ${error.message}`;
+          if (error.message && error.message.includes("Cannot extract language code")) {
+            const friendlyError = `Google TTS Error [Chunk ${chunkIndex}]: Invalid voice name format. ${error.message}`;
             console.error(`❌ ${friendlyError}`);
             throw new Error(friendlyError);
           }
@@ -204,7 +203,7 @@ async function generateSingleAudioChunk(
 
 export async function POST(request: Request) {
   const requestBody = await request.json();
-  const { text, provider, voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, userId = "unknown_user", googleTtsVoiceName, googleTtsLanguageCode, chunkIndex } = requestBody;
+  const { text, provider, voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, userId = "unknown_user", googleTtsVoiceName, chunkIndex } = requestBody;
 
   console.log(`📥 Received audio generation request for chunk ${chunkIndex}`);
   console.log(`🔍 Request details: provider=${provider}, voice=${voice}, userId=${userId}, text length=${text?.length || 0}`);
@@ -247,7 +246,7 @@ export async function POST(request: Request) {
   try {
     await ensureDir(tempDirForRequest);
 
-    const providerSpecificArgs = { voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, provider, googleTtsVoiceName, googleTtsLanguageCode };
+    const providerSpecificArgs = { voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, provider, googleTtsVoiceName };
     
     const audioChunkPath = await generateSingleAudioChunk(chunkIndex || 0, text, provider, providerSpecificArgs, tempDirForRequest);
 

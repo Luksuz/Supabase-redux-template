@@ -7,6 +7,7 @@ import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
+import { VoiceManagement } from './voice-management'
 import { 
   Users, 
   AlertCircle, 
@@ -20,7 +21,8 @@ import {
   Eye,
   UserPlus,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Volume2
 } from 'lucide-react'
 
 interface ExtendedUserProfile {
@@ -65,6 +67,9 @@ export function AdminDashboard() {
   const [loadingUserVideos, setLoadingUserVideos] = useState<Set<string>>(new Set())
   const [editingUser, setEditingUser] = useState<ExtendedUserProfile | null>(null)
   const [showCreateUser, setShowCreateUser] = useState(false)
+  
+  // Admin section navigation
+  const [currentSection, setCurrentSection] = useState<'users' | 'voices'>('users')
   
   // Edit user form
   const [editForm, setEditForm] = useState({
@@ -319,232 +324,263 @@ export function AdminDashboard() {
           </p>
         </div>
 
-        {/* User Management Section */}
+        {/* Navigation Tabs */}
         <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              User Management ({users.length} total)
-              <div className="ml-auto flex gap-2">
-                <Button
-                  onClick={() => setShowCreateUser(!showCreateUser)}
-                  size="sm"
-                  variant="outline"
-                >
-                  <UserPlus className="h-4 w-4 mr-1" />
-                  {showCreateUser ? 'Cancel' : 'Add User'}
-                </Button>
-                <Button 
-                  onClick={fetchUsers} 
-                  size="sm" 
-                  variant="outline"
-                  disabled={loading}
-                >
-                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            </CardTitle>
-            <CardDescription>
-              Comprehensive user management with video tracking and admin controls
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Create User Form */}
-            {showCreateUser && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
-                <h4 className="font-medium text-blue-900">Create New User</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Email *</Label>
-                    <Input
-                      type="email"
-                      value={createForm.email}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="user@example.com"
-                    />
-                  </div>
-                  <div>
-                    <Label>Password *</Label>
-                    <Input
-                      type="password"
-                      value={createForm.password}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
-                      placeholder="Secure password"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="create-admin"
-                      checked={createForm.isAdmin}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, isAdmin: e.target.checked }))}
-                    />
-                    <Label htmlFor="create-admin">Admin privileges</Label>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleCreateUser} size="sm">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Create User
-                  </Button>
-                  <Button onClick={() => setShowCreateUser(false)} variant="outline" size="sm">
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Users List */}
-            {loading ? (
-              <div className="text-center py-8">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-                <p className="text-gray-500">Loading users...</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {users.map((userProfile) => (
-                  <div key={userProfile.id} className="border rounded-lg p-4 space-y-3">
-                    {/* User Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          {userProfile.is_admin && (
-                            <Crown className="h-4 w-4 text-yellow-600" />
-                          )}
-                          <span className="font-medium">
-                            {userProfile.email}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {userProfile.is_admin && (
-                            <Badge variant="secondary" className="text-xs">
-                              Admin
-                            </Badge>
-                          )}
-                          <Badge variant="outline" className="text-xs">
-                            <VideoIcon className="h-3 w-3 mr-1" />
-                            {userProfile.videos.total} videos
-                          </Badge>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={() => toggleUserExpansion(userProfile.id)}
-                          size="sm"
-                          variant="outline"
-                        >
-                          {expandedUsers.has(userProfile.id) ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          onClick={() => startEditUser(userProfile)}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          onClick={() => handleDeleteUser(userProfile.id, userProfile.email)}
-                          size="sm"
-                          variant="destructive"
-                          disabled={userProfile.id === user.id}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* User Stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                      <div>
-                        <span className="text-gray-500">Created:</span>
-                        <div>{formatDate(userProfile.created_at)}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Last Sign In:</span>
-                        <div>{userProfile.last_sign_in_at ? formatDate(userProfile.last_sign_in_at) : 'Never'}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Completed:</span>
-                        <div className="text-green-600 font-medium">{userProfile.videos.completed}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Processing:</span>
-                        <div className="text-blue-600 font-medium">{userProfile.videos.processing}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Failed:</span>
-                        <div className="text-red-600 font-medium">{userProfile.videos.failed}</div>
-                      </div>
-                    </div>
-
-                    {/* Expanded User Details */}
-                    {expandedUsers.has(userProfile.id) && (
-                      <div className="pt-3 border-t space-y-3">
-                        <h5 className="font-medium text-gray-900">User Videos</h5>
-                        {loadingUserVideos.has(userProfile.id) ? (
-                          <div className="text-center py-4">
-                            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
-                            <p className="text-sm text-gray-500">Loading videos...</p>
-                          </div>
-                        ) : userVideos[userProfile.id]?.length > 0 ? (
-                          <div className="space-y-2">
-                            {userVideos[userProfile.id].map((video) => (
-                              <div key={video.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                <div className="flex items-center gap-3">
-                                  <Badge 
-                                    variant={
-                                      video.status === 'completed' ? 'default' :
-                                      video.status === 'failed' ? 'destructive' : 'secondary'
-                                    }
-                                    className="text-xs"
-                                  >
-                                    {video.status}
-                                  </Badge>
-                                  <span className="text-sm">Video {video.id.slice(0, 8)}</span>
-                                  <span className="text-xs text-gray-500">
-                                    {formatDate(video.created_at)}
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    {video.image_urls.length} images
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {video.final_video_url && (
-                                    <Button
-                                      onClick={() => window.open(video.final_video_url!, '_blank')}
-                                      size="sm"
-                                      variant="outline"
-                                    >
-                                      <Eye className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                  <Button
-                                    onClick={() => handleDeleteVideo(userProfile.id, video.id)}
-                                    size="sm"
-                                    variant="destructive"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-500 text-center py-4">No videos found</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+          <CardContent className="pt-6">
+            <div className="flex gap-2">
+              <Button
+                variant={currentSection === 'users' ? 'default' : 'outline'}
+                onClick={() => setCurrentSection('users')}
+                className="flex items-center gap-2"
+              >
+                <Users className="h-4 w-4" />
+                User Management
+              </Button>
+              <Button
+                variant={currentSection === 'voices' ? 'default' : 'outline'}
+                onClick={() => setCurrentSection('voices')}
+                className="flex items-center gap-2"
+              >
+                <Volume2 className="h-4 w-4" />
+                Voice Management
+              </Button>
+            </div>
           </CardContent>
         </Card>
+
+        {/* User Management Section */}
+        {currentSection === 'users' && (
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                User Management ({users.length} total)
+                <div className="ml-auto flex gap-2">
+                  <Button
+                    onClick={() => setShowCreateUser(!showCreateUser)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" />
+                    {showCreateUser ? 'Cancel' : 'Add User'}
+                  </Button>
+                  <Button 
+                    onClick={fetchUsers} 
+                    size="sm" 
+                    variant="outline"
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+              </CardTitle>
+              <CardDescription>
+                Comprehensive user management with video tracking and admin controls
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Create User Form */}
+              {showCreateUser && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
+                  <h4 className="font-medium text-blue-900">Create New User</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Email *</Label>
+                      <Input
+                        type="email"
+                        value={createForm.email}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="user@example.com"
+                      />
+                    </div>
+                    <div>
+                      <Label>Password *</Label>
+                      <Input
+                        type="password"
+                        value={createForm.password}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder="Secure password"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="create-admin"
+                        checked={createForm.isAdmin}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                      />
+                      <Label htmlFor="create-admin">Admin privileges</Label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleCreateUser} size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Create User
+                    </Button>
+                    <Button onClick={() => setShowCreateUser(false)} variant="outline" size="sm">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Users List */}
+              {loading ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading users...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {users.map((userProfile) => (
+                    <div key={userProfile.id} className="border rounded-lg p-4 space-y-3">
+                      {/* User Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            {userProfile.is_admin && (
+                              <Crown className="h-4 w-4 text-yellow-600" />
+                            )}
+                            <span className="font-medium">
+                              {userProfile.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {userProfile.is_admin && (
+                              <Badge variant="secondary" className="text-xs">
+                                Admin
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="text-xs">
+                              <VideoIcon className="h-3 w-3 mr-1" />
+                              {userProfile.videos.total} videos
+                            </Badge>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => toggleUserExpansion(userProfile.id)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {expandedUsers.has(userProfile.id) ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            onClick={() => startEditUser(userProfile)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleDeleteUser(userProfile.id, userProfile.email)}
+                            size="sm"
+                            variant="destructive"
+                            disabled={userProfile.id === user.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* User Stats */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-500">Created:</span>
+                          <div>{formatDate(userProfile.created_at)}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Last Sign In:</span>
+                          <div>{userProfile.last_sign_in_at ? formatDate(userProfile.last_sign_in_at) : 'Never'}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Completed:</span>
+                          <div className="text-green-600 font-medium">{userProfile.videos.completed}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Processing:</span>
+                          <div className="text-blue-600 font-medium">{userProfile.videos.processing}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Failed:</span>
+                          <div className="text-red-600 font-medium">{userProfile.videos.failed}</div>
+                        </div>
+                      </div>
+
+                      {/* Expanded User Details */}
+                      {expandedUsers.has(userProfile.id) && (
+                        <div className="pt-3 border-t space-y-3">
+                          <h5 className="font-medium text-gray-900">User Videos</h5>
+                          {loadingUserVideos.has(userProfile.id) ? (
+                            <div className="text-center py-4">
+                              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />
+                              <p className="text-sm text-gray-500">Loading videos...</p>
+                            </div>
+                          ) : userVideos[userProfile.id]?.length > 0 ? (
+                            <div className="space-y-2">
+                              {userVideos[userProfile.id].map((video) => (
+                                <div key={video.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                  <div className="flex items-center gap-3">
+                                    <Badge 
+                                      variant={
+                                        video.status === 'completed' ? 'default' :
+                                        video.status === 'failed' ? 'destructive' : 'secondary'
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {video.status}
+                                    </Badge>
+                                    <span className="text-sm">Video {video.id.slice(0, 8)}</span>
+                                    <span className="text-xs text-gray-500">
+                                      {formatDate(video.created_at)}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {video.image_urls.length} images
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {video.final_video_url && (
+                                      <Button
+                                        onClick={() => window.open(video.final_video_url!, '_blank')}
+                                        size="sm"
+                                        variant="outline"
+                                      >
+                                        <Eye className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      onClick={() => handleDeleteVideo(userProfile.id, video.id)}
+                                      size="sm"
+                                      variant="destructive"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">No videos found</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Voice Management Section */}
+        {currentSection === 'voices' && (
+          <VoiceManagement />
+        )}
 
         {/* Edit User Modal */}
         {editingUser && (

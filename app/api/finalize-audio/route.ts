@@ -195,11 +195,44 @@ export async function POST(request: NextRequest) {
         const tempJoinedFileName = `${provider}-${voiceName}-${uuidv4()}-temp.mp3`;
         const tempJoinedAudioPath = await joinAudioChunks(downloadedChunkPaths, tempJoinedFileName, tempDir);
 
-        // 3. Create compressed audio directly from the joined audio
-        console.log(`🗜️ Creating compressed audio (skipping original upload to save storage)...`);
+        // 3. Upload original concatenated audio (for video generation)
+        console.log(`☁️ Uploading original audio for video generation...`);
+        const originalSupabasePath = `user_${userId}/audio/original/${path.basename(tempJoinedAudioPath)}`;
+        const originalAudioSupabaseUrl = await uploadFileToSupabase(tempJoinedAudioPath, originalSupabasePath, 'audio/mpeg');
+        
+        if (!originalAudioSupabaseUrl) {
+            throw new Error("Failed to upload original audio to Supabase Storage.");
+        }
+        
+        console.log(`☁️ Original audio uploaded: ${originalAudioSupabaseUrl}`);
+        
+        // 4. Create compressed audio (for subtitles only)
+        console.log(`🗜️ Creating compressed audio for subtitles...`);
         const compressedAudioPath = await createCompressedAudio(tempJoinedAudioPath, tempDir);
         
-        // 4. Upload only the compressed audio
+        // 5. Get audio duration using ffprobe (from original audio)
+        console.log(`⏱️ Getting audio duration from original audio...`);
+        let duration: number | null = null;
+        try {
+            const { exec } = require('child_process');
+            const { promisify } = require('util');
+            const execAsync = promisify(exec);
+            
+            const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${tempJoinedAudioPath}"`);
+            duration = parseFloat(stdout.trim());
+            
+            if (isNaN(duration) || duration <= 0) {
+                console.warn(`⚠️ Invalid duration detected: ${stdout.trim()}, will use null`);
+                duration = null;
+            } else {
+                console.log(`✅ Audio duration: ${duration.toFixed(2)} seconds`);
+            }
+        } catch (durationError) {
+            console.warn(`⚠️ Could not get audio duration:`, durationError);
+            duration = null;
+        }
+        
+        // 6. Upload compressed audio (for subtitles)
         const compressedSupabasePath = `user_${userId}/audio/compressed/${path.basename(compressedAudioPath)}`;
         const compressedAudioSupabaseUrl = await uploadFileToSupabase(compressedAudioPath, compressedSupabasePath, 'audio/mpeg');
         
@@ -209,7 +242,7 @@ export async function POST(request: NextRequest) {
         
         console.log(`☁️ Compressed audio uploaded: ${compressedAudioSupabaseUrl}`);
         
-        // 5. Generate subtitles using compressed audio
+        // 7. Generate subtitles using compressed audio
         let subtitlesUrl: string | null = null;
         try {
             subtitlesUrl = await generateSubtitlesFromAudio(compressedAudioSupabaseUrl, userId);
@@ -217,11 +250,12 @@ export async function POST(request: NextRequest) {
             console.warn(`⚠️ Could not generate subtitles.`, subtitleError)
         }
         
-        // 6. Return compressed audio URL as the main audio URL (no original audio saved)
+        // 8. Return original audio as main audio_url, compressed for subtitles
         return NextResponse.json({
             success: true,
-            audioUrl: compressedAudioSupabaseUrl, // Use compressed audio as main audio
-            compressedAudioUrl: compressedAudioSupabaseUrl, // Keep this for backward compatibility
+            audioUrl: originalAudioSupabaseUrl, // Original audio for video generation
+            compressedAudioUrl: compressedAudioSupabaseUrl, // Compressed audio for subtitles
+            duration: duration, // Duration from original audio
             subtitlesUrl: subtitlesUrl,
             subtitlesGenerated: !!subtitlesUrl
         });
