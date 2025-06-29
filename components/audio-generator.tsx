@@ -158,6 +158,10 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
   }
 }
 
+const AUDIO_CHUNK_MAX_LENGTH = 2500;
+const ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH = 1000;
+const BATCH_SIZE = 5; // Number of chunks to process concurrently
+
 export function AudioGenerator() {
   const dispatch = useAppDispatch()
   const { scripts, hasGeneratedScripts, fullScript, hasFullScript } = useAppSelector(state => state.scripts)
@@ -189,6 +193,7 @@ export function AudioGenerator() {
   // Message state for user feedback
   const [message, setMessage] = useState<string>("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+  const [generationStatusMessage, setGenerationStatusMessage] = useState<string>("")
 
   // Simple text input state
   const [inputText, setInputText] = useState<string>("")
@@ -426,118 +431,223 @@ export function AudioGenerator() {
     }
   }
 
+  const chunkText = (text: string, provider: string) => {
+    const maxLength = provider === 'elevenlabs' ? ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH : AUDIO_CHUNK_MAX_LENGTH;
+    if (!text || text.length <= maxLength) {
+      return [text];
+    }
+  
+    const chunks: string[] = [];
+    let currentPosition = 0;
+  
+    while (currentPosition < text.length) {
+      let chunkEnd = currentPosition + maxLength;
+      if (chunkEnd >= text.length) {
+        chunks.push(text.substring(currentPosition));
+        break;
+      }
+  
+      let splitPosition = -1;
+      const sentenceEndChars = /[.?!]\s+|[\n\r]+/g;
+      let match;
+      let lastMatchPosition = -1;
+      
+      const searchSubstr = text.substring(currentPosition, chunkEnd);
+      while((match = sentenceEndChars.exec(searchSubstr)) !== null) {
+          lastMatchPosition = currentPosition + match.index + match[0].length;
+      }
+  
+      if (lastMatchPosition > currentPosition && lastMatchPosition <= chunkEnd) {
+          splitPosition = lastMatchPosition;
+      } else {
+          let spacePosition = text.lastIndexOf(' ', chunkEnd);
+          if (spacePosition > currentPosition) {
+              splitPosition = spacePosition + 1;
+          } else {
+              splitPosition = chunkEnd;
+          }
+      }
+      chunks.push(text.substring(currentPosition, splitPosition).trim());
+      currentPosition = splitPosition;
+    }
+    return chunks.filter(chunk => chunk.length > 0);
+  }
+
   // Generate audio using the comprehensive backend API
   const handleGenerateAudio = async () => {
-    const contentSummary = getContentSummary()
-    if (!contentSummary) {
-      showMessage("No content available for audio generation", 'error')
-      return
-    }
-
-    const textToGenerate = contentSummary.textToProcess
-    if (!textToGenerate || !textToGenerate.trim()) {
-      showMessage("No text content found to generate audio", 'error')
-      return
+    const contentSummary = getContentSummary();
+    if (!contentSummary || !contentSummary.textToProcess.trim()) {
+      showMessage("No content available for audio generation", 'error');
+      return;
     }
 
     if (!providerVoice) {
-      showMessage('Please select a voice', 'error')
-      return
+      showMessage('Please select a voice', 'error');
+      return;
     }
 
-    const generationId = `audio_${Date.now()}`
-    
+    const textToGenerate = contentSummary.textToProcess;
+    const generationId = `audio_${Date.now()}`;
+    const textChunks = chunkText(textToGenerate, selectedProvider);
+    const totalChunks = textChunks.length;
+    let successfulChunkUrls: string[] = [];
+
+    dispatch(startAudioGeneration({
+      id: generationId,
+      voice: selectedVoice,
+      model: selectedModel,
+      generateSubtitles: false
+    }));
+    dispatch(setAudioProgress({ completed: 0, total: totalChunks, phase: 'chunks' }));
+    setGenerationStatusMessage(`Splitting text into ${totalChunks} chunks...`);
+
     try {
-      // Start audio generation
-      dispatch(startAudioGeneration({
-        id: generationId,
-        voice: selectedVoice, // Keep for Redux compatibility
-        model: selectedModel, // Keep for Redux compatibility  
-        generateSubtitles: false // Subtitles are generated automatically by the backend
-      }))
+      for (let i = 0; i < totalChunks; i += BATCH_SIZE) {
+        const batch = textChunks.slice(i, i + BATCH_SIZE);
+        setGenerationStatusMessage(`Processing chunks ${i + 1} to ${Math.min(i + BATCH_SIZE, totalChunks)} of ${totalChunks}...`);
 
-      console.log(`🎵 Starting audio generation with ${selectedProvider}`)
-      console.log(`📝 Text length: ${textToGenerate.length} characters`)
-
-      // Prepare provider-specific parameters
-      const requestBody: any = {
-        text: textToGenerate,
-        provider: selectedProvider,
-        userId: 'current_user'
+        const promises = batch.map(async (chunk, indexInBatch) => {
+          const chunkIndex = i + indexInBatch;
+          
+          const requestBody: any = {
+            text: chunk,
+            provider: selectedProvider,
+            userId: 'current_user',
+            chunkIndex,
+          };
+          
+          switch (selectedProvider) {
+            case 'openai':
+              requestBody.voice = providerVoice
+              requestBody.model = providerModel
+              break
+            case 'minimax':
+              requestBody.voice = providerVoice
+              requestBody.model = providerModel
+              break
+            case 'fish-audio':
+              requestBody.fishAudioVoiceId = providerVoice === 'custom' ? customText : providerVoice
+              requestBody.fishAudioModel = providerModel
+              break
+            case 'elevenlabs':
+              requestBody.elevenLabsVoiceId = providerVoice
+              requestBody.elevenLabsModelId = providerModel
+              if (languageCode && providerModel === 'eleven_flash_v2_5') {
+                requestBody.languageCode = languageCode
               }
-              
-      // Add provider-specific parameters
+              break
+            case 'google-tts':
+              requestBody.googleTtsVoiceName = providerVoice
+              requestBody.googleTtsLanguageCode = languageCode
+              requestBody.languageCode = languageCode
+              break
+          }
+
+          const response = await fetch('/api/generate-audio-comprehensive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Chunk ${chunkIndex + 1} failed: ${errorData.error}`);
+          }
+
+          return response.json();
+        });
+
+        const results = await Promise.allSettled(promises);
+        
+        results.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value.success) {
+            successfulChunkUrls.push(result.value.audioUrl);
+          } else {
+            const errorMessage = result.status === 'rejected' ? result.reason.message : `Chunk failed: ${result.value.error}`;
+            console.error(errorMessage);
+            showMessage(errorMessage, 'error');
+          }
+          const progress = Math.round(((successfulChunkUrls.length) / totalChunks) * 100);
+          dispatch(setAudioProgress({ completed: successfulChunkUrls.length, total: totalChunks, phase: 'chunks' }));
+        });
+      }
+
+      if (successfulChunkUrls.length === 0) {
+        throw new Error("All audio chunks failed to generate.");
+      }
+      
+      if (successfulChunkUrls.length < totalChunks) {
+          showMessage(`Warning: ${totalChunks - successfulChunkUrls.length} chunks failed. Final audio may be incomplete.`, 'error');
+      }
+
+      // Finalization step
+      setGenerationStatusMessage("All chunks generated. Joining audio files and generating subtitles...");
+      dispatch(setAudioProgress({ completed: totalChunks, total: totalChunks, phase: 'concatenating' }));
+
+      const finalizeBody: any = {
+          chunkUrls: successfulChunkUrls,
+          userId: 'current_user',
+          provider: selectedProvider,
+      };
+
       switch (selectedProvider) {
         case 'openai':
-          requestBody.voice = providerVoice
-          requestBody.model = providerModel
-          break
         case 'minimax':
-          requestBody.voice = providerVoice
-          requestBody.model = providerModel
-          break
+            finalizeBody.voice = providerVoice;
+            break;
         case 'fish-audio':
-          requestBody.fishAudioVoiceId = providerVoice === 'custom' ? customText : providerVoice
-          requestBody.fishAudioModel = providerModel
-          break
+            finalizeBody.fishAudioVoiceId = providerVoice;
+            break;
         case 'elevenlabs':
-          requestBody.elevenLabsVoiceId = providerVoice
-          requestBody.elevenLabsModelId = providerModel
-          if (languageCode && providerModel === 'eleven_flash_v2_5') {
-            requestBody.languageCode = languageCode
-          }
-          break
+            finalizeBody.elevenLabsVoiceId = providerVoice;
+            break;
         case 'google-tts':
-          requestBody.googleTtsVoiceName = providerVoice
-          requestBody.googleTtsLanguageCode = languageCode
-          requestBody.languageCode = languageCode
-          break
+            finalizeBody.googleTtsVoiceName = providerVoice;
+            break;
       }
 
-      console.log(`🔧 Request parameters:`, { ...requestBody, text: `${requestBody.text.substring(0, 100)}...` })
-
-      // Make API call to comprehensive audio generation endpoint
-      const response = await fetch('/api/generate-audio-comprehensive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `Audio generation failed: ${response.status} ${response.statusText}`)
-      }
-
-      const data = await response.json()
+      const finalizeResponse = await fetch('/api/finalize-audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(finalizeBody)
+      });
       
-      if (!data.success || !data.audioUrl) {
-        throw new Error(data.error || 'Audio generation failed')
+      if (!finalizeResponse.ok) {
+          const errorData = await finalizeResponse.json();
+          throw new Error(`Failed to finalize audio: ${errorData.error}`);
       }
 
-      // Complete audio generation
+      const finalData = await finalizeResponse.json();
+
+      if (!finalData.success) {
+          throw new Error(finalData.error || 'Audio finalization failed');
+      }
+      
+      const estimatedDuration = Math.ceil(textToGenerate.length / 15);
+
       dispatch(completeAudioGeneration({
-        audioUrl: data.audioUrl,
-        compressedAudioUrl: data.compressedAudioUrl,
-        duration: data.duration || 0
-      }))
+        audioUrl: finalData.audioUrl,
+        compressedAudioUrl: finalData.compressedAudioUrl,
+        duration: finalData.duration || estimatedDuration
+      }));
 
-      // Handle subtitles if they were generated
-      if (data.subtitlesUrl) {
-      dispatch(addSubtitlesToGeneration({
-        subtitlesUrl: data.subtitlesUrl
-      }))
+      if (finalData.subtitlesUrl) {
+        dispatch(addSubtitlesToGeneration({
+          subtitlesUrl: finalData.subtitlesUrl
+        }));
       }
 
-      // Save to history
-      dispatch(saveGenerationToHistory())
+      dispatch(saveGenerationToHistory());
       
-      const subtitleMessage = data.subtitlesGenerated ? ' (with subtitles)' : ''
-      showMessage(`Successfully generated audio using ${TTS_PROVIDERS[selectedProvider as keyof typeof TTS_PROVIDERS].name}${subtitleMessage}!`, 'success')
+      const subtitleMessage = finalData.subtitlesGenerated ? ' (with subtitles)' : '';
+      showMessage(`Successfully generated audio using ${TTS_PROVIDERS[selectedProvider as keyof typeof TTS_PROVIDERS].name}${subtitleMessage}!`, 'success');
+      setGenerationStatusMessage("");
 
     } catch (error: any) {
-      console.error('Audio generation error:', error)
-      dispatch(setAudioGenerationError(error.message))
-      showMessage(`Audio generation failed: ${error.message}`, 'error')
+      console.error('Audio generation error:', error);
+      dispatch(setAudioGenerationError(error.message));
+      showMessage(`Audio generation failed: ${error.message}`, 'error');
+      setGenerationStatusMessage("");
     }
   }
 
@@ -831,11 +941,11 @@ export function AudioGenerator() {
               <div className="space-y-2 p-4 bg-blue-50 rounded-lg">
                 <div className="flex justify-between text-sm">
                   <span>Generating Audio with {currentProvider?.name}</span>
-                  <span>Processing...</span>
+                  <span>{audioProgress.phase === 'chunks' ? `${Math.round((audioProgress.completed / audioProgress.total) * 100)}%` : 'Finalizing...'}</span>
                 </div>
-                <Progress value={100} className="h-2" />
-                <div className="text-xs text-gray-500">
-                  Using chunking and retry mechanism for optimal quality
+                <Progress value={audioProgress.total > 0 ? (audioProgress.completed / audioProgress.total) * 100 : 0} className="h-2" />
+                <div className="text-xs text-gray-500 text-center">
+                  {generationStatusMessage || 'Please wait...'}
                 </div>
               </div>
             )}

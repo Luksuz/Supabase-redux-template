@@ -6,27 +6,11 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
-import { spawn } from 'child_process';
 import { uploadFileToSupabase } from "@/lib/wellsaid-utils";
 import { v4 as uuidv4 } from 'uuid';
-import { exec } from 'child_process';
 import { synthesizeGoogleTts } from "@/utils/google-tts-utils";
 
 // Constants
-const AUDIO_CHUNK_MAX_LENGTH = 2800;
-const ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH = 1000;
-const MAX_CHUNK_GENERATION_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 1500;
-
-const DEFAULT_CHUNK_PROCESSING_BATCH_SIZE = 5;
-const DEFAULT_DELAY_AFTER_CHUNK_BATCH_MS = 60 * 1100;
-
-const ELEVENLABS_CHUNK_PROCESSING_BATCH_SIZE = 5;
-const ELEVENLABS_DELAY_AFTER_CHUNK_BATCH_MS = 60 * 1100;
-
-const FISH_AUDIO_CHUNK_PROCESSING_BATCH_SIZE = 3;
-const FISH_AUDIO_DELAY_AFTER_CHUNK_BATCH_MS = 60 * 1000;
-
 const FISH_AUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY || "4239d52824be4f088a406121777bb1ba";
 const FISH_AUDIO_MODEL_DEFAULT = process.env.FISH_AUDIO_MODEL || "speech-1.6";
 
@@ -48,47 +32,6 @@ async function ensureDir(dirPath: string) {
   } catch (error: any) {
     if (error.code !== 'EEXIST') throw error;
   }
-}
-
-function chunkText(text: string, maxLength: number = AUDIO_CHUNK_MAX_LENGTH): string[] {
-  if (!text || text.length <= maxLength) {
-    return [text];
-  }
-
-  const chunks: string[] = [];
-  let currentPosition = 0;
-
-  while (currentPosition < text.length) {
-    let chunkEnd = currentPosition + maxLength;
-    if (chunkEnd >= text.length) {
-      chunks.push(text.substring(currentPosition));
-      break;
-    }
-
-    let splitPosition = -1;
-    const sentenceEndChars = /[.?!]\s+|[\n\r]+/g;
-    let match;
-    let lastMatchPosition = -1;
-    
-    const searchSubstr = text.substring(currentPosition, chunkEnd);
-    while((match = sentenceEndChars.exec(searchSubstr)) !== null) {
-        lastMatchPosition = currentPosition + match.index + match[0].length;
-    }
-
-    if (lastMatchPosition > currentPosition && lastMatchPosition <= chunkEnd) {
-        splitPosition = lastMatchPosition;
-    } else {
-        let spacePosition = text.lastIndexOf(' ', chunkEnd);
-        if (spacePosition > currentPosition) {
-            splitPosition = spacePosition + 1;
-        } else {
-            splitPosition = chunkEnd;
-        }
-    }
-    chunks.push(text.substring(currentPosition, splitPosition).trim());
-    currentPosition = splitPosition;
-  }
-  return chunks.filter(chunk => chunk.length > 0);
 }
 
 async function generateSingleAudioChunk(
@@ -230,13 +173,11 @@ async function generateSingleAudioChunk(
         try {
           audioBuffer = await synthesizeGoogleTts(textChunk, googleTtsVoiceName, languageCode);
         } catch (error: any) {
-          // Handle language code mismatch errors specifically
           if (error.message && error.message.includes("doesn't match the voice")) {
             const friendlyError = `Google TTS Error [Chunk ${chunkIndex}]: Language code mismatch. ${error.message}`;
             console.error(`❌ ${friendlyError}`);
             throw new Error(friendlyError);
           }
-          // Handle other Google TTS specific errors
           if (error.details || error.message) {
             const friendlyError = `Google TTS Error [Chunk ${chunkIndex}]: ${error.details || error.message}`;
             console.error(`❌ ${friendlyError}`);
@@ -261,224 +202,11 @@ async function generateSingleAudioChunk(
   }
 }
 
-async function joinAudioChunks(
-  chunkFilePaths: string[],
-  finalOutputFileName: string,
-  baseOutputDir: string
-): Promise<string> {
-  if (!chunkFilePaths || chunkFilePaths.length === 0) {
-    throw new Error("No audio chunk file paths provided for joining.");
-  }
-  if (chunkFilePaths.length === 1) {
-    const finalPath = path.join(baseOutputDir, finalOutputFileName);
-    console.log(`📦 Only one chunk, moving ${chunkFilePaths[0]} to ${finalPath}`);
-    try {
-      await ensureDir(baseOutputDir);
-      await fsp.rename(chunkFilePaths[0], finalPath);
-      return finalPath;
-    } catch (renameError) {
-      console.error(`❌ Error moving single chunk file: ${renameError}`);
-      throw renameError;
-    }
-  }
-
-  console.log(`🎬 Joining ${chunkFilePaths.length} audio chunks into ${finalOutputFileName}...`);
-  await ensureDir(baseOutputDir);
-  const finalOutputPath = path.join(baseOutputDir, finalOutputFileName);
-  const listFileName = `ffmpeg-list-${uuidv4()}.txt`;
-  const tempDirForList = path.dirname(chunkFilePaths[0]); 
-  const listFilePath = path.join(tempDirForList, listFileName);
-
-  const fileListContent = chunkFilePaths
-    .map(filePath => {
-      if (typeof filePath !== 'string') {
-        throw new Error(`Invalid file path in chunkFilePaths: ${JSON.stringify(filePath)}`);
-      }
-      // Defensive: ensure filePath is defined and a string before calling replace
-      return `file '${path.resolve(filePath).replace(/\\/g, '/')}'`;
-    })
-    .join('\n');
-
-  try {
-    await fsp.writeFile(listFilePath, fileListContent);
-    console.log(`📄 Created ffmpeg file list: ${listFilePath}`);
-  } catch (writeError) {
-    console.error(`❌ Error writing ffmpeg list file: ${writeError}`);
-    throw writeError;
-  }
-
-  return new Promise((resolve, reject) => {
-    const ffmpegArgs = [
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', listFilePath,
-      '-b:a', '64k',
-      '-ar', '44100',
-      '-ac', '1',
-      '-y',
-      finalOutputPath
-    ];
-
-    console.log(`🚀 Running ffmpeg command: ffmpeg ${ffmpegArgs.join(' ')}`);
-    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
-
-    let ffmpegOutput = '';
-    ffmpegProcess.stdout.on('data', (data) => { ffmpegOutput += data.toString(); });
-    ffmpegProcess.stderr.on('data', (data) => { ffmpegOutput += data.toString(); });
-
-    ffmpegProcess.on('close', async (code) => {
-      console.log(`ffmpeg process exited with code ${code}`);
-      
-      try {
-        await fsp.rm(listFilePath);
-        console.log(`🧹 Cleaned up ffmpeg list file: ${listFilePath}`);
-      } catch (cleanupError) {
-        console.warn(`⚠️ Could not clean up ffmpeg list file ${listFilePath}:`, cleanupError);
-      }
-
-      if (code === 0) {
-        console.log(`✅ Audio chunks successfully joined into ${finalOutputPath}`);
-        console.log(`🧹 Cleaning up ${chunkFilePaths.length} individual chunk files...`);
-        let cleanupFailures = 0;
-        for (const chunkPath of chunkFilePaths) {
-          try {
-            await fsp.rm(chunkPath);
-          } catch (chunkCleanupError) {
-            cleanupFailures++;
-            console.warn(`⚠️ Failed to clean up chunk file ${chunkPath}:`, chunkCleanupError);
-          }
-        }
-        if (cleanupFailures > 0) {
-           console.warn(`⚠️ Failed to clean up ${cleanupFailures} chunk files.`);
-        }
-        resolve(finalOutputPath);
-      } else {
-        console.error(`❌ ffmpeg failed with code ${code}.`);
-        try { 
-            if (fs.existsSync(finalOutputPath)) {
-                await fsp.rm(finalOutputPath); 
-                console.log(`🧹 Cleaned up potentially incomplete output file: ${finalOutputPath}`);
-            } 
-        } catch (e) { 
-            console.warn(`⚠️ Could not clean up failed output file ${finalOutputPath}:`, e);
-        } 
-        reject(new Error(`ffmpeg failed to join audio chunks. Code: ${code}`));
-      }
-    });
-
-    ffmpegProcess.on('error', (err) => {
-      console.error('❌ Failed to start ffmpeg process:', err);
-      fsp.rm(listFilePath).catch(cleanupError => {
-        console.warn(`⚠️ Could not clean up ffmpeg list file ${listFilePath} after spawn error:`, cleanupError);
-      });
-      fsp.rm(finalOutputPath).catch(() => {}); 
-      reject(err);
-    });
-  });
-}
-
-async function createCompressedAudio(originalAudioPath: string, outputDir: string): Promise<string> {
-  const compressedFileName = `compressed-${path.basename(originalAudioPath)}`;
-  const compressedFilePath = path.join(outputDir, compressedFileName);
-  
-  try {
-    console.log(`🗜️ Creating compressed audio: ${originalAudioPath} -> ${compressedFilePath}`);
-    
-    // Use ffmpeg to create a compressed version suitable for subtitle generation
-    // Lower bitrate and quality for faster processing by Whisper
-    const ffmpegCommand = `ffmpeg -i "${originalAudioPath}" -ar 16000 -ac 1 -b:a 32k -f mp3 "${compressedFilePath}"`;
-    
-    await new Promise<void>((resolve, reject) => {
-      exec(ffmpegCommand, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`❌ FFmpeg compression error: ${error.message}`);
-          reject(error);
-          return;
-        }
-        console.log(`✅ Audio compressed successfully: ${compressedFilePath}`);
-        resolve();
-      });
-    });
-    
-    return compressedFilePath;
-  } catch (error: any) {
-    console.error(`❌ Error compressing audio: ${error.message}`);
-    throw error;
-  }
-}
-
-async function generateSubtitlesFromAudio(audioUrl: string, userId: string): Promise<string> {
-  console.log(`🔤 Generating subtitles for audio: ${audioUrl}`);
-  
-  try {
-    // Call our existing subtitle generation endpoint (fix the endpoint URL)
-    const apiUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/generate-subtitles`;
-    console.log(`🌐 Making request to: ${apiUrl}`);
-    
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        audioUrl: audioUrl,
-        userId: userId
-      })
-    });
-
-    console.log(`📡 Subtitle API response status: ${response.status} ${response.statusText}`);
-    console.log(`📡 Response headers:`, Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      // Try to get the response text to see what's actually being returned
-      const responseText = await response.text();
-      console.error(`❌ Subtitle API error response: ${responseText.substring(0, 500)}...`);
-      
-      // Check if it's HTML (likely an error page)
-      if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-        throw new Error(`Subtitle API returned HTML error page (${response.status}). The API endpoint may not exist or be accessible.`);
-      }
-      
-      // Try to parse as JSON if it's not HTML
-      try {
-        const errorData = JSON.parse(responseText);
-        throw new Error(`Subtitle generation failed: ${response.status} ${response.statusText} - ${errorData.error || 'Unknown error'}`);
-      } catch (parseError) {
-        throw new Error(`Subtitle generation failed: ${response.status} ${response.statusText} - ${responseText.substring(0, 200)}`);
-      }
-    }
-
-    const responseText = await response.text();
-    console.log(`📡 Subtitle API response (first 200 chars): ${responseText.substring(0, 200)}...`);
-    
-    // Try to parse the response as JSON
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error(`❌ Failed to parse subtitle API response as JSON: ${parseError}`);
-      console.error(`❌ Response content: ${responseText.substring(0, 500)}...`);
-      throw new Error(`Subtitle API returned invalid JSON response`);
-    }
-    
-    if (!data.success || !data.subtitlesUrl) {
-      throw new Error('Subtitle generation failed: No subtitles URL returned');
-    }
-
-    console.log(`✅ Subtitles generated successfully: ${data.subtitlesUrl}`);
-    return data.subtitlesUrl;
-
-  } catch (error: any) {
-    console.error('❌ Error generating subtitles:', error);
-    throw error;
-  }
-}
-
 export async function POST(request: Request) {
   const requestBody = await request.json();
-  const { text, provider, voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, userId = "unknown_user", googleTtsVoiceName, googleTtsLanguageCode, googleTtsSsmlGender } = requestBody;
+  const { text, provider, voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, userId = "unknown_user", googleTtsVoiceName, googleTtsLanguageCode, chunkIndex } = requestBody;
 
-  console.log("📥 Received audio generation request (comprehensive)");
+  console.log(`📥 Received audio generation request for chunk ${chunkIndex}`);
   console.log(`🔍 Request details: provider=${provider}, voice=${voice}, userId=${userId}, text length=${text?.length || 0}`);
 
   // Validate required fields based on provider
@@ -514,215 +242,33 @@ export async function POST(request: Request) {
   }
 
   const baseTempDirRoot = path.join(process.cwd(), 'temp-audio-processing');
-  const tempDirForRequest = path.join(baseTempDirRoot, `req-${uuidv4()}`);
-
-  await ensureDir(tempDirForRequest);
-
-  let finalAudioSupabaseUrl: string | null = null;
-  const allGeneratedChunkPathsForCleanup: string[] = [];
-  let audioDuration = 0;
+  const tempDirForRequest = path.join(baseTempDirRoot, `req-chunk-${chunkIndex}-${uuidv4()}`);
 
   try {
-    const currentChunkMaxLength = provider === "elevenlabs" ? ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH : AUDIO_CHUNK_MAX_LENGTH;
-    const textChunks = chunkText(text, currentChunkMaxLength);
-    console.log(`📝 Text split into ${textChunks.length} chunks (max length: ${currentChunkMaxLength}).`);
+    await ensureDir(tempDirForRequest);
 
-    if (textChunks.length === 0) {
-      return NextResponse.json({ error: "No text content to process after chunking." }, { status: 400 });
-    }
-
-    const providerSpecificArgs: any = { voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, provider };
-    if (provider === "google-tts") {
-      providerSpecificArgs.googleTtsVoiceName = googleTtsVoiceName;
-      providerSpecificArgs.languageCode = googleTtsLanguageCode || languageCode;
-    }
-    const successfulChunkPaths: (string | null)[] = new Array(textChunks.length).fill(null);
-    let allChunksSucceeded = false;
-
-    for (let attempt = 1; attempt <= MAX_CHUNK_GENERATION_ATTEMPTS; attempt++) {
-      console.log(`🔄 Overall Attempt ${attempt}/${MAX_CHUNK_GENERATION_ATTEMPTS} for generating audio chunks.`);
-      
-      const tasksForThisAttempt: { originalIndex: number; textChunk: string }[] = [];
-      for (let i = 0; i < textChunks.length; i++) {
-        if (successfulChunkPaths[i] === null) {
-          tasksForThisAttempt.push({ originalIndex: i, textChunk: textChunks[i] });
-        }
-      }
-
-      if (tasksForThisAttempt.length === 0) {
-        allChunksSucceeded = true;
-        console.log("✅ All chunks generated successfully in previous overall attempts.");
-        break;
-      }
-
-      const currentBatchSize = provider === "elevenlabs" ? ELEVENLABS_CHUNK_PROCESSING_BATCH_SIZE : 
-                               provider === "fish-audio" ? FISH_AUDIO_CHUNK_PROCESSING_BATCH_SIZE : 
-                               DEFAULT_CHUNK_PROCESSING_BATCH_SIZE;
-      const currentDelayAfterBatch = provider === "elevenlabs" ? ELEVENLABS_DELAY_AFTER_CHUNK_BATCH_MS : 
-                                     provider === "fish-audio" ? FISH_AUDIO_DELAY_AFTER_CHUNK_BATCH_MS : 
-                                     DEFAULT_DELAY_AFTER_CHUNK_BATCH_MS;
-
-      console.log(`🌀 In Overall Attempt ${attempt}, ${tasksForThisAttempt.length} chunks pending. Processing in batches of up to ${currentBatchSize}.`);
-
-      for (let batchStartIndex = 0; batchStartIndex < tasksForThisAttempt.length; batchStartIndex += currentBatchSize) {
-        const currentBatchTasks = tasksForThisAttempt.slice(batchStartIndex, batchStartIndex + currentBatchSize);
-
-        console.log(`  Attempting batch of ${currentBatchTasks.length} chunks`);
-        
-        const chunkGenerationPromises = currentBatchTasks.map(task => 
-          generateSingleAudioChunk(task.originalIndex, task.textChunk, provider, providerSpecificArgs, tempDirForRequest)
-        );
-
-        const results = await Promise.allSettled(chunkGenerationPromises);
-
-        results.forEach((result, promiseIndex) => {
-          const task = currentBatchTasks[promiseIndex];
-          if (result.status === 'fulfilled') {
-            console.log(`    ✅ Chunk ${task.originalIndex} (Overall Attempt ${attempt}) succeeded: ${result.value}`);
-            successfulChunkPaths[task.originalIndex] = result.value;
-            if (!allGeneratedChunkPathsForCleanup.includes(result.value)) {
-              allGeneratedChunkPathsForCleanup.push(result.value);
-            }
-          } else {
-            console.error(`    ❌ Chunk ${task.originalIndex} (Overall Attempt ${attempt}) failed:`, result.reason);
-          }
-        });
-
-        if (successfulChunkPaths.every(p => p !== null)) {
-          allChunksSucceeded = true;
-          console.log("✅ All chunks generated successfully after this batch.");
-          break;
-        }
-
-        if (batchStartIndex + currentBatchSize < tasksForThisAttempt.length) {
-          console.log(`  ⏱️ Batch processed. Waiting ${currentDelayAfterBatch / 1000}s before next batch...`);
-          await new Promise(resolve => setTimeout(resolve, currentDelayAfterBatch));
-        }
-      }
-
-      if (allChunksSucceeded) {
-        break;
-      }
-
-      const remainingFailedChunks = successfulChunkPaths.filter(p => p === null).length;
-      if (attempt < MAX_CHUNK_GENERATION_ATTEMPTS && remainingFailedChunks > 0) {
-        console.log(`⏱️ Overall Attempt ${attempt} finished. Waiting ${RETRY_DELAY_MS}ms before next overall attempt for remaining ${remainingFailedChunks} chunks...`);
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-      }
-    }
-
-    const finalGeneratedPaths = successfulChunkPaths.filter(p => p !== null) as string[];
-
-    if (finalGeneratedPaths.length === 0) {
-      throw new Error("All audio chunks failed to generate after all attempts.");
-    }
-
-    if (finalGeneratedPaths.length < textChunks.length) {
-      console.warn(`⚠️ Only ${finalGeneratedPaths.length}/${textChunks.length} chunks generated successfully after all attempts. Proceeding with available chunks.`);
-    }
+    const providerSpecificArgs = { voice, model, fishAudioVoiceId, fishAudioModel, elevenLabsVoiceId, elevenLabsModelId, languageCode, provider, googleTtsVoiceName, googleTtsLanguageCode };
     
-    const localFinalFileName = `${provider}-${
-      provider === "google-tts" ? 
-        (googleTtsVoiceName || 'unknown_voice').replace(/[^a-zA-Z0-9]/g, '_') : 
-        provider === "elevenlabs" ?
-          (elevenLabsVoiceId || 'unknown_voice').replace(/[^a-zA-Z0-9]/g, '_') :
-          provider === "fish-audio" ?
-            (fishAudioVoiceId || 'unknown_voice').replace(/[^a-zA-Z0-9]/g, '_') :
-            (voice || 'unknown_voice').replace(/\s+/g, '_')
-    }-${uuidv4()}-final.mp3`;
-    const localFinalFilePath = path.join(tempDirForRequest, localFinalFileName);
+    const audioChunkPath = await generateSingleAudioChunk(chunkIndex || 0, text, provider, providerSpecificArgs, tempDirForRequest);
 
-    let fileToUploadPath: string;
+    const supabaseDestinationPath = `user_${userId}/audio_chunks/${path.basename(audioChunkPath)}`;
+    const audioSupabaseUrl = await uploadFileToSupabase(audioChunkPath, supabaseDestinationPath, 'audio/mpeg');
 
-    if (finalGeneratedPaths.length > 1) {
-      fileToUploadPath = await joinAudioChunks(finalGeneratedPaths, localFinalFileName, tempDirForRequest);
-    } else {
-      const singleChunkPath = finalGeneratedPaths[0];
-      await fsp.rename(singleChunkPath, localFinalFilePath);
-      console.log(`🎵 Single chunk moved to temporary final location: ${localFinalFilePath}`);
-      fileToUploadPath = localFinalFilePath;
-      const movedFileIndex = allGeneratedChunkPathsForCleanup.indexOf(singleChunkPath);
-      if (movedFileIndex > -1) {
-        allGeneratedChunkPathsForCleanup.splice(movedFileIndex, 1);
-      }
+    if (!audioSupabaseUrl) {
+        throw new Error("Failed to upload the audio chunk to Supabase Storage.");
     }
 
-    const supabaseDestinationPath = `user_${userId}/audio/${uuidv4()}.mp3`;
-    finalAudioSupabaseUrl = await uploadFileToSupabase(fileToUploadPath, supabaseDestinationPath, 'audio/mpeg');
-
-    if (!finalAudioSupabaseUrl) {
-        throw new Error("Failed to upload the final audio file to Supabase Storage.");
-    }
-
-    // Create compressed audio for subtitle generation
-    let compressedAudioSupabaseUrl: string | null = null;
-    try {
-      console.log("🗜️ Creating compressed audio for subtitle generation");
-      const compressedAudioPath = await createCompressedAudio(fileToUploadPath, tempDirForRequest);
-      
-      // Upload compressed audio to Supabase
-      const compressedSupabaseDestinationPath = `user_${userId}/audio/compressed/${uuidv4()}.mp3`;
-      compressedAudioSupabaseUrl = await uploadFileToSupabase(compressedAudioPath, compressedSupabaseDestinationPath, 'audio/mpeg');
-      
-      if (compressedAudioSupabaseUrl) {
-        console.log(`✅ Compressed audio uploaded: ${compressedAudioSupabaseUrl}`);
-      } else {
-        console.warn("⚠️ Failed to upload compressed audio, will use original for subtitles");
-      }
-    } catch (compressionError: any) {
-      console.warn("⚠️ Audio compression failed, will use original for subtitles:", compressionError.message);
-    }
-
-    audioDuration = Math.ceil(text.length / 15); 
-
-    let subtitlesUrl = null;
-    let isSrtSaved = false;
-    
-    // Generate subtitles using the compressed audio (if available) or original audio
-    const audioUrlForSubtitles = compressedAudioSupabaseUrl || finalAudioSupabaseUrl;
-    if (audioUrlForSubtitles) {
-      try {
-        console.log(`🔤 Starting subtitle generation using ${compressedAudioSupabaseUrl ? 'compressed' : 'original'} audio`);
-        
-        // Re-enable subtitle generation
-        subtitlesUrl = await generateSubtitlesFromAudio(audioUrlForSubtitles, userId);
-        isSrtSaved = true;
-        console.log(`✅ Subtitle generation complete: ${subtitlesUrl}`);
-        
-      } catch (subtitleError: any) {
-        console.error("⚠️ Error generating subtitles:", subtitleError.message);
-        console.log("⚠️ Continuing with audio generation result despite subtitle error");
-      }
-    }
-
-    console.log(`✅ Audio generated and uploaded successfully.`);
-    console.log(`📤 Sending response: audioUrl=${finalAudioSupabaseUrl}, compressedAudioUrl=${compressedAudioSupabaseUrl}, subtitlesUrl=${subtitlesUrl}, estimated duration=${audioDuration}s`);
+    console.log(`✅ Chunk ${chunkIndex} generated and uploaded successfully.`);
     return NextResponse.json({
       success: true,
-      audioUrl: finalAudioSupabaseUrl,
-      compressedAudioUrl: compressedAudioSupabaseUrl,
-      subtitlesUrl: subtitlesUrl,
-      subtitlesGenerated: isSrtSaved,
-      duration: audioDuration,
-      provider,
-      voice,
+      audioUrl: audioSupabaseUrl,
+      chunkIndex: chunkIndex,
     });
 
   } catch (error: any) {
-    console.error("❌ Error generating audio:", error.message, error.stack);
-    console.log(`🧹 Cleaning up ${allGeneratedChunkPathsForCleanup.length} leftover temporary chunk files due to error...`);
-    for (const tempFile of allGeneratedChunkPathsForCleanup) {
-        try { 
-          if(fs.existsSync(tempFile)) { 
-            await fsp.rm(tempFile); 
-            console.log(`🚮 Deleted temp file: ${tempFile}`);
-          }
-        } catch (e) { 
-          console.warn(`🧹 Cleanup failed for temp chunk: ${tempFile}`, e); 
-        }
-    }
+    console.error(`❌ Error generating audio for chunk ${chunkIndex}:`, error.message, error.stack);
     return NextResponse.json(
-      { error: `Failed to generate audio: ${error.message}` },
+      { error: `Failed to generate audio for chunk ${chunkIndex}: ${error.message}` },
       { status: 500 }
     );
   } finally {
