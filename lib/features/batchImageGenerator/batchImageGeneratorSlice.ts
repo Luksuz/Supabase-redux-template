@@ -1,72 +1,95 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
-export interface GeneratedImage {
-  promptId: string
-  prompt: string
-  imageUrl: string | null
-  mediaType?: 'image' | 'video'
-  status: 'pending' | 'generating' | 'completed' | 'error'
-  error?: string | null
-  generatedAt?: string
-}
-
 export interface StockImage {
   id: string | number
   url: string
   thumbnail: string
-  source: 'pexels' | 'pixabay'
+  source: 'pexels' | 'pixabay' | 'storyblocks'
   photographer: string
   type: 'image' | 'video'
 }
 
-export interface StockSearchResults {
-  pexels: StockImage[]
-  pixabay: StockImage[]
-  storyblocks: StockImage[]
+export interface MediaCard {
+  promptId: string
+  prompt: string
+  searchQuery?: string
+  sceneNumber: number
+  sourceType: 'search' | 'ai' // New field to distinguish source
+  // Current selected media
+  selectedImageUrl: string | null
+  selectedImageType: 'image' | 'video' | null
+  selectedSource: 'generated' | 'stock' | null
+  // Selection state
+  isSelected: boolean
+  selectionOrder: number | null // 1, 2, 3, etc.
+  // Stock search results
+  stockResults: StockImage[]
   isSearching: boolean
+  searchError: string | null
+  // Generation state
+  status: 'pending' | 'generating' | 'completed' | 'error'
   error?: string | null
+  // Saved state
+  isSaved: boolean
+  savedUrl: string | null // Supabase public URL after saving
 }
 
 interface BatchImageGeneratorState {
   // Configuration
   provider: string
   aspectRatio: string
+  searchProvider: 'pexels' | 'pixabay' | 'storyblocks' | 'flickr'
+  searchType: 'image' | 'video'
+  mode: 'generate' | 'search' | 'extract' // Added extract mode
+  extractionType: 'video' | 'image' // For video/image extraction
+  extractionOrientation: 'portrait' | 'landscape' // For extraction orientation
+  
+  // Media cards (simplified single source of truth)
+  mediaCards: MediaCard[]
   
   // Generation state
-  generatedImages: GeneratedImage[]
   isGenerating: boolean
   progress: number
   currentBatch: number
   totalBatches: number
   timeRemaining: string | null
   
-  // Statistics
-  totalGenerated: number
-  totalErrors: number
-  lastGeneratedAt: string | null
+  // Selection state
+  selectedCount: number
+  nextSelectionOrder: number
+  
+  // Save state
+  isSaving: boolean
+  saveProgress: number
   
   // UI state
   error: string | null
-  stockSearchResults: Record<string, StockSearchResults>
 }
 
 const initialState: BatchImageGeneratorState = {
   provider: 'dalle-3',
   aspectRatio: '16:9',
+  searchProvider: 'pexels',
+  searchType: 'image',
+  mode: 'generate',
+  extractionType: 'image',
+  extractionOrientation: 'landscape',
   
-  generatedImages: [],
+  mediaCards: [],
+  
   isGenerating: false,
   progress: 0,
   currentBatch: 0,
   totalBatches: 0,
   timeRemaining: null,
   
-  totalGenerated: 0,
-  totalErrors: 0,
-  lastGeneratedAt: null,
+  selectedCount: 0,
+  nextSelectionOrder: 1,
+  
+  isSaving: false,
+  saveProgress: 0,
   
   error: null,
-  stockSearchResults: {}
 }
 
 export const batchImageGeneratorSlice = createSlice({
@@ -82,15 +105,111 @@ export const batchImageGeneratorSlice = createSlice({
       state.aspectRatio = action.payload
     },
     
-    // Generation state actions
-    startGeneration: (state, action: PayloadAction<{ totalBatches: number; initialImages: GeneratedImage[] }>) => {
+    setSearchProvider: (state, action: PayloadAction<'pexels' | 'pixabay' | 'storyblocks' | 'flickr'>) => {
+      state.searchProvider = action.payload
+    },
+    
+    setSearchType: (state, action: PayloadAction<'image' | 'video'>) => {
+      state.searchType = action.payload
+    },
+    
+    setMode: (state, action: PayloadAction<'generate' | 'search' | 'extract'>) => {
+      state.mode = action.payload
+    },
+    
+    setExtractionType: (state, action: PayloadAction<'video' | 'image'>) => {
+      state.extractionType = action.payload
+    },
+    
+    setExtractionOrientation: (state, action: PayloadAction<'portrait' | 'landscape'>) => {
+      state.extractionOrientation = action.payload
+    },
+    
+    // Initialize media cards from prompts
+    initializeMediaCards: (state, action: PayloadAction<Array<{ promptId: string; prompt: string; searchQuery?: string; sceneNumber: number; sourceType: 'search' | 'ai' }>>) => {
+      const newCards = action.payload.map(item => ({
+        promptId: item.promptId,
+        prompt: item.prompt,
+        searchQuery: item.searchQuery,
+        sceneNumber: item.sceneNumber,
+        sourceType: item.sourceType,
+        selectedImageUrl: null,
+        selectedImageType: null,
+        selectedSource: null,
+        isSelected: false,
+        selectionOrder: null,
+        stockResults: [],
+        isSearching: false,
+        searchError: null,
+        status: 'pending' as const,
+        isSaved: false,
+        savedUrl: null
+      }))
+      
+      // Only add cards that don't already exist (same promptId)
+      const existingPromptIds = new Set(state.mediaCards.map(card => card.promptId))
+      const uniqueNewCards = newCards.filter(card => !existingPromptIds.has(card.promptId))
+      
+      state.mediaCards = [...state.mediaCards, ...uniqueNewCards]
+    },
+    
+    // Stock search actions
+    startStockSearch: (state, action: PayloadAction<{ promptId: string }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card) {
+        card.isSearching = true
+        card.searchError = null
+      }
+    },
+    
+    setStockSearchResults: (state, action: PayloadAction<{ promptId: string; results: StockImage[] }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card) {
+        card.stockResults = action.payload.results
+        card.isSearching = false
+        // Auto-select first result if none selected
+        if (!card.selectedImageUrl && action.payload.results.length > 0) {
+          const firstResult = action.payload.results[0]
+          card.selectedImageUrl = firstResult.url
+          card.selectedImageType = firstResult.type
+          card.selectedSource = 'stock'
+          card.status = 'completed'
+        }
+      }
+    },
+    
+    setStockSearchError: (state, action: PayloadAction<{ promptId: string; error: string }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card) {
+        card.searchError = action.payload.error
+        card.isSearching = false
+      }
+    },
+    
+    // Search all cards
+    searchAllCards: (state) => {
+      state.mediaCards.forEach(card => {
+        if (card.searchQuery) {
+          card.isSearching = true
+          card.searchError = null
+        }
+      })
+    },
+    
+    // Image generation actions
+    startGeneration: (state, action: PayloadAction<{ totalBatches: number }>) => {
       state.isGenerating = true
       state.progress = 0
       state.currentBatch = 0
       state.totalBatches = action.payload.totalBatches
-      state.generatedImages = action.payload.initialImages
       state.timeRemaining = null
       state.error = null
+      
+      // Reset generation status
+      state.mediaCards.forEach(card => {
+        card.status = 'pending'
+        card.error = null
+      })
     },
     
     updateBatch: (state, action: PayloadAction<{ batchNumber: number; timeRemaining: string | null }>) => {
@@ -102,35 +221,27 @@ export const batchImageGeneratorSlice = createSlice({
       state.progress = action.payload
     },
     
-    updateImageStatus: (state, action: PayloadAction<{ promptId: string; status: GeneratedImage['status'] }>) => {
-      const image = state.generatedImages.find(img => img.promptId === action.payload.promptId)
-      if (image) {
-        image.status = action.payload.status
+    updateCardStatus: (state, action: PayloadAction<{ promptId: string; status: MediaCard['status'] }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card) {
+        card.status = action.payload.status
       }
     },
     
-    updateImageResult: (state, action: PayloadAction<{ promptId: string; imageUrl: string | null; status: GeneratedImage['status']; error?: string; mediaType?: 'image' | 'video' }>) => {
-      let image = state.generatedImages.find(img => img.promptId === action.payload.promptId)
-      if (!image) {
-        // Insert new entry if it doesn't exist
-        image = {
-          promptId: action.payload.promptId,
-          prompt: '',
-          imageUrl: action.payload.imageUrl,
-          mediaType: action.payload.mediaType || 'image',
-          status: action.payload.status,
-          error: action.payload.error,
-          generatedAt: action.payload.status === 'completed' ? new Date().toISOString() : undefined
-        }
-        state.generatedImages.push(image)
-      } else {
-        image.imageUrl = action.payload.imageUrl
-        image.status = action.payload.status
-        image.error = action.payload.error
-        image.mediaType = action.payload.mediaType || 'image'
-        if (action.payload.status === 'completed') {
-          image.generatedAt = new Date().toISOString()
-        }
+    updateCardResult: (state, action: PayloadAction<{ 
+      promptId: string; 
+      imageUrl: string | null; 
+      status: MediaCard['status']; 
+      error?: string; 
+      mediaType?: 'image' | 'video' 
+    }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card) {
+        card.selectedImageUrl = action.payload.imageUrl
+        card.selectedImageType = action.payload.mediaType || 'image'
+        card.selectedSource = 'generated'
+        card.status = action.payload.status
+        card.error = action.payload.error
       }
     },
     
@@ -138,16 +249,96 @@ export const batchImageGeneratorSlice = createSlice({
       state.isGenerating = false
       state.progress = 100
       state.timeRemaining = null
-      state.lastGeneratedAt = new Date().toISOString()
-      
-      // Update statistics
-      state.totalGenerated = state.generatedImages.filter(img => img.status === 'completed').length
-      state.totalErrors = state.generatedImages.filter(img => img.status === 'error').length
     },
     
+    // Selection actions
+    toggleCardSelection: (state, action: PayloadAction<{ promptId: string }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card && card.selectedImageUrl) {
+        if (card.isSelected) {
+          // Deselect
+          card.isSelected = false
+          const oldOrder = card.selectionOrder!
+          card.selectionOrder = null
+          state.selectedCount--
+          
+          // Adjust order numbers for remaining selections
+          state.mediaCards.forEach(c => {
+            if (c.selectionOrder && c.selectionOrder > oldOrder) {
+              c.selectionOrder--
+            }
+          })
+          state.nextSelectionOrder--
+        } else {
+          // Select
+          card.isSelected = true
+          card.selectionOrder = state.nextSelectionOrder
+          state.selectedCount++
+          state.nextSelectionOrder++
+        }
+      }
+    },
+    
+    selectAllCards: (state) => {
+      state.mediaCards.forEach(card => {
+        if (card.selectedImageUrl && !card.isSelected) {
+          card.isSelected = true
+          card.selectionOrder = state.nextSelectionOrder
+          state.selectedCount++
+          state.nextSelectionOrder++
+        }
+      })
+    },
+    
+    deselectAllCards: (state) => {
+      state.mediaCards.forEach(card => {
+        card.isSelected = false
+        card.selectionOrder = null
+      })
+      state.selectedCount = 0
+      state.nextSelectionOrder = 1
+    },
+    
+    // Replace selected image with stock option
+    selectStockImage: (state, action: PayloadAction<{ promptId: string; stockImage: StockImage }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card) {
+        card.selectedImageUrl = action.payload.stockImage.url
+        card.selectedImageType = action.payload.stockImage.type
+        card.selectedSource = 'stock'
+        card.status = 'completed'
+        card.isSaved = false // Reset saved state when changing selection
+        card.savedUrl = null
+      }
+    },
+    
+    // Save actions
+    startSaving: (state) => {
+      state.isSaving = true
+      state.saveProgress = 0
+    },
+    
+    updateSaveProgress: (state, action: PayloadAction<{ progress: number; savedUrl?: string; promptId?: string }>) => {
+      state.saveProgress = action.payload.progress
+      if (action.payload.savedUrl && action.payload.promptId) {
+        const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+        if (card) {
+          card.isSaved = true
+          card.savedUrl = action.payload.savedUrl
+        }
+      }
+    },
+    
+    completeSaving: (state) => {
+      state.isSaving = false
+      state.saveProgress = 100
+    },
+    
+    // Error handling
     setError: (state, action: PayloadAction<string>) => {
       state.error = action.payload
       state.isGenerating = false
+      state.isSaving = false
     },
     
     clearError: (state) => {
@@ -155,77 +346,111 @@ export const batchImageGeneratorSlice = createSlice({
     },
     
     // Reset actions
-    clearImages: (state) => {
-      state.generatedImages = []
-      state.totalGenerated = 0
-      state.totalErrors = 0
-      state.progress = 0
-      state.currentBatch = 0
-      state.totalBatches = 0
-      state.timeRemaining = null
-      state.error = null
-      state.stockSearchResults = {}
+    clearAllCards: (state) => {
+      state.mediaCards = []
+      state.selectedCount = 0
+      state.nextSelectionOrder = 1
     },
     
-    startStockSearch: (state, action: PayloadAction<{ promptId: string }>) => {
-      const { promptId } = action.payload
-      if (!state.stockSearchResults[promptId]) {
-        state.stockSearchResults[promptId] = { pexels: [], pixabay: [], storyblocks: [], isSearching: false }
-      }
-      state.stockSearchResults[promptId].isSearching = true
-      state.stockSearchResults[promptId].error = null
-    },
-    
-    setStockSearchResult: (state, action: PayloadAction<{ promptId: string; provider: 'pexels' | 'pixabay' | 'storyblocks'; results: StockImage[] }>) => {
-      const { promptId, provider, results } = action.payload
-      if (state.stockSearchResults[promptId]) {
-        state.stockSearchResults[promptId][provider] = results
-        state.stockSearchResults[promptId].isSearching = false
-      }
-    },
-    
-    setStockSearchError: (state, action: PayloadAction<{ promptId: string; error: string }>) => {
-      const { promptId, error } = action.payload
-      if (state.stockSearchResults[promptId]) {
-        state.stockSearchResults[promptId].error = error
-        state.stockSearchResults[promptId].isSearching = false
-      }
-    },
-
-    prepareForNewSearch: (state, action: PayloadAction<{ promptIds: string[] }>) => {
-      action.payload.promptIds.forEach(promptId => {
-        const image = state.generatedImages.find(img => img.promptId === promptId)
-        if (image) {
-          image.imageUrl = null
-          image.status = 'pending'
-        }
-      })
-      state.stockSearchResults = {}
-    },
-    
-    clearAllImageData: (state) => {
+    clearAllData: (state) => {
       return initialState
-    }
+    },
+    
+    // Regenerate AI image with new prompt
+    regenerateImage: (state, action: PayloadAction<{ promptId: string; newPrompt: string }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card && card.sourceType === 'ai') {
+        const wasSelected = card.isSelected
+        const oldOrder = card.selectionOrder
+        
+        card.prompt = action.payload.newPrompt
+        card.status = 'generating'
+        card.error = null
+        card.selectedImageUrl = null
+        card.isSelected = false
+        card.selectionOrder = null
+        
+        // Adjust selection order for other cards if this was selected
+        if (wasSelected && oldOrder !== null) {
+          state.mediaCards.forEach(c => {
+            if (c.selectionOrder && c.selectionOrder > oldOrder) {
+              c.selectionOrder--
+            }
+          })
+          state.selectedCount--
+          state.nextSelectionOrder--
+        }
+      }
+    },
+    
+    // Add custom image card
+    addCustomImageCard: (state, action: PayloadAction<{ 
+      prompt?: string; 
+      searchQuery?: string; 
+      sourceType: 'search' | 'ai'; 
+      customProvider?: string;
+      customSearchProvider?: 'pexels' | 'pixabay' | 'storyblocks' | 'flickr';
+      customId?: string; // Add optional customId
+    }>) => {
+      const customId = action.payload.customId || `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const sceneNumber = Math.max(...state.mediaCards.map(c => c.sceneNumber), 0) + 1
+      
+      const newCard: MediaCard = {
+        promptId: customId,
+        prompt: action.payload.prompt || '',
+        searchQuery: action.payload.searchQuery,
+        sceneNumber: sceneNumber,
+        sourceType: action.payload.sourceType,
+        selectedImageUrl: null,
+        selectedImageType: null,
+        selectedSource: null,
+        isSelected: false,
+        selectionOrder: null,
+        stockResults: [],
+        isSearching: false,
+        searchError: null,
+        status: 'pending',
+        isSaved: false,
+        savedUrl: null
+      }
+      
+      state.mediaCards.push(newCard)
+    },
   }
 })
 
 export const {
   setProvider,
   setAspectRatio,
+  setSearchProvider,
+  setSearchType,
+  setMode,
+  setExtractionType,
+  setExtractionOrientation,
+  initializeMediaCards,
+  startStockSearch,
+  setStockSearchResults,
+  setStockSearchError,
+  searchAllCards,
   startGeneration,
   updateBatch,
   updateProgress,
-  updateImageStatus,
-  updateImageResult,
+  updateCardStatus,
+  updateCardResult,
   completeGeneration,
+  toggleCardSelection,
+  selectAllCards,
+  deselectAllCards,
+  selectStockImage,
+  startSaving,
+  updateSaveProgress,
+  completeSaving,
   setError,
   clearError,
-  clearImages,
-  startStockSearch,
-  setStockSearchResult,
-  setStockSearchError,
-  prepareForNewSearch,
-  clearAllImageData
+  clearAllCards,
+  clearAllData,
+  regenerateImage,
+  addCustomImageCard
 } = batchImageGeneratorSlice.actions
 
 export default batchImageGeneratorSlice.reducer 

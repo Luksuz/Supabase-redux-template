@@ -8,19 +8,19 @@ import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { Textarea } from './ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import * as Dialog from '@radix-ui/react-dialog'
 import { 
   Users, 
-  Key, 
   Shield, 
   AlertCircle, 
   CheckCircle, 
   Crown,
   RefreshCw,
-  BarChart3,
-  Upload,
-  FileText,
-  Edit
+  Edit,
+  Mic,
+  Plus,
+  Trash2
 } from 'lucide-react'
 
 interface UserProfile {
@@ -29,15 +29,14 @@ interface UserProfile {
   created_at: string
   is_admin: boolean
   last_sign_in_at: string | null
-  has_api_key: boolean
 }
 
-interface ApiKeyStats {
-  validCount: number
-  invalidCount: number
-  totalCount: number
-  usageLimitReached: number
-  averageUsage: number
+interface AIVoice {
+  id: number
+  created_at: string
+  provider: 'murf' | 'elevenlabs' | 'speechify'
+  voice_id: string
+  name: string
 }
 
 export function AdminDashboard() {
@@ -46,22 +45,22 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
-  const [showApiKeys, setShowApiKeys] = useState(false)
-  
-  // API Key Statistics
-  const [stats, setStats] = useState<ApiKeyStats | null>(null)
-  const [isLoadingStats, setIsLoadingStats] = useState(false)
 
-  // API Key Upload
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [apiKeysText, setApiKeysText] = useState('')
-  const [isUploading, setIsUploading] = useState(false)
-  const [isUploadingText, setIsUploadingText] = useState(false)
+  // AI Voices Management
+  const [voices, setVoices] = useState<AIVoice[]>([])
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false)
+  const [showVoiceDialog, setShowVoiceDialog] = useState(false)
+  const [editingVoice, setEditingVoice] = useState<AIVoice | null>(null)
+  const [voiceForm, setVoiceForm] = useState({
+    provider: 'murf' as 'murf' | 'elevenlabs' | 'speechify',
+    voice_id: '',
+    name: ''
+  })
 
   useEffect(() => {
     if (user.isAdmin) {
       fetchUsers()
-      fetchApiKeyStats()
+      fetchVoices()
     }
   }, [user.isAdmin])
 
@@ -90,143 +89,6 @@ export function AdminDashboard() {
     }
   }
 
-  // Fetch API key statistics
-  const fetchApiKeyStats = async () => {
-    setIsLoadingStats(true)
-    try {
-      const response = await fetch('/api/api-keys-status')
-      
-      if (response.ok) {
-        const data = await response.json()
-        setStats({
-          validCount: data.validCount,
-          invalidCount: data.invalidCount,
-          totalCount: data.totalCount,
-          usageLimitReached: data.usageLimitReached,
-          averageUsage: data.averageUsage
-        })
-      } else {
-        console.warn('Failed to fetch API key statistics')
-      }
-    } catch (error) {
-      console.error('Error fetching API key statistics:', error)
-    } finally {
-      setIsLoadingStats(false)
-    }
-  }
-
-  // Handle file selection
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file && file.type === 'text/plain') {
-      setSelectedFile(file)
-      setMessage('')
-    } else {
-      showMessage('Please select a valid text (.txt) file', 'error')
-    }
-  }
-
-  // Upload API keys from file
-  const handleUploadApiKeys = async () => {
-    if (!selectedFile) {
-      showMessage('Please select a file first', 'error')
-      return
-    }
-
-    setIsUploading(true)
-    showMessage('Uploading API keys from file...', 'info')
-
-    try {
-      // Read file content
-      const fileContent = await selectedFile.text()
-      
-      const response = await fetch('/api/upload-api-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apiKeysText: fileContent,
-          userId: 'current_user'
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to upload API keys')
-      }
-
-      const data = await response.json()
-      showMessage(`Successfully uploaded ${data.count} API keys from file!`, 'success')
-      
-      // Refresh stats after upload
-      await fetchApiKeyStats()
-      
-      // Clear file selection
-      setSelectedFile(null)
-      const fileInput = document.getElementById('api-keys-file') as HTMLInputElement
-      if (fileInput) fileInput.value = ''
-      
-    } catch (error) {
-      showMessage('Error uploading API keys from file: ' + (error as Error).message, 'error')
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  // Upload API keys from text box
-  const handleUploadApiKeysFromText = async () => {
-    if (!apiKeysText.trim()) {
-      showMessage('Please enter API keys in the text box', 'error')
-      return
-    }
-
-    setIsUploadingText(true)
-    showMessage('Uploading API keys from text box...', 'info')
-
-    try {
-      const response = await fetch('/api/upload-api-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apiKeysText: apiKeysText,
-          userId: 'current_user'
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to upload API keys')
-      }
-
-      const data = await response.json()
-      showMessage(`Successfully uploaded ${data.count} API keys from text box!`, 'success')
-      
-      // Refresh stats after upload
-      await fetchApiKeyStats()
-      
-      // Clear text box
-      setApiKeysText('')
-      
-    } catch (error) {
-      showMessage('Error uploading API keys from text: ' + (error as Error).message, 'error')
-    } finally {
-      setIsUploadingText(false)
-    }
-  }
-
-  // Count API keys in text box
-  const countApiKeysInText = () => {
-    if (!apiKeysText.trim()) return 0
-    return apiKeysText
-      .split('\n')
-      .map(key => key.trim())
-      .filter(key => key.length > 0)
-      .length
-  }
-
   const toggleUserAdminStatus = async (userId: string, currentStatus: boolean) => {
     try {
       const response = await fetch('/api/admin/users', {
@@ -250,6 +112,119 @@ export function AdminDashboard() {
     } catch (error) {
       showMessage('Error updating admin status: ' + (error as Error).message, 'error')
     }
+  }
+
+  // AI Voices Management Functions
+  const fetchVoices = async () => {
+    setIsLoadingVoices(true)
+    try {
+      const response = await fetch('/api/admin/ai-voices')
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to fetch voices')
+      }
+      
+      const data = await response.json()
+      setVoices(data.voices)
+    } catch (error) {
+      showMessage('Error fetching voices: ' + (error as Error).message, 'error')
+    } finally {
+      setIsLoadingVoices(false)
+    }
+  }
+
+  const handleCreateVoice = async () => {
+    if (!voiceForm.provider || !voiceForm.voice_id || !voiceForm.name) {
+      showMessage('Please fill in all fields', 'error')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/ai-voices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(voiceForm)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create voice')
+      }
+
+      showMessage('Voice created successfully!', 'success')
+      setShowVoiceDialog(false)
+      setVoiceForm({ provider: 'murf', voice_id: '', name: '' })
+      fetchVoices()
+    } catch (error) {
+      showMessage('Error creating voice: ' + (error as Error).message, 'error')
+    }
+  }
+
+  const handleEditVoice = async () => {
+    if (!editingVoice || !voiceForm.provider || !voiceForm.voice_id || !voiceForm.name) {
+      showMessage('Please fill in all fields', 'error')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/ai-voices', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingVoice.id, ...voiceForm })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update voice')
+      }
+
+      showMessage('Voice updated successfully!', 'success')
+      setShowVoiceDialog(false)
+      setEditingVoice(null)
+      setVoiceForm({ provider: 'murf', voice_id: '', name: '' })
+      fetchVoices()
+    } catch (error) {
+      showMessage('Error updating voice: ' + (error as Error).message, 'error')
+    }
+  }
+
+  const handleDeleteVoice = async (voiceId: number) => {
+    if (!confirm('Are you sure you want to delete this voice?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/ai-voices?id=${voiceId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete voice')
+      }
+
+      showMessage('Voice deleted successfully!', 'success')
+      fetchVoices()
+    } catch (error) {
+      showMessage('Error deleting voice: ' + (error as Error).message, 'error')
+    }
+  }
+
+  const openCreateVoiceDialog = () => {
+    setEditingVoice(null)
+    setVoiceForm({ provider: 'murf', voice_id: '', name: '' })
+    setShowVoiceDialog(true)
+  }
+
+  const openEditVoiceDialog = (voice: AIVoice) => {
+    setEditingVoice(voice)
+    setVoiceForm({
+      provider: voice.provider,
+      voice_id: voice.voice_id,
+      name: voice.name
+    })
+    setShowVoiceDialog(true)
   }
 
   if (!user.isAdmin) {
@@ -278,221 +253,9 @@ export function AdminDashboard() {
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
           </div>
           <p className="text-gray-600">
-            Manage users, monitor API keys, and system overview
+            Manage users and AI voices
           </p>
         </div>
-
-        {/* API Key Statistics */}
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              WellSaid Labs API Key Status
-              <Button
-                onClick={fetchApiKeyStats}
-                size="sm"
-                variant="outline"
-                disabled={isLoadingStats}
-                className="ml-auto"
-              >
-                {isLoadingStats ? (
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3 w-3" />
-                )}
-              </Button>
-            </CardTitle>
-            <CardDescription>
-              Monitor the status and usage of system API keys
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {stats ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
-                    <div className="text-2xl font-bold text-green-700">{stats.validCount}</div>
-                    <div className="text-sm text-green-600">Valid Keys</div>
-                    <div className="text-xs text-gray-500 mt-1">Available for use</div>
-                  </div>
-                  
-                  <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
-                    <div className="text-2xl font-bold text-red-700">{stats.invalidCount}</div>
-                    <div className="text-sm text-red-600">Invalid Keys</div>
-                    <div className="text-xs text-gray-500 mt-1">Expired or error</div>
-                  </div>
-                  
-                  <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <div className="text-2xl font-bold text-orange-700">{stats.usageLimitReached}</div>
-                    <div className="text-sm text-orange-600">At Limit</div>
-                    <div className="text-xs text-gray-500 mt-1">50+ uses reached</div>
-                  </div>
-                  
-                  <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="text-2xl font-bold text-blue-700">{stats.averageUsage}</div>
-                    <div className="text-sm text-blue-600">Avg Usage</div>
-                    <div className="text-xs text-gray-500 mt-1">Uses per key</div>
-                  </div>
-                </div>
-                
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-700">
-                    <strong>Total Keys:</strong> {stats.totalCount} | 
-                    <strong className="ml-2 text-green-600">Usable:</strong> {stats.validCount} | 
-                    <strong className="ml-2 text-red-600">Unusable:</strong> {stats.invalidCount + stats.usageLimitReached}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    Keys become invalid after 50 uses or API errors. Upload new keys when running low.
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center p-8 text-gray-500">
-                {isLoadingStats ? 'Loading statistics...' : 'No statistics available'}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Add API Keys Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Method 1: Paste API Keys */}
-          <Card className="bg-white shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Edit className="h-5 w-5" />
-                Paste API Keys
-              </CardTitle>
-              <CardDescription>
-                Paste your WellSaid Labs API keys directly (one per line)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="api-keys-text">API Keys</Label>
-                <Textarea
-                  id="api-keys-text"
-                  value={apiKeysText}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setApiKeysText(e.target.value)}
-                  placeholder="wsl_abcd1234efgh5678ijkl9012mnop3456
-wsl_qrst7890uvwx1234yzab5678cdef9012
-wsl_ghij3456klmn7890pqrs1234tuvw5678"
-                  disabled={isUploadingText}
-                  className="min-h-[120px] font-mono text-sm"
-                />
-                <div className="flex justify-between items-center text-xs text-gray-500">
-                  <span>One API key per line</span>
-                  {apiKeysText.trim() && (
-                    <span className="font-medium">
-                      {countApiKeysInText()} key{countApiKeysInText() !== 1 ? 's' : ''} detected
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <Button 
-                onClick={handleUploadApiKeysFromText}
-                disabled={isUploadingText || !apiKeysText.trim()}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                {isUploadingText ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload {countApiKeysInText()} Key{countApiKeysInText() !== 1 ? 's' : ''}
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Method 2: Upload File */}
-          <Card className="bg-white shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Upload File
-              </CardTitle>
-              <CardDescription>
-                Upload a text file containing WellSaid Labs API keys
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="api-keys-file">API Keys File (.txt)</Label>
-                <input
-                  id="api-keys-file"
-                  type="file"
-                  accept=".txt"
-                  onChange={handleFileSelect}
-                  disabled={isUploading}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                />
-                <p className="text-xs text-gray-500">
-                  Each line should contain one WellSaid Labs API key. Empty lines will be ignored.
-                </p>
-              </div>
-
-              {selectedFile && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      {selectedFile.name}
-                    </Badge>
-                    <span className="text-sm text-gray-500">
-                      ({(selectedFile.size / 1024).toFixed(1)} KB)
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <Button 
-                onClick={handleUploadApiKeys}
-                disabled={isUploading || !selectedFile}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                {isUploading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload File
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Format Instructions */}
-        <Card className="bg-blue-50 border border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-blue-900">API Key Format Instructions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="bg-white p-3 rounded border font-mono text-sm text-gray-700">
-                wsl_abcd1234efgh5678ijkl9012mnop3456<br/>
-                wsl_qrst7890uvwx1234yzab5678cdef9012<br/>
-                wsl_ghij3456klmn7890pqrs1234tuvw5678
-              </div>
-              <div className="text-sm text-blue-700 space-y-1">
-                <div>• One API key per line</div>
-                <div>• WellSaid Labs API keys start with "wsl_"</div>
-                <div>• Keys will be validated during audio generation</div>
-                <div>• Invalid keys are automatically marked and skipped</div>
-                <div>• Each key can be used up to 50 times before being marked invalid</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Users Overview */}
         <Card className="bg-white shadow-sm border border-gray-200">
@@ -527,16 +290,9 @@ wsl_ghij3456klmn7890pqrs1234tuvw5678"
                       {users.filter(u => u.is_admin).length} Admins
                     </Badge>
                     <Badge variant="outline">
-                      {users.filter(u => u.has_api_key).length} with API keys
+                      {users.filter(u => !u.is_admin).length} Regular Users
                     </Badge>
                   </div>
-                  <Button
-                    onClick={() => setShowApiKeys(!showApiKeys)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    {showApiKeys ? 'Hide' : 'Show'} API Key Status
-                  </Button>
                 </div>
 
                 <div className="grid gap-4">
@@ -557,12 +313,6 @@ wsl_ghij3456klmn7890pqrs1234tuvw5678"
                             {userProfile.is_admin && (
                               <Badge variant="secondary" className="text-xs">
                                 Admin
-                              </Badge>
-                            )}
-                            {showApiKeys && userProfile.has_api_key && (
-                              <Badge variant="outline" className="text-xs">
-                                <Key className="h-3 w-3 mr-1" />
-                                API Key
                               </Badge>
                             )}
                           </div>
@@ -598,6 +348,182 @@ wsl_ghij3456klmn7890pqrs1234tuvw5678"
             )}
           </CardContent>
         </Card>
+
+        {/* AI Voices Management */}
+        <Card className="bg-white shadow-sm border border-gray-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mic className="h-5 w-5" />
+              AI Voices Management ({voices.length} total)
+              <Button 
+                onClick={fetchVoices} 
+                size="sm" 
+                variant="outline"
+                disabled={isLoadingVoices}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingVoices ? 'animate-spin' : ''}`} />
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Manage AI voices for Murf.ai, ElevenLabs, and Speechify providers
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingVoices ? (
+              <div className="text-center py-8">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-500">Loading voices...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <Badge variant="secondary">
+                      {voices.filter(v => v.provider === 'murf').length} Murf.ai
+                    </Badge>
+                    <Badge variant="secondary">
+                      {voices.filter(v => v.provider === 'elevenlabs').length} ElevenLabs
+                    </Badge>
+                    <Badge variant="secondary">
+                      {voices.filter(v => v.provider === 'speechify').length} Speechify
+                    </Badge>
+                  </div>
+                  <Button onClick={openCreateVoiceDialog} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Voice
+                  </Button>
+                </div>
+
+                {/* Voices List */}
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {voices.map((voice) => (
+                    <div key={voice.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="capitalize">
+                            {voice.provider}
+                          </Badge>
+                          <div>
+                            <div className="font-medium">{voice.name}</div>
+                            <div className="text-sm text-gray-500">ID: {voice.voice_id}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => openEditVoiceDialog(voice)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            onClick={() => handleDeleteVoice(voice.id)}
+                            size="sm"
+                            variant="destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-2">
+                        Added: {new Date(voice.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {voices.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <Mic className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                      <p>No voices configured yet.</p>
+                      <p className="text-sm">Add voices manually using the form above.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Voice Dialog */}
+        <Dialog.Root open={showVoiceDialog} onOpenChange={setShowVoiceDialog}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+            <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
+              <Dialog.Title className="text-lg font-semibold">
+                {editingVoice ? 'Edit Voice' : 'Add New Voice'}
+              </Dialog.Title>
+              <Dialog.Description className="text-sm text-muted-foreground">
+                {editingVoice ? 'Update the voice information.' : 'Add a new AI voice to the database.'}
+              </Dialog.Description>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label>Provider</Label>
+                  <Select 
+                    value={voiceForm.provider} 
+                    onValueChange={(value: 'murf' | 'elevenlabs' | 'speechify') => 
+                      setVoiceForm(prev => ({ ...prev, provider: value }))
+                    }
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="murf">Murf.ai</SelectItem>
+                      <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                      <SelectItem value="speechify">Speechify</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="voice-id">Voice ID</Label>
+                  <Input
+                    id="voice-id"
+                    value={voiceForm.voice_id}
+                    onChange={(e) => setVoiceForm(prev => ({ ...prev, voice_id: e.target.value }))}
+                    placeholder="e.g., en-US-ken or 21m00Tcm4TlvDq8ikWAM"
+                    className="mt-2"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="voice-name">Display Name</Label>
+                  <Input
+                    id="voice-name"
+                    value={voiceForm.name}
+                    onChange={(e) => setVoiceForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Rachel (American, Female)"
+                    className="mt-2"
+                  />
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-4">
+                  <Dialog.Close asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </Dialog.Close>
+                  <Button 
+                    onClick={editingVoice ? handleEditVoice : handleCreateVoice}
+                    disabled={!voiceForm.provider || !voiceForm.voice_id || !voiceForm.name}
+                  >
+                    {editingVoice ? 'Update' : 'Create'}
+                  </Button>
+                </div>
+              </div>
+              
+              <Dialog.Close asChild>
+                <button
+                  className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </Dialog.Close>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
 
         {/* Status Message */}
         {message && (

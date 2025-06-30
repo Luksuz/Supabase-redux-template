@@ -29,12 +29,53 @@ export async function POST(request: NextRequest) {
         // Mime type to extension mapping, can be expanded
         const mimeToExt: Record<string, string> = {
             'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
             'image/png': 'png',
             'image/gif': 'gif',
-            'video/mp4': 'mp4',
             'image/webp': 'webp',
+            'image/bmp': 'bmp',
+            'image/tiff': 'tiff',
+            'image/svg+xml': 'svg',
+            'video/mp4': 'mp4',
+            'video/webm': 'webm',
+            'video/avi': 'avi',
+            'video/mov': 'mov',
+            'video/quicktime': 'mov',
+            'video/x-msvideo': 'avi',
+            'video/3gpp': '3gp',
+            'video/x-flv': 'flv',
+            'video/x-ms-wmv': 'wmv',
         };
-        const extension = mimeToExt[blob.type] || blob.type.split('/')[1] || 'bin';
+        
+        // Try to get extension from MIME type first
+        let extension = mimeToExt[blob.type];
+        
+        // If MIME type doesn't match known types, try to extract from URL
+        if (!extension) {
+            try {
+                const url = new URL(assetUrl);
+                const urlPath = url.pathname;
+                const urlExtension = urlPath.split('.').pop()?.toLowerCase();
+                
+                // Common video/image extensions
+                const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'svg', 
+                                       'mp4', 'webm', 'avi', 'mov', '3gp', 'flv', 'wmv'];
+                
+                if (urlExtension && validExtensions.includes(urlExtension)) {
+                    extension = urlExtension;
+                }
+            } catch (urlError) {
+                console.warn('Failed to parse URL for extension:', urlError);
+            }
+        }
+        
+        // Final fallback: use the second part of MIME type or 'bin'
+        if (!extension) {
+            extension = blob.type.split('/')[1] || 'bin';
+        }
+        
+        console.log(`📁 File info: MIME type: ${blob.type}, Extension: ${extension}, URL: ${assetUrl}`);
+        
         const fileName = `${promptId}-${Date.now()}.${extension}`;
 
         const { error: uploadError } = await supabase.storage
@@ -50,7 +91,13 @@ export async function POST(request: NextRequest) {
 
         const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
 
-        return NextResponse.json({ publicUrl });
+        // Return both the public URL and the relative path for different use cases
+        return NextResponse.json({ 
+            publicUrl,
+            fileName,
+            bucket,
+            relativePath: fileName // Just the filename for path-based access
+        });
     } catch (error: any) {
         console.error('Error in /api/upload-from-url:', error);
         return NextResponse.json({ error: error.message || 'An unknown error occurred' }, { status: 500 });

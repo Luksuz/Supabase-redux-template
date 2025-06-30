@@ -16,7 +16,7 @@ export default function Home() {
            
             </div>
             <div className="flex items-center gap-4">
-              <GoogleAuthButton />
+              {/* <GoogleAuthButton /> */}
               <AuthStatus />
               {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
             </div>

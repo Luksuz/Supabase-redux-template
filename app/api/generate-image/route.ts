@@ -5,7 +5,6 @@ import OpenAI from 'openai';
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from '@supabase/supabase-js';
 
-const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 const FAL_API_KEY = process.env.FAL_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
@@ -97,12 +96,7 @@ async function uploadImageToSupabase(imageData: string | Buffer, prompt: string,
 }
 
 // Get image dimensions based on aspect ratio
-const getImageDimensions = (aspectRatio: '16:9' | '1:1' | '9:16', provider: string) => {
-  if (provider === 'minimax') {
-    // MiniMax uses aspect_ratio parameter
-    return null;
-  }
-
+const getImageDimensions = (aspectRatio: '16:9' | '1:1' | '9:16') => {
   // For flux models and Leonardo Phoenix, use specific dimensions
   switch (aspectRatio) {
     case '16:9':
@@ -365,7 +359,7 @@ export async function POST(request: NextRequest) {
   const { 
     provider: bodyProvider, 
     prompt, 
-    minimaxAspectRatio = '16:9', 
+    aspectRatio = '16:9', 
     userId 
   } = body;
   let provider = bodyProvider;
@@ -380,10 +374,6 @@ export async function POST(request: NextRequest) {
     console.log(`🎨 Received styled prompt: ${prompt.substring(0, 150)}...`);
 
     // Check API keys based on provider
-    if (provider === 'minimax' && !MINIMAX_API_KEY) {
-      return NextResponse.json({ error: 'MiniMax API key is not configured.' }, { status: 500 });
-    }
-
     if (['flux-dev', 'recraft-v3', 'stable-diffusion-v35-large'].includes(provider) && !FAL_API_KEY) {
       return NextResponse.json({ error: 'FAL API key is not configured for flux models.' }, { status: 500 });
     }
@@ -406,74 +396,31 @@ export async function POST(request: NextRequest) {
 
     // Main logic
     let imageUrl: string;
-    const { width, height } = getImageDimensions(minimaxAspectRatio, provider) || {};
+    const { width, height } = getImageDimensions(aspectRatio);
 
     switch (provider) {
-      case 'minimax':
-        const minimaxApiUrl = "https://api.minimaxi.chat/v1/image_generation";
-        console.log(`Generating image with MiniMax...`);
-
-        const payload = {
-          model: "image-01",
-          prompt: prompt,
-          aspect_ratio: minimaxAspectRatio,
-          response_format: "base64",
-          width: 1536,
-          height: 1024,
-          n: 1,
-          prompt_optimizer: true,
-        };
-        const headers = {
-          'Authorization': `Bearer ${MINIMAX_API_KEY}`,
-          'Content-Type': 'application/json',
-        };
-
-        const minimaxResponse = await retryAsync(async () => {
-          const response = await fetch(minimaxApiUrl, { 
-            method: 'POST', 
-            headers: headers, 
-            body: JSON.stringify(payload) 
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('MiniMax API error:', response.status, errorData);
-            throw new Error(`MiniMax API request failed with status ${response.status}`);
-          }
-          
-          return response.json();
-        });
-
-        if (minimaxResponse.data?.image_base64?.[0]) {
-          const base64String = minimaxResponse.data.image_base64[0];
-          imageUrl = `data:image/png;base64,${base64String}`;
-        } else {
-          throw new Error('No image data received from MiniMax API');
-        }
-        break;
-
       case 'flux-dev':
       case 'recraft-v3':
       case 'stable-diffusion-v35-large':
         if (!FAL_API_KEY) throw new Error('FAL_API_KEY is not set');
-        imageUrl = await generateFluxImage(provider, prompt, { width: width!, height: height! });
+        imageUrl = await generateFluxImage(provider, prompt, { width, height });
         break;
 
       case 'gpt-image-1':
         if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
-        const gptSize = minimaxAspectRatio === '16:9' ? '1536x1024' : minimaxAspectRatio === '9:16' ? '1024x1536' : '1024x1024';
+        const gptSize = aspectRatio === '16:9' ? '1536x1024' : aspectRatio === '9:16' ? '1024x1536' : '1024x1024';
         imageUrl = await generateGPTImage1(prompt, gptSize);
         break;
 
       case 'dalle-3':
         if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
-        const dalleSize = minimaxAspectRatio === '16:9' ? '1792x1024' : minimaxAspectRatio === '9:16' ? '1024x1792' : '1024x1024';
+        const dalleSize = aspectRatio === '16:9' ? '1792x1024' : aspectRatio === '9:16' ? '1024x1792' : '1024x1024';
         imageUrl = await generateDalleImage(prompt, dalleSize);
         break;
       
       case 'leonardo-phoenix':
         if (!LEONARDO_API_KEY) throw new Error('LEONARDO_API_KEY is not set');
-        imageUrl = await generateLeonardoPhoenixImage(prompt, width!, height!);
+        imageUrl = await generateLeonardoPhoenixImage(prompt, width, height);
         break;
       
       case 'imagen':
@@ -487,11 +434,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ ${provider} image generation complete.`);
     
-    // Upload to Supabase
-    const supabaseUrl = await uploadImageToSupabase(imageUrl, prompt, provider);
-    console.log(`☁️ Image uploaded to Supabase: ${supabaseUrl}`);
-    
-    const responsePayload: GenerateImageResponse = { imageUrls: [supabaseUrl] };
+    // Return the direct image URL without uploading to Supabase
+    // Users will manually select and save the images they want later
+    const responsePayload: GenerateImageResponse = { imageUrls: [imageUrl] };
     return NextResponse.json(responsePayload, { status: 200 });
 
   } catch (error: any) {
@@ -506,14 +451,11 @@ export async function POST(request: NextRequest) {
 
 // Environment variable check
 if (process.env.NODE_ENV !== 'test') {
-  if (!MINIMAX_API_KEY) {
-    console.warn("Warning: MINIMAX_API_KEY environment variable is not set. MiniMax image generation will fail.");
-  }
   if (!FAL_API_KEY) {
     console.warn("Warning: FAL_API_KEY environment variable is not set. Flux model generation will fail.");
   }
   if (!OPENAI_API_KEY) {
-    console.warn("Warning: OPENAI_API_KEY environment variable is not set. DALL-E 3 image generation will fail.");
+    console.warn("Warning: OPENAI_API_KEY environment variable is not set. DALL-E 3 and GPT Image 1 generation will fail.");
   }
   if (!LEONARDO_API_KEY) {
     console.warn("Warning: LEONARDO_API_KEY environment variable is not set. Leonardo Phoenix image generation will fail.");

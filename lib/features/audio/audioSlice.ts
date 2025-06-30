@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { TextChunk } from '../../text-chunking'
 
-export type AudioProvider = 'murf' | 'elevenlabs'
+export type AudioProvider = 'murf' | 'elevenlabs' | 'speechify'
 
 export interface MusicTrack {
   id: number;
@@ -11,9 +12,28 @@ export interface MusicTrack {
   duration: number;
 }
 
+export interface UploadedMusicTrack {
+  id: string;
+  name: string;
+  url: string;
+  duration?: number;
+  uploadedAt: string;
+  isSelected: boolean;
+}
+
+export interface AudioChunk {
+  chunkIndex: number
+  text: string
+  audioUrl: string | null
+  duration: number | null
+  status: 'pending' | 'processing' | 'completed' | 'error'
+  error?: string
+}
+
 export interface AudioGeneration {
   id: string
   audioUrl: string | null
+  compressedAudioUrl: string | null  // For subtitles generation
   subtitlesUrl: string | null
   duration: number | null
   generatedAt: string
@@ -23,6 +43,7 @@ export interface AudioGeneration {
   generateSubtitles: boolean
   status: 'idle' | 'generating' | 'completed' | 'error'
   error: string | null
+  chunks?: AudioChunk[]  // For batch processing
   scriptDurations?: Array<{
     scriptId: string
     imageId: string
@@ -51,7 +72,7 @@ interface AudioState {
   selectedMusicTrack: MusicTrack | null;
   isSearchingMusic: boolean;
   musicSearchError: string | null;
-  uploadedMusicUrl: string | null;
+  uploadedMusicTracks: UploadedMusicTrack[];
 }
 
 const initialState: AudioState = {
@@ -73,7 +94,7 @@ const initialState: AudioState = {
   selectedMusicTrack: null,
   isSearchingMusic: false,
   musicSearchError: null,
-  uploadedMusicUrl: null,
+  uploadedMusicTracks: [],
 }
 
 export const audioSlice = createSlice({
@@ -89,6 +110,9 @@ export const audioSlice = createSlice({
       } else if (action.payload === 'elevenlabs') {
         state.selectedVoice = '21m00Tcm4TlvDq8ikWAM' // Default ElevenLabs voice (Rachel)
         state.selectedModel = 'eleven_multilingual_v2'
+      } else if (action.payload === 'speechify') {
+        state.selectedVoice = 'henry' // Default Speechify voice
+        state.selectedModel = 'simba-base'
       }
     },
     
@@ -121,6 +145,7 @@ export const audioSlice = createSlice({
       state.currentGeneration = {
         id,
         audioUrl: null,
+        compressedAudioUrl: null,
         subtitlesUrl: null,
         duration: null,
         generatedAt: new Date().toISOString(),
@@ -201,11 +226,130 @@ export const audioSlice = createSlice({
     },
     setSelectedMusicTrack: (state, action: PayloadAction<MusicTrack | null>) => {
       state.selectedMusicTrack = action.payload;
-      state.uploadedMusicUrl = null; // Clear uploaded music when a track is selected from search
     },
-    setUploadedMusicUrl: (state, action: PayloadAction<string | null>) => {
-      state.uploadedMusicUrl = action.payload;
-      state.selectedMusicTrack = null; // Clear selected music when a track is uploaded
+    
+    addUploadedMusicTrack: (state, action: PayloadAction<UploadedMusicTrack>) => {
+      state.uploadedMusicTracks.push(action.payload);
+    },
+    
+    removeUploadedMusicTrack: (state, action: PayloadAction<string>) => {
+      state.uploadedMusicTracks = state.uploadedMusicTracks.filter(track => track.id !== action.payload);
+    },
+    
+    toggleMusicTrackSelection: (state, action: PayloadAction<string>) => {
+      const track = state.uploadedMusicTracks.find(t => t.id === action.payload);
+      if (track) {
+        track.isSelected = !track.isSelected;
+      }
+    },
+    
+    selectAllMusicTracks: (state) => {
+      state.uploadedMusicTracks.forEach(track => {
+        track.isSelected = true;
+      });
+    },
+    
+    deselectAllMusicTracks: (state) => {
+      state.uploadedMusicTracks.forEach(track => {
+        track.isSelected = false;
+      });
+    },
+    
+    clearAllMusicTracks: (state) => {
+      state.uploadedMusicTracks = [];
+    },
+    
+    // Batch processing actions
+    startBatchGeneration: (state, action: PayloadAction<{ 
+      id: string; 
+      voice: string; 
+      model: string; 
+      provider: AudioProvider; 
+      generateSubtitles: boolean;
+      chunks: TextChunk[]
+    }>) => {
+      const { id, voice, model, provider, generateSubtitles, chunks } = action.payload
+      const audioChunks: AudioChunk[] = chunks.map(chunk => ({
+        chunkIndex: chunk.chunkIndex,
+        text: chunk.text,
+        audioUrl: null,
+        duration: null,
+        status: 'pending'
+      }))
+      
+      state.currentGeneration = {
+        id,
+        audioUrl: null,
+        compressedAudioUrl: null,
+        subtitlesUrl: null,
+        duration: null,
+        generatedAt: new Date().toISOString(),
+        voice,
+        model,
+        provider,
+        generateSubtitles,
+        status: 'generating',
+        error: null,
+        chunks: audioChunks
+      }
+      state.isGeneratingAudio = true
+      state.audioProgress = {
+        total: chunks.length,
+        completed: 0,
+        phase: 'chunks'
+      }
+    },
+    
+    updateChunkProgress: (state, action: PayloadAction<{ chunkIndex: number; status: 'processing' | 'completed' | 'error' }>) => {
+      if (state.currentGeneration?.chunks) {
+        const chunk = state.currentGeneration.chunks.find(c => c.chunkIndex === action.payload.chunkIndex)
+        if (chunk) {
+          chunk.status = action.payload.status
+        }
+      }
+    },
+    
+    setChunkCompleted: (state, action: PayloadAction<{ chunkIndex: number; audioUrl: string; duration: number }>) => {
+      if (state.currentGeneration?.chunks) {
+        const chunk = state.currentGeneration.chunks.find(c => c.chunkIndex === action.payload.chunkIndex)
+        if (chunk) {
+          chunk.status = 'completed'
+          chunk.audioUrl = action.payload.audioUrl
+          chunk.duration = action.payload.duration
+        }
+        
+        // Update progress
+        const completedChunks = state.currentGeneration.chunks.filter(c => c.status === 'completed').length
+        state.audioProgress.completed = completedChunks
+      }
+    },
+    
+    setChunkError: (state, action: PayloadAction<{ chunkIndex: number; error: string }>) => {
+      if (state.currentGeneration?.chunks) {
+        const chunk = state.currentGeneration.chunks.find(c => c.chunkIndex === action.payload.chunkIndex)
+        if (chunk) {
+          chunk.status = 'error'
+          chunk.error = action.payload.error
+        }
+      }
+    },
+    
+    setJoiningPhase: (state) => {
+      state.audioProgress.phase = 'concatenating'
+    },
+    
+    completeJoinedAudio: (state, action: PayloadAction<{ audioUrl: string; compressedAudioUrl: string; duration: number; scriptDurations?: AudioGeneration['scriptDurations'] }>) => {
+      if (state.currentGeneration) {
+        state.currentGeneration.audioUrl = action.payload.audioUrl
+        state.currentGeneration.compressedAudioUrl = action.payload.compressedAudioUrl
+        state.currentGeneration.duration = action.payload.duration
+        if (action.payload.scriptDurations) {
+          state.currentGeneration.scriptDurations = action.payload.scriptDurations
+        }
+        state.currentGeneration.status = 'completed'
+      }
+      state.isGeneratingAudio = false
+      state.audioProgress.phase = 'completed'
     },
   }
 })
@@ -230,7 +374,18 @@ export const {
   setMusicSearchResults,
   setMusicSearchError,
   setSelectedMusicTrack,
-  setUploadedMusicUrl,
+  addUploadedMusicTrack,
+  removeUploadedMusicTrack,
+  toggleMusicTrackSelection,
+  selectAllMusicTracks,
+  deselectAllMusicTracks,
+  clearAllMusicTracks,
+  startBatchGeneration,
+  updateChunkProgress,
+  setChunkCompleted,
+  setChunkError,
+  setJoiningPhase,
+  completeJoinedAudio,
 } = audioSlice.actions
 
 export default audioSlice.reducer 

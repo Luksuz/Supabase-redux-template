@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CreateVideoRequestBody, CreateVideoResponse } from '@/types/video-generation';
 import { createClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
 // Shotstack API settings from environment variables
-const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY || 'ovtvkcufDaBDRJnsTLHkMB3eLG6ytwlRoUAPAHPq';
-const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT || 'https://api.shotstack.io/edit/stage';
+const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY
+const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT
 
 /**
  * Get audio duration from URL by fetching audio metadata
@@ -27,19 +29,25 @@ async function getAudioDuration(audioUrl: string): Promise<number | null> {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateVideoRequestBody = await request.json();
-    const { imageUrls, audioUrl, subtitlesUrl, userId, thumbnailUrl, segmentTimings } = body;
+    const { imageUrls, audioUrl, audioDuration, subtitlesUrl, userId, thumbnailUrl, segmentTimings, musicUrl, musicVolume } = body;
     console.log(`🖼️ Image URLs: ${imageUrls}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
+    console.log(`⏱️ Audio Duration: ${audioDuration ? `${audioDuration}s` : 'not provided'}`);
     console.log(`📝 Subtitles URL: ${subtitlesUrl}`);
     console.log(`👤 User ID: ${userId}`);
     console.log(`📷 Thumbnail URL: ${thumbnailUrl}`);
     console.log(`⏱️ Segment Timings: ${segmentTimings}`);
+    console.log(`🎶 Music URL: ${musicUrl}`);
+    console.log(`🔊 Music Volume: ${musicVolume}`);
 
     
     console.log(`📋 Video creation request:
       - Images: ${imageUrls?.length || 0}
       - Audio URL: ${audioUrl ? 'YES' : 'NO'}
+      - Audio Duration: ${audioDuration ? `${audioDuration}s` : 'not provided'}
       - Subtitles URL: ${subtitlesUrl ? 'YES' : 'NO'}
+      - Background Music: ${musicUrl ? 'YES' : 'NO'}
+      - Music Volume: ${musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}
       - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (traditional video)'}
       - User ID: ${userId}
     `);
@@ -86,18 +94,21 @@ export async function POST(request: NextRequest) {
         - Individual durations: ${segmentTimings.map(t => t.duration.toFixed(2)).join(', ')}s`);
     } else {
       // Traditional video: get audio duration and divide equally
-      console.log('Getting audio duration for traditional video timeline...');
-      const audioDuration = await getAudioDuration(audioUrl);
+      console.log('Using traditional video timing with audio duration...');
+      
+      // Use passed duration or fallback to getting it from audio file
+      const audioDurationValue = audioDuration || await getAudioDuration(audioUrl);
       
       // If we can't get audio duration, default to 5 minutes
-      totalDuration = audioDuration || 300; 
+      totalDuration = audioDurationValue || 300; 
       // Each image gets equal time in the slideshow
       imageDuration = totalDuration / imageUrls.length;
       
       console.log(`Traditional video configuration:
         - Total duration: ${totalDuration.toFixed(1)} seconds
         - Number of images: ${imageUrls.length}
-        - Duration per image: ${imageDuration.toFixed(1)} seconds`);
+        - Duration per image: ${imageDuration.toFixed(1)} seconds
+        - Duration source: ${audioDuration ? 'frontend' : 'fallback'}`);
     }
     
     // Initialize tracks array
@@ -138,18 +149,14 @@ export async function POST(request: NextRequest) {
 
     // Track for images - Create slideshow with timing based on mode
     if (isSegmentedVideo && segmentTimings) {
-      // Segmented video: use precise timing with sliding transitions
-      console.log(`🎬 Creating segmented video with ${imageUrls.length} precisely timed segments:`);
+      // Segmented video: use precise timing with static images
+      console.log(`🎬 Creating segmented video with ${imageUrls.length} precisely timed static segments:`);
       let currentTime = 0;
       const imageClips = imageUrls.map((url, index) => {
         const duration = segmentTimings[index].duration;
         const startTime = currentTime;
         
-        // Cycle through sliding effects for visual variety
-        const slideEffects = ["slideLeft", "slideRight", "slideUp", "slideDown"];
-        const selectedEffect = slideEffects[index % slideEffects.length];
-        
-        console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (${selectedEffect})`);
+        console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (static)`);
         
         const clip = {
           asset: {
@@ -158,7 +165,6 @@ export async function POST(request: NextRequest) {
           },
           start: startTime,
           length: duration,
-          effect: selectedEffect,
           fit: "contain"
         };
         
@@ -171,15 +177,12 @@ export async function POST(request: NextRequest) {
       };
       tracks.push(imageTrack);
     } else {
-      // Traditional video: equal timing for all images with sliding transitions
-      console.log(`🎬 Creating traditional slideshow with ${imageUrls.length} images:`);
+      // Traditional video: equal timing for all images with static display
+      console.log(`🎬 Creating traditional slideshow with ${imageUrls.length} static images:`);
       const imageClips = imageUrls.map((url, index) => {
         const startTime = index * imageDuration;
-        // Cycle through sliding effects for visual variety
-        const slideEffects = ["slideLeft", "slideRight", "slideUp", "slideDown"];
-        const selectedEffect = slideEffects[index % slideEffects.length];
         
-        console.log(`   Image ${index + 1}: ${selectedEffect} effect, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
+        console.log(`   Image ${index + 1}: static display, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
         
         return {
           asset: {
@@ -188,7 +191,6 @@ export async function POST(request: NextRequest) {
           },
           start: startTime,
           length: imageDuration,
-          effect: selectedEffect,
           fit: "contain"
         };
       });
@@ -214,13 +216,54 @@ export async function POST(request: NextRequest) {
         };
         tracks.push(audioTrack);
     }
+
+    // Track for background music (if musicUrl is present)
+    if (musicUrl && musicVolume) {
+        console.log(`🎶 Adding background music track: volume ${Math.round(musicVolume * 100)}%`);
+        
+        // For music looping, we need to estimate the music duration and create multiple clips
+        // Most music tracks are between 30-300 seconds, we'll assume 60 seconds as default
+        const estimatedMusicDuration = 60; // seconds - could be made configurable
+        
+        // Calculate how many loops we need to cover the total video duration
+        const numberOfLoops = Math.ceil(totalDuration / estimatedMusicDuration);
+        
+        console.log(`🔄 Music looping: estimated music duration ${estimatedMusicDuration}s, video duration ${totalDuration.toFixed(1)}s, creating ${numberOfLoops} loops`);
+        
+        // Create multiple clips of the same music to loop throughout the video
+        const musicClips = [];
+        for (let i = 0; i < numberOfLoops; i++) {
+            const startTime = i * estimatedMusicDuration;
+            const clipLength = Math.min(estimatedMusicDuration, totalDuration - startTime);
+            
+            // Only add clip if it has meaningful duration (at least 1 second)
+            if (clipLength >= 1) {
+                musicClips.push({
+                    asset: {
+                        type: "audio",
+                        src: musicUrl,
+                        volume: musicVolume
+                    },
+                    start: startTime,
+                    length: clipLength
+                });
+                
+                console.log(`   🎵 Music clip ${i + 1}: starts at ${startTime.toFixed(1)}s, length ${clipLength.toFixed(1)}s`);
+            }
+        }
+        
+        const musicTrack = {
+            clips: musicClips
+        };
+        tracks.push(musicTrack);
+    }
     
     // Log the track structure for debugging
-    console.log('📊 Final track structure:');
-    tracks.forEach((track, index) => {
-      const assetType = track.clips[0]?.asset?.type || 'unknown';
-      console.log(`  Track ${index}: ${assetType}`);
-    });
+    // console.log('📊 Final track structure:');
+    // tracks.forEach((track, index) => {
+    //   const assetType = track.clips[0]?.asset?.type || 'unknown';
+    //   console.log(`  Track ${index}: ${assetType}`);
+    // });
 
     const timeline: any = {
       tracks: tracks
@@ -238,6 +281,44 @@ export async function POST(request: NextRequest) {
       callback: process.env.SHOTSTACK_CALLBACK_URL
     };
 
+    // Write payload to JSON file for debugging
+    try {
+      const payloadFileName = `shotstack-payload-${videoId}-${Date.now()}.json`;
+      const payloadPath = join(process.cwd(), 'debug', payloadFileName);
+      
+      // Create debug directory if it doesn't exist
+      const debugDir = join(process.cwd(), 'debug');
+      try {
+        const fs = require('fs');
+        if (!fs.existsSync(debugDir)) {
+          fs.mkdirSync(debugDir, { recursive: true });
+        }
+      } catch (dirError) {
+        console.warn('Could not create debug directory:', dirError);
+      }
+      
+      // Write the payload with pretty formatting
+      const formattedPayload = {
+        metadata: {
+          videoId: videoId,
+          timestamp: new Date().toISOString(),
+          videoType: isSegmentedVideo ? 'Segmented' : 'Traditional',
+          totalDuration: totalDuration,
+          imageCount: imageUrls.length,
+          hasAudio: !!audioUrl,
+          hasSubtitles: !!subtitlesUrl,
+          hasMusic: !!musicUrl,
+          musicVolume: musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'
+        },
+        payload: shotstackPayload
+      };
+      
+      writeFileSync(payloadPath, JSON.stringify(formattedPayload, null, 2));
+      console.log(`📄 Shotstack payload saved to: ${payloadPath}`);
+    } catch (writeError) {
+      console.warn('Could not write payload to file:', writeError);
+    }
+
     console.log(JSON.stringify(shotstackPayload, null, 2));
 
     console.log("📤 Sending Shotstack API request with payload summary:");
@@ -245,6 +326,8 @@ export async function POST(request: NextRequest) {
     console.log(`- Total tracks: ${tracks.length}`);
     console.log(`- Images: ${imageUrls.length}`);
     console.log(`- Audio: ${audioUrl ? 'YES' : 'NO'}`);
+    console.log(`- Background Music: ${musicUrl ? 'YES' : 'NO'}`);
+    console.log(`- Music Volume: ${musicUrl && musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}`);
     console.log(`- Subtitles: ${subtitlesUrl ? 'YES' : 'NO'}`);
     console.log(`- Total duration: ${totalDuration.toFixed(2)}s`);
     
@@ -253,7 +336,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": SHOTSTACK_API_KEY
+        "x-api-key": SHOTSTACK_API_KEY || ''
       },
       body: JSON.stringify(shotstackPayload),
     });

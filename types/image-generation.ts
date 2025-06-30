@@ -1,11 +1,11 @@
-export type ImageProvider = 'minimax' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'dalle-3' | 'gpt-image-1' | 'leonardo-phoenix' | 'imagen'
+export type ImageProvider = 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'dalle-3' | 'gpt-image-1' | 'leonardo-phoenix' | 'imagen'
 
 export interface GenerateImageRequestBody {
   provider: ImageProvider
   prompt: string
   numberOfImages?: number
   outputFormat?: 'url' | 'base64'
-  minimaxAspectRatio?: '16:9' | '1:1' | '9:16'
+  aspectRatio?: '16:9' | '1:1' | '9:16'
   fluxImageSize?: { width: number; height: number }
   userId?: string
   stylePrefix?: 'esoteric-medieval' | 'dark-demonic' | 'renaissance' | 'gothic' | 'mystical' | 'ancient' | 'occult' | 'none' | ''

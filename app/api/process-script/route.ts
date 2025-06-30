@@ -104,8 +104,12 @@ For the search query:
 - Use common stock media keywords
 - Think about what someone would search for on Pixabay, Storyblocks, or Shutterstock
 - Avoid overly specific or narrative terms
-- Use generic, visual descriptors`
+- Use generic, visual descriptors
 
+
+this is the type of prompt you should do for image generation:
+A dramatic battlefield scene at dusk, castle walls silhouetted against a darkening sky. Soldiers clash, shields splinter, banners wave, and a red moat churns with bodies. Natural lighting highlights the chaos.
+`
     if (customParameters && customParameters.trim()) {
       systemPrompt += `\n\nAdditional visual instructions: ${customParameters.trim()}`
     }

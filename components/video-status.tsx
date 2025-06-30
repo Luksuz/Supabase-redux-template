@@ -379,20 +379,6 @@ export function VideoStatus() {
         </div>
       </div>
 
-      {/* Google Drive Warning/Status */}
-      {status === 'unauthenticated' && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <span className="text-sm text-amber-800">
-                Sign in with Google in the navbar to upload videos to Google Drive
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {status === 'authenticated' && (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
@@ -518,7 +504,7 @@ export function VideoStatus() {
                             <span className="font-medium">Type:</span> {video.metadata?.type || 'traditional'}
                           </div>
                           <div>
-                            <span className="font-medium">Images:</span> {video.image_urls.length}
+                            <span className="font-medium">Images:</span> {video.image_urls?.length || 0}
                           </div>
                           <div>
                             <span className="font-medium">Duration:</span> {

@@ -17,7 +17,10 @@ const initialState: VideoState = {
     useSegmentedTiming: false,
     useScriptBasedTiming: false,
     videoQuality: 'hd',
-    includeSubtitles: true
+    includeSubtitles: true,
+    includeMusic: false,
+    musicTrack: 'upbeat',
+    musicVolume: 0.15
   },
   statusRefreshInterval: null
 }

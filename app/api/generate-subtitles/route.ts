@@ -12,7 +12,8 @@ const openai = new OpenAI({
 });
 
 interface GenerateSubtitlesRequestBody {
-    audioUrl: string;
+    audioUrl?: string;
+    compressedAudioUrl?: string;  // Preferred for subtitle generation
     userId?: string;
 }
 
@@ -54,7 +55,7 @@ function reformatSrtContent(srt: string): string {
             
             if (timingLine && timingLine.includes('-->')) {
                 const [startTime, endTime] = timingLine.split(' --> ')
-                const text = textLines.join(' ').trim()
+                const text = textLines.join(' ').trim().toUpperCase()
                 
                 if (text) {
                     subtitles.push({
@@ -167,11 +168,14 @@ function msToTime(ms: number): string {
 
 export async function POST(request: NextRequest) {
     const body = await request.json();
-    const { audioUrl, userId = "unknown_user" } = body as GenerateSubtitlesRequestBody;
+    const { audioUrl, compressedAudioUrl, userId = "unknown_user" } = body as GenerateSubtitlesRequestBody;
 
-    if (!audioUrl) {
-        return NextResponse.json({ error: 'Audio URL is required' }, { status: 400 });
+    if (!audioUrl && !compressedAudioUrl) {
+        return NextResponse.json({ error: 'Audio URL or compressedAudioUrl is required' }, { status: 400 });
     }
+
+    // Use compressed audio URL if available (preferred for subtitles), otherwise use original
+    const selectedAudioUrl = compressedAudioUrl || audioUrl!;
 
     if (!process.env.OPENAI_API_KEY) {
         console.error("OpenAI API key is not configured.");
@@ -183,18 +187,18 @@ export async function POST(request: NextRequest) {
     
     let extension = '.tmp';
     try {
-        const urlPath = new URL(audioUrl).pathname;
+        const urlPath = new URL(selectedAudioUrl).pathname;
         const ext = path.extname(urlPath);
         if (ext) extension = ext;
     } catch (e) {
-        console.warn('Could not parse audio URL for extension, using .tmp: ' + audioUrl);
+        console.warn('Could not parse audio URL for extension, using .tmp: ' + selectedAudioUrl);
     }
     const tempFileName = uuidv4() + extension;
     const tempFilePath = path.join(tempDir, tempFileName);
 
     try {
-        console.log("🔤 Downloading audio from: " + audioUrl + " to " + tempFilePath);
-        const audioResponse = await fetch(audioUrl);
+        console.log("🔤 Downloading audio from: " + selectedAudioUrl + " to " + tempFilePath);
+        const audioResponse = await fetch(selectedAudioUrl);
         if (!audioResponse.ok || !audioResponse.body) {
             throw new Error("Failed to download audio file: " + audioResponse.statusText);
         }

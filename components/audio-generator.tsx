@@ -21,10 +21,23 @@ import {
   setMusicSearchError,
   setSelectedMusicTrack,
   MusicTrack,
-  setUploadedMusicUrl,
+  addUploadedMusicTrack,
+  removeUploadedMusicTrack,
+  toggleMusicTrackSelection,
+  selectAllMusicTracks,
+  deselectAllMusicTracks,
+  clearAllMusicTracks,
+  UploadedMusicTrack,
+  startBatchGeneration,
+  updateChunkProgress,
+  setChunkCompleted,
+  setChunkError,
+  setJoiningPhase,
+  completeJoinedAudio,
 } from '../lib/features/audio/audioSlice'
 import { MurfVoice } from '../lib/murf-utils'
 import { ElevenLabsVoice } from '../lib/elevenlabs-utils'
+import { SpeechifyVoice } from '../lib/speechify-utils'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Badge } from './ui/badge'
@@ -38,7 +51,13 @@ import { Volume2, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileT
 import React from 'react'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileDropzone } from './ui/file-dropzone'
+
+interface CustomVoice {
+  id: number
+  provider: 'murf' | 'elevenlabs' | 'speechify'
+  voice_id: string
+  name: string
+}
 
 export function AudioGenerator() {
   const dispatch = useAppDispatch()
@@ -58,7 +77,7 @@ export function AudioGenerator() {
     selectedMusicTrack,
     isSearchingMusic,
     musicSearchError,
-    uploadedMusicUrl,
+    uploadedMusicTracks,
   } = useAppSelector(state => state.audio)
   
   const [message, setMessage] = useState("")
@@ -66,6 +85,8 @@ export function AudioGenerator() {
   const [editableScript, setEditableScript] = useState("")
   const [murfVoices, setMurfVoices] = useState<MurfVoice[]>([])
   const [elevenlabsVoices, setElevenlabsVoices] = useState<ElevenLabsVoice[]>([])
+  const [speechifyVoices, setSpeechifyVoices] = useState<SpeechifyVoice[]>([])
+  const [customVoices, setCustomVoices] = useState<CustomVoice[]>([])
   const [activeAudioPreview, setActiveAudioPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -79,6 +100,7 @@ export function AudioGenerator() {
   // Fetch voices when provider changes
   useEffect(() => {
     async function fetchVoices() {
+      // Fetch API voices
       if (selectedProvider === 'murf') {
         try {
           const response = await fetch('/api/murf-voices');
@@ -103,6 +125,42 @@ export function AudioGenerator() {
         } catch (error) {
           showMessage('Error fetching ElevenLabs voices', 'error');
         }
+      } else if (selectedProvider === 'speechify') {
+        try {
+          const response = await fetch('/api/speechify-voices');
+          const data = await response.json();
+          
+          if (data.success) {
+            console.log('Speechify voices response:', data.voices);
+            console.log('Valid Speechify voices loaded:', data.voices.length);
+            setSpeechifyVoices(data.voices);
+          } else {
+            console.error('Speechify API error:', data.error);
+            if (data.error && data.error.includes('mock data')) {
+              showMessage('Speechify API key appears to be invalid. Please check your API key configuration.', 'error');
+            } else {
+              showMessage('Failed to load Speechify voices: ' + (data.error || 'Unknown error'), 'error');
+            }
+            setSpeechifyVoices([]);
+          }
+        } catch (error) {
+          console.error('Error fetching Speechify voices:', error);
+          showMessage('Error fetching Speechify voices', 'error');
+          setSpeechifyVoices([]);
+        }
+      }
+
+      // Fetch custom admin voices for the selected provider
+      try {
+        const response = await fetch('/api/admin/ai-voices');
+        const data = await response.json();
+        if (data.success) {
+          const providerCustomVoices = data.voices.filter((voice: CustomVoice) => voice.provider === selectedProvider);
+          setCustomVoices(providerCustomVoices);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch custom voices:', error);
+        setCustomVoices([]);
       }
     }
     fetchVoices();
@@ -147,12 +205,9 @@ export function AudioGenerator() {
 
   // Handle music file upload
   const handleMusicDrop = async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
-
+    for (const file of acceptedFiles) {
     setIsUploading(true);
     setUploadedFileName(file.name);
-    dispatch(setUploadedMusicUrl(null)); // Clear previous url
 
     const formData = new FormData();
     formData.append('file', file);
@@ -169,95 +224,224 @@ export function AudioGenerator() {
       }
 
       const data = await response.json();
-      dispatch(setUploadedMusicUrl(data.publicUrl));
-      showMessage('Music uploaded successfully!', 'success');
+        
+        // Add to uploaded tracks
+        const newTrack: UploadedMusicTrack = {
+          id: `uploaded-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: file.name,
+          url: data.publicUrl,
+          uploadedAt: new Date().toISOString(),
+          isSelected: true, // Auto-select new uploads
+        };
+        
+        dispatch(addUploadedMusicTrack(newTrack));
+        showMessage(`Music "${file.name}" uploaded successfully!`, 'success');
     } catch (error: any) {
       showMessage(error.message, 'error');
-      setUploadedFileName(null);
-    } finally {
-      setIsUploading(false);
+      }
     }
+    setIsUploading(false);
+    setUploadedFileName(null);
   };
 
-  // Generate audio
+  // Handle removing a music track
+  const handleRemoveMusicTrack = (trackId: string) => {
+    dispatch(removeUploadedMusicTrack(trackId));
+  };
+
+  // Handle selecting Storyblocks music track
+  const handleSelectStoryblocksTrack = (track: MusicTrack) => {
+    // Convert to uploaded track format
+    const newTrack: UploadedMusicTrack = {
+      id: `storyblocks-${track.id}`,
+      name: track.title,
+      url: track.preview_url,
+      duration: track.duration,
+      uploadedAt: new Date().toISOString(),
+      isSelected: true,
+    };
+    
+    dispatch(addUploadedMusicTrack(newTrack));
+    dispatch(setSelectedMusicTrack(null));
+    showMessage(`Added "${track.title}" to music tracks!`, 'success');
+  };
+
+  // Generate audio with batch processing
   const handleGenerateAudio = async () => {
     if (!editableScript.trim()) {
       showMessage('No script content available for audio generation', 'error')
       return
     }
 
+    // Import chunking utility
+    const { chunkTextByWords, estimateChunksDuration } = await import('../lib/text-chunking');
+    
+    // Use provider-specific chunk sizes for better compatibility
+    const chunkSize = selectedProvider === 'speechify' ? 1500 : 2500; // Smaller chunks for Speechify
+    
+    // Split text into chunks
+    const textChunks = chunkTextByWords(editableScript, chunkSize);
+    
+    if (textChunks.length === 0) {
+      showMessage('Failed to create text chunks from script', 'error');
+      return;
+    }
+
+    console.log(`📝 Split script into ${textChunks.length} chunks for ${selectedProvider} (max ${chunkSize} chars each)`);
+
     const generationId = `audio_${Date.now()}`
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
-      dispatch(startAudioGeneration({
+    // Start batch generation
+    dispatch(startBatchGeneration({
         id: generationId,
         voice: selectedVoice,
         model: selectedModel,
       provider: selectedProvider,
-        generateSubtitles: generateSubtitles
-      }))
+      generateSubtitles: generateSubtitles,
+      chunks: textChunks
+    }));
 
     try {
       const apiEndpoint = selectedProvider === 'murf' 
         ? '/api/generate-murf-audio' 
-        : '/api/generate-elevenlabs-audio';
+        : selectedProvider === 'elevenlabs' 
+          ? '/api/generate-elevenlabs-audio'
+          : '/api/generate-speechify-audio';
         
+      console.log(`🎵 Starting ${selectedProvider} batch audio generation for ${textChunks.length} chunks...`);
+      
+      // Process chunks in batches (5 concurrent requests)
+      const batchSize = 5;
+      const completedChunks: Array<{chunkIndex: number, audioUrl: string, duration: number}> = [];
+      
+      for (let i = 0; i < textChunks.length; i += batchSize) {
+        const batch = textChunks.slice(i, i + batchSize);
+        console.log(`📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(textChunks.length / batchSize)} (chunks ${i + 1}-${Math.min(i + batchSize, textChunks.length)})`);
+        
+        // Process batch concurrently
+        const batchPromises = batch.map(async (chunk) => {
+          dispatch(updateChunkProgress({ chunkIndex: chunk.chunkIndex, status: 'processing' }));
+          
+          try {
       const payload = {
-        text: editableScript,
+              text: chunk.text,
         voiceId: selectedVoice,
-        chunkIndex: 0, // Simplified for single chunk
+              chunkIndex: chunk.chunkIndex,
         sessionId: sessionId,
-        generateSubtitles: generateSubtitles,
+              generateSubtitles: false, // Don't generate subtitles for individual chunks
       };
-
-      console.log(`🎵 Starting ${selectedProvider} audio generation...`)
-      dispatch(setAudioProgress({ total: 1, completed: 0, phase: 'chunks' }))
               
       const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-              })
+            });
 
               if (!response.ok) {
-                const errorData = await response.json()
-        throw new Error(errorData.error || `Failed to generate audio with ${selectedProvider}`)
+              const errorData = await response.json();
+              throw new Error(errorData.error || `Failed to generate chunk ${chunk.chunkIndex}`);
               }
 
-              const data = await response.json()
-              
-      const scriptDuration = {
-        scriptId: 'initial_script',
-        imageId: 'initial_script',
-        imageName: 'Initial Script',
-        duration: data.duration, // We still need the duration from the initial generation
-        startTime: 0,
-      };
+            const data = await response.json();
+            
+            dispatch(setChunkCompleted({
+              chunkIndex: chunk.chunkIndex,
+              audioUrl: data.audioUrl,
+              duration: data.duration
+            }));
+
+            console.log(`✅ Completed chunk ${chunk.chunkIndex + 1}/${textChunks.length} (${data.duration.toFixed(2)}s)`);
+            
+            return {
+              chunkIndex: chunk.chunkIndex,
+              audioUrl: data.audioUrl,
+              duration: data.duration
+            };
+            
+          } catch (error: any) {
+            console.error(`❌ Error processing chunk ${chunk.chunkIndex}:`, error);
+            dispatch(setChunkError({
+              chunkIndex: chunk.chunkIndex,
+              error: error.message
+            }));
+            throw error;
+          }
+        });
+
+        // Wait for batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        completedChunks.push(...batchResults);
+        
+        // Small delay between batches to avoid overwhelming the API
+        if (i + batchSize < textChunks.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      console.log(`🔗 All chunks completed. Joining ${completedChunks.length} audio files...`);
+      dispatch(setJoiningPhase());
+
+      // Join audio chunks
+      const joinResponse = await fetch('/api/join-audio-chunks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chunkUrls: completedChunks.sort((a, b) => a.chunkIndex - b.chunkIndex),
+          sessionId: sessionId,
+          userId: 'current_user',
+          generateSubtitles: generateSubtitles
+        })
+      });
+
+      if (!joinResponse.ok) {
+        const errorData = await joinResponse.json();
+        throw new Error(errorData.error || 'Failed to join audio chunks');
+      }
+
+      const joinData = await joinResponse.json();
       
-      dispatch(completeAudioGeneration({
-        audioUrl: data.audioUrl,
-        duration: data.duration,
-        scriptDurations: [scriptDuration]
+      // Create script durations for video generation (each chunk's timing)
+      let currentStartTime = 0;
+      const scriptDurations = completedChunks
+        .sort((a, b) => a.chunkIndex - b.chunkIndex)
+        .map((chunk, index) => {
+          const scriptDuration = {
+            scriptId: `chunk_${chunk.chunkIndex}`,
+            imageId: `chunk_${chunk.chunkIndex}`,
+            imageName: `Chunk ${chunk.chunkIndex + 1}`,
+            duration: chunk.duration,
+            startTime: currentStartTime
+          };
+          currentStartTime += chunk.duration;
+          return scriptDuration;
+        });
+
+      dispatch(completeJoinedAudio({
+        audioUrl: joinData.audioUrl,
+        compressedAudioUrl: joinData.compressedAudioUrl,
+        duration: joinData.duration,
+        scriptDurations: scriptDurations
       }));
 
-      showMessage(`Successfully generated audio using ${selectedProvider}!`, 'success')
+      showMessage(`Successfully generated audio using ${selectedProvider} (${textChunks.length} chunks, ${joinData.duration.toFixed(1)}s)!`, 'success');
 
-      if (generateSubtitles) {
-        const subtitleUrl = data.compressedAudioUrl || data.audioUrl;
-        await handleGenerateSubtitles(subtitleUrl)
+      // Generate subtitles if requested
+      if (generateSubtitles && joinData.compressedAudioUrl) {
+        await handleGenerateSubtitles(joinData.compressedAudioUrl);
       } else {
-        dispatch(saveGenerationToHistory())
+        dispatch(saveGenerationToHistory());
       }
 
     } catch (error: any) {
-      console.error('Audio generation error:', error)
-      dispatch(setAudioGenerationError(error.message))
-      showMessage(`Audio generation failed: ${error.message}`, 'error')
+      console.error('Batch audio generation error:', error);
+      dispatch(setAudioGenerationError(error.message));
+      showMessage(`Audio generation failed: ${error.message}`, 'error');
     }
   }
 
   const handleGenerateSubtitles = async (audioUrl?: string) => {
-    const urlToUse = audioUrl || currentGeneration?.audioUrl
+    const urlToUse = audioUrl || currentGeneration?.compressedAudioUrl || currentGeneration?.audioUrl
     
     if (!urlToUse) {
       showMessage('No audio available for subtitle generation', 'error')
@@ -274,7 +458,9 @@ export function AudioGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          audioUrl: urlToUse,
+          // Use compressedAudioUrl if available (preferred for subtitles)
+          compressedAudioUrl: currentGeneration?.compressedAudioUrl || audioUrl,
+          audioUrl: !currentGeneration?.compressedAudioUrl ? urlToUse : undefined,
           userId: 'current_user'
         })
       })
@@ -329,11 +515,34 @@ export function AudioGenerator() {
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
+            {/* API Voices */}
+            {murfVoices.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  API Voices
+                </div>
             {murfVoices.map((voice) => (
               <SelectItem key={voice.voiceId} value={voice.voiceId}>
                 {voice.displayName} ({voice.gender}, {voice.accent})
               </SelectItem>
             ))}
+              </>
+            )}
+            
+            {/* Custom Voices */}
+            {customVoices.length > 0 && (
+              <>
+                {murfVoices.length > 0 && <div className="border-t my-1" />}
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Custom Voices
+                </div>
+                {customVoices.map((voice) => (
+                  <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                    {voice.name} <span className="text-xs text-gray-500">(Custom)</span>
+                  </SelectItem>
+                ))}
+              </>
+            )}
           </SelectContent>
         </Select>
       );
@@ -346,11 +555,83 @@ export function AudioGenerator() {
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
+            {/* API Voices */}
+            {elevenlabsVoices.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  API Voices
+                </div>
             {elevenlabsVoices.map((voice) => (
               <SelectItem key={voice.voice_id} value={voice.voice_id}>
                 {voice.name} ({voice.labels.accent}, {voice.category})
               </SelectItem>
             ))}
+              </>
+            )}
+            
+            {/* Custom Voices */}
+            {customVoices.length > 0 && (
+              <>
+                {elevenlabsVoices.length > 0 && <div className="border-t my-1" />}
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Custom Voices
+                </div>
+                {customVoices.map((voice) => (
+                  <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                    {voice.name} <span className="text-xs text-gray-500">(Custom)</span>
+                  </SelectItem>
+                ))}
+              </>
+            )}
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (selectedProvider === 'speechify') {
+      return (
+        <Select 
+          value={selectedVoice} 
+          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {/* API Voices */}
+            {speechifyVoices.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  API Voices
+                </div>
+                {speechifyVoices.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    {voice.displayName} ({voice.gender}, {voice.locale})
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            
+            {/* Custom Voices */}
+            {customVoices.length > 0 && (
+              <>
+                {speechifyVoices.length > 0 && <div className="border-t my-1" />}
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Custom Voices
+                </div>
+                {customVoices.map((voice) => (
+                  <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                    {voice.name} <span className="text-xs text-gray-500">(Custom)</span>
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            
+            {/* No voices available message */}
+            {speechifyVoices.length === 0 && customVoices.length === 0 && (
+              <div className="px-2 py-3 text-xs text-gray-500 text-center">
+                No Speechify voices available.
+                <br />
+                Check API key configuration or add custom voices in Admin.
+              </div>
+            )}
           </SelectContent>
         </Select>
       );
@@ -359,11 +640,21 @@ export function AudioGenerator() {
   };
 
   const getVoiceName = (provider: AudioProvider, voiceId: string): string => {
+    // Check custom voices first
+    const customVoice = customVoices.find(v => v.voice_id === voiceId);
+    if (customVoice) {
+      return `${customVoice.name} (Custom)`;
+    }
+
+    // Then check API voices
     if (provider === 'murf') {
       return murfVoices.find(v => v.voiceId === voiceId)?.displayName || voiceId;
     }
     if (provider === 'elevenlabs') {
       return elevenlabsVoices.find(v => v.voice_id === voiceId)?.name || voiceId;
+    }
+    if (provider === 'speechify') {
+      return speechifyVoices.find(v => v.id === voiceId)?.displayName || voiceId;
     }
     return voiceId;
   }
@@ -374,7 +665,7 @@ export function AudioGenerator() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
         <p className="text-gray-600">
-          Generate high-quality audio from your scripts using Murf.ai or ElevenLabs
+          Generate high-quality audio from your scripts using Murf.ai, ElevenLabs, or Speechify
         </p>
       </div>
 
@@ -416,6 +707,10 @@ export function AudioGenerator() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="elevenlabs" id="elevenlabs" />
                   <Label htmlFor="elevenlabs">ElevenLabs</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="speechify" id="speechify" />
+                  <Label htmlFor="speechify">Speechify</Label>
                 </div>
               </RadioGroup>
               </div>
@@ -460,7 +755,7 @@ export function AudioGenerator() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Music /> Background Music</CardTitle>
-          <CardDescription>Search for background music from Storyblocks.</CardDescription>
+          <CardDescription>Search for background music from Storyblocks or upload multiple custom tracks. All selected tracks will be looped in videos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
@@ -479,7 +774,7 @@ export function AudioGenerator() {
 
           {selectedMusicTrack && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="font-medium">Selected: {selectedMusicTrack.title}</p>
+              <p className="font-medium">Found: {selectedMusicTrack.title}</p>
               <div className="flex items-center gap-2">
                 <audio src={selectedMusicTrack.preview_url} controls className="w-full h-10 mt-2" />
                 <Button variant="ghost" size="sm" onClick={() => dispatch(setSelectedMusicTrack(null))}>Clear</Button>
@@ -487,28 +782,7 @@ export function AudioGenerator() {
             </div>
           )}
           
-          <div className="text-center text-sm text-gray-500 my-2">OR</div>
-
-          <FileDropzone
-            label="Upload Custom Music"
-            onDrop={handleMusicDrop}
-            acceptedFileTypes={{ 'audio/mpeg': ['.mp3'] }}
-            maxFileSize={10 * 1024 * 1024} // 10MB
-            uploadedFile={uploadedMusicUrl ? { name: uploadedFileName || 'Uploaded Music', url: uploadedMusicUrl } : null}
-            onClear={() => {
-              dispatch(setUploadedMusicUrl(null));
-              setUploadedFileName(null);
-            }}
-          />
-          {isUploading && <div className="flex items-center justify-center gap-2 text-gray-500 mt-2"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
-
-          {uploadedMusicUrl && !isUploading && (
-             <div className="mt-2">
-                <audio src={uploadedMusicUrl} controls className="w-full h-10" />
-             </div>
-          )}
-
-          <div className="space-y-2 max-h-60 overflow-y-auto mt-4">
+          <div className="space-y-2 max-h-60 overflow-y-auto">
             {musicSearchResults.map((track: any) => (
               <div key={track.id} className="p-2 border rounded-md flex items-center justify-between">
                 <div>
@@ -519,7 +793,7 @@ export function AudioGenerator() {
                   <Button size="sm" variant="outline" onClick={() => setActiveAudioPreview(track.preview_url === activeAudioPreview ? null : track.preview_url)}>
                     {activeAudioPreview === track.preview_url ? 'Stop' : 'Preview'}
                   </Button>
-                  <Button size="sm" onClick={() => dispatch(setSelectedMusicTrack(track))}>Select</Button>
+                  <Button size="sm" onClick={() => handleSelectStoryblocksTrack(track)}>Add Track</Button>
                 </div>
               </div>
             ))}
@@ -528,8 +802,175 @@ export function AudioGenerator() {
             <audio src={activeAudioPreview} autoPlay onEnded={() => setActiveAudioPreview(null)} className="hidden" />
           )}
 
+          <div className="text-center text-sm text-gray-500 my-2">OR</div>
+
+          {/* Custom File Upload for Multiple Music */}
+          <div className="space-y-2">
+            <Label>Upload Custom Music (Multiple Files Supported)</Label>
+            <input
+              type="file"
+              accept="audio/mp3,audio/wav,audio/m4a"
+              multiple
+              onChange={(e) => {
+                if (e.target.files) {
+                  handleMusicDrop(Array.from(e.target.files));
+                }
+              }}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+            />
+            <p className="text-xs text-gray-500">
+              Supports MP3, WAV, and M4A files up to 50MB each. You can select multiple files at once.
+            </p>
+          </div>
+          {isUploading && <div className="flex items-center justify-center gap-2 text-gray-500 mt-2"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
+
+          {/* Uploaded Music Tracks Management */}
+          {uploadedMusicTracks.length > 0 && (
+            <div className="space-y-4 border-t pt-4 mt-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Uploaded Music Tracks ({uploadedMusicTracks.length})</h4>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => dispatch(selectAllMusicTracks())}>
+                    Select All
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => dispatch(deselectAllMusicTracks())}>
+                    Deselect All
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => dispatch(clearAllMusicTracks())}>
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {uploadedMusicTracks.map((track) => (
+                  <div key={track.id} className={`p-3 border rounded-lg ${track.isSelected ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={track.isSelected}
+                          onChange={() => dispatch(toggleMusicTrackSelection(track.id))}
+                          className="rounded"
+                        />
+                        <span className="font-medium">{track.name}</span>
+                        {track.isSelected && <Badge variant="secondary" className="text-xs">Selected</Badge>}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        onClick={() => handleRemoveMusicTrack(track.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                    <audio src={track.url} controls className="w-full h-8" />
+                    <div className="text-xs text-gray-500 mt-1">
+                      Added: {new Date(track.uploadedAt).toLocaleString()}
+                      {track.duration && ` | Duration: ${track.duration}s`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>{uploadedMusicTracks.filter(t => t.isSelected).length}</strong> track(s) selected for video generation.
+                  All selected tracks will be looped to match the video duration.
+                </p>
+              </div>
+            </div>
+          )}
+
         </CardContent>
       </Card>
+
+      {/* Batch Processing Progress */}
+      {isGeneratingAudio && currentGeneration?.chunks && (
+        <Card className="bg-white shadow-sm border border-gray-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Batch Audio Generation Progress
+            </CardTitle>
+            <CardDescription>
+              Processing {currentGeneration.chunks.length} text chunks with {selectedProvider}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Overall Progress */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Overall Progress</span>
+                <span>{audioProgress.completed}/{audioProgress.total} chunks</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${audioProgress.total > 0 ? (audioProgress.completed / audioProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+              <div className="text-center text-sm text-gray-600 capitalize">
+                Phase: {audioProgress.phase === 'chunks' ? 'Processing Chunks' : 
+                       audioProgress.phase === 'concatenating' ? 'Joining Audio Files' : 
+                       audioProgress.phase === 'subtitles' ? 'Generating Subtitles' : 
+                       'Completed'}
+              </div>
+            </div>
+
+            {/* Individual Chunk Progress */}
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Individual Chunks</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                {currentGeneration.chunks.map((chunk) => (
+                  <div 
+                    key={chunk.chunkIndex} 
+                    className={`p-3 rounded-lg border text-sm ${
+                      chunk.status === 'completed' ? 'bg-green-50 border-green-200' :
+                      chunk.status === 'processing' ? 'bg-blue-50 border-blue-200' :
+                      chunk.status === 'error' ? 'bg-red-50 border-red-200' :
+                      'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium">Chunk {chunk.chunkIndex + 1}</span>
+                      <div className="flex items-center gap-1">
+                        {chunk.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-600" />}
+                        {chunk.status === 'processing' && <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />}
+                        {chunk.status === 'error' && <AlertCircle className="h-4 w-4 text-red-600" />}
+                        {chunk.status === 'pending' && <Clock className="h-4 w-4 text-gray-400" />}
+                      </div>
+                    </div>
+                    <div className={`text-xs ${
+                      chunk.status === 'completed' ? 'text-green-700' :
+                      chunk.status === 'processing' ? 'text-blue-700' :
+                      chunk.status === 'error' ? 'text-red-700' :
+                      'text-gray-500'
+                    }`}>
+                      {chunk.status === 'completed' && chunk.duration ? `${chunk.duration.toFixed(1)}s` :
+                       chunk.status === 'processing' ? 'Processing...' :
+                       chunk.status === 'error' ? chunk.error || 'Error occurred' :
+                       'Waiting...'}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 truncate">
+                      {chunk.text.substring(0, 50)}{chunk.text.length > 50 ? '...' : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Estimated Time */}
+            {audioProgress.phase === 'chunks' && audioProgress.total > 0 && (
+              <div className="text-sm text-gray-600 text-center">
+                Estimated time remaining: {Math.max(0, Math.ceil((audioProgress.total - audioProgress.completed) * 10 / 5))} seconds
+                <br />
+                <span className="text-xs">Processing 5 chunks concurrently</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Generation */}
       {currentGeneration && (

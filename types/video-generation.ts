@@ -6,10 +6,19 @@ export interface SegmentTiming {
 export interface CreateVideoRequestBody {
   imageUrls: string[]
   audioUrl: string
+  audioDuration?: number
   subtitlesUrl?: string
   userId: string
   thumbnailUrl?: string
   segmentTimings?: SegmentTiming[]
+  musicUrl?: string
+  musicVolume?: number
+  // Subtitle styling options
+  fontFamily?: string
+  fontSize?: number
+  fontColor?: string
+  fontWeight?: string
+  strokeWidth?: number
 }
 
 export interface CreateVideoResponse {
@@ -46,4 +55,7 @@ export interface VideoGenerationSettings {
   useScriptBasedTiming: boolean
   videoQuality: 'hd' | 'sd'
   includeSubtitles: boolean
+  includeMusic: boolean
+  musicTrack: string
+  musicVolume: number
 } 
