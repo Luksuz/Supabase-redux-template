@@ -182,6 +182,12 @@ export function AudioGenerator() {
   // Simple text input state
   const [inputText, setInputText] = useState<string>("")
 
+  // Audio type selection state
+  const [selectedAudioType, setSelectedAudioType] = useState<'original' | 'compressed'>('original')
+  
+  // Audio type selection for history items
+  const [historyAudioTypes, setHistoryAudioTypes] = useState<Record<string, 'original' | 'compressed'>>({})
+
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
@@ -590,7 +596,7 @@ export function AudioGenerator() {
         }
 
         dispatch(saveGenerationToHistory());
-        showMessage(`Successfully generated audio using ${currentProvider?.name}! Original quality for video, compressed version for subtitles.`, 'success');
+        showMessage(`Successfully generated audio using ${currentProvider?.name}! Both original and compressed versions are available - switch between them in the player above.`, 'success');
         setGenerationStatusMessage("");
         
       } catch (error: any) {
@@ -835,6 +841,13 @@ export function AudioGenerator() {
     
     return languageNames[langCode] || langCode
   }
+
+  // Reset audio type selection when new generation completes
+  useEffect(() => {
+    if (currentGeneration && currentGeneration.status === 'completed' && currentGeneration.audioUrl) {
+      setSelectedAudioType('original');
+    }
+  }, [currentGeneration?.id, currentGeneration?.status]);
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -1167,19 +1180,130 @@ export function AudioGenerator() {
                   <CheckCircle className="h-5 w-5 text-green-600" />
                   <span className="font-medium text-green-800">Audio Generated Successfully!</span>
                 </div>
-                <audio controls className="w-full mb-3">
-                  <source src={currentGeneration.audioUrl} type="audio/mpeg" />
-                  Your browser does not support the audio element.
-                </audio>
-                <div className="flex gap-2">
+                
+                {/* Audio Type Toggle */}
+                <div className="mb-4 p-3 bg-white border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-gray-700">Audio Quality Selection</h4>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="audioType"
+                          value="original"
+                          checked={selectedAudioType === 'original'}
+                          onChange={(e) => setSelectedAudioType(e.target.value as 'original')}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          Original Quality
+                          <span className="text-xs text-green-600 ml-1 font-medium">(Best for Video)</span>
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="audioType"
+                          value="compressed"
+                          checked={selectedAudioType === 'compressed'}
+                          onChange={(e) => setSelectedAudioType(e.target.value as 'compressed')}
+                          className="text-blue-600 focus:ring-blue-500"
+                          disabled={!currentGeneration.compressedAudioUrl}
+                        />
+                        <span className="text-sm text-gray-700">
+                          Compressed
+                          <span className="text-xs text-blue-600 ml-1 font-medium">(60-80% smaller)</span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Quality Indicators */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className={`p-2 rounded border ${selectedAudioType === 'original' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="font-medium text-gray-700">Original Quality</div>
+                      <div className="text-gray-500 mt-1">
+                        • Full quality audio<br/>
+                        • Perfect for video generation<br/>
+                        • Larger file size
+                      </div>
+                    </div>
+                    <div className={`p-2 rounded border ${selectedAudioType === 'compressed' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="font-medium text-gray-700">Compressed</div>
+                      <div className="text-gray-500 mt-1">
+                        • 16kHz, 32kbps mono<br/>
+                        • Great for subtitles/transcription<br/>
+                        • 60-80% smaller file size
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Audio Player */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">
+                      Now Playing: {selectedAudioType === 'original' ? 'Original Quality' : 'Compressed'} Audio
+                    </span>
+                  </div>
+                  
+                  <audio controls className="w-full">
+                    <source 
+                      src={selectedAudioType === 'original' ? currentGeneration.audioUrl! : currentGeneration.compressedAudioUrl!} 
+                      type="audio/mpeg" 
+                    />
+                    Your browser does not support the audio element.
+                  </audio>
+                  
+                  {!currentGeneration.compressedAudioUrl && selectedAudioType === 'compressed' && (
+                    <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                      ⚠️ Compressed audio not available for this generation
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-2 mt-4">
                   <Button
-                    onClick={() => handleDownloadAudio(currentGeneration.audioUrl!, `audio-${currentGeneration.id}.mp3`)}
+                    onClick={() => handleDownloadAudio(
+                      selectedAudioType === 'original' ? currentGeneration.audioUrl! : currentGeneration.compressedAudioUrl!,
+                      `${selectedAudioType}-audio-${currentGeneration.id}.mp3`
+                    )}
                     size="sm"
                     variant="outline"
+                    disabled={selectedAudioType === 'compressed' && !currentGeneration.compressedAudioUrl}
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Download Audio
+                    Download {selectedAudioType === 'original' ? 'Original' : 'Compressed'} Audio
                   </Button>
+                  
+                  {/* Quick download buttons for both types */}
+                  {currentGeneration.compressedAudioUrl && (
+                    <div className="flex gap-1">
+                      {selectedAudioType !== 'original' && (
+                        <Button
+                          onClick={() => handleDownloadAudio(currentGeneration.audioUrl!, `original-audio-${currentGeneration.id}.mp3`)}
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs px-2"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Original
+                        </Button>
+                      )}
+                      {selectedAudioType !== 'compressed' && (
+                        <Button
+                          onClick={() => handleDownloadAudio(currentGeneration.compressedAudioUrl!, `compressed-audio-${currentGeneration.id}.mp3`)}
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs px-2"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Compressed
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1240,43 +1364,137 @@ export function AudioGenerator() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {generationHistory.map((generation) => (
-                <div key={generation.id} className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm">
-                      {new Date(generation.generatedAt).toLocaleString()}
-                    </span>
-                    <div className="flex gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {generation.duration ? `${generation.duration.toFixed(1)}s` : 'N/A'}
-                      </Badge>
+            <div className="space-y-4">
+              {generationHistory.map((generation) => {
+                const historyAudioType = historyAudioTypes[generation.id] || 'original';
+                const setHistoryAudioType = (type: 'original' | 'compressed') => {
+                  setHistoryAudioTypes(prev => ({ ...prev, [generation.id]: type }));
+                };
+                
+                return (
+                  <div key={generation.id} className="p-4 bg-gray-50 rounded-lg border">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-medium text-sm">
+                        {new Date(generation.generatedAt).toLocaleString()}
+                      </span>
+                      <div className="flex gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {generation.duration ? `${generation.duration.toFixed(1)}s` : 'N/A'}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {generation.status}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Audio Type Toggle for History */}
+                    {generation.audioUrl && (
+                      <div className="mb-3 p-2 bg-white border rounded">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-gray-600">Audio Quality:</span>
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`audioType-${generation.id}`}
+                                value="original"
+                                checked={historyAudioType === 'original'}
+                                onChange={(e) => setHistoryAudioType(e.target.value as 'original')}
+                                className="text-blue-600 focus:ring-blue-500 w-3 h-3"
+                              />
+                              <span className="text-xs text-gray-700">Original</span>
+                            </label>
+                            <label className="flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`audioType-${generation.id}`}
+                                value="compressed"
+                                checked={historyAudioType === 'compressed'}
+                                onChange={(e) => setHistoryAudioType(e.target.value as 'compressed')}
+                                className="text-blue-600 focus:ring-blue-500 w-3 h-3"
+                                disabled={!generation.compressedAudioUrl}
+                              />
+                              <span className="text-xs text-gray-700">Compressed</span>
+                            </label>
+                          </div>
+                        </div>
+                        
+                        {/* Mini Audio Player */}
+                        <div className="mt-2">
+                          <audio controls className="w-full h-8" style={{ height: '32px' }}>
+                            <source 
+                              src={historyAudioType === 'original' ? generation.audioUrl! : generation.compressedAudioUrl!} 
+                              type="audio/mpeg" 
+                            />
+                            Your browser does not support the audio element.
+                          </audio>
+                        </div>
+                        
+                        {!generation.compressedAudioUrl && historyAudioType === 'compressed' && (
+                          <div className="text-xs text-amber-600 mt-1">
+                            ⚠️ Compressed audio not available
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Download Buttons */}
+                    <div className="flex gap-2 flex-wrap">
+                      {generation.audioUrl && (
+                        <>
+                          <Button
+                            onClick={() => handleDownloadAudio(
+                              historyAudioType === 'original' ? generation.audioUrl! : generation.compressedAudioUrl!,
+                              `${historyAudioType}-audio-${generation.id}.mp3`
+                            )}
+                            size="sm"
+                            variant="outline"
+                            disabled={historyAudioType === 'compressed' && !generation.compressedAudioUrl}
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            {historyAudioType === 'original' ? 'Original' : 'Compressed'}
+                          </Button>
+                          
+                          {/* Quick access to both types */}
+                          {generation.compressedAudioUrl && historyAudioType === 'original' && (
+                            <Button
+                              onClick={() => handleDownloadAudio(generation.compressedAudioUrl!, `compressed-audio-${generation.id}.mp3`)}
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs px-2"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Compressed
+                            </Button>
+                          )}
+                          {generation.compressedAudioUrl && historyAudioType === 'compressed' && (
+                            <Button
+                              onClick={() => handleDownloadAudio(generation.audioUrl!, `original-audio-${generation.id}.mp3`)}
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs px-2"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Original
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      
+                      {generation.subtitlesUrl && (
+                        <Button
+                          onClick={() => handleDownloadSubtitles(generation.subtitlesUrl!, `subtitles-${generation.id}.srt`)}
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Subtitles
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {generation.audioUrl && (
-                      <Button
-                        onClick={() => handleDownloadAudio(generation.audioUrl!, `audio-${generation.id}.mp3`)}
-                        size="sm"
-                        variant="outline"
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        Audio
-                      </Button>
-                    )}
-                    {generation.subtitlesUrl && (
-                      <Button
-                        onClick={() => handleDownloadSubtitles(generation.subtitlesUrl!, `subtitles-${generation.id}.srt`)}
-                        size="sm"
-                        variant="outline"
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        Subtitles
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
