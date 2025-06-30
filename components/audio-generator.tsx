@@ -660,8 +660,8 @@ export function AudioGenerator() {
     document.body.removeChild(link)
   }
 
-  // Voice display functions
-  const getDisplayVoices = () => {
+  // Voice display functions - modified to separate custom and standard voices
+  const getVoicesWithSeparator = () => {
     console.log(`🎤 Getting display voices for provider: ${selectedProvider}`)
     console.log(`📦 Static voices:`, currentProvider?.voices || [])
     console.log(`📡 API voices:`, apiVoices)
@@ -675,14 +675,17 @@ export function AudioGenerator() {
     const customVoicesForProvider = dbVoices.filter(voice => voice.provider === selectedProvider)
       .map(voice => ({
         id: voice.voice_id,
-        name: `${voice.name} (Custom)`
+        name: `${voice.name} (Custom)`,
+        isCustom: true
       }))
     
+    let standardVoices: any[] = []
+    
     if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
-      // For API-based providers, combine static, API, and custom voices
+      // For API-based providers, combine static and API voices as standard
       const dynamicVoices = apiVoices || []
       
-      console.log(`🔗 Combining ${staticVoices.length} static + ${dynamicVoices.length} dynamic + ${customVoicesForProvider.length} custom voices`)
+      console.log(`🔗 Combining ${staticVoices.length} static + ${dynamicVoices.length} dynamic voices as standard`)
       
       // Create a Map to handle duplicates, with API voices taking priority over static
       const voiceMap = new Map()
@@ -690,42 +693,46 @@ export function AudioGenerator() {
       // Add static voices first
       staticVoices.forEach(voice => {
         if (voice.id) {
-          voiceMap.set(voice.id, voice)
+          voiceMap.set(voice.id, { ...voice, isCustom: false })
         }
       })
       
       // Add API voices (these will override static ones with same ID)
       dynamicVoices.forEach(voice => {
         if (voice.id) {
-          voiceMap.set(voice.id, voice)
+          voiceMap.set(voice.id, { ...voice, isCustom: false })
         }
       })
       
-      // Add custom voices (these will override both static and API if same ID)
-      customVoicesForProvider.forEach(voice => {
-        if (voice.id) {
-          voiceMap.set(voice.id, voice)
-        }
-      })
-      
-      let finalVoices = Array.from(voiceMap.values())
+      standardVoices = Array.from(voiceMap.values())
       
       // Filter by language for Google TTS
       if (selectedProvider === 'google-tts' && googleTtsLanguage) {
-        finalVoices = finalVoices.filter(voice => 
-          voice.id && (voice.id.startsWith(googleTtsLanguage) || voice.name?.includes('(Custom)'))
+        standardVoices = standardVoices.filter(voice => 
+          voice.id && voice.id.startsWith(googleTtsLanguage)
         )
-        console.log(`🔍 Filtered to ${finalVoices.length} voices for language: ${googleTtsLanguage}`)
+        console.log(`🔍 Filtered to ${standardVoices.length} standard voices for language: ${googleTtsLanguage}`)
       }
-      
-      console.log(`✅ Final voices to display:`, finalVoices)
-      return finalVoices
+    } else {
+      // For non-API providers, use static voices as standard
+      standardVoices = staticVoices.map(voice => ({ ...voice, isCustom: false }))
     }
     
-    // For non-API providers, combine static and custom voices
-    const combinedVoices = [...staticVoices, ...customVoicesForProvider]
-    console.log(`📋 Returning combined voices (${staticVoices.length} static + ${customVoicesForProvider.length} custom):`, combinedVoices)
-    return combinedVoices
+    console.log(`📋 Returning separated voices:`, {
+      standard: standardVoices.length,
+      custom: customVoicesForProvider.length
+    })
+    
+    return {
+      standardVoices,
+      customVoices: customVoicesForProvider
+    }
+  }
+
+  // Legacy function for compatibility - combines all voices
+  const getDisplayVoices = () => {
+    const { standardVoices, customVoices } = getVoicesWithSeparator()
+    return [...standardVoices, ...customVoices]
   }
 
   const getVoiceDisplayName = (voiceId: string) => {
@@ -945,11 +952,44 @@ export function AudioGenerator() {
                         <SelectValue placeholder="Select a voice" />
                       </SelectTrigger>
                       <SelectContent>
-                        {getDisplayVoices().map((voice, index) => (
-                          <SelectItem key={voice.id || `voice-${index}`} value={voice.id || `voice-${index}`}>
-                            {voice.name}
-                          </SelectItem>
-                        ))}
+                        {(() => {
+                          const { standardVoices, customVoices } = getVoicesWithSeparator()
+                          const elements = []
+                          
+                          // Add standard voices
+                          standardVoices.forEach((voice, index) => {
+                            elements.push(
+                              <SelectItem key={voice.id || `voice-${index}`} value={voice.id || `voice-${index}`}>
+                                {voice.name}
+                              </SelectItem>
+                            )
+                          })
+                          
+                          // Add separator if we have both standard and custom voices
+                          if (standardVoices.length > 0 && customVoices.length > 0) {
+                            elements.push(
+                              <div key="separator" className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                  <div className="w-full border-t border-gray-300" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                  <span className="bg-white px-2 text-gray-500">Custom Voices</span>
+                                </div>
+                              </div>
+                            )
+                          }
+                          
+                          // Add custom voices
+                          customVoices.forEach((voice, index) => {
+                            elements.push(
+                              <SelectItem key={voice.id || `custom-voice-${index}`} value={voice.id || `custom-voice-${index}`}>
+                                {voice.name}
+                              </SelectItem>
+                            )
+                          })
+                          
+                          return elements
+                        })()}
                       </SelectContent>
                     </Select>
                   )}
