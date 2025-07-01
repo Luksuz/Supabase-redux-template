@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
               },
               background: {
                 color: "#ffffff",
-                opacity: 0.5,
+                opacity: 0,
                 padding: 12,
               },
             },
