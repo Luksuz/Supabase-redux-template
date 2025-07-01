@@ -110,10 +110,11 @@ export function ScriptProcessor() {
     setTimeout(() => setMessage(""), 5000)
   }
 
-  // Text chunking function
-  const chunkTextByWords = useCallback((text: string, numChunks: number): ScriptChunk[] => {
+  // Text chunking function - always chunks to 50 pieces
+  const chunkTextByWords = useCallback((text: string): ScriptChunk[] => {
     if (!text.trim()) return []
     
+    const numChunks = 50 // Always 50 chunks
     const words = text.trim().split(/\s+/)
     const wordsPerChunk = Math.ceil(words.length / numChunks)
     const chunks: ScriptChunk[] = []
@@ -136,14 +137,14 @@ export function ScriptProcessor() {
     return chunks
   }, [])
 
-  // Auto-chunk when script or scene count changes
+  // Auto-chunk when script changes - always to 50 chunks
   useEffect(() => {
     const scriptText = pastedScript || (fileName ? 'File uploaded - content will be processed' : '')
     if (scriptText.trim()) {
-      const newChunks = chunkTextByWords(scriptText, selectedSceneCount)
+      const newChunks = chunkTextByWords(scriptText)
       dispatch(setChunks(newChunks))
     }
-  }, [pastedScript, selectedSceneCount, fileName, chunkTextByWords, dispatch])
+  }, [pastedScript, fileName, chunkTextByWords, dispatch])
 
   // Handle file upload
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,7 +206,7 @@ export function ScriptProcessor() {
 
     try {
       // Use the script that's already in state (either pasted or from uploaded file)
-      const finalChunks = chunkTextByWords(pastedScript, selectedSceneCount)
+      const finalChunks = chunkTextByWords(pastedScript)
       dispatch(setChunks(finalChunks))
 
       console.log('📝 Final chunks:', finalChunks.length)
@@ -506,40 +507,6 @@ export function ScriptProcessor() {
         </Card>
       )}
 
-      {/* Scene Configuration */}
-      {hasScriptContent && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Scissors className="h-5 w-5" />
-              Scene Configuration
-            </CardTitle>
-            <CardDescription>
-              Split your script into scenes and configure the number of visual prompts
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Number of Scenes: {selectedSceneCount}</Label>
-                <Slider
-                  value={[selectedSceneCount]}
-                  onValueChange={(value) => dispatch(setSelectedSceneCount(value[0]))}
-                  max={maxScenes}
-                  min={1}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>1 scene</span>
-                  <span>{maxScenes} scenes (max)</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Processing Button */}
       {hasScriptContent && chunks.length > 0 && (
         <Card>
@@ -558,7 +525,7 @@ export function ScriptProcessor() {
               ) : (
                 <>
                   <Wand2 className="h-4 w-4 mr-2" />
-                  Process & Generate Prompts ({chunks.length} scenes)
+                  Process
                 </>
               )}
             </Button>
@@ -567,7 +534,7 @@ export function ScriptProcessor() {
               <div className="mt-4">
                 <Progress value={processingProgress} className="w-full" />
                 <p className="text-sm text-gray-500 mt-2 text-center">
-                  Generating prompts for script chunks...
+                  Generating...
                 </p>
               </div>
             )}

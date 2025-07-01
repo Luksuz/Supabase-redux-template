@@ -8,10 +8,12 @@ import {
   setSearchProvider,
   setSearchType,
   setMode,
+  setImagesToGenerate,
   initializeMediaCards,
   startStockSearch,
   setStockSearchResults,
   setStockSearchError,
+  stopStockSearch,
   searchAllCards,
   startGeneration,
   updateBatch,
@@ -46,6 +48,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { 
   Images, 
   Download,
@@ -62,7 +65,9 @@ import {
   RefreshCw,
   Plus,
   Video,
-  FileImage
+  FileImage,
+  RotateCcw,
+  Crop
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -110,6 +115,7 @@ export function BatchImageGenerator() {
     searchProvider,
     searchType,
     mode,
+    imagesToGenerate,
     mediaCards,
     isGenerating,
     progress,
@@ -134,6 +140,15 @@ export function BatchImageGenerator() {
   const [customSearchProvider, setCustomSearchProvider] = useState(searchProvider)
   const [customPrompt, setCustomPrompt] = useState("")
   const [customSearchQuery, setCustomSearchQuery] = useState("")
+  
+  // Search again dialog state
+  const [searchAgainDialog, setSearchAgainDialog] = useState<{promptId: string, currentQuery: string} | null>(null)
+  const [searchAgainQuery, setSearchAgainQuery] = useState("")
+  const [searchAgainProvider, setSearchAgainProvider] = useState(searchProvider)
+  const [searchAgainType, setSearchAgainType] = useState(searchType)
+  
+  // Resize state
+  const [resizingCard, setResizingCard] = useState<string | null>(null)
 
   // Check if API keys are available for search providers
   const [apiKeyStatus, setApiKeyStatus] = useState<Record<string, boolean>>({
@@ -171,6 +186,19 @@ export function BatchImageGenerator() {
     setMessageType(type)
     setTimeout(() => setMessage(""), 5000)
   }
+
+  // Debug: Monitor mediaCards state changes
+  useEffect(() => {
+    const searchingCards = mediaCards.filter((card: any) => card.isSearching)
+    if (searchingCards.length > 0) {
+      console.log('🔍 Cards currently searching:', searchingCards.map((card: any) => ({
+        promptId: card.promptId,
+        isSearching: card.isSearching,
+        sourceType: card.sourceType,
+        sceneNumber: card.sceneNumber
+      })))
+    }
+  }, [mediaCards])
 
   // Helper function for retrying image generation with fallback
   const retryImageGeneration = async (
@@ -259,25 +287,35 @@ export function BatchImageGenerator() {
       return
     }
     
-    // Create search cards with unique IDs (scene-X-search)
-    const searchCardData = prompts.map((prompt: any, index: number) => {
+    // Randomly select prompts based on imagesToGenerate count
+    let selectedPrompts = [...prompts] // Start with all prompts
+    if (imagesToGenerate < prompts.length) {
+      // Randomly shuffle and take the first N prompts
+      selectedPrompts = [...prompts].sort(() => Math.random() - 0.5).slice(0, imagesToGenerate)
+    }
+
+    // Create unique search ID for this batch
+    const searchId = `search-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    // Create search cards with unique IDs for this search
+    const searchCardData = selectedPrompts.map((prompt: any, index: number) => {
       const chunk = chunks.find((c: any) => c.id === prompt.chunkId)
       return {
-        promptId: `${prompt.chunkId}-search`, // Unique ID for search
+        promptId: `${searchId}-${prompt.chunkId}-search`, // Unique ID for this search
         prompt: prompt.prompt,
         searchQuery: prompt.searchQuery,
         sceneNumber: chunk ? chunk.chunkIndex + 1 : index + 1,
         sourceType: 'search' as const
       }
     })
+    
+    // Append new cards to existing ones instead of replacing
     dispatch(initializeMediaCards(searchCardData))
     
-    dispatch(searchAllCards())
-    
-    const searchPromises = prompts.map(async (prompt: any) => {
+    const searchPromises = selectedPrompts.map(async (prompt: any) => {
       if (!prompt.searchQuery) return
       
-      const searchPromptId = `${prompt.chunkId}-search`
+      const searchPromptId = `${searchId}-${prompt.chunkId}-search`
       dispatch(startStockSearch({ promptId: searchPromptId }))
       
       try {
@@ -292,7 +330,7 @@ export function BatchImageGenerator() {
         if (response.ok) {
           dispatch(setStockSearchResults({ 
             promptId: searchPromptId, 
-            results: data.results || [] 
+            results: data.results || [],
           }))
         } else {
           throw new Error(data.error || `${searchProvider} search failed`)
@@ -306,7 +344,7 @@ export function BatchImageGenerator() {
     })
     
     await Promise.allSettled(searchPromises)
-    showMessage(`Search completed using ${searchProvider}`, 'success')
+    showMessage(`Search completed! ${selectedPrompts.length} searches using ${searchProvider} (Total results: ${mediaCards.length})`, 'success')
   }
 
   // Generate images using AI
@@ -316,25 +354,37 @@ export function BatchImageGenerator() {
       return
     }
 
-    // Create AI generation cards with unique IDs (scene-X-ai)
-    const aiCardData = prompts.map((prompt: any, index: number) => {
+    // Randomly select prompts based on imagesToGenerate count
+    let selectedPrompts = [...prompts] // Start with all prompts
+    if (imagesToGenerate < prompts.length) {
+      // Randomly shuffle and take the first N prompts
+      selectedPrompts = [...prompts].sort(() => Math.random() - 0.5).slice(0, imagesToGenerate)
+    }
+
+    // Create unique generation ID for this batch
+    const generationId = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    // Create AI generation cards with unique IDs for this generation
+    const aiCardData = selectedPrompts.map((prompt: any, index: number) => {
       const chunk = chunks.find((c: any) => c.id === prompt.chunkId)
       return {
-        promptId: `${prompt.chunkId}-ai`, // Unique ID for AI generation
+        promptId: `${generationId}-${prompt.chunkId}-ai`, // Unique ID for this generation
         prompt: prompt.prompt,
         searchQuery: prompt.searchQuery,
         sceneNumber: chunk ? chunk.chunkIndex + 1 : index + 1,
         sourceType: 'ai' as const
       }
     })
+    
+    // Append new cards to existing ones instead of replacing
     dispatch(initializeMediaCards(aiCardData))
 
     const batchSize = 5
     const batches = []
     
-    // Split prompts into batches of 5
-    for (let i = 0; i < prompts.length; i += batchSize) {
-      batches.push(prompts.slice(i, i + batchSize))
+    // Split selected prompts into batches of 5
+    for (let i = 0; i < selectedPrompts.length; i += batchSize) {
+      batches.push(selectedPrompts.slice(i, i + batchSize))
     }
     
     dispatch(startGeneration({ totalBatches: batches.length }))
@@ -354,9 +404,9 @@ export function BatchImageGenerator() {
           timeRemaining: timeRemainingText 
         }))
 
-        // Mark batch cards as generating (using AI-specific IDs)
+        // Mark batch cards as generating (using generation-specific IDs)
         batch.forEach((prompt: any) => {
-          const aiPromptId = `${prompt.chunkId}-ai`
+          const aiPromptId = `${generationId}-${prompt.chunkId}-ai`
           dispatch(updateCardStatus({ 
             promptId: aiPromptId, 
             status: 'generating' 
@@ -365,7 +415,7 @@ export function BatchImageGenerator() {
 
         // Process batch in parallel
         const batchPromises = batch.map(async (prompt: any) => {
-          const aiPromptId = `${prompt.chunkId}-ai`
+          const aiPromptId = `${generationId}-${prompt.chunkId}-ai`
           try {
             const requestBody = {
               provider: provider,
@@ -408,7 +458,7 @@ export function BatchImageGenerator() {
 
         // Update progress
         const completedImages = (batchIndex + 1) * batchSize
-        const totalImages = prompts.length
+        const totalImages = selectedPrompts.length
         const progressPercent = Math.min(Math.round((completedImages / totalImages) * 100), 100)
         dispatch(updateProgress(progressPercent))
 
@@ -419,14 +469,14 @@ export function BatchImageGenerator() {
       }
 
       dispatch(completeGeneration())
-      const completedCount = mediaCards.filter((card: any) => card.status === 'completed').length
-      showMessage(`Generation complete! ${completedCount}/${prompts.length} images generated successfully`, 'success')
+      const completedCount = mediaCards.filter((card: any) => card.promptId.startsWith(generationId) && card.status === 'completed').length
+      showMessage(`Generation complete! ${completedCount}/${selectedPrompts.length} images generated successfully (Total images: ${mediaCards.length})`, 'success')
 
     } catch (error) {
       dispatch(setError((error as Error).message))
       showMessage('Failed to generate images: ' + (error as Error).message, 'error')
     }
-  }, [prompts, chunks, hasGeneratedPrompts, provider, aspectRatio, dispatch, mediaCards])
+  }, [prompts, chunks, hasGeneratedPrompts, provider, aspectRatio, imagesToGenerate, dispatch, mediaCards])
 
   // Save selected images to Supabase
   const handleSaveSelected = async () => {
@@ -770,7 +820,8 @@ export function BatchImageGenerator() {
         if (response.ok) {
           dispatch(setStockSearchResults({ 
             promptId: customId, 
-            results: data.results || [] 
+            results: data.results || [],
+            replaceSelected: true
           }))
           showMessage('Stock search completed successfully!', 'success')
         } else {
@@ -800,6 +851,124 @@ export function BatchImageGenerator() {
     setCustomSearchQuery("")
   }
 
+  // Search again for a specific card
+  const handleSearchAgain = async () => {
+    if (!searchAgainDialog || !searchAgainQuery.trim()) {
+      showMessage('Please enter a search query', 'error')
+      return
+    }
+
+    const { promptId } = searchAgainDialog
+    console.log('🔍 Starting search again for card:', promptId)
+    
+    try {
+      dispatch(startStockSearch({ promptId }))
+      console.log('🔍 Dispatched startStockSearch for:', promptId)
+      
+      const response = await fetch(`/api/search-${searchAgainProvider}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          query: searchAgainQuery.trim(), 
+          type: searchAgainType 
+        }),
+      })
+      
+      const data = await response.json()
+      console.log('🔍 Search API response:', {
+        provider: searchAgainProvider,
+        ok: response.ok,
+        status: response.status,
+        resultsCount: data.results?.length || 0,
+        error: data.error
+      })
+      
+      if (response.ok && data.results) {
+        console.log('✅ Search successful, dispatching setStockSearchResults for:', promptId)
+        dispatch(setStockSearchResults({ 
+          promptId: promptId, 
+          results: data.results,
+          replaceSelected: true
+        }))
+        showMessage(`Search completed! Found ${data.results.length} new results from ${searchAgainProvider}`, 'success')
+      } else {
+        console.log('❌ Search failed, dispatching setStockSearchError for:', promptId)
+        const errorMessage = data.error || `${searchAgainProvider} search failed with status ${response.status}`
+        dispatch(setStockSearchError({ 
+          promptId: promptId, 
+          error: errorMessage
+        }))
+        
+        // Provide more specific error messages
+        if (searchAgainProvider === 'pixabay' && response.status === 400) {
+          showMessage('Pixabay search failed. Try simplifying your search terms (remove special characters)', 'error')
+        } else if (searchAgainProvider === 'pixabay' && !process.env.NEXT_PUBLIC_PIXABAY_API_AVAILABLE) {
+          showMessage('Pixabay API key not configured. Please use Pexels or Flickr instead.', 'error')
+        } else {
+          showMessage(`Search failed: ${errorMessage}`, 'error')
+        }
+      }
+    } catch (error) {
+      console.log('❌ Search exception, dispatching setStockSearchError for:', promptId, error)
+      dispatch(setStockSearchError({ 
+        promptId: promptId, 
+        error: (error as Error).message 
+      }))
+      showMessage('Search failed: ' + (error as Error).message, 'error')
+    } finally {
+      // Safety: Ensure searching state is always reset after a delay
+      setTimeout(() => {
+        console.log('🔄 Safety: Ensuring search state is cleared for:', promptId)
+        dispatch(stopStockSearch({ promptId }))
+      }, 1000)
+    }
+    
+    // Close dialog and reset
+    setSearchAgainDialog(null)
+    setSearchAgainQuery("")
+  }
+
+  // Resize image to portrait
+  const handleResizeImage = async (promptId: string, imageUrl: string) => {
+    setResizingCard(promptId)
+    
+    try {
+      const response = await fetch('/api/resize-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: imageUrl,
+          operation: 'portrait' // Convert to portrait orientation
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to resize image')
+      }
+      
+      const data = await response.json()
+      
+      // Update the card with the resized image
+      dispatch(updateCardResult({
+        promptId: promptId,
+        imageUrl: data.resizedImageUrl,
+        status: 'completed',
+        mediaType: 'image',
+        isPortrait: true
+      }))
+      
+      showMessage('Image resized to portrait successfully!', 'success')
+    } catch (error) {
+      showMessage('Failed to resize image: ' + (error as Error).message, 'error')
+    } finally {
+      setResizingCard(null)
+    }
+  }
+
+  const completedCards = mediaCards.filter((card: any) => card.selectedImageUrl).length
+  const allCardsHaveImages = completedCards > 0
+
   if (!hasGeneratedPrompts) {
     return (
       <Card>
@@ -809,7 +978,7 @@ export function BatchImageGenerator() {
             Batch Image Generator
           </CardTitle>
           <CardDescription>
-            Generate images from your script prompts
+            Please generate script prompts first using the Script Processor
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -823,9 +992,6 @@ export function BatchImageGenerator() {
       </Card>
     )
   }
-
-  const completedCards = mediaCards.filter((card: any) => card.selectedImageUrl).length
-  const allCardsHaveImages = completedCards > 0
 
   return (
     <div className="space-y-6">
@@ -851,8 +1017,8 @@ export function BatchImageGenerator() {
           </CardTitle>
           <CardDescription>
             {mode === 'generate' 
-              ? `Generate images for ${prompts.length} scenes using AI in batches of 5 per minute`
-              : `Search stock media for ${prompts.length} scenes`
+              ? `Generate up to ${imagesToGenerate} images from ${prompts.length} available prompts using AI in batches of 5 per minute`
+              : `Search stock media for up to ${imagesToGenerate} scenes from ${prompts.length} available prompts`
             }
           </CardDescription>
         </CardHeader>
@@ -872,7 +1038,7 @@ export function BatchImageGenerator() {
           </div>
 
           {mode === 'generate' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Image Provider</Label>
                 <Select value={provider} onValueChange={(value: string) => dispatch(setProvider(value))}>
@@ -892,20 +1058,23 @@ export function BatchImageGenerator() {
                 </Select>
               </div>
 
+      
+              
               <div className="space-y-2">
-                <Label>Aspect Ratio</Label>
-                <Select value={aspectRatio} onValueChange={(value: string) => dispatch(setAspectRatio(value))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ASPECT_RATIOS.map((ratio) => (
-                      <SelectItem key={ratio.value} value={ratio.value}>
-                        {ratio.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Images to Generate</Label>
+                <Input
+                  type="number"
+                  value={imagesToGenerate}
+                  onChange={(e) => dispatch(setImagesToGenerate(parseInt(e.target.value)))}
+                  min={1}
+                  max={50}
+                />
+                <p className="text-xs text-gray-500">
+                  {imagesToGenerate < prompts.length 
+                    ? `Will randomly select ${imagesToGenerate} prompts from ${prompts.length} available`
+                    : `Will generate ${imagesToGenerate} images from available prompts`
+                  }
+                </p>
               </div>
             </div>
           )}
@@ -980,7 +1149,7 @@ export function BatchImageGenerator() {
               ) : (
                 <>
                   <Images className="h-4 w-4 mr-2" />
-                  Generate {prompts.length} Images
+                  Generate {imagesToGenerate} Images
                 </>
               )}
             </Button>
@@ -999,7 +1168,7 @@ export function BatchImageGenerator() {
                 ) : (
                   <>
                     <Search className="h-4 w-4 mr-2" />
-                    Search All Scenes
+                    Search {imagesToGenerate} Scenes
                   </>
                 )}
               </Button>
@@ -1056,35 +1225,24 @@ export function BatchImageGenerator() {
               </>
             )}
 
-            {mediaCards.length > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => dispatch(clearAllCards())}
-                className="text-red-600 border-red-300 hover:bg-red-50"
-              >
-                <X className="h-4 w-4 mr-2" />
-                Clear All
-              </Button>
-            )}
+            <Button
+              variant="outline" 
+              onClick={() => setCustomImageDialog(true)}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Custom Image
+            </Button>
           </div>
 
-          {/* Progress bars */}
+          {/* Progress display */}
           {isGenerating && (
             <div className="space-y-2">
-              <Progress value={progress} className="w-full" />
-              <div className="flex justify-between text-sm text-gray-500">
+              <div className="flex justify-between text-sm">
                 <span>Progress: {progress}%</span>
                 {timeRemaining && <span>{timeRemaining}</span>}
               </div>
-            </div>
-          )}
-
-          {isSaving && (
-            <div className="space-y-2">
-              <Progress value={saveProgress} className="w-full" />
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Saving: {saveProgress}%</span>
-              </div>
+              <Progress value={progress} className="w-full" />
             </div>
           )}
         </CardContent>
@@ -1173,11 +1331,15 @@ export function BatchImageGenerator() {
                         <img 
                           src={card.selectedImageUrl} 
                           alt={`Scene ${card.sceneNumber}`}
-                          className="w-full aspect-video object-cover rounded-md" 
+                          className={`w-full object-cover rounded-md ${
+                            card.isPortrait ? 'aspect-[9/16]' : 'aspect-video'
+                          }`}
                         />
                       )
                     ) : (
-                      <div className="flex items-center justify-center bg-gray-100 rounded-md aspect-video">
+                      <div className={`flex items-center justify-center bg-gray-100 rounded-md ${
+                        card.isPortrait ? 'aspect-[9/16]' : 'aspect-video'
+                      }`}>
                         {card.status === 'pending' && <Clock className="h-8 w-8 text-gray-400" />}
                         {card.status === 'generating' && <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />}
                         {card.isSearching && <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />}
@@ -1266,6 +1428,68 @@ export function BatchImageGenerator() {
                       </CardFooter>
                     )}
 
+                  {/* Show search again and resize buttons for search cards with completed results */}
+                  {card.sourceType === 'search' && card.selectedImageUrl && (
+                    <CardFooter className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2 w-full">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSearchAgainDialog({ 
+                              promptId: card.promptId, 
+                              currentQuery: card.searchQuery || '' 
+                            })
+                            setSearchAgainQuery(card.searchQuery || '')
+                            setSearchAgainProvider(searchProvider)
+                            setSearchAgainType(searchType)
+                          }}
+                          disabled={card.isSearching}
+                        >
+                          {card.isSearching ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Searching...
+                            </>
+                          ) : (
+                            <>
+                              <RotateCcw className="h-4 w-4 mr-2" />
+                              Search Again
+                            </>
+                          )}
+                        </Button>
+                        
+                        {/* Resize button - only for images, not videos */}
+                        {card.selectedImageType === 'image' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleResizeImage(card.promptId, card.selectedImageUrl)
+                            }}
+                            disabled={resizingCard === card.promptId}
+                          >
+                            {resizingCard === card.promptId ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Resizing...
+                              </>
+                            ) : (
+                              <>
+                                <Crop className="h-4 w-4 mr-2" />
+                                Resize to Portrait
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </CardFooter>
+                  )}
+
                   {/* Show regenerate button for completed AI cards */}
                   {card.sourceType === 'ai' && (card.status === 'completed' || card.status === 'error') && (
                     <CardFooter className="space-y-2">
@@ -1306,6 +1530,32 @@ export function BatchImageGenerator() {
                           <RefreshCw className="h-4 w-4 mr-2" />
                           {card.status === 'error' ? 'Retry with New Prompt' : 'Regenerate with New Prompt'}
                         </Button>
+                        
+                        {/* Resize button - only for images, not videos */}
+                        {card.selectedImageUrl && card.selectedImageType === 'image' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleResizeImage(card.promptId, card.selectedImageUrl)
+                            }}
+                            disabled={resizingCard === card.promptId}
+                          >
+                            {resizingCard === card.promptId ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Resizing...
+                              </>
+                            ) : (
+                              <>
+                                <Crop className="h-4 w-4 mr-2" />
+                                Resize to Portrait
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </CardFooter>
                   )}
@@ -1522,6 +1772,107 @@ export function BatchImageGenerator() {
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate
+                </Button>
+              </div>
+            </div>
+            
+            <Dialog.Close asChild>
+              <button
+                className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      
+      {/* Search Again Dialog */}
+      <Dialog.Root
+        open={searchAgainDialog !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setSearchAgainDialog(null)
+            setSearchAgainQuery("")
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
+            <Dialog.Title className="text-lg font-semibold">
+              Search Again
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-muted-foreground">
+              Enter a new search query to find different stock media for this scene.
+            </Dialog.Description>
+            
+            <div className="space-y-4">
+              {/* Search Provider */}
+              <div>
+                <Label>Search Provider</Label>
+                <Select value={searchAgainProvider} onValueChange={(v: string) => setSearchAgainProvider(v as any)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pexels">Pexels</SelectItem>
+                    <SelectItem 
+                      value="pixabay" 
+                      disabled={!apiKeyStatus.pixabay}
+                    >
+                      Pixabay {!apiKeyStatus.pixabay && '(API key required)'}
+                    </SelectItem>
+                    <SelectItem 
+                      value="storyblocks" 
+                      disabled={true}
+                    >
+                      Storyblocks (disabled)
+                    </SelectItem>
+                    <SelectItem value="flickr">Flickr</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Media Type */}
+              <div>
+                <Label>Media Type</Label>
+                <Select value={searchAgainType} onValueChange={(v: string) => setSearchAgainType(v as any)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">Image</SelectItem>
+                    <SelectItem value="video" disabled={searchAgainProvider === 'flickr'}>
+                      Video {searchAgainProvider === 'flickr' && '(not supported by Flickr)'}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Search Query */}
+              <div>
+                <Label htmlFor="search-again-query">Search Query</Label>
+                <Textarea
+                  id="search-again-query"
+                  value={searchAgainQuery}
+                  onChange={(e) => setSearchAgainQuery(e.target.value)}
+                  placeholder="Enter your search terms..."
+                  className="min-h-[60px] mt-2"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Dialog.Close asChild>
+                  <Button variant="outline">Cancel</Button>
+                </Dialog.Close>
+                <Button 
+                  onClick={handleSearchAgain}
+                  disabled={!searchAgainQuery.trim()}
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
                 </Button>
               </div>
             </div>

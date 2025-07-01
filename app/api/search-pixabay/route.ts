@@ -71,12 +71,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
     }
 
+    // Sanitize the query to handle special characters
+    const sanitizedQuery = query.trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, ' ');
+    
+    if (!sanitizedQuery) {
+      return NextResponse.json({ error: 'Invalid search query after sanitization' }, { status: 400 });
+    }
+
+    console.log('Pixabay search request:', { originalQuery: query, sanitizedQuery, type });
+
     let url: string;
     if (type === 'video') {
-      url = `https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=9&orientation=horizontal`;
+      url = `https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(sanitizedQuery)}&per_page=9&orientation=horizontal`;
     } else {
-      url = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&image_type=photo&per_page=9&orientation=horizontal`;
+      url = `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(sanitizedQuery)}&image_type=photo&per_page=9&orientation=horizontal`;
     }
+    
+    console.log('Pixabay API URL (without key):', url.replace(PIXABAY_API_KEY, '[API_KEY]'));
     
     const data = await makeApiRequest(url);
 
@@ -86,9 +97,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ results: [], message: `No ${type}s found on Pixabay.` });
     }
 
+    console.log('Pixabay search successful:', { query: sanitizedQuery, resultsCount: results.length });
     return NextResponse.json({ results });
 
   } catch (error: any) {
+    console.error('Pixabay search failed:', { error: error.message, query: request.body });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 } 

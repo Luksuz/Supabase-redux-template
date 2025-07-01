@@ -544,56 +544,6 @@ export function VideoStatus() {
                               <PlayCircle className="h-3 w-3 mr-1" />
                               View
                             </Button>
-                            {/* Google Drive Upload Button */}
-                            {status === 'authenticated' ? (
-                              <div className="flex flex-col gap-1">
-                                <Button
-                                  onClick={() => {
-                                    console.log('🔘 Upload button onClick triggered for video:', video.id)
-                                    handleUploadToGoogleDrive(video)
-                                  }}
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={uploadingVideos.has(video.id)}
-                                  className="border-blue-300 bg-white hover:bg-blue-50 text-blue-600 hover:text-blue-700 shadow-sm transition-all duration-200 hover:shadow-md"
-                                >
-                                  {uploadingVideos.has(video.id) ? (
-                                    <>
-                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                      Uploading {uploadProgress[video.id] || 0}%
-                                    </>
-                                  ) : (
-                                    <>
-                                      <GoogleLogo size={12} />
-                                      <span className="ml-1">Upload to Drive</span>
-                                    </>
-                                  )}
-                                </Button>
-                                {/* Progress Bar */}
-                                {uploadingVideos.has(video.id) && uploadProgress[video.id] !== undefined && (
-                                  <div className="w-full">
-                                    <Progress 
-                                      value={uploadProgress[video.id]} 
-                                      className="h-1.5 w-full"
-                                    />
-                                    <div className="text-xs text-blue-600 mt-0.5 text-center">
-                                      {uploadProgress[video.id]}% uploaded
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled
-                                className="border-gray-300 bg-gray-50 text-gray-400 opacity-60"
-                                title="Sign in with Google to upload"
-                              >
-                                <GoogleLogo size={12} />
-                                <span className="ml-1">Upload to Drive</span>
-                              </Button>
-                            )}
                           </>
                         )}
 

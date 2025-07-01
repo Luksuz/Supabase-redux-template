@@ -107,7 +107,7 @@ For the search query:
 - Use generic, visual descriptors
 
 
-this is the type of prompt you should do for image generation:
+this is the type of prompt you should NOT do for image generation. dont be gory or point anything out of the family friendly:
 A dramatic battlefield scene at dusk, castle walls silhouetted against a darkening sky. Soldiers clash, shields splinter, banners wave, and a red moat churns with bodies. Natural lighting highlights the chaos.
 `
     if (customParameters && customParameters.trim()) {

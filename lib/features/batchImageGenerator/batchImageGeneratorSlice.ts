@@ -19,6 +19,7 @@ export interface MediaCard {
   selectedImageUrl: string | null
   selectedImageType: 'image' | 'video' | null
   selectedSource: 'generated' | 'stock' | null
+  isPortrait?: boolean // Track if image has been resized to portrait
   // Selection state
   isSelected: boolean
   selectionOrder: number | null // 1, 2, 3, etc.
@@ -42,7 +43,9 @@ interface BatchImageGeneratorState {
   searchType: 'image' | 'video'
   mode: 'generate' | 'search' | 'extract' // Added extract mode
   extractionType: 'video' | 'image' // For video/image extraction
-  extractionOrientation: 'portrait' | 'landscape' // For extraction orientation
+  
+  // Image generation configuration
+  imagesToGenerate: number // Number of images to generate each time (1-50)
   
   // Media cards (simplified single source of truth)
   mediaCards: MediaCard[]
@@ -73,7 +76,8 @@ const initialState: BatchImageGeneratorState = {
   searchType: 'image',
   mode: 'generate',
   extractionType: 'image',
-  extractionOrientation: 'landscape',
+  
+  imagesToGenerate: 10, // Default to 10 images
   
   mediaCards: [],
   
@@ -121,8 +125,8 @@ export const batchImageGeneratorSlice = createSlice({
       state.extractionType = action.payload
     },
     
-    setExtractionOrientation: (state, action: PayloadAction<'portrait' | 'landscape'>) => {
-      state.extractionOrientation = action.payload
+    setImagesToGenerate: (state, action: PayloadAction<number>) => {
+      state.imagesToGenerate = Math.min(Math.max(action.payload, 1), 50) // Clamp between 1 and 50
     },
     
     // Initialize media cards from prompts
@@ -162,13 +166,13 @@ export const batchImageGeneratorSlice = createSlice({
       }
     },
     
-    setStockSearchResults: (state, action: PayloadAction<{ promptId: string; results: StockImage[] }>) => {
+    setStockSearchResults: (state, action: PayloadAction<{ promptId: string; results: StockImage[]; replaceSelected?: boolean }>) => {
       const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
       if (card) {
         card.stockResults = action.payload.results
         card.isSearching = false
-        // Auto-select first result if none selected
-        if (!card.selectedImageUrl && action.payload.results.length > 0) {
+        // Auto-select first result if none selected OR if explicitly replacing
+        if ((!card.selectedImageUrl || action.payload.replaceSelected) && action.payload.results.length > 0) {
           const firstResult = action.payload.results[0]
           card.selectedImageUrl = firstResult.url
           card.selectedImageType = firstResult.type
@@ -182,6 +186,14 @@ export const batchImageGeneratorSlice = createSlice({
       const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
       if (card) {
         card.searchError = action.payload.error
+        card.isSearching = false
+      }
+    },
+    
+    // Stop searching for a specific card
+    stopStockSearch: (state, action: PayloadAction<{ promptId: string }>) => {
+      const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
+      if (card) {
         card.isSearching = false
       }
     },
@@ -233,7 +245,8 @@ export const batchImageGeneratorSlice = createSlice({
       imageUrl: string | null; 
       status: MediaCard['status']; 
       error?: string; 
-      mediaType?: 'image' | 'video' 
+      mediaType?: 'image' | 'video';
+      isPortrait?: boolean;
     }>) => {
       const card = state.mediaCards.find(c => c.promptId === action.payload.promptId)
       if (card) {
@@ -242,6 +255,9 @@ export const batchImageGeneratorSlice = createSlice({
         card.selectedSource = 'generated'
         card.status = action.payload.status
         card.error = action.payload.error
+        if (action.payload.isPortrait !== undefined) {
+          card.isPortrait = action.payload.isPortrait
+        }
       }
     },
     
@@ -426,11 +442,12 @@ export const {
   setSearchType,
   setMode,
   setExtractionType,
-  setExtractionOrientation,
+  setImagesToGenerate,
   initializeMediaCards,
   startStockSearch,
   setStockSearchResults,
   setStockSearchError,
+  stopStockSearch,
   searchAllCards,
   startGeneration,
   updateBatch,

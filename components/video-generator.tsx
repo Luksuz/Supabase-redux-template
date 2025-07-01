@@ -727,7 +727,7 @@ export function VideoGenerator() {
                 </div>
 
                 {/* Live Preview */}
-                <div className="p-4 bg-black rounded-lg">
+                <div className="p-4 bg-gray-200 rounded-lg">
                   <div className="text-center">
                     <p className="text-xs text-gray-400 mb-2">Subtitle Preview:</p>
                     <div 

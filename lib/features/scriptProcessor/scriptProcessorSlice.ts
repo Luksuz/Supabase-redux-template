@@ -51,8 +51,8 @@ const initialState: ScriptProcessorState = {
   customParameters: '',
   
   chunks: [],
-  selectedSceneCount: 10,
-  maxScenes: 200,
+  selectedSceneCount: 50,
+  maxScenes: 50,
   
   prompts: [],
   hasGeneratedPrompts: false,
