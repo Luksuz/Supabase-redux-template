@@ -447,38 +447,67 @@ export function BatchImageGenerator() {
         // Extract original chunk ID by removing the suffix (-search or -ai)
         const originalChunkId = card.promptId.replace(/-(?:search|ai)$/, '')
         
-        const response = await fetch('/api/upload-from-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            assetUrl: card.selectedImageUrl,
-            promptId: originalChunkId, // Use original chunk ID
-            bucket: 'audio'
+        let savedUrl: string
+        
+        // For videos, use the original URL directly without uploading to Supabase
+        if (card.selectedImageType === 'video') {
+          savedUrl = card.selectedImageUrl
+          console.log(`📹 Using direct video URL for scene ${card.sceneNumber}: ${savedUrl}`)
+          
+          // Update progress immediately for videos since there's no upload
+          const progress = Math.round(((index + 1) / selectedCards.length) * 100)
+          dispatch(updateSaveProgress({ 
+            progress, 
+            savedUrl: savedUrl, 
+            promptId: card.promptId
+          }))
+          
+          return { success: true, card, savedUrl: savedUrl, selectionOrder: card.selectionOrder }
+        } else {
+          // For images, upload to Supabase as before
+          const response = await fetch('/api/upload-from-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              assetUrl: card.selectedImageUrl,
+              promptId: originalChunkId, // Use original chunk ID
+              bucket: 'audio'
+            })
           })
-        })
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || `Upload failed for scene ${card.sceneNumber}`)
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(errorData.error || `Upload failed for scene ${card.sceneNumber}`)
+          }
+          
+          const data = await response.json()
+          savedUrl = data.publicUrl
+          
+          const progress = Math.round(((index + 1) / selectedCards.length) * 100)
+          dispatch(updateSaveProgress({ 
+            progress, 
+            savedUrl: savedUrl, 
+            promptId: card.promptId // Keep the unique card ID for updating the card
+          }))
+          
+          return { success: true, card, savedUrl: savedUrl, selectionOrder: card.selectionOrder }
         }
-        
-        const data = await response.json()
-        const progress = Math.round(((index + 1) / selectedCards.length) * 100)
-        
-        dispatch(updateSaveProgress({ 
-          progress, 
-          savedUrl: data.publicUrl, 
-          promptId: card.promptId // Keep the unique card ID for updating the card
-        }))
-        
-        return { success: true, card, savedUrl: data.publicUrl, selectionOrder: card.selectionOrder }
       })
       
       const results = await Promise.all(savePromises)
       dispatch(completeSaving())
       
       const successCount = results.filter((r: any) => r.success).length
-      showMessage(`Successfully saved ${successCount}/${selectedCards.length} images to Supabase!`, 'success')
+      const videoCount = results.filter((r: any) => r.success && r.card.selectedImageType === 'video').length
+      const imageCount = successCount - videoCount
+      
+      if (videoCount > 0 && imageCount > 0) {
+        showMessage(`Successfully processed ${successCount} items: ${imageCount} images uploaded to Supabase, ${videoCount} videos linked directly!`, 'success')
+      } else if (videoCount > 0) {
+        showMessage(`Successfully linked ${videoCount} video${videoCount > 1 ? 's' : ''} directly!`, 'success')
+      } else {
+        showMessage(`Successfully uploaded ${imageCount} image${imageCount > 1 ? 's' : ''} to Supabase!`, 'success')
+      }
       
       // Sync saved images with the images slice for video generator compatibility
       if (successCount > 0) {
@@ -505,7 +534,8 @@ export function BatchImageGenerator() {
               imageNumber: index + 1, // Use selection index
               sortOrder: index + 1, // Critical: Use selection order for video generation
               supabasePath: result.savedUrl, // Store the complete public URL directly
-              savedToSupabase: true
+              savedToSupabase: true,
+              mediaType: card.selectedImageType || 'image' // Preserve media type for Shotstack
             }
           })
           
@@ -523,7 +553,14 @@ export function BatchImageGenerator() {
           dispatch(setOriginalImages(mergedImages))
           
           console.log(`📸 Synced ${savedImages.length} images to video generator in selection order:`, savedImages.map(img => `${img.name} (order: ${img.sortOrder})`))
-          showMessage(`Images synced with video generator! ${mergedImages.length} total images available in selection order.`, 'success')
+          const videoCount = savedImages.filter(img => img.name.includes('video') || img.supabasePath?.includes('video')).length
+          const imageCount = savedImages.length - videoCount
+          
+          if (videoCount > 0 && imageCount > 0) {
+            showMessage(`Media synced with video generator! ${mergedImages.length} total items (${imageCount} images, ${videoCount} videos) available in selection order.`, 'success')
+          } else {
+            showMessage(`Media synced with video generator! ${mergedImages.length} total items available in selection order.`, 'success')
+          }
         } catch (error) {
           console.error('Error syncing images:', error)
           showMessage('Images saved but sync with video generator failed', 'error')
@@ -1105,9 +1142,16 @@ export function BatchImageGenerator() {
                     <CardHeader>
                     <CardTitle className="text-sm font-semibold flex items-center justify-between">
                       <span>Scene {card.sceneNumber}</span>
-                      <Badge variant={card.sourceType === 'search' ? 'secondary' : 'default'} className="text-xs">
-                        {card.sourceType === 'search' ? 'Stock' : 'AI'}
-                      </Badge>
+                      <div className="flex gap-1">
+                        <Badge variant={card.sourceType === 'search' ? 'secondary' : 'default'} className="text-xs">
+                          {card.sourceType === 'search' ? 'Stock' : 'AI'}
+                        </Badge>
+                        {card.selectedImageType === 'video' && (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                            Video
+                          </Badge>
+                        )}
+                      </div>
                     </CardTitle>
                     <CardDescription className="text-xs line-clamp-2">{card.prompt}</CardDescription>
                     {card.searchQuery && card.sourceType === 'search' && (

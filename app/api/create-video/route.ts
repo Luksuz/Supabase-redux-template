@@ -29,8 +29,9 @@ async function getAudioDuration(audioUrl: string): Promise<number | null> {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateVideoRequestBody = await request.json();
-    const { imageUrls, audioUrl, audioDuration, subtitlesUrl, userId, thumbnailUrl, segmentTimings, musicUrl, musicVolume } = body;
+    const { imageUrls, mediaTypes, audioUrl, audioDuration, subtitlesUrl, userId, thumbnailUrl, segmentTimings, musicUrl, musicVolume } = body;
     console.log(`🖼️ Image URLs: ${imageUrls}`);
+    console.log(`🎭 Media Types: ${mediaTypes}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
     console.log(`⏱️ Audio Duration: ${audioDuration ? `${audioDuration}s` : 'not provided'}`);
     console.log(`📝 Subtitles URL: ${subtitlesUrl}`);
@@ -150,17 +151,18 @@ export async function POST(request: NextRequest) {
     // Track for images - Create slideshow with timing based on mode
     if (isSegmentedVideo && segmentTimings) {
       // Segmented video: use precise timing with static images
-      console.log(`🎬 Creating segmented video with ${imageUrls.length} precisely timed static segments:`);
+      console.log(`🎬 Creating segmented video with ${imageUrls.length} precisely timed media assets:`);
       let currentTime = 0;
       const imageClips = imageUrls.map((url, index) => {
         const duration = segmentTimings[index].duration;
         const startTime = currentTime;
+        const assetType = mediaTypes && mediaTypes[index] ? mediaTypes[index] : 'image';
         
-        console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (static)`);
+        console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (${assetType})`);
         
         const clip = {
           asset: {
-            type: "image",
+            type: assetType,
             src: url
           },
           start: startTime,
@@ -178,15 +180,16 @@ export async function POST(request: NextRequest) {
       tracks.push(imageTrack);
     } else {
       // Traditional video: equal timing for all images with static display
-      console.log(`🎬 Creating traditional slideshow with ${imageUrls.length} static images:`);
+      console.log(`🎬 Creating traditional slideshow with ${imageUrls.length} media assets:`);
       const imageClips = imageUrls.map((url, index) => {
         const startTime = index * imageDuration;
+        const assetType = mediaTypes && mediaTypes[index] ? mediaTypes[index] : 'image';
         
-        console.log(`   Image ${index + 1}: static display, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
+        console.log(`   Asset ${index + 1}: ${assetType} display, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
         
         return {
           asset: {
-            type: "image",
+            type: assetType,
             src: url
           },
           start: startTime,
@@ -324,7 +327,7 @@ export async function POST(request: NextRequest) {
     console.log("📤 Sending Shotstack API request with payload summary:");
     console.log(`- Video type: ${isSegmentedVideo ? 'Segmented' : 'Traditional'}`);
     console.log(`- Total tracks: ${tracks.length}`);
-    console.log(`- Images: ${imageUrls.length}`);
+    console.log(`- Media assets: ${imageUrls.length}`);
     console.log(`- Audio: ${audioUrl ? 'YES' : 'NO'}`);
     console.log(`- Background Music: ${musicUrl ? 'YES' : 'NO'}`);
     console.log(`- Music Volume: ${musicUrl && musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}`);

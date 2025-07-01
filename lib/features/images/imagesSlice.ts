@@ -11,6 +11,7 @@ export interface ProcessedImage {
   sortOrder?: number // Overall sort order (1, 2, 3, etc.)
   supabasePath?: string // Path where image is saved in Supabase storage
   savedToSupabase?: boolean // Whether image has been saved to Supabase
+  mediaType?: 'image' | 'video' // Type of media asset for Shotstack
 }
 
 interface ImagesState {

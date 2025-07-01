@@ -209,15 +209,28 @@ export function VideoGenerator() {
   // Check if script-based timing is available
   const scriptBasedTimingAvailable = audioGeneration?.scriptDurations && audioGeneration.scriptDurations.length > 0
 
+  // Helper function to clean music URLs
+  const cleanMusicUrl = (url: string): string => {
+    // Remove query parameters
+    const cleanUrl = url.split('?')[0]
+    
+    // If it doesn't end with .mp3, add it
+    if (!cleanUrl.endsWith('.mp3')) {
+      return cleanUrl + '.mp3'
+    }
+    
+    return cleanUrl
+  }
+
   // Get available music URL from audio generator
   const getAvailableMusicUrl = (): string | null => {
     // Priority: selected uploaded tracks first, then selected track from search
     const selectedUploadedTrack = uploadedMusicTracks.find(track => track.isSelected)
     if (selectedUploadedTrack) {
-      return selectedUploadedTrack.url
+      return cleanMusicUrl(selectedUploadedTrack.url)
     }
     if (selectedMusicTrack?.preview_url) {
-      return selectedMusicTrack.preview_url
+      return cleanMusicUrl(selectedMusicTrack.preview_url)
     }
     return null
   }
@@ -282,6 +295,7 @@ export function VideoGenerator() {
       // Prepare request body
       const requestBody: CreateVideoRequestBody = {
         imageUrls: imageUrls,
+        mediaTypes: originalImages.map(img => img.mediaType || 'image'),
         audioUrl: audioGeneration.audioUrl,
         audioDuration: audioGeneration.duration || undefined,
         subtitlesUrl: settings.includeSubtitles && audioGeneration.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,

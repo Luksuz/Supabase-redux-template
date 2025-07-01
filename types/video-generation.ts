@@ -5,6 +5,7 @@ export interface SegmentTiming {
 
 export interface CreateVideoRequestBody {
   imageUrls: string[]
+  mediaTypes?: ('image' | 'video')[] // Array indicating type of each URL (same order as imageUrls)
   audioUrl: string
   audioDuration?: number
   subtitlesUrl?: string
