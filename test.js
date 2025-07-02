@@ -1,41 +1,18 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import dotenv from "dotenv";  
 
-import { SpeechifyClient } from "@speechify/api";
-
-import dotenv from 'dotenv';
 dotenv.config();
 
-const SPEECHIFY_API_KEY = process.env.SPEECHIFY_API_KEY;
-console.log(SPEECHIFY_API_KEY);
+console.log(process.env.GOOGLE_API_KEY);
 
-
-const speechClient = new SpeechifyClient({ token: SPEECHIFY_API_KEY });
-const voices = await speechClient.tts.voices.list();
-console.log(voices);
-
-
-
-// Expected voices response format:
-// [
-//   {
-//     "display_name": "display_name",
-//     "gender": "male",
-//     "locale": "locale",
-//     "id": "id",
-//     "models": [
-//       {
-//         "languages": [
-//           {
-//             "locale": "locale"
-//           }
-//         ],
-//         "name": "simba-base"
-//       }
-//     ],
-//     "type": "shared",
-//     "avatar_image": "avatar_image",
-//     "preview_audio": "preview_audio",
-//     "tags": [
-//       "tags"
-//     ]
-//   }
-// ]
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" });
+const result = await model.generateContent([
+  "find all mentions and appearances of messi and give me a timestamp for each. also tell me the end score of the game. after that, summaroize the key findings and details a bout the game. include some bullet points and final conclusion",
+  {
+    fileData: {
+      fileUri: "https://www.youtube.com/watch?v=6kqaYeY4Sew",
+    },
+  },
+]);
+console.log(result.response.text());
