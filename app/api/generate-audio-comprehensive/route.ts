@@ -80,7 +80,7 @@ async function generateSingleAudioChunk(
           body: JSON.stringify({
             model: minimaxTTSModel, text: textChunk, stream: false, subtitle_enable: false,
             voice_setting: { voice_id: voice, speed: 1, vol: 1, pitch: 0 },
-            audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 }
+            audio_setting: { sample_rate: 44100, bitrate: 192000, format: "mp3", channel: 2 }
           })
         });
         if (!minimaxResponse.ok) {
@@ -106,7 +106,7 @@ async function generateSingleAudioChunk(
           method: "POST",
           headers: { "Authorization": `Bearer ${FISH_AUDIO_API_KEY}`, "Content-Type": "application/json", "Model": fishModelToUse },
           body: JSON.stringify({
-            text: textChunk, chunk_length: 200, format: "mp3", mp3_bitrate: 128,
+            text: textChunk, chunk_length: 200, format: "mp3", mp3_bitrate: 192,
             reference_id: fishAudioVoiceId, normalize: true, latency: "normal",
           })
         });
@@ -134,7 +134,7 @@ async function generateSingleAudioChunk(
         const elConversionParams: any = {
           text: textChunk,
           modelId: elModelId,
-          outputFormat: "mp3_44100_128"
+          outputFormat: "mp3_44100_192"
         };
         
         if (elModelId === "eleven_flash_v2_5" && languageCode) {

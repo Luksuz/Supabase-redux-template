@@ -596,7 +596,7 @@ export function AudioGenerator() {
         }
 
         dispatch(saveGenerationToHistory());
-        showMessage(`Successfully generated audio using ${currentProvider?.name}! Both original and compressed versions are available - switch between them in the player above.`, 'success');
+        showMessage(`Successfully generated audio using ${currentProvider?.name}! High-quality original (up to 48kHz, 192kbps+) and ultra-compressed (8kHz, 16kbps, mono) versions are available - switch between them in the player above.`, 'success');
         setGenerationStatusMessage("");
         
       } catch (error: any) {
@@ -1223,7 +1223,7 @@ export function AudioGenerator() {
                     <div className={`p-2 rounded border ${selectedAudioType === 'original' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="font-medium text-gray-700">Original Quality</div>
                       <div className="text-gray-500 mt-1">
-                        • Full quality audio<br/>
+                        • High quality audio (up to 48kHz, 192kbps+)<br/>
                         • Perfect for video generation<br/>
                         • Larger file size
                       </div>
@@ -1231,9 +1231,9 @@ export function AudioGenerator() {
                     <div className={`p-2 rounded border ${selectedAudioType === 'compressed' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="font-medium text-gray-700">Compressed</div>
                       <div className="text-gray-500 mt-1">
-                        • 16kHz, 32kbps mono<br/>
+                        • 8kHz, 16kbps mono<br/>
                         • Great for subtitles/transcription<br/>
-                        • 60-80% smaller file size
+                        • 80-90% smaller file size
                       </div>
                     </div>
                   </div>

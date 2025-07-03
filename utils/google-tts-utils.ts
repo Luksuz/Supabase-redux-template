@@ -58,12 +58,22 @@ export async function synthesizeGoogleTts(
     }
     const languageCode = languageCodeMatch[1];
     
-    console.log(`🇬☁️ Google TTS: Using voice=${voiceName}, extracted language=${languageCode}`);
+    console.log(`🇬☁️ Google TTS: Using voice=${voiceName}, extracted language=${languageCode}, high-quality config`);
     
     const request = {
       input: { text: text },
       voice: { languageCode: languageCode, name: voiceName },
-      audioConfig: { audioEncoding: audioEncoding },
+      audioConfig: { 
+        audioEncoding: audioEncoding,
+        sampleRateHertz: 48000,          // Maximum sample rate for highest quality
+        speakingRate: 1.0,               // Normal speaking rate
+        pitch: 0.0,                      // Normal pitch
+        volumeGainDb: 0.0,               // Normal volume gain
+        effectsProfileId: [              // High-quality audio effects
+          'telephony-class-application', 
+          'headphone-class-device'
+        ]
+      },
     };
 
     const [response] = await client.synthesizeSpeech(request);

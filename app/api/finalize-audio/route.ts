@@ -117,7 +117,7 @@ async function createCompressedAudio(originalAudioPath: string, outputDir: strin
   
   try {
     console.log(`🗜️ Creating compressed audio: ${originalAudioPath} -> ${compressedFilePath}`);
-    const ffmpegCommand = `ffmpeg -i "${originalAudioPath}" -ar 16000 -ac 1 -b:a 32k -f mp3 "${compressedFilePath}"`;
+    const ffmpegCommand = `ffmpeg -i "${originalAudioPath}" -ar 8000 -ac 1 -b:a 16k -f mp3 "${compressedFilePath}"`;
     
     await new Promise<void>((resolve, reject) => {
       exec(ffmpegCommand, (error, stdout, stderr) => {
