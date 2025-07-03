@@ -26,7 +26,7 @@ export async function uploadFileToSupabase(
     const fileBuffer = await fs.readFile(filePath);
     
     const { data, error } = await supabaseAdmin.storage
-      .from('video-generator')
+      .from('audio')
       .upload(destination, fileBuffer, {
         contentType: contentType,
         upsert: true
@@ -39,7 +39,7 @@ export async function uploadFileToSupabase(
 
     // Get public URL
     const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('video-generator')
+      .from('audio')
       .getPublicUrl(destination);
 
     return publicUrl;

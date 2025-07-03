@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { ChatOpenAI } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
 
 interface ScriptSection {
   title: string;
@@ -25,14 +26,16 @@ function removeMarkdown(text: string): string {
 export async function POST(request: Request) {
   try {
     const requestData = await request.json();
-    const { title, theme, sections, additionalPrompt, forbiddenWords } = requestData;
+    const { title, theme, sections, additionalPrompt, researchContext, forbiddenWords, modelName = "gpt-4o-mini" } = requestData;
     
     console.log("Received request for script generation:");
     console.log("- Title:", title);
     console.log("- Theme:", theme || "Not provided");
     console.log("- Sections:", Array.isArray(sections) ? `${sections.length} sections` : "None");
     console.log("- Additional Prompt:", additionalPrompt ? "Provided" : "None");
+    console.log("- Research Context:", researchContext ? "Provided" : "None");
     console.log("- Forbidden Words:", forbiddenWords ? "Provided" : "None");
+    console.log("- Model Name:", modelName);
     
     if (!title || !sections || !Array.isArray(sections) || sections.length === 0) {
       console.log("Missing or invalid required fields");
@@ -43,15 +46,38 @@ export async function POST(request: Request) {
     }
 
     // Initialize the model
-    const model = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-4.1-mini",
-      temperature: 0.7,
-    });
+    let model;
+    if (modelName.startsWith('claude')) {
+      model = new ChatAnthropic({
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+        modelName: modelName,
+        temperature: 0.7,
+        maxTokens: 8000,
+      });
+    } else {
+      model = new ChatOpenAI({
+        openAIApiKey: process.env.OPENAI_API_KEY,
+        modelName: modelName,
+        temperature: 0.7,
+        maxTokens: 8000,
+      });
+    }
     console.log("Model initialized");
 
     // Build additional instructions based on optional parameters
     let additionalInstructions = "";
+    
+    // Add research context if provided
+    if (researchContext && researchContext.trim()) {
+      additionalInstructions += `
+RESEARCH CONTEXT:
+The following research insights should be incorporated into your script to ensure it's backed by data and analysis:
+
+${researchContext.trim()}
+
+Use this research to inform the content, themes, and narrative direction of your script.
+`;
+    }
     
     if (additionalPrompt && additionalPrompt.trim()) {
       additionalInstructions += `

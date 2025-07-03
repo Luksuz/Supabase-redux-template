@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Mic, Video, Activity, Settings } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Mic, Video, Activity, Settings, Search } from 'lucide-react'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -23,8 +23,26 @@ export function SidebarNavigation({
   const { currentGeneration: videoGeneration, generationHistory, isGeneratingVideo } = useAppSelector(state => state.video)
   const { generatedImages, isGenerating: isGeneratingImages } = useAppSelector(state => state.imageGeneration)
   const user = useAppSelector(state => state.user)
+  
+  // YouTube research state
+  const youtube = useAppSelector(state => state.youtube)
+  const hasYouTubeResearch = youtube && (
+    (youtube.googleResearchSummaries && youtube.googleResearchSummaries.length > 0) ||
+    (youtube.youtubeResearchSummaries && youtube.youtubeResearchSummaries.length > 0) ||
+    youtube.videosSummary
+  )
+  const appliedResearchCount = youtube ? (
+    (youtube.googleResearchSummaries?.filter(r => r.appliedToScript) || []).length +
+    (youtube.youtubeResearchSummaries?.filter(r => r.appliedToScript) || []).length
+  ) : 0
 
   const navigationItems = [
+    {
+      id: 'youtube-search' as NavigationView,
+      label: 'YouTube Research',
+      icon: Search,
+      description: 'Research & analyze YouTube videos'
+    },
     {
       id: 'script-generator' as NavigationView,
       label: 'Script Generator',
@@ -97,6 +115,15 @@ export function SidebarNavigation({
               {item.id === 'script-generator' && (hasGeneratedScripts || hasFullScript) && (
                 <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded">
                   {hasFullScript ? `Full script: "${fullScript?.title}"` : `${scripts.length} scripts generated`}
+                </div>
+              )}
+              
+              {item.id === 'youtube-search' && hasYouTubeResearch && (
+                <div className="mt-2 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                  {appliedResearchCount > 0 
+                    ? `${appliedResearchCount} research applied to script`
+                    : 'Research data available'
+                  }
                 </div>
               )}
             </button>

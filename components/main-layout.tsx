@@ -3,14 +3,15 @@
 import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { SidebarNavigation } from './sidebar-navigation'
-import { ImageGenerator } from './image-generator'
+import { AIImageGenerator } from './ai-image-generator'
 import ScriptGenerator from './script-generator'
 import { AudioGenerator } from './audio-generator'
 import { VideoGenerator } from './video-generator'
 import { VideoStatus } from './video-status'
 import { AdminDashboard } from './admin-dashboard'
+import YouTubeSearch from './youtube-search'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search'
 
 export function MainLayout() {
   // Start with script generator as the default view
@@ -21,7 +22,7 @@ export function MainLayout() {
       case 'script-generator':
         return <ScriptGenerator />
       case 'image-generator':
-        return <ImageGenerator />
+        return <AIImageGenerator />
       case 'audio-generator':
         return <AudioGenerator />
       case 'video-generator':
@@ -30,6 +31,8 @@ export function MainLayout() {
         return <VideoStatus />
       case 'admin-dashboard':
         return <AdminDashboard />
+      case 'youtube-search':
+        return <YouTubeSearch />
       default:
         return <ScriptGenerator />
     }

@@ -8,6 +8,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Upload, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAppDispatch, useAppSelector } from "../lib/hooks";
 import { 
   setScriptSections, 
@@ -17,11 +26,17 @@ import {
   setScriptGenerationError,
   clearFullScript 
 } from "../lib/features/scripts/scriptsSlice";
+import { selectResearchSummaries, selectVideoSummarization } from "../lib/features/youtube/youtubeSlice";
 
 export interface ScriptSection {
   title: string;
   writingInstructions: string;
   image_generation_prompt: string;
+}
+
+interface OpenAIModel {
+  id: string;
+  owned_by: string;
 }
 
 const ScriptGenerator: React.FC = () => {
@@ -37,11 +52,16 @@ const ScriptGenerator: React.FC = () => {
     scriptGenerationError 
   } = useAppSelector(state => state.scripts);
 
+  // Get research data from Redux using proper selectors
+  const researchSummaries = useAppSelector(selectResearchSummaries);
+  const videoSummarization = useAppSelector(selectVideoSummarization);
+
   // Store form values in state
   const [title, setTitle] = useState("");
   const [wordCount, setWordCount] = useState(1000);
   const [theme, setTheme] = useState("");
   const [additionalPrompt, setAdditionalPrompt] = useState("");
+  const [researchContext, setResearchContext] = useState("");
   const [inspirationalTranscript, setInspirationalTranscript] = useState("");
   const [forbiddenWords, setForbiddenWords] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -49,6 +69,112 @@ const ScriptGenerator: React.FC = () => {
   const [uploadedScript, setUploadedScript] = useState("");
   const [selectedSegmentIndex, setSelectedSegmentIndex] = useState<number | null>(null);
   const [regeneratePrompt, setRegeneratePrompt] = useState("");
+  const [models, setModels] = useState<OpenAIModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-4-turbo-preview");
+  
+  // State for editing sections
+  const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
+  const [editingSectionData, setEditingSectionData] = useState<ScriptSection | null>(null);
+  
+  // Function to format research for script from Redux state
+  const formatResearchForScript = () => {
+    const appliedGoogleResearch = researchSummaries.googleResearchSummaries?.filter((r: any) => r.appliedToScript) || [];
+    const appliedYouTubeResearch = researchSummaries.youtubeResearchSummaries?.filter((r: any) => r.appliedToScript) || [];
+    const currentVideoSummary = videoSummarization.videosSummary;
+
+    let contextString = "";
+
+    // Add Google Research
+    if (appliedGoogleResearch.length > 0) {
+      contextString += "=== GOOGLE RESEARCH INSIGHTS ===\n\n";
+      appliedGoogleResearch.forEach((research: any, index: number) => {
+        contextString += `Research Query ${index + 1}: "${research.query}"\n`;
+        if (research.context) {
+          contextString += `Context: ${research.context}\n`;
+        }
+        contextString += `Key Insights: ${research.insights}\n\n`;
+        
+        contextString += "Key Findings:\n";
+        research.keyFindings.forEach((finding: string, i: number) => {
+          contextString += `${i + 1}. ${finding}\n`;
+        });
+        
+        contextString += "\nRecommendations:\n";
+        research.recommendations.forEach((rec: string, i: number) => {
+          contextString += `${i + 1}. ${rec}\n`;
+        });
+        contextString += "\n---\n\n";
+      });
+    }
+
+    // Add YouTube Research
+    if (appliedYouTubeResearch.length > 0) {
+      contextString += "=== YOUTUBE VIDEO ANALYSIS ===\n\n";
+      appliedYouTubeResearch.forEach((research: any, index: number) => {
+        const summary = research.videosSummary;
+        contextString += `Analysis ${index + 1}: "${research.query}"\n`;
+        contextString += `Overall Theme: ${summary.overallTheme}\n\n`;
+        
+        contextString += "Key Insights:\n";
+        summary.keyInsights.forEach((insight: string, i: number) => {
+          contextString += `${i + 1}. ${insight}\n`;
+        });
+        
+        if (summary.characterInsights.length > 0) {
+          contextString += "\nCharacter Insights:\n";
+          summary.characterInsights.forEach((insight: string, i: number) => {
+            contextString += `${i + 1}. ${insight}\n`;
+          });
+        }
+        
+        if (summary.conflictElements.length > 0) {
+          contextString += "\nDramatic Conflicts:\n";
+          summary.conflictElements.forEach((conflict: string, i: number) => {
+            contextString += `${i + 1}. ${conflict}\n`;
+          });
+        }
+        
+        if (summary.storyIdeas.length > 0) {
+          contextString += "\nStory Ideas:\n";
+          summary.storyIdeas.forEach((idea: string, i: number) => {
+            contextString += `${i + 1}. ${idea}\n`;
+          });
+        }
+        
+        contextString += `\nCreative Prompt: ${summary.creativePrompt}\n`;
+        contextString += "\n---\n\n";
+      });
+    }
+
+    // Add current video summary if available and no applied research
+    if (!appliedGoogleResearch.length && !appliedYouTubeResearch.length && currentVideoSummary) {
+      contextString += "=== CURRENT VIDEO ANALYSIS ===\n\n";
+      contextString += `Overall Theme: ${currentVideoSummary.overallTheme}\n\n`;
+      
+      contextString += "Key Insights:\n";
+      currentVideoSummary.keyInsights.forEach((insight: string, i: number) => {
+        contextString += `${i + 1}. ${insight}\n`;
+      });
+      
+      if (currentVideoSummary.characterInsights.length > 0) {
+        contextString += "\nCharacter Insights:\n";
+        currentVideoSummary.characterInsights.forEach((insight: string, i: number) => {
+          contextString += `${i + 1}. ${insight}\n`;
+        });
+      }
+      
+      if (currentVideoSummary.storyIdeas.length > 0) {
+        contextString += "\nStory Ideas:\n";
+        currentVideoSummary.storyIdeas.forEach((idea: string, i: number) => {
+          contextString += `${i + 1}. ${idea}\n`;
+        });
+      }
+      
+      contextString += `\nCreative Prompt: ${currentVideoSummary.creativePrompt}\n`;
+    }
+
+    return contextString.trim();
+  };
   
   // Store form values in localStorage to persist between renders
   useEffect(() => {
@@ -65,6 +191,29 @@ const ScriptGenerator: React.FC = () => {
     if (savedAdditionalPrompt) setAdditionalPrompt(savedAdditionalPrompt);
     if (savedForbiddenWords) setForbiddenWords(savedForbiddenWords);
   }, []);
+
+  // Fetch models on component mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await fetch("/api/models");
+        if (!response.ok) {
+          throw new Error("Failed to fetch models");
+        }
+        const data = await response.json();
+        setModels(data);
+      } catch (error) {
+        console.error("Error fetching OpenAI models:", error);
+      }
+    };
+    fetchModels();
+  }, []);
+
+  // Update research context automatically from Redux state
+  useEffect(() => {
+    const autoResearchContext = formatResearchForScript();
+    setResearchContext(autoResearchContext);
+  }, [researchSummaries, videoSummarization]);
   
   // Save form values to localStorage when they change
   useEffect(() => {
@@ -111,8 +260,10 @@ const ScriptGenerator: React.FC = () => {
           wordCount, 
           theme, 
           additionalPrompt, 
+          researchContext,
           inspirationalTranscript, 
-          forbiddenWords 
+          forbiddenWords,
+          modelName: selectedModel
         }),
       });
       
@@ -128,10 +279,7 @@ const ScriptGenerator: React.FC = () => {
         dispatch(setScriptSections(data.sections));
       }
       
-      // After receiving outline sections, immediately generate the full script
-      if (data.sections && data.sections.length > 0) {
-        await generateFullScriptDirectly(data.sections);
-      }
+      // Don't automatically generate full script - let user review sections first
     } catch (error) {
       console.error("Error generating script outline:", error);
       dispatch(setScriptGenerationError((error as Error).message));
@@ -155,7 +303,9 @@ const ScriptGenerator: React.FC = () => {
           theme, 
           sections: sections,
           additionalPrompt,
-          forbiddenWords
+          researchContext,
+          forbiddenWords,
+          modelName: selectedModel
         }),
       });
 
@@ -246,6 +396,37 @@ const ScriptGenerator: React.FC = () => {
 
   const handleUpdateSection = (index: number, updatedSection: ScriptSection) => {
     dispatch(updateScriptSection({ index, section: updatedSection }));
+  };
+
+  // Functions for editing sections
+  const startEditingSection = (index: number) => {
+    setEditingSectionIndex(index);
+    setEditingSectionData({ ...scriptSections[index] });
+  };
+
+  const saveEditingSection = () => {
+    if (editingSectionIndex !== null && editingSectionData) {
+      dispatch(updateScriptSection({ 
+        index: editingSectionIndex, 
+        section: editingSectionData 
+      }));
+      setEditingSectionIndex(null);
+      setEditingSectionData(null);
+    }
+  };
+
+  const cancelEditingSection = () => {
+    setEditingSectionIndex(null);
+    setEditingSectionData(null);
+  };
+
+  const updateEditingSectionField = (field: keyof ScriptSection, value: string) => {
+    if (editingSectionData) {
+      setEditingSectionData({
+        ...editingSectionData,
+        [field]: value
+      });
+    }
   };
 
   const handleDownloadDocx = async () => {
@@ -347,9 +528,11 @@ const ScriptGenerator: React.FC = () => {
           sectionIndex: index,
           currentSection,
           additionalPrompt: regenerationPrompt,
+          researchContext,
           forbiddenWords,
-          title, // Add title to the request for context
-          theme  // Add theme to the request for context
+          title,
+          theme,
+          modelName: selectedModel
         }),
       });
 
@@ -417,7 +600,9 @@ const ScriptGenerator: React.FC = () => {
           title,
           theme,
           additionalPrompt: regenerationPrompt,
-          forbiddenWords
+          researchContext,
+          forbiddenWords,
+          modelName: selectedModel
         }),
       });
       
@@ -488,6 +673,10 @@ const ScriptGenerator: React.FC = () => {
     await handleRegenerateScriptSegment(segmentIndex, segmentContent, prompt);
   };
 
+  const openAIModels = models.filter(m => m.owned_by === 'openai');
+  const anthropicModels = models.filter(m => m.owned_by === 'anthropic');
+  const customModels = models.filter(m => m.owned_by !== 'openai' && m.owned_by !== 'anthropic');
+
   return (
     <div className="space-y-8">
       <Tabs defaultValue="form">
@@ -504,7 +693,7 @@ const ScriptGenerator: React.FC = () => {
                 </p>
               </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
               <Label htmlFor="title" className="flex justify-between">
                 <span>Title</span>
@@ -536,6 +725,47 @@ const ScriptGenerator: React.FC = () => {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="model">Model</Label>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                {openAIModels.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>OpenAI</SelectLabel>
+                    {openAIModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.id}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {anthropicModels.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Anthropic</SelectLabel>
+                    {anthropicModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.id}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {customModels.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Custom</SelectLabel>
+                    {customModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.id} ({model.owned_by})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
               <Label htmlFor="theme" className="flex justify-between">
                 <span>Story Theme</span>
               </Label>
@@ -547,6 +777,36 @@ const ScriptGenerator: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Research Context Box */}
+          {researchContext && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="researchContext" className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Applied Research Context
+                </Label>
+                <button
+                  onClick={() => setResearchContext("")}
+                  className="text-red-500 hover:text-red-700 text-sm"
+                >
+                  Clear Research
+                </button>
+              </div>
+              <Textarea
+                id="researchContext"
+                value={researchContext}
+                onChange={(e) => setResearchContext(e.target.value)}
+                className="min-h-[120px] bg-blue-50 border-blue-200"
+                placeholder="Research context will appear here when applied from YouTube Research Assistant"
+              />
+              <p className="text-xs text-blue-600">
+                This research data will be automatically included when generating your script to ensure it's backed by insights and analysis.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="additionalPrompt">Additional Instructions (Optional)</Label>
@@ -565,8 +825,19 @@ const ScriptGenerator: React.FC = () => {
               onClick={handleGenerateOutline}
               disabled={isLoading || isGeneratingScript || !title}
             >
-              {isLoading ? "Generating..." : "Generate Script"}
+              {isLoading ? "Generating Sections..." : "Generate Sections"}
               </Button>
+
+            {hasScriptSections && (
+              <Button 
+                className="flex-1" 
+                onClick={handleGenerateFullScript}
+                disabled={isLoading || isGeneratingScript}
+                variant="secondary"
+              >
+                {isGeneratingScript ? "Generating Script..." : "Generate Full Script"}
+              </Button>
+            )}
 
             {fullScript && (
               <Button 
@@ -638,6 +909,120 @@ const ScriptGenerator: React.FC = () => {
                         </div>
         </TabsContent>
       </Tabs>
+
+      {/* Script Sections Display */}
+      {hasScriptSections && (
+        <div className="w-full space-y-6 p-6 bg-card rounded-lg border shadow-sm">
+          <div className="space-y-2 flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold">Script Sections</h2>
+              <p className="text-muted-foreground">
+                Review your script outline. Click "Generate Full Script" when ready.
+              </p>
+            </div>
+            <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
+              {scriptSections.length} Sections
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            {scriptSections.map((section, index) => (
+              <div key={index} className="border rounded-lg p-4 bg-background">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Section {index + 1}: {section.title}
+                  </h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => startEditingSection(index)}
+                  >
+                    <RefreshCw size={14} className="mr-2" />
+                    Edit
+                  </Button>
+                </div>
+                
+                {/* View Mode - only show when not editing */}
+                {editingSectionIndex !== index && (
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Writing Instructions:</h4>
+                      <p className="text-sm text-foreground bg-muted p-3 rounded whitespace-pre-wrap">
+                        {section.writingInstructions}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Image Generation Prompt:</h4>
+                      <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded italic">
+                        {section.image_generation_prompt}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Editing Mode */}
+                {editingSectionIndex === index && editingSectionData && (
+                  <div className="mt-4 space-y-4 border-t pt-4">
+                    <h4 className="text-sm font-medium text-muted-foreground">Edit Section:</h4>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor={`edit-title-${index}`}>Section Title:</Label>
+                      <Input
+                        id={`edit-title-${index}`}
+                        value={editingSectionData.title}
+                        onChange={(e) => updateEditingSectionField('title', e.target.value)}
+                        placeholder="Enter section title"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor={`edit-instructions-${index}`}>Writing Instructions:</Label>
+                      <Textarea
+                        id={`edit-instructions-${index}`}
+                        value={editingSectionData.writingInstructions}
+                        onChange={(e) => updateEditingSectionField('writingInstructions', e.target.value)}
+                        placeholder="Enter detailed writing instructions for this section"
+                        className="min-h-[120px]"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor={`edit-image-prompt-${index}`}>Image Generation Prompt:</Label>
+                      <Textarea
+                        id={`edit-image-prompt-${index}`}
+                        value={editingSectionData.image_generation_prompt}
+                        onChange={(e) => updateEditingSectionField('image_generation_prompt', e.target.value)}
+                        placeholder="Enter image generation prompt for this section"
+                        className="min-h-[80px]"
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={saveEditingSection}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Save Changes
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={cancelEditingSection}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+         
+        </div>
+      )}
 
       {/* Full Script Section - Modified to take full width */}
       <div className="w-full space-y-6">

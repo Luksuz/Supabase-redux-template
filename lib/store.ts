@@ -1,12 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit'
 import userReducer from './features/user/userSlice'
 import imagesReducer from './features/images/imagesSlice'
-import imageGenerationReducer from './features/images/imageGenerationSlice'
+import imageGenerationReducer from './features/imageGeneration/imageGenerationSlice'
 import scriptsReducer from './features/scripts/scriptsSlice'
 import scriptProcessorReducer from './features/scriptProcessor/scriptProcessorSlice'
 import audioReducer from './features/audio/audioSlice'
 import videoReducer from './features/video/videoSlice'
 import progressReducer from './features/progress/progressSlice'
+import youtubeReducer from './features/youtube/youtubeSlice'
 
 // This is our Redux store - the single source of truth for our app's state
 export const store = configureStore({
@@ -20,6 +21,7 @@ export const store = configureStore({
     audio: audioReducer,
     video: videoReducer,
     progress: progressReducer,
+    youtube: youtubeReducer,
   },
   // Redux Toolkit includes good defaults for middleware
   // (like Redux DevTools and thunk for async actions)
@@ -37,5 +39,6 @@ export type AppDispatch = typeof store.dispatch
 //   scriptProcessor: { pastedScript: '...', chunks: [...], prompts: [...], ... },
 //   audio: { currentGeneration: {...}, isGeneratingAudio: false, selectedVoice: 3, ... },
 //   video: { currentGeneration: {...}, isGeneratingVideo: false, settings: {...}, ... },
-//   progress: { ... }
+//   progress: { ... },
+//   youtube: { searchQuery: '...', videos: [...], researchSummaries: [...], ... }
 // } 

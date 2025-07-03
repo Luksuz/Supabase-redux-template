@@ -1,0 +1,218 @@
+{
+  "metadata": {
+    "videoId": "b56b0b00-171d-4677-af06-a76de6e0532d",
+    "timestamp": "2025-07-01T06:40:56.086Z",
+    "videoType": "Segmented",
+    "totalDuration": 504.67002299999996,
+    "imageCount": 10,
+    "hasAudio": true,
+    "hasSubtitles": false,
+    "hasMusic": true,
+    "musicVolume": "20%"
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/4909362/4909362-hd_1920_1080_25fps.mp4"
+              },
+              "start": 0,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/6906549/6906549-uhd_2732_1366_30fps.mp4"
+              },
+              "start": 50.467002300000004,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/13740590/13740590-hd_1920_1080_24fps.mp4"
+              },
+              "start": 100.93400460000001,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/32766252/13968371_1920_1080_30fps.mp4"
+              },
+              "start": 151.40100690000003,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/5639717/5639717-uhd_2732_1440_25fps.mp4"
+              },
+              "start": 201.86800920000002,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/8115357/8115357-hd_1920_1080_25fps.mp4"
+              },
+              "start": 252.3350115,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/9413464/9413464-hd_1920_1080_25fps.mp4"
+              },
+              "start": 302.8020138,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/9413464/9413464-hd_1920_1080_25fps.mp4"
+              },
+              "start": 353.2690161,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/18996771/18996771-uhd_3840_2160_60fps.mp4"
+              },
+              "start": 403.7360184,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://videos.pexels.com/video-files/6093238/6093238-hd_1920_1080_24fps.mp4"
+              },
+              "start": 454.20302069999997,
+              "length": 50.467002300000004,
+              "fit": "contain"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1751352014808.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 504.67002299999996
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 0,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 60,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 120,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 180,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 240,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 300,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 360,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 420,
+              "length": 60
+            },
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://dm0qx8t0i9gc9.cloudfront.net/watermarks/audio/SiX0YRGyPkccxaman/audioblocks-pulsating-fury-instrumental_SOJqJd8mn_WM.mp3",
+                "volume": 0.2
+              },
+              "start": 480,
+              "length": 24.670022999999958
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}

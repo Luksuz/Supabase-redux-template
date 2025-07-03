@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "videoId": "9061895a-4367-494c-82e7-0d6d6532a909",
+    "timestamp": "2025-06-30T17:39:14.865Z",
+    "videoType": "Segmented",
+    "totalDuration": 0.803537,
+    "imageCount": 1,
+    "hasAudio": true,
+    "hasSubtitles": true,
+    "hasMusic": false,
+    "musicVolume": "N/A"
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "caption",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/subtitles/subtitles_1751305064271.srt",
+                "font": {
+                  "family": "Montserrat",
+                  "size": 40,
+                  "stroke": "#000000",
+                  "strokeWidth": 1
+                },
+                "background": {
+                  "color": "#ffffff",
+                  "opacity": 0.5,
+                  "padding": 12
+                }
+              },
+              "start": 0,
+              "length": 0.803537,
+              "position": "bottom",
+              "offset": {
+                "y": 0.05
+              }
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/chunk-1-1751304972640.jpg"
+              },
+              "start": 0,
+              "length": 0.803537,
+              "fit": "contain"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1751305061144.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 0.803537
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}

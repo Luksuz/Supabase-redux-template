@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ChatOpenAI } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import OpenAI from 'openai'
@@ -41,8 +42,10 @@ async function handleNewScriptGeneration(body: any) {
     wordCount, 
     theme, 
     additionalPrompt, 
+    researchContext,
     inspirationalTranscript, 
-    forbiddenWords 
+    forbiddenWords,
+    modelName = "gpt-4o-mini" // Default model
   } = body;
   
   if (!title || !wordCount) {
@@ -53,11 +56,22 @@ async function handleNewScriptGeneration(body: any) {
   }
 
   // Initialize the model
-  const model = new ChatOpenAI({
-    openAIApiKey: process.env.OPENAI_API_KEY,
-    modelName: "gpt-4o-mini",
-    temperature: 0.7,
-  });
+  let model;
+  if (modelName.startsWith('claude')) {
+    model = new ChatAnthropic({
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      modelName: modelName,
+      temperature: 0.7,
+      maxTokens: 8000,
+    });
+  } else {
+    model = new ChatOpenAI({
+      openAIApiKey: process.env.OPENAI_API_KEY,
+      modelName: modelName,
+      temperature: 0.7,
+      maxTokens: 8000,
+    });
+  }
 
   // Create a parser based on our Zod schema
   const parser = StructuredOutputParser.fromZodSchema(scriptSectionsSchema);
@@ -67,6 +81,18 @@ async function handleNewScriptGeneration(body: any) {
 
   // Build additions to the prompt based on optional parameters
   let additionalInstructions = "";
+  
+  // Add research context if provided
+  if (researchContext && researchContext.trim()) {
+    additionalInstructions += `
+RESEARCH CONTEXT:
+The following research insights should be incorporated into your script to ensure it's backed by data and analysis:
+
+${researchContext.trim()}
+
+Use this research to inform the content, themes, and narrative direction of your script sections.
+`;
+  }
   
   // Add transcript as inspiration if provided
   if (inspirationalTranscript && inspirationalTranscript.trim()) {
