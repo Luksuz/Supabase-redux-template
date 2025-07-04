@@ -26,11 +26,25 @@ function removeMarkdown(text: string): string {
 export async function POST(request: Request) {
   try {
     const requestData = await request.json();
-    const { title, theme, sections, additionalPrompt, researchContext, forbiddenWords, modelName = "gpt-4o-mini" } = requestData;
+    const { 
+      title, 
+      theme, 
+      sections, 
+      additionalPrompt, 
+      researchContext, 
+      forbiddenWords, 
+      modelName = "gpt-4o-mini",
+      povSelection = "3rd Person",
+      scriptFormat = "Story",
+      audience = ""
+    } = requestData;
     
     console.log("Received request for script generation:");
     console.log("- Title:", title);
     console.log("- Theme:", theme || "Not provided");
+    console.log("- POV Selection:", povSelection);
+    console.log("- Script Format:", scriptFormat);
+    console.log("- Audience:", audience || "Not specified");
     console.log("- Sections:", Array.isArray(sections) ? `${sections.length} sections` : "None");
     console.log("- Additional Prompt:", additionalPrompt ? "Provided" : "None");
     console.log("- Research Context:", researchContext ? "Provided" : "None");
@@ -118,6 +132,9 @@ You are a professional writer creating a section of a script based on the follow
 
 TITLE: ${title}
 THEME: ${theme || "No specific theme provided"}
+POV: Write in ${povSelection} perspective
+FORMAT: This is a ${scriptFormat} format script
+${audience ? `TARGET AUDIENCE: ${audience}` : ""}
 SECTION ${index + 1} TITLE: ${section.title}
 WRITING INSTRUCTIONS: ${section.writingInstructions}
 ${additionalInstructions}
@@ -133,6 +150,9 @@ IMPORTANT FORMATTING RULES:
 2. Do NOT include any greetings like "Hi!", "Hello", or similar phrases at the beginning.
 3. Start directly with the narrative content - for example, begin with a description of a scene or action.
 4. Do NOT repeat the title or section name within the content.
+5. Write in ${povSelection} perspective throughout the script.
+6. Follow the ${scriptFormat} format conventions while maintaining spoken narrative style.
+${audience ? `7. Tailor the language and tone for the target audience: ${audience}.` : ""}
 
 CONTENT TO EXCLUDE:
 - Any form of title, header, or section name

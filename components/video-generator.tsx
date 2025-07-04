@@ -45,8 +45,8 @@ export function VideoGenerator() {
     textTransform: 'none'
   })
 
-  // Add image selection state for video generation
-  const [selectedImagesForVideo, setSelectedImagesForVideo] = useState<Set<string>>(new Set())
+  // Updated: Use ordered image selection for video generation
+  const [selectedImagesForVideoOrder, setSelectedImagesForVideoOrder] = useState<string[]>([])
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -57,18 +57,28 @@ export function VideoGenerator() {
     }
   }
 
-  // Get image URLs from generated image sets
-  const getImageUrls = (): string[] => {
+  // Get image URLs from generated image sets in order
+  const getOrderedImageUrls = (): string[] => {
     const urls: string[] = []
     
-    // Extract URLs from all image sets
+    // Use the ordered selection if available
+    if (selectedImagesForVideoOrder.length > 0) {
+      selectedImagesForVideoOrder.forEach(imageId => {
+        const [setIndex, imageIndex] = imageId.split(':').map(Number)
+        if (imageSets[setIndex] && imageSets[setIndex].imageUrls[imageIndex]) {
+          urls.push(imageSets[setIndex].imageUrls[imageIndex])
+        }
+      })
+      return urls
+    }
+    
+    // Fallback: Extract URLs from all image sets
     imageSets.forEach(imageSet => {
       urls.push(...imageSet.imageUrls)
     })
     
     // If no images are available, provide sample image URLs
     if (urls.length === 0) {
-      // Sample placeholder images for demonstration
       return [
         'https://picsum.photos/800/600?random=1',
         'https://picsum.photos/800/600?random=2',
@@ -76,75 +86,50 @@ export function VideoGenerator() {
       ]
     }
     
-    console.log(`🖼️ Found ${urls.length} image URLs from ${imageSets.length} image sets`)
+    console.log(`🖼️ Found ${urls.length} ordered image URLs`)
     return urls
   }
 
-  // Get selected image URLs for video generation
-  const getSelectedImageUrls = (): string[] => {
-    const allImages: { url: string; id: string }[] = []
-    
-    // Collect all images with their IDs
-    imageSets.forEach((set, setIndex) => {
-      set.imageUrls.forEach((url, imageIndex) => {
-        allImages.push({
-          url,
-          id: `${setIndex}-url-${imageIndex}`
-        })
-      })
-      set.imageData.forEach((b64, imageIndex) => {
-        allImages.push({
-          url: `data:image/png;base64,${b64}`,
-          id: `${setIndex}-b64-${imageIndex}`
-        })
-      })
-    })
-
-    // Filter to only selected images
-    const selectedUrls = allImages
-      .filter(img => selectedImagesForVideo.has(img.id))
-      .map(img => img.url)
-
-    console.log(`🎬 Selected ${selectedUrls.length} images for video generation`)
-    return selectedUrls
-  }
-
-  // Image selection functions
-  const toggleImageForVideo = (imageId: string) => {
-    setSelectedImagesForVideo(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(imageId)) {
-        newSet.delete(imageId)
+  // Image selection functions for video generation order
+  const getImageId = (setIndex: number, imageIndex: number) => `${setIndex}:${imageIndex}`
+  
+  const toggleImageForVideo = (setIndex: number, imageIndex: number) => {
+    const imageId = getImageId(setIndex, imageIndex)
+    setSelectedImagesForVideoOrder(prev => {
+      if (prev.includes(imageId)) {
+        return prev.filter(id => id !== imageId)
       } else {
-        newSet.add(imageId)
+        return [...prev, imageId]
       }
-      return newSet
     })
   }
 
   const selectAllImagesForVideo = () => {
-    const allImageIds = new Set<string>()
+    const allImageIds: string[] = []
     imageSets.forEach((set, setIndex) => {
       set.imageUrls.forEach((_, imageIndex) => {
-        allImageIds.add(`${setIndex}-url-${imageIndex}`)
-      })
-      set.imageData.forEach((_, imageIndex) => {
-        allImageIds.add(`${setIndex}-b64-${imageIndex}`)
+        allImageIds.push(getImageId(setIndex, imageIndex))
       })
     })
-    setSelectedImagesForVideo(allImageIds)
+    setSelectedImagesForVideoOrder(allImageIds)
   }
 
   const clearSelectedImagesForVideo = () => {
-    setSelectedImagesForVideo(new Set())
+    setSelectedImagesForVideoOrder([])
   }
 
-  // Check if we have generated images (always true now with fallback)
-  const hasGeneratedImages = true
+  const getImageOrderNumber = (setIndex: number, imageIndex: number) => {
+    const imageId = getImageId(setIndex, imageIndex)
+    const orderIndex = selectedImagesForVideoOrder.indexOf(imageId)
+    return orderIndex >= 0 ? orderIndex + 1 : null
+  }
+
+  // Check if we have generated images
+  const hasGeneratedImages = imageSets.length > 0
 
   // Initialize custom segment timings when images or audio change
   useEffect(() => {
-    const imageUrls = getImageUrls()
+    const imageUrls = getOrderedImageUrls()
     if (imageUrls.length > 0 && audioGeneration?.audioUrl) {
       if (audioGeneration.duration) {
         // Use actual duration if available
@@ -159,7 +144,7 @@ export function VideoGenerator() {
         setCustomSegmentTimings(timings)
       }
     }
-  }, [imageSets.length, audioGeneration?.audioUrl, audioGeneration?.duration])
+  }, [selectedImagesForVideoOrder, imageSets.length, audioGeneration?.audioUrl, audioGeneration?.duration])
 
   // Debug logging for audio generation state
   useEffect(() => {
@@ -175,13 +160,13 @@ export function VideoGenerator() {
   useEffect(() => {
     console.log('🖼️ Image generation state:', { 
       imageSetsCount: imageSets.length, 
-      totalImages: getImageUrls().length,
+      totalImages: getOrderedImageUrls().length,
       hasGeneratedImages 
     })
   }, [imageSets, hasGeneratedImages])
 
-  // Check if we have all prerequisites for video generation (always true now)
-  const hasPrerequisites = true
+  // Check if we have all prerequisites for video generation
+  const hasPrerequisites = hasGeneratedImages && audioGeneration?.audioUrl
 
   // Show messages for state changes
   useEffect(() => {
@@ -203,7 +188,7 @@ export function VideoGenerator() {
 
   // Distribute total duration equally across all segments
   const distributeEquallyAcrossSegments = async () => {
-    if (getImageUrls().length === 0) {
+    if (getOrderedImageUrls().length === 0) {
       showMessage('No images available for timing distribution', 'error')
       return
     }
@@ -222,10 +207,10 @@ export function VideoGenerator() {
       }
     }
     
-    const equalDuration = duration / getImageUrls().length
-    const equalTimings = getImageUrls().map(() => ({ duration: equalDuration }))
+    const equalDuration = duration / getOrderedImageUrls().length
+    const equalTimings = getOrderedImageUrls().map(() => ({ duration: equalDuration }))
     setCustomSegmentTimings(equalTimings)
-    showMessage(`Distributed ${duration.toFixed(1)}s equally across ${getImageUrls().length} images`, 'success')
+    showMessage(`Distributed ${duration.toFixed(1)}s equally across ${getOrderedImageUrls().length} images`, 'success')
   }
 
   // Get audio duration with fallback to fetch from audio file
@@ -262,14 +247,14 @@ export function VideoGenerator() {
 
   // Convert script durations to segment timings for video generation
   const getScriptBasedTimings = (): SegmentTiming[] => {
-    if (!audioGeneration?.scriptDurations || getImageUrls().length === 0) {
+    if (!audioGeneration?.scriptDurations || getOrderedImageUrls().length === 0) {
       return []
     }
 
     // Map images to their corresponding script durations
     const timings: SegmentTiming[] = []
     
-    getImageUrls().forEach((imageUrl, index) => {
+    getOrderedImageUrls().forEach((imageUrl, index) => {
       // For now, we'll use index-based matching since imageUrl doesn't directly map to imageId
       // In a real implementation, you'd need to maintain the relationship between imageUrl and imageId
       const scriptDuration = audioGeneration.scriptDurations?.[index]
@@ -277,7 +262,7 @@ export function VideoGenerator() {
         timings.push({ duration: scriptDuration.duration })
       } else {
         // Fallback to equal timing if no script duration found
-        const fallbackDuration = audioGeneration.duration ? audioGeneration.duration / getImageUrls().length : 3
+        const fallbackDuration = audioGeneration.duration ? audioGeneration.duration / getOrderedImageUrls().length : 3
         timings.push({ duration: fallbackDuration })
         console.warn(`No script duration found for image ${index}, using fallback: ${fallbackDuration}s`)
       }
@@ -303,23 +288,23 @@ export function VideoGenerator() {
     { value: 'Tahoma', label: 'Tahoma' }
   ]
 
-  // Handle video generation
+  // Handle video generation with ordered images
   const handleGenerateVideo = async () => {
     try {
       dispatch(setIsGeneratingVideo(true))
 
-      // Use selected images instead of all images
-      const selectedImageUrls = getSelectedImageUrls()
+      // Use ordered images for video generation
+      const orderedImageUrls = getOrderedImageUrls()
       
       // Validate that at least one image is selected
-      if (selectedImageUrls.length === 0) {
+      if (orderedImageUrls.length === 0) {
         showMessage('Please select at least one image for video generation.', 'error')
         dispatch(setIsGeneratingVideo(false))
         return
       }
       
-      console.log(`🎬 Starting video generation with ${selectedImageUrls.length} selected images`)
-      showMessage(`Starting video generation with ${selectedImageUrls.length} selected images...`, 'info')
+      console.log(`🎬 Starting video generation with ${orderedImageUrls.length} ordered images`)
+      showMessage(`Starting video generation with ${orderedImageUrls.length} images in order...`, 'info')
       
       // Determine which timing mode to use and prepare segment timings
       let segmentTimings: SegmentTiming[] | undefined = undefined
@@ -327,35 +312,33 @@ export function VideoGenerator() {
 
       if (settings.useSegmentedTiming) {
         // Custom segmented timing (manual user input) - adjust for selected images
-        const selectedTimings = customSegmentTimings.slice(0, selectedImageUrls.length)
+        const selectedTimings = customSegmentTimings.slice(0, orderedImageUrls.length)
         segmentTimings = selectedTimings
         videoType = 'segmented'
       } else if (settings.useScriptBasedTiming && scriptBasedTimingAvailable) {
         // Script-based timing (automatic from audio generation) - adjust for selected images
         const scriptTimings = getScriptBasedTimings()
-        segmentTimings = scriptTimings.slice(0, selectedImageUrls.length)
+        segmentTimings = scriptTimings.slice(0, orderedImageUrls.length)
         videoType = 'script-based'
       }
       // Otherwise, use traditional equal timing (no segmentTimings)
 
-      // Prepare request body with selected images
+      // Prepare request body with ordered images
       const requestBody: CreateVideoRequestBody = {
-        imageUrls: selectedImageUrls, // Use selected images only
-        audioUrl: audioGeneration?.audioUrl || 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav', // Fallback audio
+        imageUrls: orderedImageUrls,
+        audioUrl: audioGeneration?.audioUrl || 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
         compressedAudioUrl: audioGeneration?.compressedAudioUrl || undefined,
         subtitlesUrl: settings.includeSubtitles && audioGeneration?.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
         userId: 'current_user',
-        thumbnailUrl: selectedImageUrls[0], // Use first selected image as thumbnail
+        thumbnailUrl: orderedImageUrls[0],
         segmentTimings: segmentTimings,
         includeOverlay: settings.includeOverlay,
-        // Add subtitle styling properties
         fontFamily: subtitleSettings.fontFamily,
         fontColor: subtitleSettings.fontColor,
         fontSize: subtitleSettings.fontSize,
         strokeWidth: subtitleSettings.strokeWidth,
         fontWeight: subtitleSettings.fontWeight,
         textTransform: subtitleSettings.textTransform,
-        // Include audio duration to avoid backend URL probing
         audioDuration: audioGeneration?.duration ?? undefined
       }
 
@@ -386,20 +369,20 @@ export function VideoGenerator() {
           user_id: 'current_user',
           status: 'processing',
           shotstack_id: data.shotstack_id || '',
-          image_urls: selectedImageUrls,
+          image_urls: orderedImageUrls,
           audio_url: requestBody.audioUrl,
           subtitles_url: requestBody.subtitlesUrl,
-          thumbnail_url: selectedImageUrls[0],
+          thumbnail_url: orderedImageUrls[0],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: segmentTimings ? {
             type: videoType,
             segment_timings: segmentTimings,
             total_duration: segmentTimings.reduce((sum, timing) => sum + timing.duration, 0),
-            scenes_count: selectedImageUrls.length
+            scenes_count: orderedImageUrls.length
           } : {
             type: 'traditional',
-            scenes_count: selectedImageUrls.length,
+            scenes_count: orderedImageUrls.length,
             total_duration: audioGeneration?.duration || 30 // Default duration
           }
         }
@@ -545,7 +528,7 @@ export function VideoGenerator() {
                   variant="outline"
                   size="sm"
                   onClick={clearSelectedImagesForVideo}
-                  disabled={selectedImagesForVideo.size === 0}
+                  disabled={selectedImagesForVideoOrder.length === 0}
                 >
                   Clear Selection
                 </Button>
@@ -562,7 +545,7 @@ export function VideoGenerator() {
           <CardContent>
             <div className="mb-4">
               <p className="text-sm text-muted-foreground">
-                {selectedImagesForVideo.size} of {imageSets.reduce((total, set) => total + set.imageUrls.length + set.imageData.length, 0)} images selected
+                {selectedImagesForVideoOrder.length} of {imageSets.reduce((total, set) => total + set.imageUrls.length + set.imageData.length, 0)} images selected
               </p>
             </div>
             
@@ -570,13 +553,13 @@ export function VideoGenerator() {
               {imageSets.map((set, setIndex) => [
                 // Map through imageUrls
                 ...set.imageUrls.map((url, imageIndex) => {
-                  const imageId = `${setIndex}-url-${imageIndex}`
-                  const isSelected = selectedImagesForVideo.has(imageId)
+                  const imageId = getImageId(setIndex, imageIndex)
+                  const isSelected = selectedImagesForVideoOrder.includes(imageId)
                   return (
                     <div key={imageId} className="space-y-2">
                       <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors cursor-pointer ${
                         isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                      }`} onClick={() => toggleImageForVideo(imageId)}>
+                      }`} onClick={() => toggleImageForVideo(setIndex, imageIndex)}>
                         {/* Selection checkbox */}
                         <div className="absolute top-2 left-2 z-10">
                           <Checkbox
@@ -608,13 +591,13 @@ export function VideoGenerator() {
                 }),
                 // Map through imageData (base64)
                 ...set.imageData.map((b64, imageIndex) => {
-                  const imageId = `${setIndex}-b64-${imageIndex}`
-                  const isSelected = selectedImagesForVideo.has(imageId)
+                  const imageId = getImageId(setIndex, imageIndex)
+                  const isSelected = selectedImagesForVideoOrder.includes(imageId)
                   return (
                     <div key={imageId} className="space-y-2">
                       <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors cursor-pointer ${
                         isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                      }`} onClick={() => toggleImageForVideo(imageId)}>
+                      }`} onClick={() => toggleImageForVideo(setIndex, imageIndex)}>
                         {/* Selection checkbox */}
                         <div className="absolute top-2 left-2 z-10">
                           <Checkbox
@@ -969,7 +952,7 @@ export function VideoGenerator() {
               </Button>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {hasGeneratedImages ? getImageUrls().map((imageUrl, index) => (
+                {hasGeneratedImages ? getOrderedImageUrls().map((imageUrl: string, index: number) => (
                   <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
                     <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
                       <img
@@ -1026,7 +1009,7 @@ export function VideoGenerator() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {hasGeneratedImages ? getImageUrls().map((imageUrl, index) => {
+                {hasGeneratedImages ? getOrderedImageUrls().map((imageUrl: string, index: number) => {
                   // Use index-based matching for script durations
                   const scriptDuration = audioGeneration?.scriptDurations?.[index]
                   return (
@@ -1058,7 +1041,7 @@ export function VideoGenerator() {
           {/* Generate Button */}
           <Button
             onClick={handleGenerateVideo}
-            disabled={isGeneratingVideo || !hasPrerequisites || selectedImagesForVideo.size === 0}
+            disabled={isGeneratingVideo || !hasPrerequisites || selectedImagesForVideoOrder.length === 0}
             className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
             size="lg"
           >
@@ -1072,7 +1055,7 @@ export function VideoGenerator() {
                 <VideoIcon className="h-4 w-4 mr-2" />
                 Complete Prerequisites to Generate Video
               </>
-            ) : selectedImagesForVideo.size === 0 ? (
+            ) : selectedImagesForVideoOrder.length === 0 ? (
               <>
                 <VideoIcon className="h-4 w-4 mr-2" />
                 Select Images to Generate Video
@@ -1080,7 +1063,7 @@ export function VideoGenerator() {
             ) : (
               <>
                 <VideoIcon className="h-4 w-4 mr-2" />
-                Generate Video with {selectedImagesForVideo.size} Selected Image{selectedImagesForVideo.size !== 1 ? 's' : ''} ({
+                Generate Video with {selectedImagesForVideoOrder.length} Selected Image{selectedImagesForVideoOrder.length !== 1 ? 's' : ''} ({
                   settings.useSegmentedTiming ? 'Custom Timing' :
                   settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
                   'Traditional'

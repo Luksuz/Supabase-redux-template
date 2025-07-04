@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Upload, RefreshCw } from "lucide-react";
+import { Download, Upload, RefreshCw, History } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -27,6 +27,13 @@ import {
   clearFullScript 
 } from "../lib/features/scripts/scriptsSlice";
 import { selectResearchSummaries, selectVideoSummarization } from "../lib/features/youtube/youtubeSlice";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export interface ScriptSection {
   title: string;
@@ -75,6 +82,18 @@ const ScriptGenerator: React.FC = () => {
   // State for editing sections
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
   const [editingSectionData, setEditingSectionData] = useState<ScriptSection | null>(null);
+  
+  // New state variables for the additional fields
+  const [povSelection, setPovSelection] = useState<string>("3rd Person");
+  const [scriptFormat, setScriptFormat] = useState<string>("Story");
+  const [audience, setAudience] = useState<string>("");
+  
+  // State for prompt history sidebar
+  const [isPromptHistoryOpen, setIsPromptHistoryOpen] = useState(false);
+  
+  // State for saved prompts
+  const [savedPrompts, setSavedPrompts] = useState<any[]>([]);
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
   
   // Function to format research for script from Redux state
   const formatResearchForScript = () => {
@@ -184,12 +203,18 @@ const ScriptGenerator: React.FC = () => {
     const savedTheme = localStorage.getItem('scriptGenerator.theme');
     const savedAdditionalPrompt = localStorage.getItem('scriptGenerator.additionalPrompt');
     const savedForbiddenWords = localStorage.getItem('scriptGenerator.forbiddenWords');
+    const savedPovSelection = localStorage.getItem('scriptGenerator.povSelection');
+    const savedScriptFormat = localStorage.getItem('scriptGenerator.scriptFormat');
+    const savedAudience = localStorage.getItem('scriptGenerator.audience');
     
     if (savedTitle) setTitle(savedTitle);
     if (savedWordCount) setWordCount(parseInt(savedWordCount));
     if (savedTheme) setTheme(savedTheme);
     if (savedAdditionalPrompt) setAdditionalPrompt(savedAdditionalPrompt);
     if (savedForbiddenWords) setForbiddenWords(savedForbiddenWords);
+    if (savedPovSelection) setPovSelection(savedPovSelection);
+    if (savedScriptFormat) setScriptFormat(savedScriptFormat);
+    if (savedAudience) setAudience(savedAudience);
   }, []);
 
   // Fetch models on component mount
@@ -222,7 +247,10 @@ const ScriptGenerator: React.FC = () => {
     localStorage.setItem('scriptGenerator.theme', theme);
     localStorage.setItem('scriptGenerator.additionalPrompt', additionalPrompt);
     localStorage.setItem('scriptGenerator.forbiddenWords', forbiddenWords);
-  }, [title, wordCount, theme, additionalPrompt, forbiddenWords]);
+    localStorage.setItem('scriptGenerator.povSelection', povSelection);
+    localStorage.setItem('scriptGenerator.scriptFormat', scriptFormat);
+    localStorage.setItem('scriptGenerator.audience', audience);
+  }, [title, wordCount, theme, additionalPrompt, forbiddenWords, povSelection, scriptFormat, audience]);
 
   // Calculate word count when full script changes
   const updateScriptWordCount = (script: string) => {
@@ -263,7 +291,10 @@ const ScriptGenerator: React.FC = () => {
           researchContext,
           inspirationalTranscript, 
           forbiddenWords,
-          modelName: selectedModel
+          modelName: selectedModel,
+          povSelection,
+          scriptFormat,
+          audience
         }),
       });
       
@@ -305,7 +336,10 @@ const ScriptGenerator: React.FC = () => {
           additionalPrompt,
           researchContext,
           forbiddenWords,
-          modelName: selectedModel
+          modelName: selectedModel,
+          povSelection,
+          scriptFormat,
+          audience
         }),
       });
 
@@ -677,6 +711,82 @@ const ScriptGenerator: React.FC = () => {
   const anthropicModels = models.filter(m => m.owned_by === 'anthropic');
   const customModels = models.filter(m => m.owned_by !== 'openai' && m.owned_by !== 'anthropic');
 
+  // Function to fetch saved prompts
+  const fetchSavedPrompts = async () => {
+    console.log('🔄 Starting fetchSavedPrompts...');
+    setLoadingPrompts(true);
+    console.log('📊 Set loadingPrompts to true');
+    
+    try {
+      console.log('🔄 Fetching saved prompts from /api/prompts...');
+      const response = await fetch('/api/prompts');
+      console.log('📥 Response status:', response.status, response.statusText);
+      
+      if (response.ok) {
+        const prompts = await response.json();
+        console.log('✅ Prompts fetched successfully:', prompts);
+        console.log('📊 Number of prompts:', prompts.length);
+        console.log('📊 First prompt (if any):', prompts[0]);
+        
+        setSavedPrompts(prompts);
+        console.log('📊 setSavedPrompts called with:', prompts);
+        
+        // Force a small delay to see if state updates
+        setTimeout(() => {
+          console.log('📊 savedPrompts state after setTimeout:', savedPrompts);
+        }, 100);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Failed to fetch saved prompts. Status:', response.status);
+        console.error('❌ Error response:', errorText);
+      }
+    } catch (error) {
+      console.error('❌ Network error fetching saved prompts:', error);
+    } finally {
+      setLoadingPrompts(false);
+      console.log('📊 Set loadingPrompts to false');
+    }
+  };
+
+  // Function to apply a saved prompt to the form
+  const applyPromptToForm = (prompt: any) => {
+    if (prompt.title) setTitle(prompt.title);
+    if (prompt.theme) setTheme(prompt.theme);
+    if (prompt.audience) setAudience(prompt.audience);
+    if (prompt.additional_context) setAdditionalPrompt(prompt.additional_context);
+    if (prompt.POV) setPovSelection(prompt.POV);
+    if (prompt.format) setScriptFormat(prompt.format);
+    
+    // Close the modal
+    setIsPromptHistoryOpen(false);
+  };
+
+  // Fetch prompts when modal opens
+  const handleOpenPromptHistory = () => {
+    console.log('🔄 Opening prompt history modal...');
+    setIsPromptHistoryOpen(true);
+    console.log('📊 Current savedPrompts state:', savedPrompts);
+    console.log('📊 Current loadingPrompts state:', loadingPrompts);
+    fetchSavedPrompts();
+  };
+
+  // Function to apply prompt from history
+  const handleApplyPrompt = (promptData: {
+    title: string;
+    theme: string;
+    audience: string;
+    additionalPrompt: string;
+    povSelection: string;
+    scriptFormat: string;
+  }) => {
+    setTitle(promptData.title);
+    setTheme(promptData.theme);
+    setAudience(promptData.audience);
+    setAdditionalPrompt(promptData.additionalPrompt);
+    setPovSelection(promptData.povSelection);
+    setScriptFormat(promptData.scriptFormat);
+  };
+
   return (
     <div className="space-y-8">
       <Tabs defaultValue="form">
@@ -692,6 +802,18 @@ const ScriptGenerator: React.FC = () => {
               Create a script using AI. Fill in the details below.
                 </p>
               </div>
+
+          <div className="flex justify-between items-center mb-4">
+            <div></div>
+            <Button
+              variant="outline"
+              onClick={handleOpenPromptHistory}
+              className="gap-2"
+            >
+              <History className="h-4 w-4" />
+              Prompt History
+            </Button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
@@ -774,6 +896,49 @@ const ScriptGenerator: React.FC = () => {
                 placeholder="E.g., Mystery, Romance, Sci-Fi"
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Second row of inputs for new fields */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="povSelection">POV Selection</Label>
+              <Select value={povSelection} onValueChange={setPovSelection}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select POV" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1st Person">1st Person</SelectItem>
+                  <SelectItem value="3rd Person">3rd Person</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="scriptFormat">Format of Scripting</Label>
+              <Select value={scriptFormat} onValueChange={setScriptFormat}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select format" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Story">Story</SelectItem>
+                  <SelectItem value="Facts">Facts</SelectItem>
+                  <SelectItem value="Documentary">Documentary</SelectItem>
+                  <SelectItem value="Tutorial">Tutorial</SelectItem>
+                  <SelectItem value="Interview">Interview</SelectItem>
+                  <SelectItem value="Presentation">Presentation</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="audience">Target Audience</Label>
+              <Input
+                id="audience"
+                placeholder="E.g., Young adults, Professionals, General audience"
+                value={audience}
+                onChange={(e) => setAudience(e.target.value)}
               />
             </div>
           </div>
@@ -1095,8 +1260,97 @@ const ScriptGenerator: React.FC = () => {
                         )}
                       </div>
         )}
+      </div>
+      <Dialog open={isPromptHistoryOpen} onOpenChange={setIsPromptHistoryOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Saved Prompt Templates</DialogTitle>
+            <DialogDescription>
+              Select a saved prompt template to apply to your script generator.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {(() => {
+              console.log('🔍 Modal rendering - loadingPrompts:', loadingPrompts, 'savedPrompts.length:', savedPrompts.length);
+              
+              if (loadingPrompts) {
+                console.log('📱 Rendering loading state');
+                return (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-gray-400" />
+                      <p className="text-gray-500">Loading saved prompts...</p>
                     </div>
                   </div>
+                );
+              } else if (savedPrompts.length === 0) {
+                console.log('📱 Rendering empty state');
+                return (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No saved prompts found.</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Prompts are managed by administrators and will appear here when available.
+                    </p>
+                  </div>
+                );
+              } else {
+                console.log('📱 Rendering prompts list with', savedPrompts.length, 'prompts');
+                return savedPrompts.map((prompt) => (
+                  <div key={prompt.id} className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => applyPromptToForm(prompt)}>
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-medium text-lg">{prompt.prompt || 'Untitled Prompt'}</h4>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          applyPromptToForm(prompt); 
+                        }}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                      {prompt.title && (
+                        <div>
+                          <span className="font-medium">Title:</span> {prompt.title}
+                        </div>
+                      )}
+                      {prompt.theme && (
+                        <div>
+                          <span className="font-medium">Theme:</span> {prompt.theme}
+                        </div>
+                      )}
+                      {prompt.POV && (
+                        <div>
+                          <span className="font-medium">POV:</span> {prompt.POV}
+                        </div>
+                      )}
+                      {prompt.format && (
+                        <div>
+                          <span className="font-medium">Format:</span> {prompt.format}
+                        </div>
+                      )}
+                    </div>
+                    {prompt.audience && (
+                      <div className="mt-2 text-sm">
+                        <span className="font-medium text-gray-600">Audience:</span> {prompt.audience}
+                      </div>
+                    )}
+                    {prompt.additional_context && (
+                      <div className="mt-2 text-sm">
+                        <span className="font-medium text-gray-600">Context:</span>
+                        <p className="text-xs bg-gray-100 p-2 rounded mt-1">{prompt.additional_context}</p>
+                      </div>
+                    )}
+                  </div>
+                ));
+              }
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 

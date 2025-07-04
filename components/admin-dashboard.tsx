@@ -8,6 +8,14 @@ import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { VoiceManagement } from './voice-management'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog'
 import { 
   Users, 
   AlertCircle, 
@@ -22,7 +30,9 @@ import {
   UserPlus,
   ChevronDown,
   ChevronUp,
-  Volume2
+  Volume2,
+  FileText,
+  Save
 } from 'lucide-react'
 
 interface ExtendedUserProfile {
@@ -54,6 +64,28 @@ interface UserVideo {
   image_urls: string[]
 }
 
+interface SavedPrompt {
+  id: string
+  created_at: string
+  prompt: string | null
+  title: string | null
+  theme: string | null
+  audience: string | null
+  additional_context: string | null
+  POV: string | null
+  format: string | null
+}
+
+interface PromptFormData {
+  promptTitle: string
+  title: string
+  theme: string
+  audience: string
+  additionalContext: string
+  pov: string
+  format: string
+}
+
 export function AdminDashboard() {
   const user = useAppSelector(state => state.user)
   const [users, setUsers] = useState<ExtendedUserProfile[]>([])
@@ -69,7 +101,7 @@ export function AdminDashboard() {
   const [showCreateUser, setShowCreateUser] = useState(false)
   
   // Admin section navigation
-  const [currentSection, setCurrentSection] = useState<'users' | 'voices'>('users')
+  const [currentSection, setCurrentSection] = useState<'users' | 'voices' | 'prompts'>('users')
   
   // Edit user form
   const [editForm, setEditForm] = useState({
@@ -82,6 +114,21 @@ export function AdminDashboard() {
     email: '',
     password: '',
     isAdmin: false
+  })
+
+  // Prompts management state
+  const [prompts, setPrompts] = useState<SavedPrompt[]>([])
+  const [loadingPrompts, setLoadingPrompts] = useState(false)
+  const [editingPrompt, setEditingPrompt] = useState<SavedPrompt | null>(null)
+  const [showCreatePrompt, setShowCreatePrompt] = useState(false)
+  const [promptForm, setPromptForm] = useState<PromptFormData>({
+    promptTitle: '',
+    title: '',
+    theme: '',
+    audience: '',
+    additionalContext: '',
+    pov: '3rd Person',
+    format: 'Story'
   })
 
   useEffect(() => {
@@ -283,6 +330,147 @@ export function AdminDashboard() {
     }
   }
 
+  // Prompts management functions
+  const fetchPrompts = async () => {
+    setLoadingPrompts(true)
+    try {
+      const response = await fetch('/api/prompts')
+      if (!response.ok) {
+        throw new Error('Failed to fetch prompts')
+      }
+      const data = await response.json()
+      setPrompts(data)
+    } catch (error) {
+      showMessage('Error fetching prompts: ' + (error as Error).message, 'error')
+    } finally {
+      setLoadingPrompts(false)
+    }
+  }
+
+  const handleCreatePrompt = async () => {
+    if (!promptForm.promptTitle.trim()) {
+      showMessage('Prompt name is required', 'error')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: promptForm.promptTitle,
+          title: promptForm.title,
+          theme: promptForm.theme,
+          audience: promptForm.audience,
+          additional_context: promptForm.additionalContext,
+          POV: promptForm.pov,
+          format: promptForm.format,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save prompt')
+      }
+
+      showMessage('Prompt created successfully', 'success')
+      setShowCreatePrompt(false)
+      setPromptForm({
+        promptTitle: '',
+        title: '',
+        theme: '',
+        audience: '',
+        additionalContext: '',
+        pov: '3rd Person',
+        format: 'Story'
+      })
+      fetchPrompts()
+    } catch (error) {
+      showMessage('Error creating prompt: ' + (error as Error).message, 'error')
+    }
+  }
+
+  const handleEditPrompt = (prompt: SavedPrompt) => {
+    setEditingPrompt(prompt)
+    setPromptForm({
+      promptTitle: prompt.prompt || '',
+      title: prompt.title || '',
+      theme: prompt.theme || '',
+      audience: prompt.audience || '',
+      additionalContext: prompt.additional_context || '',
+      pov: prompt.POV || '3rd Person',
+      format: prompt.format || 'Story'
+    })
+  }
+
+  const handleUpdatePrompt = async () => {
+    if (!editingPrompt || !promptForm.promptTitle.trim()) {
+      showMessage('Prompt name is required', 'error')
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/prompts?id=${editingPrompt.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: promptForm.promptTitle,
+          title: promptForm.title,
+          theme: promptForm.theme,
+          audience: promptForm.audience,
+          additional_context: promptForm.additionalContext,
+          POV: promptForm.pov,
+          format: promptForm.format,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update prompt')
+      }
+
+      showMessage('Prompt updated successfully', 'success')
+      setEditingPrompt(null)
+      setPromptForm({
+        promptTitle: '',
+        title: '',
+        theme: '',
+        audience: '',
+        additionalContext: '',
+        pov: '3rd Person',
+        format: 'Story'
+      })
+      fetchPrompts()
+    } catch (error) {
+      showMessage('Error updating prompt: ' + (error as Error).message, 'error')
+    }
+  }
+
+  const handleDeletePrompt = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this prompt?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/prompts?id=${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete prompt')
+      }
+
+      showMessage('Prompt deleted successfully', 'success')
+      fetchPrompts()
+    } catch (error) {
+      showMessage('Error deleting prompt: ' + (error as Error).message, 'error')
+    }
+  }
+
+  useEffect(() => {
+    if (user.isAdmin && currentSection === 'prompts') {
+      fetchPrompts()
+    }
+  }, [user.isAdmin, currentSection])
+
   // Format date
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -343,6 +531,14 @@ export function AdminDashboard() {
               >
                 <Volume2 className="h-4 w-4" />
                 Voice Management
+              </Button>
+              <Button
+                variant={currentSection === 'prompts' ? 'default' : 'outline'}
+                onClick={() => setCurrentSection('prompts')}
+                className="flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                Prompts
               </Button>
             </div>
           </CardContent>
@@ -582,6 +778,204 @@ export function AdminDashboard() {
           <VoiceManagement />
         )}
 
+        {/* Prompts Management Section */}
+        {currentSection === 'prompts' && (
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Prompts Management ({prompts.length} total)
+                <div className="ml-auto flex gap-2">
+                  <Button
+                    onClick={() => setShowCreatePrompt(!showCreatePrompt)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    {showCreatePrompt ? 'Cancel' : 'Add Prompt'}
+                  </Button>
+                  <Button 
+                    onClick={fetchPrompts} 
+                    size="sm" 
+                    variant="outline"
+                    disabled={loadingPrompts}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loadingPrompts ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+              </CardTitle>
+              <CardDescription>
+                Manage script generation prompt templates for users
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Create Prompt Form */}
+              {showCreatePrompt && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
+                  <h4 className="font-medium text-blue-900">Create New Prompt Template</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Prompt Name *</Label>
+                      <Input
+                        value={promptForm.promptTitle}
+                        onChange={(e) => setPromptForm(prev => ({ ...prev, promptTitle: e.target.value }))}
+                        placeholder="Enter prompt name"
+                      />
+                    </div>
+                    <div>
+                      <Label>Script Title</Label>
+                      <Input
+                        value={promptForm.title}
+                        onChange={(e) => setPromptForm(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder="Script title"
+                      />
+                    </div>
+                    <div>
+                      <Label>Theme</Label>
+                      <Input
+                        value={promptForm.theme}
+                        onChange={(e) => setPromptForm(prev => ({ ...prev, theme: e.target.value }))}
+                        placeholder="Script theme"
+                      />
+                    </div>
+                    <div>
+                      <Label>Target Audience</Label>
+                      <Input
+                        value={promptForm.audience}
+                        onChange={(e) => setPromptForm(prev => ({ ...prev, audience: e.target.value }))}
+                        placeholder="Target audience"
+                      />
+                    </div>
+                    <div>
+                      <Label>POV</Label>
+                      <select
+                        value={promptForm.pov}
+                        onChange={(e) => setPromptForm(prev => ({ ...prev, pov: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 rounded-md"
+                      >
+                        <option value="1st Person">1st Person</option>
+                        <option value="3rd Person">3rd Person</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Format</Label>
+                      <select
+                        value={promptForm.format}
+                        onChange={(e) => setPromptForm(prev => ({ ...prev, format: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 rounded-md"
+                      >
+                        <option value="Story">Story</option>
+                        <option value="Facts">Facts</option>
+                        <option value="Documentary">Documentary</option>
+                        <option value="Tutorial">Tutorial</option>
+                        <option value="Interview">Interview</option>
+                        <option value="Presentation">Presentation</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Additional Context</Label>
+                    <textarea
+                      value={promptForm.additionalContext}
+                      onChange={(e) => setPromptForm(prev => ({ ...prev, additionalContext: e.target.value }))}
+                      placeholder="Additional instructions or context"
+                      className="w-full p-2 border border-gray-300 rounded-md min-h-[80px]"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleCreatePrompt} size="sm">
+                      <Save className="h-4 w-4 mr-1" />
+                      Create Prompt
+                    </Button>
+                    <Button onClick={() => setShowCreatePrompt(false)} variant="outline" size="sm">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Prompts List */}
+              {loadingPrompts ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">Loading prompts...</p>
+                </div>
+              ) : prompts.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500">No prompts found</p>
+                  <p className="text-xs text-gray-400 mt-1">Create your first prompt template to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {prompts.map((prompt) => (
+                    <div key={prompt.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-lg">{prompt.prompt || 'Untitled Prompt'}</h4>
+                          <p className="text-sm text-gray-500">
+                            Created: {formatDate(prompt.created_at)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleEditPrompt(prompt)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            onClick={() => handleDeletePrompt(prompt.id)}
+                            size="sm"
+                            variant="destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-600">Title:</span>
+                          <p>{prompt.title || 'Not specified'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Theme:</span>
+                          <p>{prompt.theme || 'Not specified'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">POV:</span>
+                          <p>{prompt.POV || 'Not specified'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Format:</span>
+                          <p>{prompt.format || 'Not specified'}</p>
+                        </div>
+                      </div>
+                      
+                      {prompt.audience && (
+                        <div>
+                          <span className="font-medium text-gray-600 text-sm">Audience:</span>
+                          <p className="text-sm">{prompt.audience}</p>
+                        </div>
+                      )}
+                      
+                      {prompt.additional_context && (
+                        <div>
+                          <span className="font-medium text-gray-600 text-sm">Additional Context:</span>
+                          <p className="text-sm bg-gray-50 p-2 rounded mt-1">{prompt.additional_context}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Edit User Modal */}
         {editingUser && (
           <Card className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -612,6 +1006,136 @@ export function AdminDashboard() {
             </div>
           </Card>
         )}
+
+        {/* Edit User Modal */}
+        <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>
+                Update user settings and permissions.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Email</Label>
+                <Input
+                  value={editForm.email}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="edit-admin"
+                  checked={editForm.isAdmin}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                />
+                <Label htmlFor="edit-admin">Admin privileges</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setEditingUser(null)} variant="outline">
+                Cancel
+              </Button>
+              <Button onClick={saveUserEdits}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Prompt Modal */}
+        <Dialog open={!!editingPrompt} onOpenChange={() => setEditingPrompt(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Prompt Template</DialogTitle>
+              <DialogDescription>
+                Update the settings for this prompt template.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Prompt Name *</Label>
+                  <Input
+                    value={promptForm.promptTitle}
+                    onChange={(e) => setPromptForm(prev => ({ ...prev, promptTitle: e.target.value }))}
+                    placeholder="Enter prompt name"
+                  />
+                </div>
+                <div>
+                  <Label>Script Title</Label>
+                  <Input
+                    value={promptForm.title}
+                    onChange={(e) => setPromptForm(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Script title"
+                  />
+                </div>
+                <div>
+                  <Label>Theme</Label>
+                  <Input
+                    value={promptForm.theme}
+                    onChange={(e) => setPromptForm(prev => ({ ...prev, theme: e.target.value }))}
+                    placeholder="Script theme"
+                  />
+                </div>
+                <div>
+                  <Label>Target Audience</Label>
+                  <Input
+                    value={promptForm.audience}
+                    onChange={(e) => setPromptForm(prev => ({ ...prev, audience: e.target.value }))}
+                    placeholder="Target audience"
+                  />
+                </div>
+                <div>
+                  <Label>POV</Label>
+                  <select
+                    value={promptForm.pov}
+                    onChange={(e) => setPromptForm(prev => ({ ...prev, pov: e.target.value }))}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="1st Person">1st Person</option>
+                    <option value="3rd Person">3rd Person</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Format</Label>
+                  <select
+                    value={promptForm.format}
+                    onChange={(e) => setPromptForm(prev => ({ ...prev, format: e.target.value }))}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="Story">Story</option>
+                    <option value="Facts">Facts</option>
+                    <option value="Documentary">Documentary</option>
+                    <option value="Tutorial">Tutorial</option>
+                    <option value="Interview">Interview</option>
+                    <option value="Presentation">Presentation</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <Label>Additional Context</Label>
+                <textarea
+                  value={promptForm.additionalContext}
+                  onChange={(e) => setPromptForm(prev => ({ ...prev, additionalContext: e.target.value }))}
+                  placeholder="Additional instructions or context"
+                  className="w-full p-2 border border-gray-300 rounded-md min-h-[80px]"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setEditingPrompt(null)} variant="outline">
+                Cancel
+              </Button>
+              <Button onClick={handleUpdatePrompt}>
+                <Save className="h-4 w-4 mr-1" />
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Status Message */}
         {message && (

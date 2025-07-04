@@ -1,182 +1,89 @@
-import { NextResponse } from 'next/server';
-import { uploadFileToSupabase } from '@/lib/wellsaid-utils';
-import { Buffer } from 'buffer';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
+import { NextRequest, NextResponse } from 'next/server'
+import OpenAI, { toFile } from 'openai'
 
-const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
-const LEONARDO_API_URL = 'https://cloud.leonardo.ai/api/rest/v1';
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
-interface LeonardoGenerationResponse {
-  sdGenerationJob: {
-    generationId: string;
-    apiCreditCost?: number;
-  };
-}
-
-interface LeonardoImage {
-  id: string;
-  url: string;
-  nsfw: boolean;
-  likeCount: number;
-  motionMP4URL?: string | null;
-  prompt_id?: string;
-}
-
-interface LeonardoGenerationStatus {
-  generations_by_pk: {
-    generated_images: LeonardoImage[];
-    modelId: string;
-    prompt: string;
-    status: 'PENDING' | 'COMPLETE' | 'FAILED' | 'CONTENT_FILTERED';
-    id?: string;
-  } | null;
-}
-
-async function pollForGenerationCompletion(generationId: string): Promise<LeonardoGenerationStatus> {
-  let attempts = 0;
-  const maxAttempts = 20; // Poll for up to 100 seconds (20 * 5s)
-  const pollInterval = 5000; // 5 seconds
-
-  while (attempts < maxAttempts) {
-    try {
-      const response = await fetch(`${LEONARDO_API_URL}/generations/${generationId}`, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json',
-          'authorization': `Bearer ${LEONARDO_API_KEY}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Leonardo API error while polling:', errorData);
-        throw new Error(`Leonardo API error while polling: ${response.statusText}`);
-      }
-
-      const data: LeonardoGenerationStatus = await response.json();
-
-      if (data.generations_by_pk && (data.generations_by_pk.status === 'COMPLETE' || data.generations_by_pk.status === 'FAILED' || data.generations_by_pk.status === 'CONTENT_FILTERED')) {
-        return data;
-      }
-      
-      attempts++;
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-    } catch (error) {
-      console.error('Polling error:', error);
-      attempts++;
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-      if (attempts >= maxAttempts) throw error;
-    }
-  }
-  throw new Error('Image generation timed out or polling failed.');
-}
-
-export async function POST(request: Request) {
-  if (!LEONARDO_API_KEY) {
-    return NextResponse.json({ error: 'Leonardo API key not configured' }, { status: 500 });
-  }
-
+export async function POST(request: NextRequest) {
   try {
-    const { prompt } = await request.json();
-
-    if (!prompt || typeof prompt !== 'string') {
-      return NextResponse.json({ error: 'Prompt is required and must be a string' }, { status: 400 });
-    }
-
-    // 1. Generate Image with Leonardo.ai
-    const generationPayload = {
-      modelId: "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3",
-      prompt: prompt,
-      num_images: 1,
-      width: 1280,
-      height: 720,
-      alchemy: true,
-      styleUUID: "111dc692-d470-4eec-b791-3475abac4c46",
-      enhancePrompt: false,
-    };
-
-    const generationResponse = await fetch(`${LEONARDO_API_URL}/generations`, {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'authorization': `Bearer ${LEONARDO_API_KEY}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(generationPayload),
-    });
-
-    if (!generationResponse.ok) {
-      const errorData = await generationResponse.json();
-      console.error('Leonardo API error (generation):', errorData);
-      return NextResponse.json({ error: 'Failed to start image generation', details: errorData }, { status: 500 });
-    }
-
-    const generationResult: LeonardoGenerationResponse = await generationResponse.json();
-    const generationId = generationResult.sdGenerationJob?.generationId;
-
-    if (!generationId) {
-      return NextResponse.json({ error: 'Failed to get generation ID from Leonardo.ai' }, { status: 500 });
-    }
-
-    // 2. Poll for generation completion
-    const finalStatus = await pollForGenerationCompletion(generationId);
-
-    if (!finalStatus.generations_by_pk || finalStatus.generations_by_pk.status !== 'COMPLETE') {
-      let errorDetail = 'Image generation did not complete successfully.';
-      if (finalStatus.generations_by_pk?.status === 'FAILED') errorDetail = 'Image generation failed on Leonardo.ai.';
-      if (finalStatus.generations_by_pk?.status === 'CONTENT_FILTERED') errorDetail = 'Image generation was filtered by Leonardo.ai due to content policy.';
-      return NextResponse.json({ error: errorDetail, details: finalStatus.generations_by_pk }, { status: 500 });
-    }
-
-    const generatedImages = finalStatus.generations_by_pk.generated_images;
-    if (!generatedImages || generatedImages.length === 0 || !generatedImages[0].url) {
-      return NextResponse.json({ error: 'No image URL found in Leonardo.ai response' }, { status: 500 });
-    }
-
-    const imageUrl = generatedImages[0].url;
-
-    // 3. Download the image
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      return NextResponse.json({ error: 'Failed to download image from Leonardo.ai' }, { status: 500 });
-    }
-    const imageBlob = await imageResponse.blob();
-
-    // 4. Create temporary file and upload to Supabase
-    const fileName = `thumbnails/${Date.now()}_${Math.random().toString(36).substring(2, 15)}.png`;
-    const tempFilePath = path.join(os.tmpdir(), `temp_thumbnail_${Date.now()}.png`);
+    const formData = await request.formData()
+    const prompt = formData.get('prompt') as string
     
-    try {
-      // Convert Blob to Buffer and write to temp file
-      const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
-      await fs.writeFile(tempFilePath, imageBuffer);
-
-      // Upload to Supabase
-      const publicUrl = await uploadFileToSupabase(
-        tempFilePath,
-        fileName,
-        imageBlob.type || 'image/png'
-      );
-
-      // Clean up temp file
-      await fs.unlink(tempFilePath).catch(() => {}); // Ignore cleanup errors
-
-      if (!publicUrl) {
-        return NextResponse.json({ error: 'Failed to upload image to Supabase or get public URL' }, { status: 500 });
-      }
-
-      return NextResponse.json({ thumbnailUrl: publicUrl, path: fileName });
-    } catch (uploadError) {
-      // Clean up temp file on error
-      await fs.unlink(tempFilePath).catch(() => {});
-      throw uploadError;
+    if (!prompt) {
+      return NextResponse.json(
+        { error: 'Prompt is required' },
+        { status: 400 }
+      )
     }
+
+    // Collect all image files
+    const imageFiles: File[] = []
+    let index = 0
+    
+    while (true) {
+      const file = formData.get(`image_${index}`) as File
+      if (!file) break
+      imageFiles.push(file)
+      index++
+    }
+
+    if (imageFiles.length === 0) {
+      return NextResponse.json(
+        { error: 'At least one reference image is required' },
+        { status: 400 }
+      )
+    }
+
+    console.log(`🖼️ Processing ${imageFiles.length} reference images for thumbnail generation`)
+
+    // Convert files to OpenAI format
+    const images = await Promise.all(
+      imageFiles.map(async (file) => {
+        const buffer = Buffer.from(await file.arrayBuffer())
+        return await toFile(buffer, file.name, {
+          type: file.type,
+        })
+      })
+    )
+
+    console.log(`📝 Generating thumbnail with prompt: "${prompt.substring(0, 100)}..."`)
+
+    // Use OpenAI's image editing API
+    const response = await client.images.edit({
+      model: "gpt-image-1",
+      image: images,
+      prompt: prompt,
+      size: "1536x1024"
+    })
+
+    if (!response.data || response.data.length === 0) {
+      throw new Error('No image data returned from OpenAI')
+    }
+
+    const imageBase64 = response.data[0].b64_json
+    
+    if (!imageBase64) {
+      throw new Error('No base64 image data returned')
+    }
+
+    console.log(`✅ Thumbnail generated successfully`)
+
+    return NextResponse.json({
+      imageBase64: imageBase64,
+      prompt: prompt,
+      referenceCount: imageFiles.length
+    })
 
   } catch (error) {
-    console.error('Thumbnail generation error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return NextResponse.json({ error: 'Internal server error in thumbnail generation', details: errorMessage }, { status: 500 });
+    console.error('❌ Thumbnail generation error:', error)
+    
+    return NextResponse.json(
+      { 
+        error: error instanceof Error ? error.message : 'Failed to generate thumbnail',
+        details: error instanceof Error ? error.stack : undefined
+      },
+      { status: 500 }
+    )
   }
 } 

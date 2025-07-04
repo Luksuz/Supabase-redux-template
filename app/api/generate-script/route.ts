@@ -45,7 +45,10 @@ async function handleNewScriptGeneration(body: any) {
     researchContext,
     inspirationalTranscript, 
     forbiddenWords,
-    modelName = "gpt-4o-mini" // Default model
+    modelName = "gpt-4o-mini", // Default model
+    povSelection = "3rd Person",
+    scriptFormat = "Story",
+    audience = ""
   } = body;
   
   if (!title || !wordCount) {

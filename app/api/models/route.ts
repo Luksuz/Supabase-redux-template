@@ -8,9 +8,6 @@ const openai = new OpenAI({
 export async function GET() {
   try {
     const models = await openai.models.list();
-
-    console.log(models);
-
     // Only include these popular models (manually added)
     const popularModels = [
       { id: 'gpt-4o-mini', owned_by: 'openai' },
