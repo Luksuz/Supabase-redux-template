@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
 import { Input } from './ui/input'
-import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Image as ImageIcon, Volume2, Subtitles, Settings, Music, Palette } from 'lucide-react'
+import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Image as ImageIcon, Volume2, Subtitles, Settings, Music, Palette, VolumeX } from 'lucide-react'
 import { CreateVideoRequestBody, VideoRecord, SegmentTiming } from '@/types/video-generation'
 
 export function VideoGenerator() {
@@ -304,6 +304,7 @@ export function VideoGenerator() {
         segmentTimings: segmentTimings,
         musicUrl: settings.includeMusic ? getAvailableMusicUrl() || undefined : undefined,
         musicVolume: settings.includeMusic ? settings.musicVolume : undefined,
+        muteStockVideo: settings.muteStockVideo,
         // Include subtitle styling settings when subtitles are enabled
         ...(settings.includeSubtitles && audioGeneration.subtitlesUrl && {
           fontFamily: subtitleSettings.fontFamily,
@@ -806,6 +807,49 @@ export function VideoGenerator() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Stock Video Audio</Label>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="mute-stock-video"
+                    checked={settings.muteStockVideo}
+                    onCheckedChange={(checked) => dispatch(setVideoSettings({ muteStockVideo: checked as boolean }))}
+                    disabled={!hasPrerequisites}
+                  />
+                  <Label htmlFor="mute-stock-video" className="text-sm">
+                    Mute stock video footage
+                  </Label>
+                </div>
+                
+                {/* Stock Video Audio Status */}
+                <div className={`ml-6 p-2 text-xs rounded ${
+                  settings.muteStockVideo 
+                    ? 'bg-green-50 text-green-700 border border-green-200' 
+                    : 'bg-orange-50 text-orange-700 border border-orange-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {settings.muteStockVideo ? (
+                      <>
+                        <VolumeX className="h-3 w-3" />
+                        <span>Stock video audio will be muted (recommended for narration)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3 w-3" />
+                        <span>Stock video audio will be preserved (may interfere with narration)</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="ml-6 text-xs text-gray-600">
+                  <p>This option affects videos from Pexels, Pixabay, and other stock footage sources. 
+                  When enabled, the original audio from stock videos will be muted to prevent interference with your narration.</p>
+                </div>
               </div>
             </div>
           </div>

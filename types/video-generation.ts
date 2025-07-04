@@ -14,6 +14,7 @@ export interface CreateVideoRequestBody {
   segmentTimings?: SegmentTiming[]
   musicUrl?: string
   musicVolume?: number
+  muteStockVideo?: boolean
   // Subtitle styling options
   fontFamily?: string
   fontSize?: number
@@ -59,4 +60,5 @@ export interface VideoGenerationSettings {
   includeMusic: boolean
   musicTrack: string
   musicVolume: number
+  muteStockVideo: boolean
 } 

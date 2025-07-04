@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       // Get duration from audio file with error handling
       let duration: number;
       try {
-        const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioFilePath}"`);
+        const { stdout } = await execAsync(`C:\\ffmpeg\\bin\\ffprobe.exe -v error -show_entries format=duration -of csv=p=0 "${audioFilePath}"`);
         duration = parseFloat(stdout.trim());
         if (isNaN(duration) || duration <= 0) {
           throw new Error(`Invalid duration: ${stdout.trim()}`);

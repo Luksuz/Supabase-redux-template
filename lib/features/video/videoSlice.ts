@@ -20,7 +20,8 @@ const initialState: VideoState = {
     includeSubtitles: true,
     includeMusic: false,
     musicTrack: 'upbeat',
-    musicVolume: 0.15
+    musicVolume: 0.15,
+    muteStockVideo: true
   },
   statusRefreshInterval: null
 }

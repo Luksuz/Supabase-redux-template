@@ -29,7 +29,7 @@ async function getAudioDuration(audioUrl: string): Promise<number | null> {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateVideoRequestBody = await request.json();
-    const { imageUrls, mediaTypes, audioUrl, audioDuration, subtitlesUrl, userId, thumbnailUrl, segmentTimings, musicUrl, musicVolume } = body;
+    const { imageUrls, mediaTypes, audioUrl, audioDuration, subtitlesUrl, userId, thumbnailUrl, segmentTimings, musicUrl, musicVolume, muteStockVideo } = body;
     console.log(`🖼️ Image URLs: ${imageUrls}`);
     console.log(`🎭 Media Types: ${mediaTypes}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     console.log(`⏱️ Segment Timings: ${segmentTimings}`);
     console.log(`🎶 Music URL: ${musicUrl}`);
     console.log(`🔊 Music Volume: ${musicVolume}`);
+    console.log(`🔇 Mute Stock Video: ${muteStockVideo}`);
 
     
     console.log(`📋 Video creation request:
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
       - Subtitles URL: ${subtitlesUrl ? 'YES' : 'NO'}
       - Background Music: ${musicUrl ? 'YES' : 'NO'}
       - Music Volume: ${musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}
+      - Mute Stock Video: ${muteStockVideo ? 'YES' : 'NO'}
       - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (traditional video)'}
       - User ID: ${userId}
     `);
@@ -159,15 +161,20 @@ export async function POST(request: NextRequest) {
         const assetType = mediaTypes && mediaTypes[index] ? mediaTypes[index] : 'image';
         
         console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (${assetType})`);
+        if (assetType === 'video' && muteStockVideo) {
+          console.log(`   🔇 Muting stock video audio for segment ${index + 1}`);
+        }
         
         const clip = {
           asset: {
             type: assetType,
-            src: url
+            src: url,
+            // Apply volume 0 to video assets if muteStockVideo is enabled
+            ...(assetType === 'video' && muteStockVideo && { volume: 0 })
           },
           start: startTime,
           length: duration,
-          fit: "contain"
+          fit: "cover"
         };
         
         currentTime += duration;
@@ -186,15 +193,20 @@ export async function POST(request: NextRequest) {
         const assetType = mediaTypes && mediaTypes[index] ? mediaTypes[index] : 'image';
         
         console.log(`   Asset ${index + 1}: ${assetType} display, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
+        if (assetType === 'video' && muteStockVideo) {
+          console.log(`   🔇 Muting stock video audio for asset ${index + 1}`);
+        }
         
         return {
           asset: {
             type: assetType,
-            src: url
+            src: url,
+            // Apply volume 0 to video assets if muteStockVideo is enabled
+            ...(assetType === 'video' && muteStockVideo && { volume: 0 })
           },
           start: startTime,
           length: imageDuration,
-          fit: "contain"
+          fit: "cover"
         };
       });
 
@@ -311,7 +323,8 @@ export async function POST(request: NextRequest) {
           hasAudio: !!audioUrl,
           hasSubtitles: !!subtitlesUrl,
           hasMusic: !!musicUrl,
-          musicVolume: musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'
+          musicVolume: musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A',
+          muteStockVideo: muteStockVideo
         },
         payload: shotstackPayload
       };
@@ -331,6 +344,7 @@ export async function POST(request: NextRequest) {
     console.log(`- Audio: ${audioUrl ? 'YES' : 'NO'}`);
     console.log(`- Background Music: ${musicUrl ? 'YES' : 'NO'}`);
     console.log(`- Music Volume: ${musicUrl && musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}`);
+    console.log(`- Mute Stock Video: ${muteStockVideo ? 'YES' : 'NO'}`);
     console.log(`- Subtitles: ${subtitlesUrl ? 'YES' : 'NO'}`);
     console.log(`- Total duration: ${totalDuration.toFixed(2)}s`);
     

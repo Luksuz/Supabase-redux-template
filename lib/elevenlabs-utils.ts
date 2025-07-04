@@ -88,7 +88,7 @@ export async function generateElevenLabsAudio(
   await fs.writeFile(rawFilePath, Buffer.from(audioBuffer));
 
   // Get duration using ffprobe
-  const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${rawFilePath}"`);
+  const { stdout } = await execAsync(`C:\\ffmpeg\\bin\\ffprobe.exe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${rawFilePath}"`);
   const duration = parseFloat(stdout.trim());
 
   if (isNaN(duration) || duration <= 0) {

@@ -82,13 +82,13 @@ export async function POST(request: NextRequest) {
       const joinedFilePath = path.join(tempDir, joinedFileName);
       
       console.log(`🔗 Joining audio chunks with ffmpeg...`);
-      const joinCommand = `ffmpeg -f concat -safe 0 -i "${inputListPath}" -c copy "${joinedFilePath}"`;
+      const joinCommand = `C:\\ffmpeg\\bin\\ffmpeg.exe -f concat -safe 0 -i "${inputListPath}" -c copy "${joinedFilePath}"`;
       await execAsync(joinCommand);
       
       console.log(`✅ Audio chunks joined successfully`);
 
       // Verify joined audio duration
-      const { stdout: durationOutput } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${joinedFilePath}"`);
+      const { stdout: durationOutput } = await execAsync(`C:\\ffmpeg\\bin\\ffprobe.exe -v error -show_entries format=duration -of csv=p=0 "${joinedFilePath}"`);
       const actualDuration = parseFloat(durationOutput.trim());
       
       if (Math.abs(actualDuration - totalDuration) > 1.0) {
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
         const compressedFilePath = path.join(tempDir, compressedFileName);
         
         console.log(`🗜️ Creating compressed version for subtitles...`);
-        const compressionCommand = `ffmpeg -i "${joinedFilePath}" -b:a 48k -ar 24000 -ac 1 -y "${compressedFilePath}"`;
+        const compressionCommand = `C:\\ffmpeg\\bin\\ffmpeg.exe -i "${joinedFilePath}" -b:a 48k -ar 24000 -ac 1 -y "${compressedFilePath}"`;
         await execAsync(compressionCommand);
         
         // Upload compressed audio

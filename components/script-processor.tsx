@@ -110,12 +110,24 @@ export function ScriptProcessor() {
     setTimeout(() => setMessage(""), 5000)
   }
 
-  // Text chunking function - always chunks to 50 pieces
+  // Text chunking function - dynamic chunks based on word count
   const chunkTextByWords = useCallback((text: string): ScriptChunk[] => {
     if (!text.trim()) return []
     
-    const numChunks = 50 // Always 50 chunks
     const words = text.trim().split(/\s+/)
+    const wordCount = words.length
+    
+    // Calculate number of chunks based on word count (1-500 range)
+    let numChunks: number
+    if (wordCount <= 20000) {
+      // Linear scaling: 1 chunk for 1-40 words, 500 chunks for 20000 words
+      numChunks = Math.max(1, Math.min(500, Math.ceil(wordCount / 40)))
+    } else {
+      numChunks = 500 // Cap at 500 chunks for very long scripts
+    }
+
+    console.log('Number of chunks:', numChunks)
+    
     const wordsPerChunk = Math.ceil(words.length / numChunks)
     const chunks: ScriptChunk[] = []
     
