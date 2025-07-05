@@ -106,13 +106,21 @@ export async function POST(request: NextRequest) {
       enableZoom = true,
       enableSubtitles = true,
       // Add subtitle styling properties from frontend
-      fontFamily = 'Arial',
+      fontFamily = 'Roboto',
       fontColor = '#ffffff',
       fontSize = 24,
       strokeWidth = 2,
       fontWeight = '1000',
       textTransform = 'none',
-      audioDuration
+      audioDuration,
+      // New video mode options
+      videoMode = 'traditional',
+      zoomEffect = false,
+      dustOverlay = false,
+      introImages,
+      introDuration = 60,
+      loopImageUrl,
+      useEqualIntroDuration = true
     } = body;
     
     console.log(`🖼️ Image URLs: ${imageUrls}`);
@@ -133,19 +141,31 @@ export async function POST(request: NextRequest) {
     console.log(`🎨 Stroke Width: ${strokeWidth}px`);
     console.log(`🎨 Font Weight: ${fontWeight}`);
     console.log(`🎨 Text Transform: ${textTransform}`);
+    console.log(`🎞️ Video Mode: ${videoMode}`);
+    console.log(`🔍 Zoom Effect: ${zoomEffect ? 'YES' : 'NO'}`);
+    console.log(`✨ Dust Overlay: ${dustOverlay ? 'YES' : 'NO'}`);
+    if (videoMode === 'option2') {
+      console.log(`⏰ Intro Duration: ${introDuration}s`);
+      console.log(`🖼️ Intro Images: ${introImages?.length || 0}`);
+      console.log(`🔄 Loop Image URL: ${loopImageUrl ? 'YES' : 'NO'}`);
+      console.log(`⚖️ Equal Intro Duration: ${useEqualIntroDuration ? 'YES' : 'NO'}`);
+    }
 
     
     console.log(`📋 Video creation request:
+      - Video Mode: ${videoMode}
       - Images: ${imageUrls?.length || 0}
       - Audio URL: ${audioUrl ? 'YES' : 'NO'}
       - Compressed Audio URL: ${compressedAudioUrl ? 'YES' : 'NO'}
       - Subtitles URL: ${subtitlesUrl ? 'YES' : 'NO'}
-      - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (traditional video)'}
+      - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (equal timing)'}
       - Include Overlay: ${includeOverlay ? 'YES' : 'NO'}
       - Enable Overlay: ${enableOverlay}
       - Enable Zoom: ${enableZoom}
       - Enable Subtitles: ${enableSubtitles}
       - Quality: ${quality}
+      - Zoom Effect: ${zoomEffect}
+      - Dust Overlay: ${dustOverlay}
       - Subtitle Styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke, ${fontWeight}, ${textTransform}
       - User ID: ${userId}
     `);
@@ -180,8 +200,17 @@ export async function POST(request: NextRequest) {
     let imageDuration: number;
     let isSegmentedVideo = false;
 
+    // Get total audio duration first
+    if (audioDuration && audioDuration > 0) {
+      totalDuration = audioDuration;
+      console.log(`✅ Using provided audio duration: ${totalDuration.toFixed(2)} seconds`);
+    } else {
+      console.warn('⚠️ No audio duration provided, using fallback duration of 300 seconds');
+      totalDuration = 300;
+    }
+
     if (segmentTimings && segmentTimings.length > 0) {
-      // Segmented video: use precise timing from segment timings
+      // Segmented video (custom segment timing): use precise timing from segment timings
       isSegmentedVideo = true;
       totalDuration = segmentTimings.reduce((sum, timing) => sum + timing.duration, 0);
       imageDuration = 0; // Not used for segmented videos
@@ -190,33 +219,40 @@ export async function POST(request: NextRequest) {
         - Total duration: ${totalDuration.toFixed(2)} seconds
         - Number of segments: ${segmentTimings.length}
         - Individual durations: ${segmentTimings.map(t => t.duration.toFixed(2)).join(', ')}s`);
-    } else {
-      // Traditional video: get audio duration and use new timeline structure
-      console.log('Using provided audio duration for traditional video timeline...');
-      
-      // Use provided audio duration if available, otherwise fallback to default
-      if (audioDuration && audioDuration > 0) {
-        totalDuration = audioDuration;
-        console.log(`✅ Using provided audio duration: ${totalDuration.toFixed(2)} seconds`);
-      } else {
-        console.warn('⚠️ No audio duration provided, using fallback duration of 300 seconds');
-        totalDuration = 300;
-      }
-      
-      // First minute is for alternating images, or shorter if audio is shorter
-      const firstPartDuration = Math.min(60, totalDuration * 0.6); 
-      // Image display time depends on how many images we have
-      imageDuration = Math.floor(firstPartDuration / imageUrls.length);
+    } else if (videoMode === 'traditional') {
+      // Traditional mode: distribute images equally across entire video duration
+      imageDuration = totalDuration / imageUrls.length;
       
       console.log(`Traditional video configuration:
-        - Total duration: ${totalDuration.toFixed(1)} seconds (${audioDuration ? 'provided' : 'fallback'})
-        - First part (alternating images): ${firstPartDuration.toFixed(1)} seconds
-        - Each image display time: ${imageDuration.toFixed(1)} seconds
-        - Second part (zoom effect): ${Math.max(totalDuration - firstPartDuration, 10).toFixed(1)} seconds`);
+        - Total duration: ${totalDuration.toFixed(1)} seconds
+        - Number of images: ${imageUrls.length}
+        - Each image duration: ${imageDuration.toFixed(1)} seconds`);
+    } else if (videoMode === 'option1') {
+      // Option 1: Loop all images with zoom effects throughout entire duration
+      // Calculate how many complete cycles we can fit
+      const timePerImage = 3; // 3 seconds per image in the loop
+      const cycleTime = imageUrls.length * timePerImage;
+      
+      console.log(`Option 1 video configuration:
+        - Total duration: ${totalDuration.toFixed(1)} seconds
+        - Images looping with zoom effects
+        - Time per image: ${timePerImage} seconds
+        - Complete cycles: ${Math.floor(totalDuration / cycleTime)}`);
+    } else if (videoMode === 'option2') {
+      // Option 2: Intro sequence + loop last image
+      const actualIntroDuration = Math.min(introDuration, totalDuration - 10); // Leave at least 10s for loop
+      const loopDuration = totalDuration - actualIntroDuration;
+      
+      console.log(`Option 2 video configuration:
+        - Total duration: ${totalDuration.toFixed(1)} seconds
+        - Intro duration: ${actualIntroDuration.toFixed(1)} seconds
+        - Loop duration: ${loopDuration.toFixed(1)} seconds
+        - Intro images: ${introImages?.length || 0}
+        - Loop image: ${loopImageUrl ? 'YES' : 'NO'}`);
     }
     
     // Check if the dust overlay is accessible and if overlay is enabled
-    const shouldIncludeOverlay = (includeOverlay || enableOverlay);
+    const shouldIncludeOverlay = (includeOverlay || enableOverlay || dustOverlay);
     let isOverlayAvailable = false;
     
     if (shouldIncludeOverlay) {
@@ -302,75 +338,171 @@ export async function POST(request: NextRequest) {
       };
       tracks.push(imageTrack);
     } else {
-      // Traditional video: new timeline structure with alternating images and zoom effects
-      console.log(`🎬 Creating traditional video with new timeline structure:`);
-      
-      const firstPartDuration = Math.min(60, totalDuration * 0.6);
-      const secondPartDuration = Math.max(totalDuration - firstPartDuration, 10);
-      
-      // Create multiple clips for zoom in/out effect
-      const zoomClips = [];
-      
-      if (enableZoom) {
-        const zoomDuration = 15; // Each zoom cycle lasts 15 seconds
-        const numZoomCycles = Math.ceil(secondPartDuration / (zoomDuration * 2));
+      // Handle different video modes
+      if (videoMode === 'traditional') {
+        // Traditional mode: distribute images equally across entire duration
+        console.log(`🎬 Creating traditional video with equal timing across ${totalDuration.toFixed(1)}s:`);
         
-        for (let i = 0; i < numZoomCycles; i++) {
-          // Add zoom in clip
-          zoomClips.push({
-            asset: {
-              type: "image",
-              src: imageUrls[imageUrls.length - 1]
-            },
-            start: firstPartDuration + (i * zoomDuration * 2),
-            length: zoomDuration,
-            effect: "zoomIn",
-            fit: "cover"
-          });
+        const imageClips = imageUrls.map((url, index) => {
+          const startTime = index * imageDuration;
           
-          // Add zoom out clip if there's still time left
-          if (firstPartDuration + (i * zoomDuration * 2) + zoomDuration < totalDuration) {
-            zoomClips.push({
-              asset: {
-                type: "image",
-                src: imageUrls[imageUrls.length - 1]
-              },
-              start: firstPartDuration + (i * zoomDuration * 2) + zoomDuration,
-              length: Math.min(zoomDuration, totalDuration - (firstPartDuration + (i * zoomDuration * 2) + zoomDuration)),
-              effect: "zoomOut",
-              fit: "cover"
-            });
-          }
-        }
-      } else {
-        // If zoom is disabled, just show the last image statically
-        zoomClips.push({
-          asset: {
-            type: "image",
-            src: imageUrls[imageUrls.length - 1]
-          },
-          start: firstPartDuration,
-          length: secondPartDuration,
-          fit: "cover"
-        });
-      }
-
-      const imageTrack = {
-        clips: [
-          ...imageUrls.map((url, index) => ({
+          console.log(`   Image ${index + 1}: ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
+          
+          return {
             asset: {
               type: "image",
               src: url
             },
-            start: index * imageDuration,
+            start: startTime,
             length: imageDuration,
-            effect: "zoomIn", // Always use zoomIn for first minute
+            effect: enableZoom ? "zoomIn" : undefined,
             fit: "cover"
-          })),
-          ...zoomClips // Last image zoom in/out
-        ]
-      };
-      tracks.push(imageTrack);
+          };
+        });
+
+        const imageTrack = {
+          clips: imageClips
+        };
+        tracks.push(imageTrack);
+        
+      } else if (videoMode === 'option1') {
+        // Option 1: Loop all images with zoom effects throughout entire duration
+        console.log(`🎬 Creating Option 1 video with looping images and zoom effects:`);
+        
+        const timePerImage = 3; // 3 seconds per image in the loop
+        const imageClips = [];
+        let currentTime = 0;
+        
+        while (currentTime < totalDuration) {
+          for (let i = 0; i < imageUrls.length && currentTime < totalDuration; i++) {
+            const remainingTime = totalDuration - currentTime;
+            const clipDuration = Math.min(timePerImage, remainingTime);
+            
+            imageClips.push({
+              asset: {
+                type: "image",
+                src: imageUrls[i]
+              },
+              start: currentTime,
+              length: clipDuration,
+              effect: zoomEffect ? (Math.random() > 0.5 ? "zoomIn" : "zoomOut") : undefined,
+              fit: "cover"
+            });
+            
+            currentTime += clipDuration;
+          }
+        }
+        
+        console.log(`   Created ${imageClips.length} image clips for looping`);
+        
+        const imageTrack = {
+          clips: imageClips
+        };
+        tracks.push(imageTrack);
+        
+      } else if (videoMode === 'option2') {
+        // Option 2: Intro sequence + loop last image
+        console.log(`🎬 Creating Option 2 video with intro sequence + loop:`);
+        
+        const actualIntroDuration = Math.min(introDuration, totalDuration - 10);
+        const loopDuration = totalDuration - actualIntroDuration;
+        const imageClips = [];
+        
+        // Create intro sequence
+        if (introImages && introImages.length > 0) {
+          let currentTime = 0;
+          
+          for (const introImage of introImages.sort((a, b) => a.order - b.order)) {
+            if (currentTime >= actualIntroDuration) break;
+            
+            const clipDuration = Math.min(introImage.duration, actualIntroDuration - currentTime);
+            
+            imageClips.push({
+              asset: {
+                type: "image",
+                src: introImage.imageUrl
+              },
+              start: currentTime,
+              length: clipDuration,
+              effect: "slideLeft",
+              fit: "cover"
+            });
+            
+            currentTime += clipDuration;
+            console.log(`   Intro image ${introImage.order}: ${clipDuration.toFixed(2)}s at ${(currentTime - clipDuration).toFixed(2)}s`);
+          }
+        }
+        
+        // Create loop sequence with the selected loop image
+        if (loopImageUrl && loopDuration > 0) {
+          const zoomCycleDuration = 15; // Each zoom cycle (in + out) lasts 15 seconds
+          let loopStartTime = actualIntroDuration;
+          
+          while (loopStartTime < totalDuration) {
+            const remainingTime = totalDuration - loopStartTime;
+            const cycleDuration = Math.min(zoomCycleDuration, remainingTime);
+            
+            if (zoomEffect) {
+              // Alternate between zoom in and zoom out
+              const isZoomIn = Math.floor((loopStartTime - actualIntroDuration) / zoomCycleDuration) % 2 === 0;
+              
+              imageClips.push({
+                asset: {
+                  type: "image",
+                  src: loopImageUrl
+                },
+                start: loopStartTime,
+                length: cycleDuration,
+                effect: isZoomIn ? "zoomIn" : "zoomOut",
+                fit: "cover"
+              });
+            } else {
+              imageClips.push({
+                asset: {
+                  type: "image",
+                  src: loopImageUrl
+                },
+                start: loopStartTime,
+                length: cycleDuration,
+                fit: "cover"
+              });
+            }
+            
+            loopStartTime += cycleDuration;
+          }
+          
+          console.log(`   Loop sequence: ${loopDuration.toFixed(2)}s with ${zoomEffect ? 'zoom effects' : 'static display'}`);
+        }
+        
+        const imageTrack = {
+          clips: imageClips
+        };
+        tracks.push(imageTrack);
+        
+      } else {
+        // Fallback to traditional mode if videoMode is not recognized
+        console.log(`🎬 Unknown video mode "${videoMode}", falling back to traditional:`);
+        
+        const imageClips = imageUrls.map((url, index) => {
+          const startTime = index * imageDuration;
+          
+          return {
+            asset: {
+              type: "image",
+              src: url
+            },
+            start: startTime,
+            length: imageDuration,
+            effect: enableZoom ? "zoomIn" : undefined,
+            fit: "cover"
+          };
+        });
+
+        const imageTrack = {
+          clips: imageClips
+        };
+        tracks.push(imageTrack);
+      }
     }
 
     // Track for main audio (use original audio for video, fallback to compressed)
@@ -499,7 +631,19 @@ export async function POST(request: NextRequest) {
       segment_timings: segmentTimings,
       total_duration: totalDuration,
       scenes_count: imageUrls.length
-    } : null;
+    } : {
+      type: videoMode,
+      video_mode: videoMode,
+      total_duration: totalDuration,
+      scenes_count: imageUrls.length,
+      zoom_effect: zoomEffect,
+      dust_overlay: dustOverlay,
+      ...(videoMode === 'option2' && {
+        intro_duration: introDuration,
+        intro_images_count: introImages?.length || 0,
+        loop_image_url: loopImageUrl
+      })
+    };
     
     const { error: dbError } = await supabase
       .from('video_records')
@@ -514,8 +658,8 @@ export async function POST(request: NextRequest) {
         subtitles_url: subtitlesUrl,
         // Use provided thumbnail URL if available, otherwise fall back to first image
         thumbnail_url: thumbnailUrl || imageUrls[0],
-        // Store metadata in error_message field for segmented videos (temporary solution)
-        error_message: metadata ? JSON.stringify(metadata) : null,
+        // Store metadata in error_message field for now (temporary solution)
+        error_message: JSON.stringify(metadata),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -528,11 +672,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ ${isSegmentedVideo ? 'Segmented' : 'Traditional'} video record created successfully with Shotstack ID: ${shotstackId}`);
+    console.log(`✅ ${videoMode} video record created successfully with Shotstack ID: ${shotstackId}`);
 
     // Return success response with video ID and shotstack ID
     return NextResponse.json<CreateVideoResponse>({
-      message: `${isSegmentedVideo ? 'Segmented' : 'Traditional'} video creation job started successfully`,
+      message: `${videoMode} video creation job started successfully`,
       video_id: videoId,
       shotstack_id: shotstackId
     }, { status: 202 });

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useSession } from 'next-auth/react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   loadVideoHistory,
@@ -15,10 +14,14 @@ import { Progress } from './ui/progress'
 import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, Clock, Eye, Trash2, RefreshCw, Calendar, Upload, UploadCloud } from 'lucide-react'
 import { VideoRecord } from '@/types/video-generation'
 import { GoogleLogo } from './google-logo'
+import { YouTubeLogo } from './youtube-logo'
 
 export function VideoStatus() {
-  const { data: session, status } = useSession()
   const dispatch = useAppDispatch()
+  
+  // Use Redux state for user instead of NextAuth session
+  const { id: userId, email: userEmail, isLoggedIn } = useAppSelector(state => state.user)
+  
   const { 
     currentGeneration, 
     generationHistory,
@@ -29,9 +32,11 @@ export function VideoStatus() {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isCheckingStatus, setIsCheckingStatus] = useState(false)
   const [uploadingVideos, setUploadingVideos] = useState<Set<string>>(new Set())
+  const [uploadingToYouTube, setUploadingToYouTube] = useState<Set<string>>(new Set())
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+  const [hasGoogleTokens, setHasGoogleTokens] = useState<boolean | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -40,14 +45,126 @@ export function VideoStatus() {
     setTimeout(() => setMessage(""), 3000)
   }
 
+  // Check if user has Google OAuth tokens
+  const checkGoogleTokens = async () => {
+    try {
+      const response = await fetch('/api/check-google-auth')
+      const data = await response.json()
+      setHasGoogleTokens(data.hasTokens)
+      console.log('🔍 Google tokens check:', data.hasTokens ? 'Available' : 'Not available')
+    } catch (error) {
+      console.error('Error checking Google tokens:', error)
+      setHasGoogleTokens(false)
+    }
+  }
+
+  // Check Google tokens when component mounts
+  useEffect(() => {
+    checkGoogleTokens()
+  }, [])
+
+  // Handle upload to YouTube
+  const handleUploadToYouTube = async (video: VideoRecord) => {
+    console.log('🎬 YouTube upload button clicked for video:', video.id)
+    console.log('📊 User logged in:', isLoggedIn)
+    console.log('📊 Has Google tokens:', hasGoogleTokens)
+    
+    if (!isLoggedIn || !hasGoogleTokens) {
+      console.log('❌ Authentication check failed: Supabase:', isLoggedIn, 'Google:', hasGoogleTokens)
+      showMessage('Please sign in with Google first', 'error')
+      return
+    }
+
+    if (!video.final_video_url) {
+      console.log('❌ No video URL available:', video.final_video_url)
+      showMessage('Video URL not available', 'error')
+      return
+    }
+
+    console.log('✅ Starting YouTube upload process for video:', video.id)
+    console.log('🎬 Video URL:', video.final_video_url)
+    
+    setUploadingToYouTube(prev => {
+      const newSet = new Set(prev).add(video.id)
+      console.log('📝 Updated uploading to YouTube set:', newSet)
+      return newSet
+    })
+
+    try {
+      showMessage(`Preparing video for YouTube upload...`, 'info')
+      
+      // Download video file
+      const videoResponse = await fetch(video.final_video_url)
+      
+      if (!videoResponse.ok) {
+        throw new Error('Failed to download video file for upload.')
+      }
+      
+      const videoBlob = await videoResponse.blob()
+      const videoFile = new File([videoBlob], `video-${video.id}.mp4`, {
+        type: videoBlob.type || 'video/mp4',
+      })
+
+      console.log('📁 Video file prepared for YouTube:', {
+        name: videoFile.name,
+        size: (videoFile.size / 1024 / 1024).toFixed(2) + ' MB',
+        type: videoFile.type
+      })
+
+      // Prepare form data
+      const formData = new FormData()
+      formData.append('file', videoFile)
+      formData.append('title', `AI Generated Video - ${video.id.slice(0, 8)}`)
+      formData.append('description', `Video created with AI Content Generation Platform\n\nVideo ID: ${video.id}\nCreated: ${new Date(video.created_at).toLocaleDateString()}`)
+      formData.append('tags', 'ai,video,generated,content,artificial intelligence')
+      formData.append('privacy', 'private') // Default to private for safety
+
+      showMessage(`Uploading to YouTube...`, 'info')
+
+      // Upload to YouTube
+      const response = await fetch('/api/upload-to-youtube', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Upload failed: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      console.log('✅ YouTube upload completed successfully:', result)
+      showMessage(`Successfully uploaded to YouTube! Video ID: ${result.videoId}`, 'success')
+      
+      // Show YouTube link
+      if (result.url) {
+        setTimeout(() => {
+          showMessage(`Video available at: ${result.url}`, 'info')
+        }, 3000)
+      }
+      
+    } catch (error: any) {
+      console.error('💥 YouTube upload error:', error)
+      showMessage(`Failed to upload to YouTube: ${error.message}`, 'error')
+    } finally {
+      console.log('🏁 YouTube upload process finished, cleaning up...')
+      setUploadingToYouTube(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(video.id)
+        return newSet
+      })
+    }
+  }
+
   // Handle upload to Google Drive with progress tracking
   const handleUploadToGoogleDrive = async (video: VideoRecord) => {
     console.log('🚀 Upload button clicked for video:', video.id)
-    console.log('📊 Session status:', status)
-    console.log('👤 Session data:', session)
+    console.log('📊 User logged in:', isLoggedIn)
+    console.log('📊 Has Google tokens:', hasGoogleTokens)
     
-    if (status !== 'authenticated') {
-      console.log('❌ Authentication check failed:', status)
+    if (!isLoggedIn || !hasGoogleTokens) {
+      console.log('❌ Authentication check failed: Supabase:', isLoggedIn, 'Google:', hasGoogleTokens)
       showMessage('Please sign in with Google first', 'error')
       return
     }
@@ -212,7 +329,10 @@ export function VideoStatus() {
     
     try {
       console.log('🔄 Fetching videos from database...')
-      const response = await fetch('/api/get-videos?userId=current_user')
+      
+      // Use authenticated user ID from Redux or fallback to current_user
+      const userIdToUse = userId || 'current_user'
+      const response = await fetch(`/api/get-videos?userId=${userIdToUse}`)
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
@@ -406,6 +526,7 @@ export function VideoStatus() {
     const link = document.createElement('a')
     link.href = videoUrl
     link.download = filename
+    link.target = '_blank'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -441,26 +562,47 @@ export function VideoStatus() {
       </div>
 
       {/* Google Drive Warning/Status */}
-      {status === 'unauthenticated' && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <span className="text-sm text-amber-800">
-                Sign in with Google in the navbar to upload videos to Google Drive
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {status === 'authenticated' && (
+      {isLoggedIn && hasGoogleTokens ? (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-600" />
               <span className="text-sm text-green-800">
-                Connected to Google Drive as {session?.user?.email} - Upload buttons available for completed videos
+                Connected to Google as {userEmail} - Upload buttons available for Google Drive and YouTube
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : isLoggedIn && hasGoogleTokens === false ? (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-orange-600" />
+              <span className="text-sm text-orange-800">
+                Supabase authenticated as {userEmail}, but Google OAuth required for uploads. 
+                <a href="/api/auth/signin/google" className="underline ml-1 hover:text-orange-900">Sign in with Google</a>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : hasGoogleTokens === null ? (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+              <span className="text-sm text-blue-800">
+                Checking Google authentication status...
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-800">
+                Sign in with Google in the navbar to upload videos to Google Drive and YouTube
               </span>
             </div>
           </CardContent>
@@ -600,7 +742,7 @@ export function VideoStatus() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 ml-4">
+                      <div className="flex items-center gap-2 ml-4 flex-wrap">
                         {video.status === 'completed' && video.final_video_url && (
                           <>
                             <Button
@@ -619,8 +761,9 @@ export function VideoStatus() {
                               <PlayCircle className="h-3 w-3 mr-1" />
                               View
                             </Button>
+                            
                             {/* Google Drive Upload Button */}
-                            {status === 'authenticated' ? (
+                            {isLoggedIn && hasGoogleTokens ? (
                               <div className="flex flex-col gap-1">
                                 <Button
                                   onClick={() => {
@@ -663,10 +806,55 @@ export function VideoStatus() {
                                 variant="outline"
                                 disabled
                                 className="border-gray-300 bg-gray-50 text-gray-400 opacity-60"
-                                title="Sign in with Google to upload"
+                                title={
+                                  !isLoggedIn ? "Sign in with Supabase first" :
+                                  hasGoogleTokens === false ? "Sign in with Google required" :
+                                  "Checking Google authentication..."
+                                }
                               >
                                 <GoogleLogo size={12} />
                                 <span className="ml-1">Upload to Drive</span>
+                              </Button>
+                            )}
+
+                            {/* YouTube Upload Button */}
+                            {isLoggedIn && hasGoogleTokens ? (
+                              <Button
+                                onClick={() => {
+                                  console.log('🎬 YouTube upload button onClick triggered for video:', video.id)
+                                  handleUploadToYouTube(video)
+                                }}
+                                size="sm"
+                                variant="outline"
+                                disabled={uploadingToYouTube.has(video.id)}
+                                className="border-red-300 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 shadow-sm transition-all duration-200 hover:shadow-md"
+                              >
+                                {uploadingToYouTube.has(video.id) ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <YouTubeLogo size={12} />
+                                    <span className="ml-1">Upload to YouTube</span>
+                                  </>
+                                )}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                className="border-gray-300 bg-gray-50 text-gray-400 opacity-60"
+                                title={
+                                  !isLoggedIn ? "Sign in with Supabase first" :
+                                  hasGoogleTokens === false ? "Sign in with Google required" :
+                                  "Checking Google authentication..."
+                                }
+                              >
+                                <YouTubeLogo size={12} />
+                                <span className="ml-1">Upload to YouTube</span>
                               </Button>
                             )}
                           </>

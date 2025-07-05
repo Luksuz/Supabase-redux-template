@@ -7,10 +7,27 @@ export interface GeneratedScript {
   generated: boolean
 }
 
+export interface CallToAction {
+  id: string
+  text: string
+  placement: 'beginning' | 'middle' | 'end' | 'custom'
+  customPlacement?: string
+  additionalInstructions?: string
+}
+
+export interface Hook {
+  id: string
+  text: string
+  style: 'question' | 'statement' | 'story' | 'statistic' | 'custom'
+  additionalInstructions?: string
+}
+
 export interface ScriptSection {
   title: string
   writingInstructions: string
   image_generation_prompt: string
+  ctas?: CallToAction[]
+  hook?: Hook
 }
 
 export interface FullScriptData {

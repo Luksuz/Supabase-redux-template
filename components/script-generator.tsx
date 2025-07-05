@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Upload, RefreshCw, History } from "lucide-react";
+import { Download, Upload, RefreshCw, History, Plus, Edit, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -24,7 +24,10 @@ import {
   setFullScript, 
   setIsGeneratingScript, 
   setScriptGenerationError,
-  clearFullScript 
+  clearFullScript,
+  type ScriptSection,
+  type CallToAction,
+  type Hook
 } from "../lib/features/scripts/scriptsSlice";
 import { selectResearchSummaries, selectVideoSummarization } from "../lib/features/youtube/youtubeSlice";
 import {
@@ -34,12 +37,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-export interface ScriptSection {
-  title: string;
-  writingInstructions: string;
-  image_generation_prompt: string;
-}
 
 interface OpenAIModel {
   id: string;
@@ -77,7 +74,7 @@ const ScriptGenerator: React.FC = () => {
   const [selectedSegmentIndex, setSelectedSegmentIndex] = useState<number | null>(null);
   const [regeneratePrompt, setRegeneratePrompt] = useState("");
   const [models, setModels] = useState<OpenAIModel[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("gpt-4-turbo-preview");
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-4o-mini");
   
   // State for editing sections
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
@@ -94,6 +91,24 @@ const ScriptGenerator: React.FC = () => {
   // State for saved prompts
   const [savedPrompts, setSavedPrompts] = useState<any[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(false);
+
+  // State for CTA and Hook modals
+  const [ctaModalOpen, setCtaModalOpen] = useState(false);
+  const [hookModalOpen, setHookModalOpen] = useState(false);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState<number | null>(null);
+  const [editingCta, setEditingCta] = useState<CallToAction | null>(null);
+  const [editingHook, setEditingHook] = useState<Hook | null>(null);
+
+  // CTA form state
+  const [ctaText, setCtaText] = useState("");
+  const [ctaPlacement, setCtaPlacement] = useState<'beginning' | 'middle' | 'end' | 'custom'>('end');
+  const [ctaCustomPlacement, setCtaCustomPlacement] = useState("");
+  const [ctaAdditionalInstructions, setCtaAdditionalInstructions] = useState("");
+
+  // Hook form state
+  const [hookText, setHookText] = useState("");
+  const [hookStyle, setHookStyle] = useState<'question' | 'statement' | 'story' | 'statistic' | 'custom'>('question');
+  const [hookAdditionalInstructions, setHookAdditionalInstructions] = useState("");
   
   // Function to format research for script from Redux state
   const formatResearchForScript = () => {
@@ -332,7 +347,10 @@ const ScriptGenerator: React.FC = () => {
         body: JSON.stringify({
           title, 
           theme, 
-          sections: sections,
+          sections: sections.map(section => ({
+            ...section,
+            writingInstructions: generateEnhancedWritingInstructions(section)
+          })),
           additionalPrompt,
           researchContext,
           forbiddenWords,
@@ -555,10 +573,10 @@ const ScriptGenerator: React.FC = () => {
       console.log(`🔄 Sending regeneration request to API for section ${index + 1}`);
       const response = await fetch("/api/regenerate-segment", {
         method: "POST",
-              headers: {
+        headers: {
           "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
+        },
+        body: JSON.stringify({
           sectionIndex: index,
           currentSection,
           additionalPrompt: regenerationPrompt,
@@ -566,11 +584,12 @@ const ScriptGenerator: React.FC = () => {
           forbiddenWords,
           title,
           theme,
-          modelName: selectedModel
+          modelName: selectedModel,
+          enhancedInstructions: generateEnhancedWritingInstructions(currentSection)
         }),
       });
 
-            if (!response.ok) {
+      if (!response.ok) {
         throw new Error(`Failed to regenerate segment. Status: ${response.status}`);
       }
       
@@ -761,6 +780,149 @@ const ScriptGenerator: React.FC = () => {
     setIsPromptHistoryOpen(false);
   };
 
+  // CTA and Hook Handler Functions
+  const openCtaModal = (sectionIndex: number, existingCta?: CallToAction) => {
+    setCurrentSectionIndex(sectionIndex);
+    setEditingCta(existingCta || null);
+    
+    if (existingCta) {
+      setCtaText(existingCta.text);
+      setCtaPlacement(existingCta.placement);
+      setCtaCustomPlacement(existingCta.customPlacement || "");
+      setCtaAdditionalInstructions(existingCta.additionalInstructions || "");
+    } else {
+      setCtaText("");
+      setCtaPlacement('end');
+      setCtaCustomPlacement("");
+      setCtaAdditionalInstructions("");
+    }
+    
+    setCtaModalOpen(true);
+  };
+
+  const openHookModal = (sectionIndex: number, existingHook?: Hook) => {
+    setCurrentSectionIndex(sectionIndex);
+    setEditingHook(existingHook || null);
+    
+    if (existingHook) {
+      setHookText(existingHook.text);
+      setHookStyle(existingHook.style);
+      setHookAdditionalInstructions(existingHook.additionalInstructions || "");
+    } else {
+      setHookText("");
+      setHookStyle('question');
+      setHookAdditionalInstructions("");
+    }
+    
+    setHookModalOpen(true);
+  };
+
+  const saveCta = () => {
+    if (currentSectionIndex === null || !ctaText.trim()) return;
+    
+    const newCta: CallToAction = {
+      id: editingCta?.id || `cta-${Date.now()}`,
+      text: ctaText.trim(),
+      placement: ctaPlacement,
+      customPlacement: ctaPlacement === 'custom' ? ctaCustomPlacement : undefined,
+      additionalInstructions: ctaAdditionalInstructions.trim() || undefined
+    };
+
+    const currentSection = scriptSections[currentSectionIndex];
+    const updatedCtas = editingCta 
+      ? (currentSection.ctas || []).map(cta => cta.id === editingCta.id ? newCta : cta)
+      : [...(currentSection.ctas || []), newCta];
+
+    const updatedSection: ScriptSection = {
+      ...currentSection,
+      ctas: updatedCtas
+    };
+
+    dispatch(updateScriptSection({ index: currentSectionIndex, section: updatedSection }));
+    
+    // Reset form and close modal
+    setCtaModalOpen(false);
+    setCurrentSectionIndex(null);
+    setEditingCta(null);
+  };
+
+  const saveHook = () => {
+    if (currentSectionIndex === null || !hookText.trim()) return;
+    
+    const newHook: Hook = {
+      id: editingHook?.id || `hook-${Date.now()}`,
+      text: hookText.trim(),
+      style: hookStyle,
+      additionalInstructions: hookAdditionalInstructions.trim() || undefined
+    };
+
+    const currentSection = scriptSections[currentSectionIndex];
+    const updatedSection: ScriptSection = {
+      ...currentSection,
+      hook: newHook
+    };
+
+    dispatch(updateScriptSection({ index: currentSectionIndex, section: updatedSection }));
+    
+    // Reset form and close modal
+    setHookModalOpen(false);
+    setCurrentSectionIndex(null);
+    setEditingHook(null);
+  };
+
+  const removeCta = (sectionIndex: number, ctaId: string) => {
+    const currentSection = scriptSections[sectionIndex];
+    const updatedCtas = (currentSection.ctas || []).filter(cta => cta.id !== ctaId);
+    
+    const updatedSection: ScriptSection = {
+      ...currentSection,
+      ctas: updatedCtas
+    };
+
+    dispatch(updateScriptSection({ index: sectionIndex, section: updatedSection }));
+  };
+
+  const removeHook = (sectionIndex: number) => {
+    const currentSection = scriptSections[sectionIndex];
+    const updatedSection: ScriptSection = {
+      ...currentSection,
+      hook: undefined
+    };
+
+    dispatch(updateScriptSection({ index: sectionIndex, section: updatedSection }));
+  };
+
+  // Function to generate writing instructions with CTAs and hooks
+  const generateEnhancedWritingInstructions = (section: ScriptSection) => {
+    let instructions = section.writingInstructions;
+
+    // Add hook instructions for intro sections
+    if (section.hook) {
+      const hookPlacement = section.hook.style === 'custom' ? 'customized hook' : `${section.hook.style} hook`;
+      instructions += `\n\nHOOK INSTRUCTIONS: Start this section with a compelling ${hookPlacement}: "${section.hook.text}"`;
+      if (section.hook.additionalInstructions) {
+        instructions += ` ${section.hook.additionalInstructions}`;
+      }
+    }
+
+    // Add CTA instructions
+    if (section.ctas && section.ctas.length > 0) {
+      instructions += `\n\nCALL-TO-ACTION INSTRUCTIONS:`;
+      section.ctas.forEach((cta, index) => {
+        const placement = cta.placement === 'custom' && cta.customPlacement 
+          ? cta.customPlacement 
+          : `at the ${cta.placement}`;
+        
+        instructions += `\n${index + 1}. Include this call-to-action ${placement} of the section: "${cta.text}"`;
+        if (cta.additionalInstructions) {
+          instructions += ` ${cta.additionalInstructions}`;
+        }
+      });
+    }
+
+    return instructions;
+  };
+
   // Fetch prompts when modal opens
   const handleOpenPromptHistory = () => {
     console.log('🔄 Opening prompt history modal...');
@@ -768,23 +930,6 @@ const ScriptGenerator: React.FC = () => {
     console.log('📊 Current savedPrompts state:', savedPrompts);
     console.log('📊 Current loadingPrompts state:', loadingPrompts);
     fetchSavedPrompts();
-  };
-
-  // Function to apply prompt from history
-  const handleApplyPrompt = (promptData: {
-    title: string;
-    theme: string;
-    audience: string;
-    additionalPrompt: string;
-    povSelection: string;
-    scriptFormat: string;
-  }) => {
-    setTitle(promptData.title);
-    setTheme(promptData.theme);
-    setAudience(promptData.audience);
-    setAdditionalPrompt(promptData.additionalPrompt);
-    setPovSelection(promptData.povSelection);
-    setScriptFormat(promptData.scriptFormat);
   };
 
   return (
@@ -1097,15 +1242,115 @@ const ScriptGenerator: React.FC = () => {
                   <h3 className="text-lg font-semibold text-foreground">
                     Section {index + 1}: {section.title}
                   </h3>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => startEditingSection(index)}
-                  >
-                    <RefreshCw size={14} className="mr-2" />
-                    Edit
-                  </Button>
+                  <div className="flex gap-2">
+                    {/* Hook button for first section (intro) */}
+                    {index === 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openHookModal(index, section.hook)}
+                        className="border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700"
+                      >
+                        <Plus size={14} className="mr-1" />
+                        {section.hook ? 'Edit Hook' : 'Add Hook'}
+                      </Button>
+                    )}
+                    
+                    {/* CTA button for all sections */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openCtaModal(index)}
+                      className="border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700"
+                    >
+                      <Plus size={14} className="mr-1" />
+                      Add CTA
+                    </Button>
+                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startEditingSection(index)}
+                    >
+                      <RefreshCw size={14} className="mr-2" />
+                      Edit
+                    </Button>
+                  </div>
                 </div>
+
+                {/* Display Hook (for intro section) */}
+                {section.hook && (
+                  <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-sm font-medium text-purple-800">🎣 Hook</h4>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openHookModal(index, section.hook)}
+                          className="h-6 w-6 p-0 text-purple-600 hover:text-purple-800"
+                        >
+                          <Edit size={12} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeHook(index)}
+                          className="h-6 w-6 p-0 text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 size={12} />
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-purple-700 font-medium">
+                      {section.hook.style.charAt(0).toUpperCase() + section.hook.style.slice(1)} Hook: "{section.hook.text}"
+                    </p>
+                    {section.hook.additionalInstructions && (
+                      <p className="text-xs text-purple-600 mt-1">
+                        Instructions: {section.hook.additionalInstructions}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Display CTAs */}
+                {section.ctas && section.ctas.length > 0 && (
+                  <div className="mb-3 space-y-2">
+                    {section.ctas.map((cta, ctaIndex) => (
+                      <div key={cta.id} className="p-3 bg-blue-50 border border-blue-200 rounded">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="text-sm font-medium text-blue-800">
+                            📢 CTA {ctaIndex + 1} ({cta.placement === 'custom' ? cta.customPlacement : cta.placement})
+                          </h4>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openCtaModal(index, cta)}
+                              className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800"
+                            >
+                              <Edit size={12} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removeCta(index, cta.id)}
+                              className="h-6 w-6 p-0 text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 size={12} />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-blue-700 font-medium">"{cta.text}"</p>
+                        {cta.additionalInstructions && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            Instructions: {cta.additionalInstructions}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 
                 {/* View Mode - only show when not editing */}
                 {editingSectionIndex !== index && (
@@ -1347,6 +1592,149 @@ const ScriptGenerator: React.FC = () => {
                 ));
               }
             })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CTA Modal */}
+      <Dialog open={ctaModalOpen} onOpenChange={setCtaModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingCta ? 'Edit Call-to-Action' : 'Add Call-to-Action'}</DialogTitle>
+            <DialogDescription>
+              Add a call-to-action to engage viewers. Be specific about placement and additional instructions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="cta-text">CTA Text *</Label>
+              <Textarea
+                id="cta-text"
+                placeholder="e.g., 'Don't forget to subscribe and turn on notifications for more amazing content like this!'"
+                value={ctaText}
+                onChange={(e) => setCtaText(e.target.value)}
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Be specific about what action you want viewers to take.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cta-placement">Placement</Label>
+              <Select value={ctaPlacement} onValueChange={(value: 'beginning' | 'middle' | 'end' | 'custom') => setCtaPlacement(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select placement" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="beginning">Beginning of section</SelectItem>
+                  <SelectItem value="middle">Middle of section</SelectItem>
+                  <SelectItem value="end">End of section</SelectItem>
+                  <SelectItem value="custom">Custom placement</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {ctaPlacement === 'custom' && (
+              <div className="space-y-2">
+                <Label htmlFor="cta-custom-placement">Custom Placement Description</Label>
+                <Input
+                  id="cta-custom-placement"
+                  placeholder="e.g., 'after the main point', 'before the conclusion', 'between the examples'"
+                  value={ctaCustomPlacement}
+                  onChange={(e) => setCtaCustomPlacement(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="cta-additional-instructions">Additional Instructions (Optional)</Label>
+              <Textarea
+                id="cta-additional-instructions"
+                placeholder="e.g., 'make it sound natural and enthusiastic', 'include a pause before the CTA', 'add a joke at the end'"
+                value={ctaAdditionalInstructions}
+                onChange={(e) => setCtaAdditionalInstructions(e.target.value)}
+                className="min-h-[60px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Add style, tone, or delivery instructions for this CTA.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button onClick={saveCta} disabled={!ctaText.trim()} className="flex-1">
+                {editingCta ? 'Save Changes' : 'Add CTA'}
+              </Button>
+              <Button variant="outline" onClick={() => setCtaModalOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hook Modal */}
+      <Dialog open={hookModalOpen} onOpenChange={setHookModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingHook ? 'Edit Hook' : 'Add Hook'}</DialogTitle>
+            <DialogDescription>
+              Add a compelling hook to grab attention at the beginning of your intro section.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="hook-text">Hook Text *</Label>
+              <Textarea
+                id="hook-text"
+                placeholder="e.g., 'What if I told you that everything you know about success is wrong?'"
+                value={hookText}
+                onChange={(e) => setHookText(e.target.value)}
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Make it compelling and attention-grabbing.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="hook-style">Hook Style</Label>
+              <Select value={hookStyle} onValueChange={(value: 'question' | 'statement' | 'story' | 'statistic' | 'custom') => setHookStyle(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select hook style" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="question">Question Hook</SelectItem>
+                  <SelectItem value="statement">Bold Statement</SelectItem>
+                  <SelectItem value="story">Story Hook</SelectItem>
+                  <SelectItem value="statistic">Statistic Hook</SelectItem>
+                  <SelectItem value="custom">Custom Style</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="hook-additional-instructions">Additional Instructions (Optional)</Label>
+              <Textarea
+                id="hook-additional-instructions"
+                placeholder="e.g., 'deliver with dramatic pause', 'build suspense', 'use conversational tone'"
+                value={hookAdditionalInstructions}
+                onChange={(e) => setHookAdditionalInstructions(e.target.value)}
+                className="min-h-[60px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Add style, tone, or delivery instructions for this hook.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button onClick={saveHook} disabled={!hookText.trim()} className="flex-1">
+                {editingHook ? 'Save Changes' : 'Add Hook'}
+              </Button>
+              <Button variant="outline" onClick={() => setHookModalOpen(false)}>
+                Cancel
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

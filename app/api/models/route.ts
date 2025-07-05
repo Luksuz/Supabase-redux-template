@@ -21,9 +21,6 @@ export async function GET() {
         { id: 'claude-opus-4-20250514', owned_by: 'anthropic' },
         { id: 'claude-sonnet-4-20250514', owned_by: 'anthropic' },
         { id: 'claude-3-7-sonnet-20250219', owned_by: 'anthropic' },
-        { id: 'claude-3-5-haiku-20241022', owned_by: 'anthropic' },
-        { id: 'claude-3-5-sonnet-20240620', owned_by: 'anthropic' },
-        { id: 'claude-3-haiku-20240307', owned_by: 'anthropic' },
     ];
 
     // Only include models owned by 'organization-owner'

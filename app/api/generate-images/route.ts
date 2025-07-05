@@ -74,8 +74,11 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
     case 'stable-diffusion-v35-large':
       modelEndpoint = 'fal-ai/stable-diffusion-v35-large';
       break;
-    case 'ideogram':
-      modelEndpoint = 'fal-ai/ideogram/v2';
+    case 'ideogram-v3':
+      modelEndpoint = 'fal-ai/ideogram/v3';
+      break;
+    case 'minimax-image-01':
+      modelEndpoint = 'fal-ai/minimax/image-01';
       break;
     default:
       throw new Error(`Unsupported flux model: ${provider}`);

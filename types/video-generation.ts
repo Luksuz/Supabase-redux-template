@@ -3,6 +3,13 @@ export interface SegmentTiming {
   startTime?: number
 }
 
+export interface IntroImageConfig {
+  imageId: string
+  imageUrl: string
+  duration: number
+  order: number
+}
+
 export interface CreateVideoRequestBody {
   imageUrls: string[]
   audioUrl: string
@@ -23,6 +30,13 @@ export interface CreateVideoRequestBody {
   fontWeight?: string
   textTransform?: string
   audioDuration?: number
+  videoMode?: 'option1' | 'option2' | 'traditional'
+  zoomEffect?: boolean
+  dustOverlay?: boolean
+  introImages?: IntroImageConfig[]
+  introDuration?: number
+  loopImageUrl?: string
+  useEqualIntroDuration?: boolean
 }
 
 export interface CreateVideoResponse {
@@ -48,10 +62,13 @@ export interface VideoRecord {
   created_at: string
   updated_at: string
   metadata?: {
-    type?: 'segmented' | 'traditional' | 'script-based'
+    type?: 'segmented' | 'traditional' | 'script-based' | 'option1' | 'option2'
     segment_timings?: SegmentTiming[]
     total_duration?: number
     scenes_count?: number
+    video_mode?: 'option1' | 'option2' | 'traditional'
+    intro_images?: IntroImageConfig[]
+    loop_image?: string
   }
 }
 
@@ -61,4 +78,9 @@ export interface VideoGenerationSettings {
   videoQuality: 'hd' | 'sd'
   includeSubtitles: boolean
   includeOverlay: boolean
+  videoMode: 'traditional' | 'option1' | 'option2'
+  zoomEffect: boolean
+  dustOverlay: boolean
+  introDuration: number
+  useEqualIntroDuration: boolean
 } 

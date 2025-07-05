@@ -2,137 +2,36 @@
 
 import { useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { Textarea } from './ui/textarea'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Badge } from './ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Slider } from './ui/slider'
-import { Checkbox } from './ui/checkbox'
-import { ScrollArea } from './ui/scroll-area'
-import { Progress } from './ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { 
-  ImageIcon, 
-  Download, 
-  Trash2, 
-  RefreshCw, 
-  FileText, 
-  Sparkles,
-  Clock,
-  Cpu,
-  Info,
-  Package,
-  CheckSquare,
-  Square,
-  ArrowUp,
-  ArrowDown,
-  Upload,
-  X,
-  CheckCircle,
-  AlertCircle
-} from 'lucide-react'
 import { 
   setSelectedModel,
   setAspectRatio, 
-  setNumberOfImages,
   setNumberOfScenesToExtract,
   startSceneExtraction,
   completeSceneExtraction,
   failSceneExtraction,
-  clearExtractedScenes,
   startGeneration,
   updateGenerationInfo,
   completeGeneration,
   failGeneration,
   clearError,
   clearImageSets,
-  removeImageSet
-} from '../lib/features/imageGeneration/imageGenerationSlice'
-import type { ExtractedScene, GeneratedImageSet, ImageProvider } from '../types/image-generation'
+  removeImageSet,
+  setSelectedImagesOrder,
+  clearSelectedImagesOrder
+} from '@/lib/features/imageGeneration/imageGenerationSlice'
+import type { ExtractedScene, GeneratedImageSet, ImageProvider } from '@/types/image-generation'
 import { v4 as uuidv4 } from 'uuid'
+import { IMAGE_STYLES, MODEL_INFO } from '@/data/image'
 
-const MODEL_INFO: Record<ImageProvider, {
-  name: string;
-  description: string;
-  batchSize: number;
-  rateLimit?: string;
-  features: string[];
-}> = {
-  'minimax': {
-    name: 'MiniMax',
-    description: 'Fast, reliable image generation with optimized prompts',
-    batchSize: 5,
-    features: ['Base64 output', 'Prompt optimization', 'Multiple aspect ratios']
-  },
-  'flux-dev': {
-    name: 'FLUX.1 [dev]',
-    description: '12B parameter flow transformer for high-quality images',
-    batchSize: 10,
-    rateLimit: '10/min per batch',
-    features: ['High quality', 'Commercial use', 'Advanced prompting']
-  },
-  'recraft-v3': {
-    name: 'Recraft V3',
-    description: 'SOTA model with long text, vector art, and brand style',
-    batchSize: 10,
-    rateLimit: '10/min per batch',
-    features: ['Long texts', 'Vector art', 'Brand styles', 'SOTA quality']
-  },
-  'stable-diffusion-v35-large': {
-    name: 'Stable Diffusion 3.5 Large',
-    description: 'MMDiT model with improved typography and efficiency',
-    batchSize: 10,
-    rateLimit: '10/min per batch',
-    features: ['Typography', 'Complex prompts', 'Resource efficient']
-  },
-  'dalle-3': {
-    name: 'DALL-E 3',
-    description: 'OpenAI\'s most advanced image generation model',
-    batchSize: 10,
-    rateLimit: '10/min per batch',
-    features: ['High quality', 'Text understanding', 'Creative interpretation', 'Base64 output']
-  },
-  'gpt-image-1': {
-    name: 'GPT Image 1',
-    description: 'OpenAI\'s newest image generation model with enhanced instruction following',
-    batchSize: 5,
-    rateLimit: '5/min per batch',
-    features: ['Superior instruction following', 'Photorealistic images', 'World knowledge', 'Enhanced quality', 'Base64 output']
-  },
-  'leonardo-phoenix': {
-    name: 'Leonardo Phoenix',
-    description: 'Leonardo\'s Phoenix model with enhanced contrast and quality',
-    batchSize: 10,
-    rateLimit: '6/min per batch',
-    features: ['High contrast', 'Enhanced quality', 'Style control', 'Alchemy pipeline']
-  },
-  'ideogram': {
-    name: 'Ideogram V2',
-    description: 'High-quality image generation with exceptional typography via fal.ai',
-    batchSize: 10,
-    rateLimit: '10/min per batch',
-    features: ['Typography excellence', 'Realism', 'High quality', 'Commercial use', 'Via fal.ai']
-  }
-}
-
-// Define available image styles with their prefixes
-const IMAGE_STYLES = [
-  { value: 'none', label: 'No specific style', prefix: '' },
-  { value: 'ancient-beige-paper-ink', label: 'Ancient beige paper ink illustration style', prefix: 'Ancient beige paper ink illustration style, ' },
-  { value: 'ancient-beige-paper-book', label: 'Ancient beige paper ink illustration from an ancient book', prefix: 'Ancient beige paper ink illustration from an ancient book, ' },
-  { value: 'esoteric-1400s', label: 'Esoteric 1400s drawing style', prefix: 'Esoteric 1400s drawing style, ' },
-  { value: 'medieval', label: 'Medieval drawing style', prefix: 'Medieval drawing style, ' },
-  { value: 'oil-painting', label: 'Oil painting style', prefix: 'Oil painting style, ' },
-  { value: 'ary-scheffer', label: "Ary Scheffer's painting depicting style", prefix: "Ary Scheffer's painting depicting style, " },
-  { value: 'pieter-jansz', label: 'Pieter-Jansz van Asch painting style', prefix: 'Pieter-Jansz van Asch painting style, ' },
-  { value: 'black-white', label: 'Black & White', prefix: 'Black & White, ' },
-  { value: 'ancient-egyptian', label: 'Ancient Egyptian art style', prefix: 'Ancient Egyptian art style, ' },
-  { value: 'modern-symbolist', label: 'Modern Symbolist/Esoteric Art style', prefix: 'Modern Symbolist/Esoteric Art style, ' },
-  { value: 'northern-renaissance', label: 'Northern Renaissance engraving style', prefix: 'Northern Renaissance engraving style, ' }
-]
+// Import modular components
+import { ModelSelection } from './image-generation/ModelSelection'
+import { SceneExtraction } from './image-generation/SceneExtraction'
+import { ImageStyleSelector } from './image-generation/ImageStyleSelector'
+import { ImageGenerationControls } from './image-generation/ImageGenerationControls'
+import { GeneratedImageDisplay } from './image-generation/GeneratedImageDisplay'
+import { ThumbnailGenerator } from './image-generation/ThumbnailGenerator'
+import { VideoSelectionConfirmation } from './image-generation/VideoSelectionConfirmation'
 
 export function AIImageGenerator() {
   const dispatch = useAppDispatch()
@@ -143,26 +42,23 @@ export function AIImageGenerator() {
     generationInfo,
     selectedModel,
     aspectRatio,
-    numberOfImages,
     extractedScenes,
     isExtractingScenes,
     sceneExtractionError,
-    numberOfScenesToExtract
+    numberOfScenesToExtract,
+    selectedImagesOrder
   } = useAppSelector(state => state.imageGeneration)
   
   // Get script from Redux state
-  const { scriptSections, fullScript, hasScriptSections, hasFullScript } = useAppSelector(state => state.scripts)
+  const { scriptSections, fullScript } = useAppSelector(state => state.scripts)
   
+  // Local state
   const [selectedScenes, setSelectedScenes] = useState<number[]>([])
   const [scriptInput, setScriptInput] = useState('')
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
   const [downloadingZip, setDownloadingZip] = useState<string | null>(null)
-  // Updated state for ordered image selection - format: "setId:imageIndex"
-  const [selectedImagesOrder, setSelectedImagesOrder] = useState<string[]>([])
   const [showImageSelection, setShowImageSelection] = useState(false)
-  // Add state for image style selection
   const [selectedImageStyle, setSelectedImageStyle] = useState<string>('realistic')
-  // Add state for individual image regeneration
   const [regeneratingImages, setRegeneratingImages] = useState<Set<string>>(new Set())
 
   // Thumbnail generator state
@@ -205,426 +101,9 @@ export function AIImageGenerator() {
     return { source: 'none', count: 0, type: 'No script available' }
   }
 
+  // Handler functions
   const handleModelChange = (model: ImageProvider) => {
     dispatch(setSelectedModel(model))
-  }
-
-  // Utility function to split array into batches
-  const createBatches = <T,>(array: T[], batchSize: number): T[][] => {
-    const batches: T[][] = []
-    for (let i = 0; i < array.length; i += batchSize) {
-      batches.push(array.slice(i, i + batchSize))
-    }
-    return batches
-  }
-
-  // Updated helper functions for ordered image selection
-  const getImageId = (setId: string, imageIndex: number) => `${setId}:${imageIndex}`
-  
-  const toggleImageSelection = (setId: string, imageIndex: number) => {
-    const imageId = getImageId(setId, imageIndex)
-    setSelectedImagesOrder(prev => {
-      if (prev.includes(imageId)) {
-        // Remove from selection
-        return prev.filter(id => id !== imageId)
-      } else {
-        // Add to selection at the end
-        return [...prev, imageId]
-      }
-    })
-  }
-
-  const selectAllImages = () => {
-    const allImageIds: string[] = []
-    imageSets.forEach(set => {
-      set.imageUrls.forEach((_, index) => {
-        allImageIds.push(getImageId(set.id, index))
-      })
-    })
-    setSelectedImagesOrder(allImageIds)
-  }
-
-  const unselectAllImages = () => {
-    setSelectedImagesOrder([])
-  }
-
-  const moveImageUp = (imageId: string) => {
-    setSelectedImagesOrder(prev => {
-      const index = prev.indexOf(imageId)
-      if (index > 0) {
-        const newOrder = [...prev]
-        ;[newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
-        return newOrder
-      }
-      return prev
-    })
-  }
-
-  const moveImageDown = (imageId: string) => {
-    setSelectedImagesOrder(prev => {
-      const index = prev.indexOf(imageId)
-      if (index >= 0 && index < prev.length - 1) {
-        const newOrder = [...prev]
-        ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
-        return newOrder
-      }
-      return prev
-    })
-  }
-
-  const getImageOrderNumber = (setId: string, imageIndex: number) => {
-    const imageId = getImageId(setId, imageIndex)
-    const orderIndex = selectedImagesOrder.indexOf(imageId)
-    return orderIndex >= 0 ? orderIndex + 1 : null
-  }
-
-  // Helper function to apply image style to prompt
-  const applyImageStyle = (basePrompt: string) => {
-    if (!selectedImageStyle || selectedImageStyle === 'none') return basePrompt
-    
-    const selectedStyle = IMAGE_STYLES.find(style => style.value === selectedImageStyle)
-    if (!selectedStyle || !selectedStyle.prefix) return basePrompt
-    
-    return `${selectedStyle.prefix}${basePrompt}`
-  }
-
-  // Individual image regeneration function
-  const regenerateIndividualImage = async (setId: string, imageIndex: number, originalPrompt: string) => {
-    const imageId = getImageId(setId, imageIndex)
-    
-    try {
-      setRegeneratingImages(prev => new Set(prev).add(imageId))
-
-      const response = await fetch('/api/generate-images', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: selectedModel,
-          prompt: applyImageStyle(originalPrompt),
-          numberOfImages: 1,
-          minimaxAspectRatio: aspectRatio,
-          userId: 'user-123',
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to regenerate image')
-      }
-
-      const data = await response.json()
-      
-      if (data.imageUrls && data.imageUrls.length > 0) {
-        // For now, we'll replace the image URL in the imageSets directly
-        // Since updateImageInSet might not exist, we'll handle this differently
-        const updatedImageSets = imageSets.map(set => {
-          if (set.id === setId) {
-            const newImageUrls = [...set.imageUrls]
-            newImageUrls[imageIndex] = data.imageUrls[0]
-            return { ...set, imageUrls: newImageUrls }
-          }
-          return set
-        })
-        
-        // For now, we'll use a workaround since updateImageInSet might not exist
-        // This would need to be implemented in the Redux slice
-        console.log('Would update image:', { setId, imageIndex, newUrl: data.imageUrls[0] })
-        
-        // Refresh the page or use a different approach to update the image
-        window.location.reload()
-      } else {
-        throw new Error('No image URL returned')
-      }
-
-    } catch (error) {
-      console.error(`Error regenerating image ${imageId}:`, error)
-      alert(`Failed to regenerate image: ${error}`)
-    } finally {
-      setRegeneratingImages(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(imageId)
-        return newSet
-      })
-    }
-  }
-
-  // Generate images with batch processing
-  const generateImagesBatch = async (prompts: string[], batchIndex: number, totalBatches: number) => {
-    const batchSize = MODEL_INFO[selectedModel].batchSize
-    const batchPrompts = prompts.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize)
-    
-    setBatchProgress({ 
-      current: batchIndex * batchSize, 
-      total: prompts.length, 
-      currentBatch: batchIndex + 1, 
-      totalBatches 
-    })
-
-    dispatch(updateGenerationInfo(
-      `Processing batch ${batchIndex + 1}/${totalBatches} (${batchPrompts.length} images)...`
-    ))
-
-    if (selectedModel === 'minimax') {
-      // For MiniMax: send requests in parallel (batch size 5)
-      const requestPromises = batchPrompts.map(async (prompt, index) => {
-        try {
-          const response = await fetch('/api/generate-images', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: selectedModel,
-              prompt: applyImageStyle(prompt),
-              numberOfImages: 1,
-              minimaxAspectRatio: aspectRatio,
-              userId: 'user-123',
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error(`Failed to generate MiniMax image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
-            return []
-          }
-
-          const data = await response.json()
-          return data.imageUrls ? data.imageUrls : []
-        } catch (error) {
-          console.error(`Error generating MiniMax image ${index + 1} in batch ${batchIndex + 1}:`, error)
-          return []
-        }
-      })
-
-      // Wait for all MiniMax requests in the batch to complete
-      const results = await Promise.all(requestPromises)
-      const imageUrls = results.flat()
-
-      // Update progress for the entire batch
-      setBatchProgress(prev => ({ 
-        ...prev, 
-        current: prev.current + batchPrompts.length 
-      }))
-
-      return imageUrls
-    } else if (selectedModel === 'dalle-3') {
-      // For DALL-E 3: efficient parallel batch processing (batch size 20)
-      const requestPromises = batchPrompts.map(async (prompt, index) => {
-        try {
-          const response = await fetch('/api/generate-images', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: selectedModel,
-              prompt: applyImageStyle(prompt),
-              numberOfImages: 1,
-              minimaxAspectRatio: aspectRatio,
-              userId: 'user-123',
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error(`Failed to generate DALL-E 3 image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
-            return []
-          }
-
-          const data = await response.json()
-          return data.imageUrls ? data.imageUrls : []
-        } catch (error) {
-          console.error(`Error generating DALL-E 3 image ${index + 1} in batch ${batchIndex + 1}:`, error)
-          return []
-        }
-      })
-
-      // Wait for all DALL-E 3 requests in the batch to complete
-      const results = await Promise.all(requestPromises)
-      const imageUrls = results.flat()
-
-      // Update progress for the entire batch
-      setBatchProgress(prev => ({ 
-        ...prev, 
-        current: prev.current + batchPrompts.length 
-      }))
-
-      return imageUrls
-    } else if (selectedModel === 'gpt-image-1') {
-      // For GPT Image 1: send requests in parallel (batch size 5)
-      const requestPromises = batchPrompts.map(async (prompt, index) => {
-        try {
-          const response = await fetch('/api/generate-images', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: selectedModel,
-              prompt: applyImageStyle(prompt),
-              numberOfImages: 1,
-              minimaxAspectRatio: aspectRatio,
-              userId: 'user-123',
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error(`Failed to generate GPT Image 1 ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
-            return []
-          }
-
-          const data = await response.json()
-          return data.imageUrls ? data.imageUrls : []
-        } catch (error) {
-          console.error(`Error generating GPT Image 1 ${index + 1} in batch ${batchIndex + 1}:`, error)
-          return []
-        }
-      })
-
-      // Wait for all GPT Image 1 requests in the batch to complete
-      const results = await Promise.all(requestPromises)
-      const imageUrls = results.flat()
-
-      // Update progress for the entire batch
-      setBatchProgress(prev => ({ 
-        ...prev, 
-        current: prev.current + batchPrompts.length 
-      }))
-
-      return imageUrls
-    } else if (selectedModel === 'leonardo-phoenix') {
-      // For Leonardo Phoenix: send requests sequentially with rate limiting
-      const requestPromises = batchPrompts.map(async (prompt, index) => {
-        try {
-          const response = await fetch('/api/generate-images', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: selectedModel,
-              prompt: applyImageStyle(prompt),
-              numberOfImages: 1,
-              minimaxAspectRatio: aspectRatio,
-              userId: 'user-123',
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error(`Failed to generate Leonardo Phoenix image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
-            return []
-          }
-
-          const data = await response.json()
-          return data.imageUrls ? data.imageUrls : []
-        } catch (error) {
-          console.error(`Error generating Leonardo Phoenix image ${index + 1} in batch ${batchIndex + 1}:`, error)
-          return []
-        }
-      })
-
-      // Wait for all Leonardo Phoenix requests in the batch to complete
-      const results = await Promise.all(requestPromises)
-      const imageUrls = results.flat()
-
-      // Update progress for the entire batch
-      setBatchProgress(prev => ({ 
-        ...prev, 
-        current: prev.current + batchPrompts.length 
-      }))
-
-      return imageUrls
-    } else if (selectedModel === 'ideogram') {
-      // For Ideogram: send requests sequentially with rate limiting
-      const requestPromises = batchPrompts.map(async (prompt, index) => {
-        try {
-          const response = await fetch('/api/generate-images', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: selectedModel,
-              prompt: applyImageStyle(prompt),
-              numberOfImages: 1,
-              minimaxAspectRatio: aspectRatio,
-              userId: 'user-123',
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error(`Failed to generate Ideogram image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
-            return []
-          }
-
-          const data = await response.json()
-          return data.imageUrls ? data.imageUrls : []
-        } catch (error) {
-          console.error(`Error generating Ideogram image ${index + 1} in batch ${batchIndex + 1}:`, error)
-          return []
-        }
-      })
-
-      // Wait for all Ideogram requests in the batch to complete
-      const results = await Promise.all(requestPromises)
-      const imageUrls = results.flat()
-
-      // Update progress for the entire batch
-      setBatchProgress(prev => ({ 
-        ...prev, 
-        current: prev.current + batchPrompts.length 
-      }))
-
-      return imageUrls
-    } else {
-      // For Flux models: send all requests in parallel
-      const requestPromises = batchPrompts.map(async (prompt, index) => {
-        try {
-          const response = await fetch('/api/generate-images', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: selectedModel,
-              prompt: applyImageStyle(prompt),
-              numberOfImages: 1,
-              minimaxAspectRatio: aspectRatio,
-              userId: 'user-123',
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error(`Failed to generate image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
-            return []
-          }
-
-          const data = await response.json()
-          return data.imageUrls ? data.imageUrls : []
-        } catch (error) {
-          console.error(`Error generating image ${index + 1} in batch ${batchIndex + 1}:`, error)
-          return []
-        }
-      })
-
-      // Wait for all requests in the batch to complete
-      const results = await Promise.all(requestPromises)
-      const imageUrls = results.flat()
-
-      // Update progress for the entire batch
-      setBatchProgress(prev => ({ 
-        ...prev, 
-        current: prev.current + batchPrompts.length 
-      }))
-
-      return imageUrls
-    }
   }
 
   const handleExtractScenes = async () => {
@@ -665,6 +144,75 @@ export function AIImageGenerator() {
     }
   }
 
+  // Helper function to apply image style to prompt
+  const applyImageStyle = (basePrompt: string) => {
+    if (!selectedImageStyle || selectedImageStyle === 'none') return basePrompt
+    
+    const selectedStyle = IMAGE_STYLES.find(style => style.value === selectedImageStyle)
+    if (!selectedStyle || !selectedStyle.prefix) return basePrompt
+    
+    return `${selectedStyle.prefix}${basePrompt}`
+  }
+
+  // Generate images with batch processing
+  const generateImagesBatch = async (prompts: string[], batchIndex: number, totalBatches: number) => {
+    const batchSize = MODEL_INFO[selectedModel].batchSize
+    const batchPrompts = prompts.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize)
+    
+    setBatchProgress({ 
+      current: batchIndex * batchSize, 
+      total: prompts.length, 
+      currentBatch: batchIndex + 1, 
+      totalBatches 
+    })
+
+    dispatch(updateGenerationInfo(
+      `Processing batch ${batchIndex + 1}/${totalBatches} (${batchPrompts.length} images)...`
+    ))
+
+    const requestPromises = batchPrompts.map(async (prompt, index) => {
+      try {
+        const response = await fetch('/api/generate-images', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            provider: selectedModel,
+            prompt: applyImageStyle(prompt),
+            numberOfImages: 1,
+            minimaxAspectRatio: aspectRatio,
+            userId: 'user-123',
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error(`Failed to generate image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+          return []
+        }
+
+        const data = await response.json()
+        return data.imageUrls ? data.imageUrls : []
+      } catch (error) {
+        console.error(`Error generating image ${index + 1} in batch ${batchIndex + 1}:`, error)
+        return []
+      }
+    })
+
+    // Wait for all requests in the batch to complete
+    const results = await Promise.all(requestPromises)
+    const imageUrls = results.flat()
+
+    // Update progress for the entire batch
+    setBatchProgress(prev => ({ 
+      ...prev, 
+      current: prev.current + batchPrompts.length 
+    }))
+
+    return imageUrls
+  }
+
   const handleGenerateFromScenes = async () => {
     if (selectedScenes.length === 0) return
 
@@ -700,54 +248,20 @@ export function AIImageGenerator() {
             `Completed batch ${batchIndex + 1}/${totalBatches}. Generated ${allImageUrls.length}/${selectedPrompts.length} images.`
           ))
 
-          // Different wait times based on model capabilities
-          if (selectedModel === 'minimax' || selectedModel === 'dalle-3' || selectedModel === 'gpt-image-1') {
-            // MiniMax, DALL-E 3, and GPT Image 1 have different rate limits
-            if (batchIndex < totalBatches - 1) {
-              let waitTime: number;
-              if (selectedModel === 'gpt-image-1') {
-                waitTime = 60; // GPT Image 1: 60 seconds (1 minute)
-              } else if (selectedModel === 'dalle-3') {
-                waitTime = 10; // DALL-E 3: 10 seconds
-              } else {
-                waitTime = 8; // MiniMax: 8 seconds
-              }
-              
-              dispatch(updateGenerationInfo(
-                `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting ${waitTime} seconds before next batch...`
-              ))
-              
-              // Show countdown for the wait time
-              for (let countdown = waitTime; countdown > 0; countdown--) {
-                dispatch(updateGenerationInfo(
-                  `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
-                ))
-                await new Promise(resolve => setTimeout(resolve, 1000))
-              }
-            }
-          } else if (selectedModel === 'leonardo-phoenix') {
-            // Leonardo Phoenix needs moderate wait (30 seconds)
-            if (batchIndex < totalBatches - 1) {
-              dispatch(updateGenerationInfo(
-                `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting 30 seconds before next batch...`
-              ))
-              
-              // Show countdown for the wait time
-              for (let countdown = 30; countdown > 0; countdown--) {
-                dispatch(updateGenerationInfo(
-                  `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
-                ))
-                await new Promise(resolve => setTimeout(resolve, 1000))
-              }
-            }
-          } else if (batchIndex < totalBatches - 1) {
-            // Flux models need longer wait (60 seconds)
+          // Wait times based on model capabilities
+          if (batchIndex < totalBatches - 1) {
+            const waitTime = selectedModel === 'gpt-image-1' ? 60 
+              : selectedModel === 'dalle-3' ? 10 
+              : selectedModel === 'minimax' ? 8
+              : selectedModel === 'leonardo-phoenix' ? 30
+              : 60
+
             dispatch(updateGenerationInfo(
-              `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting 60 seconds before next batch...`
+              `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting ${waitTime} seconds before next batch...`
             ))
             
             // Show countdown for the wait time
-            for (let countdown = 60; countdown > 0; countdown--) {
+            for (let countdown = waitTime; countdown > 0; countdown--) {
               dispatch(updateGenerationInfo(
                 `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
               ))
@@ -756,7 +270,6 @@ export function AIImageGenerator() {
           }
         } catch (error) {
           console.error(`Error in batch ${batchIndex + 1}:`, error)
-          // Continue with other batches even if one fails
           dispatch(updateGenerationInfo(
             `Batch ${batchIndex + 1} failed. Continuing with remaining batches...`
           ))
@@ -780,25 +293,57 @@ export function AIImageGenerator() {
     }
   }
 
-  const downloadImage = (url: string, filename: string) => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  // Image selection helper functions - now using Redux
+  const getImageId = (setId: string, imageIndex: number) => `${setId}:${imageIndex}`
+  
+  const toggleImageSelection = (setId: string, imageIndex: number) => {
+    const imageId = getImageId(setId, imageIndex)
+    const newOrder = selectedImagesOrder.includes(imageId)
+      ? selectedImagesOrder.filter(id => id !== imageId)
+      : [...selectedImagesOrder, imageId]
+    dispatch(setSelectedImagesOrder(newOrder))
   }
 
+  const selectAllImages = () => {
+    const allImageIds: string[] = []
+    imageSets.forEach(set => {
+      set.imageUrls.forEach((_, index) => {
+        allImageIds.push(getImageId(set.id, index))
+      })
+    })
+    dispatch(setSelectedImagesOrder(allImageIds))
+  }
+
+  const unselectAllImages = () => {
+    dispatch(clearSelectedImagesOrder())
+  }
+
+  const moveImageUp = (imageId: string) => {
+    const index = selectedImagesOrder.indexOf(imageId)
+    if (index > 0) {
+      const newOrder = [...selectedImagesOrder]
+      ;[newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
+      dispatch(setSelectedImagesOrder(newOrder))
+    }
+  }
+
+  const moveImageDown = (imageId: string) => {
+    const index = selectedImagesOrder.indexOf(imageId)
+    if (index >= 0 && index < selectedImagesOrder.length - 1) {
+      const newOrder = [...selectedImagesOrder]
+      ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+      dispatch(setSelectedImagesOrder(newOrder))
+    }
+  }
+
+  // Download functions
   const downloadAsZip = async (imageSet: GeneratedImageSet) => {
     try {
       setDownloadingZip(imageSet.id)
       
-      // Create a descriptive name for the ZIP file
       const timestamp = new Date(imageSet.generatedAt).toISOString().slice(0, 16).replace(/:/g, '-')
       const provider = MODEL_INFO[imageSet.provider as keyof typeof MODEL_INFO]?.name || imageSet.provider
       const setName = `${provider}_${imageSet.aspectRatio}_${timestamp}_${imageSet.imageUrls.length}images`
-      
-      console.log(`📦 Starting ZIP download for ${imageSet.imageUrls.length} images`)
       
       const response = await fetch('/api/download-images-zip', {
         method: 'POST',
@@ -818,7 +363,6 @@ export function AIImageGenerator() {
         throw new Error(errorData.error || 'Failed to create ZIP file')
       }
 
-      // Convert response to blob and download
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -828,11 +372,8 @@ export function AIImageGenerator() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      
-      console.log(`✅ ZIP download completed: ${setName}.zip`)
     } catch (error) {
       console.error('Error downloading ZIP:', error)
-      // You could add a toast notification here
     } finally {
       setDownloadingZip(null)
     }
@@ -842,15 +383,10 @@ export function AIImageGenerator() {
     try {
       setDownloadingZip('all')
       
-      // Combine all image URLs from all sets
       const allImageUrls = imageSets.flatMap(set => set.imageUrls)
-      
-      // Create a descriptive name for the combined ZIP file
       const timestamp = new Date().toISOString().slice(0, 16).replace(/:/g, '-')
       const totalImages = allImageUrls.length
       const setName = `AllSets_${timestamp}_${totalImages}images`
-      
-      console.log(`📦 Starting combined ZIP download for ${totalImages} images from ${imageSets.length} sets`)
       
       const response = await fetch('/api/download-images-zip', {
         method: 'POST',
@@ -870,7 +406,6 @@ export function AIImageGenerator() {
         throw new Error(errorData.error || 'Failed to create combined ZIP file')
       }
 
-      // Convert response to blob and download
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -880,11 +415,8 @@ export function AIImageGenerator() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      
-      console.log(`✅ Combined ZIP download completed: ${setName}.zip`)
     } catch (error) {
       console.error('Error downloading combined ZIP:', error)
-      // You could add a toast notification here
     } finally {
       setDownloadingZip(null)
     }
@@ -896,7 +428,6 @@ export function AIImageGenerator() {
     try {
       setDownloadingZip('selected')
       
-      // Get the actual image URLs for selected images
       const selectedImageUrls: string[] = []
       const selectedImageDetails: Array<{ setName: string; imageIndex: number; provider: string }> = []
       
@@ -915,11 +446,8 @@ export function AIImageGenerator() {
         }
       })
       
-      // Create a descriptive name for the selected images ZIP file
       const timestamp = new Date().toISOString().slice(0, 16).replace(/:/g, '-')
       const setName = `Selected_${timestamp}_${selectedImageUrls.length}images`
-      
-      console.log(`📦 Starting ZIP download for ${selectedImageUrls.length} selected images`)
       
       const response = await fetch('/api/download-images-zip', {
         method: 'POST',
@@ -931,7 +459,7 @@ export function AIImageGenerator() {
           setName,
           provider: 'selected',
           aspectRatio: 'mixed',
-          selectedImageDetails // Pass details for better file naming
+          selectedImageDetails
         }),
       })
 
@@ -940,7 +468,6 @@ export function AIImageGenerator() {
         throw new Error(errorData.error || 'Failed to create selected images ZIP file')
       }
 
-      // Convert response to blob and download
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -951,16 +478,67 @@ export function AIImageGenerator() {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
       
-      console.log(`✅ Selected images ZIP download completed: ${setName}.zip`)
-      
-      // Clear selection after successful download
       unselectAllImages()
     } catch (error) {
       console.error('Error downloading selected images ZIP:', error)
-      // You could add a toast notification here
     } finally {
       setDownloadingZip(null)
     }
+  }
+
+  // Individual image regeneration function
+  const regenerateIndividualImage = async (setId: string, imageIndex: number, originalPrompt: string) => {
+    const imageId = getImageId(setId, imageIndex)
+    
+    try {
+      setRegeneratingImages(prev => new Set(prev).add(imageId))
+
+      const response = await fetch('/api/generate-images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: selectedModel,
+          prompt: applyImageStyle(originalPrompt),
+          numberOfImages: 1,
+          minimaxAspectRatio: aspectRatio,
+          userId: 'user-123',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to regenerate image')
+      }
+
+      const data = await response.json()
+      
+      if (data.imageUrls && data.imageUrls.length > 0) {
+        console.log('Would update image:', { setId, imageIndex, newUrl: data.imageUrls[0] })
+        window.location.reload()
+      } else {
+        throw new Error('No image URL returned')
+      }
+
+    } catch (error) {
+      console.error(`Error regenerating image ${imageId}:`, error)
+      alert(`Failed to regenerate image: ${error}`)
+    } finally {
+      setRegeneratingImages(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(imageId)
+        return newSet
+      })
+    }
+  }
+
+  const toggleSceneSelection = (index: number) => {
+    setSelectedScenes(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    )
   }
 
   const handleClearError = () => {
@@ -975,28 +553,7 @@ export function AIImageGenerator() {
     dispatch(removeImageSet(setId))
   }
 
-  const toggleSceneSelection = (index: number) => {
-    setSelectedScenes(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    )
-  }
-
-  const scriptSourceInfo = getScriptSourceInfo()
-  const currentModel = MODEL_INFO[selectedModel]
-  const estimatedBatches = selectedScenes.length > 0 ? Math.ceil(selectedScenes.length / currentModel.batchSize) : 0
-
   // Thumbnail generator functions
-  const handleReferenceImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
-    setReferenceImages(prev => [...prev, ...files])
-  }
-
-  const removeReferenceImage = (index: number) => {
-    setReferenceImages(prev => prev.filter((_, i) => i !== index))
-  }
-
   const generateThumbnail = async () => {
     if (!thumbnailPrompt.trim()) {
       setThumbnailError('Please enter a prompt for thumbnail generation')
@@ -1051,6 +608,7 @@ export function AIImageGenerator() {
     
     const link = document.createElement('a')
     link.href = thumbnailResult
+    link.target = '_blank'
     link.download = `thumbnail_${Date.now()}.png`
     document.body.appendChild(link)
     link.click()
@@ -1062,6 +620,24 @@ export function AIImageGenerator() {
     setReferenceImages([])
     setThumbnailResult(null)
     setThumbnailError(null)
+  }
+
+  const scriptSourceInfo = getScriptSourceInfo()
+
+  // Video selection confirmation handlers
+  const handleConfirmVideoSelection = () => {
+    // Navigate to video generator tab or trigger navigation
+    console.log('Confirmed video selection:', selectedImagesOrder)
+    // This could trigger navigation to video generator
+  }
+
+  const handlePreviewVideoSelection = () => {
+    // Open preview modal or trigger preview
+    console.log('Preview video selection:', selectedImagesOrder)
+  }
+
+  const handleClearVideoSelection = () => {
+    dispatch(clearSelectedImagesOrder())
   }
 
   return (
@@ -1084,983 +660,107 @@ export function AIImageGenerator() {
         {/* Scene Generation Tab */}
         <TabsContent value="scene-generation" className="space-y-6">
           {/* Model Selection */}
-          <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Cpu className="h-5 w-5 text-purple-600" />
-                AI Model Selection
-              </CardTitle>
-              <CardDescription>
-                Choose your preferred AI model for image generation. Each model processes images in optimized batches.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                {Object.entries(MODEL_INFO).map(([key, info]) => (
-                  <div
-                    key={key}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      selectedModel === key
-                        ? 'border-purple-500 bg-purple-50'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                    onClick={() => handleModelChange(key as ImageProvider)}
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900">{info.name}</h3>
-                        {selectedModel === key && (
-                          <Badge className="bg-purple-600">Selected</Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600">{info.description}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {info.features.map((feature, idx) => (
-                          <Badge key={idx} variant="outline" className="text-xs">
-                            {feature}
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Batch size: {info.batchSize}
-                        </span>
-                        {info.rateLimit && (
-                          <span>{info.rateLimit}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Batch Processing Info */}
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-blue-600 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-blue-800">Batch Processing</p>
-                    <p className="text-sm text-blue-700">
-                      {currentModel.name} processes images in batches of {currentModel.batchSize}. 
-                      {selectedScenes.length > 0 && (
-                        <span className="font-medium">
-                          {' '}Your {selectedScenes.length} selected scenes will be processed in {estimatedBatches} batch{estimatedBatches !== 1 ? 'es' : ''}.
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <ModelSelection
+            selectedModel={selectedModel}
+            onModelChange={handleModelChange}
+            selectedScenes={selectedScenes}
+          />
 
           {/* Scene Extraction */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-purple-600" />
-                Scene Extraction & Image Generation
-              </CardTitle>
-              <CardDescription>
-                Extract scenes from scripts and generate images for each scene
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Script Source Information */}
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="h-4 w-4 text-gray-600" />
-                  <span className="font-medium text-gray-800">Script Source</span>
-                </div>
-                {scriptSourceInfo.source !== 'none' ? (
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-700">
-                      <span className="font-medium">{scriptSourceInfo.type}</span> 
-                      <span className="text-muted-foreground"> ({scriptSourceInfo.count.toLocaleString()} characters)</span>
-                    </p>
-                    {scriptSourceInfo.source === 'sections' && (
-                      <p className="text-xs text-blue-600">Using image generation prompts from script sections</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-amber-700">No script detected. Please paste a custom script below.</p>
-                )}
-              </div>
+          <SceneExtraction
+            scriptInput={scriptInput}
+            onScriptInputChange={setScriptInput}
+            numberOfScenesToExtract={numberOfScenesToExtract}
+            onNumberOfScenesChange={(value) => dispatch(setNumberOfScenesToExtract(value))}
+            isExtractingScenes={isExtractingScenes}
+            sceneExtractionError={sceneExtractionError}
+            extractedScenes={extractedScenes}
+            selectedScenes={selectedScenes}
+            onToggleSceneSelection={toggleSceneSelection}
+            onExtractScenes={handleExtractScenes}
+            onClearError={handleClearError}
+            scriptSourceInfo={scriptSourceInfo}
+          />
 
-              {/* Custom Script Input */}
-              <div className="space-y-2">
-                <Label htmlFor="script-input">Custom Script (Optional)</Label>
-                <Textarea
-                  id="script-input"
-                  placeholder="Paste your script here to override the detected script sources..."
-                  value={scriptInput}
-                  onChange={(e) => setScriptInput(e.target.value)}
-                  disabled={isExtractingScenes}
-                  className="min-h-[120px]"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This will take priority over the detected script sources above.
-                </p>
-              </div>
-
-              {/* Settings */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Number of Scenes Slider */}
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <Label>Number of Scenes to Extract</Label>
-                    <Badge variant="outline">{numberOfScenesToExtract}</Badge>
-                  </div>
-                  <Slider
-                    value={[numberOfScenesToExtract]}
-                    onValueChange={(value) => dispatch(setNumberOfScenesToExtract(value[0]))}
-                    min={1}
-                    max={100}
-                    step={1}
-                    disabled={isExtractingScenes}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>1 scene</span>
-                    <span>100 scenes</span>
-                  </div>
-                </div>
-
-                {/* Image Style Selection */}
-                <div className="space-y-3">
-                  <Label htmlFor="image-style">Image Style</Label>
-                  <Select
-                    value={selectedImageStyle}
-                    onValueChange={setSelectedImageStyle}
-                    disabled={isGenerating || isExtractingScenes}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose an image style..." />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                      {IMAGE_STYLES.map((style) => (
-                        <SelectItem key={style.value} value={style.value}>
-                          {style.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Style will be applied to all generated images
-                  </p>
-                </div>
-
-                {/* Aspect Ratio */}
-                <div className="space-y-3">
-                  <Label>Aspect Ratio</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { value: '16:9', label: 'Landscape', desc: '16:9' },
-                      { value: '1:1', label: 'Square', desc: '1:1' },
-                      { value: '9:16', label: 'Portrait', desc: '9:16' }
-                    ].map((ratio) => (
-                      <Button
-                        key={ratio.value}
-                        variant={aspectRatio === ratio.value ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => dispatch(setAspectRatio(ratio.value as '16:9' | '1:1' | '9:16'))}
-                        disabled={isGenerating}
-                        className="flex flex-col h-auto py-3"
-                      >
-                        <span className="font-medium">{ratio.label}</span>
-                        <span className="text-xs opacity-70">{ratio.desc}</span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Prompt Preview */}
-              {selectedImageStyle && selectedImageStyle !== 'none' && (
-                <div className="space-y-3">
-                  <Label>Style Preview</Label>
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm font-medium text-blue-800 mb-2">
-                      ✨ Your prompts will be prefixed with the selected style:
-                    </p>
-                    <div className="text-xs text-blue-700 space-y-2">
-                      <div className="p-2 bg-white border border-blue-100 rounded">
-                        <span className="font-semibold text-blue-900">Style Prefix:</span>{' '}
-                        <span className="font-mono">{IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.prefix}</span>
-                      </div>
-                      <div className="p-2 bg-white border border-blue-100 rounded">
-                        <span className="font-semibold text-blue-900">Example Final Prompt:</span>{' '}
-                        <span className="font-mono text-gray-800">
-                          {selectedScenes.length > 0 && extractedScenes[selectedScenes[0]] 
-                            ? applyImageStyle(extractedScenes[selectedScenes[0]].imagePrompt)
-                            : applyImageStyle("A mystical figure meditating in an ancient temple surrounded by glowing symbols")
-                          }
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Extract Scenes Button */}
-              <Button 
-                className="w-full" 
-                onClick={handleExtractScenes}
-                disabled={isExtractingScenes || scriptSourceInfo.source === 'none'}
-                size="lg"
-              >
-                {isExtractingScenes ? (
-                  <>
-                    <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                    Extracting {numberOfScenesToExtract} Scenes...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-5 w-5 mr-2" />
-                    Extract {numberOfScenesToExtract} Scenes
-                  </>
-                )}
-              </Button>
-
-              {/* Scene Extraction Error */}
-              {sceneExtractionError && (
-                <Card className="border-red-200">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-red-800">Scene Extraction Error</p>
-                        <p className="text-sm text-red-600">{sceneExtractionError}</p>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={handleClearError}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Extracted Scenes */}
-              {extractedScenes.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <Label>Extracted Scenes ({extractedScenes.length})</Label>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setSelectedScenes([])}
-                        disabled={selectedScenes.length === 0}
-                      >
-                        Clear
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setSelectedScenes(Array.from({length: extractedScenes.length}, (_, i) => i))}
-                        disabled={selectedScenes.length === extractedScenes.length}
-                      >
-                        Select All
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <ScrollArea className="h-96 border rounded-md p-4">
-                    <div className="space-y-4">
-                      {extractedScenes.map((scene: ExtractedScene, index: number) => (
-                        <div key={index} className="border rounded-md p-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Checkbox 
-                              id={`scene-${index}`} 
-                              checked={selectedScenes.includes(index)}
-                              onCheckedChange={() => toggleSceneSelection(index)}
-                            />
-                            <Label 
-                              htmlFor={`scene-${index}`} 
-                              className="font-medium cursor-pointer"
-                            >
-                              {scene.summary}
-                            </Label>
-                          </div>
-                          
-                          <div className="text-sm text-muted-foreground">
-                            <div className="italic pl-4 border-l-2 border-muted-foreground/30">{scene.imagePrompt}</div>
-                          </div>
-                          
-                          <details className="text-sm">
-                            <summary className="cursor-pointer font-medium">View Original Text</summary>
-                            <div className="mt-2 p-2 bg-muted/30 rounded text-muted-foreground max-h-32 overflow-y-auto">
-                              {scene.originalText}
-                            </div>
-                          </details>
-                          
-                          {scene.error && (
-                            <div className="text-sm text-red-500">
-                              Error: {scene.error}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-
-                  {/* Batch Progress */}
-                  {isGenerating && batchProgress.total > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Progress: {batchProgress.current}/{batchProgress.total} images</span>
-                        <span>Batch: {batchProgress.currentBatch}/{batchProgress.totalBatches}</span>
-                      </div>
-                      <Progress value={(batchProgress.current / batchProgress.total) * 100} className="w-full" />
-                    </div>
-                  )}
-                  
-                  <Button 
-                    className="w-full" 
-                    onClick={handleGenerateFromScenes}
-                    disabled={isGenerating || selectedScenes.length === 0}
-                    size="lg"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                        {generationInfo || 'Generating...'}
-                      </>
-                    ) : (
-                      <>
-                        <ImageIcon className="h-5 w-5 mr-2" />
-                        Generate Images for {selectedScenes.length} Selected Scene{selectedScenes.length !== 1 ? 's' : ''}
-                        {selectedScenes.length > 0 && (
-                          <Badge className="ml-2 bg-blue-600">
-                            {estimatedBatches} batch{estimatedBatches !== 1 ? 'es' : ''}
-                          </Badge>
-                        )}
-                      </>
-                    )}
-                  </Button>
-
-                  {/* Quick Settings Summary */}
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{currentModel.name}</Badge>
-                    <Badge variant="secondary">{aspectRatio} Aspect Ratio</Badge>
-                    {selectedImageStyle && selectedImageStyle !== 'none' && (
-                      <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                        {IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.label || 'Custom Style'}
-                      </Badge>
-                    )}
-                    <Badge variant="secondary">{selectedScenes.length} Selected Scene{selectedScenes.length !== 1 ? 's' : ''}</Badge>
-                    <Badge variant="outline" className="text-blue-700 border-blue-300">
-                      Batch size: {currentModel.batchSize}
-                    </Badge>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Error Display */}
-          {error && (
-            <Card className="border-red-200">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-red-800">Generation Error</p>
-                    <p className="text-sm text-red-600">{error}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={handleClearError}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Image Style Selector */}
+          {extractedScenes.length > 0 && (
+            <ImageStyleSelector
+              selectedImageStyle={selectedImageStyle}
+              onImageStyleChange={setSelectedImageStyle}
+              aspectRatio={aspectRatio}
+              onAspectRatioChange={(ratio) => dispatch(setAspectRatio(ratio))}
+              selectedScenes={selectedScenes}
+              extractedScenes={extractedScenes}
+              isGenerating={isGenerating}
+              isExtractingScenes={isExtractingScenes}
+            />
           )}
 
-          {/* Generated Images */}
-          {imageSets.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Generated Images ({imageSets.length} sets)</h2>
-                <div className="flex items-center gap-2">
-                  {/* Selection Controls */}
-                  <Button 
-                    variant={showImageSelection ? "default" : "outline"}
-                    size="sm" 
-                    onClick={() => setShowImageSelection(!showImageSelection)}
-                  >
-                    {showImageSelection ? (
-                      <>
-                        <CheckSquare className="h-4 w-4 mr-2" />
-                        Exit Selection ({selectedImagesOrder.length})
-                      </>
-                    ) : (
-                      <>
-                        <Square className="h-4 w-4 mr-2" />
-                        Select for Video
-                      </>
-                    )}
-                  </Button>
-                  
-                  {showImageSelection && (
-                    <>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={selectAllImages}
-                        disabled={selectedImagesOrder.length === imageSets.reduce((total, set) => total + set.imageUrls.length, 0)}
-                      >
-                        Select All ({imageSets.reduce((total, set) => total + set.imageUrls.length, 0)})
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={unselectAllImages}
-                        disabled={selectedImagesOrder.length === 0}
-                      >
-                        Unselect All
-                      </Button>
-                      <Button 
-                        variant="default" 
-                        size="sm" 
-                        onClick={downloadSelectedAsZip}
-                        disabled={selectedImagesOrder.length === 0 || downloadingZip === 'selected'}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        {downloadingZip === 'selected' ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Creating ZIP...
-                          </>
-                        ) : (
-                          <>
-                            <Package className="h-4 w-4 mr-2" />
-                            Download Selected ({selectedImagesOrder.length})
-                          </>
-                        )}
-                      </Button>
-                    </>
-                  )}
-                  
-                  {imageSets.length > 1 && !showImageSelection && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={downloadAllAsZip}
-                      disabled={downloadingZip === 'all'}
-                    >
-                      {downloadingZip === 'all' ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Creating ZIP...
-                        </>
-                      ) : (
-                        <>
-                          <Package className="h-4 w-4 mr-2" />
-                          Download All ({imageSets.reduce((total, set) => total + set.imageUrls.length, 0)})
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={handleClearAll}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear All
-                  </Button>
-                </div>
-              </div>
+          {/* Image Generation Controls */}
+          <ImageGenerationControls
+            selectedScenes={selectedScenes}
+            extractedScenes={extractedScenes}
+            isGenerating={isGenerating}
+            generationInfo={generationInfo}
+            selectedModel={selectedModel}
+            aspectRatio={aspectRatio}
+            selectedImageStyle={selectedImageStyle}
+            onGenerateFromScenes={handleGenerateFromScenes}
+          />
 
-              {/* Selection Order Display */}
-              {showImageSelection && selectedImagesOrder.length > 0 && (
-                <Card className="bg-blue-50 border-blue-200">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Video Generation Order ({selectedImagesOrder.length} images)</CardTitle>
-                    <CardDescription>
-                      Images will appear in this order in your video. Click arrows to reorder.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedImagesOrder.map((imageId, orderIndex) => {
-                        const [setId, imageIndexStr] = imageId.split(':')
-                        const imageIndex = parseInt(imageIndexStr)
-                        const imageSet = imageSets.find(set => set.id === setId)
-                        const imageUrl = imageSet?.imageUrls[imageIndex]
-                        
-                        if (!imageUrl) return null
-                        
-                        return (
-                          <div key={imageId} className="flex items-center gap-1 bg-white rounded-lg border p-2">
-                            <div className="flex flex-col gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-4 w-4 p-0"
-                                onClick={() => moveImageUp(imageId)}
-                                disabled={orderIndex === 0}
-                              >
-                                <ArrowUp className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-4 w-4 p-0"
-                                onClick={() => moveImageDown(imageId)}
-                                disabled={orderIndex === selectedImagesOrder.length - 1}
-                              >
-                                <ArrowDown className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <div className="w-12 h-12 rounded overflow-hidden">
-                              <img src={imageUrl} alt={`Order ${orderIndex + 1}`} className="w-full h-full object-cover" />
-                            </div>
-                            <div className="text-sm font-medium">#{orderIndex + 1}</div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
-                              onClick={() => toggleImageSelection(setId, imageIndex)}
-                            >
-                              ×
-                            </Button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+          {/* Generated Images Display */}
+          <GeneratedImageDisplay
+            imageSets={imageSets}
+            isGenerating={isGenerating}
+            error={error}
+            generationInfo={generationInfo}
+            batchProgress={batchProgress}
+            selectedImagesOrder={selectedImagesOrder}
+            showImageSelection={showImageSelection}
+            downloadingZip={downloadingZip}
+            regeneratingImages={regeneratingImages}
+            selectedModel={selectedModel}
+            aspectRatio={aspectRatio}
+            onToggleImageSelection={toggleImageSelection}
+            onSelectAllImages={selectAllImages}
+            onUnselectAllImages={unselectAllImages}
+            onMoveImageUp={moveImageUp}
+            onMoveImageDown={moveImageDown}
+            onToggleSelectionMode={() => setShowImageSelection(!showImageSelection)}
+            onDownloadAsZip={downloadAsZip}
+            onDownloadAllAsZip={downloadAllAsZip}
+            onDownloadSelectedAsZip={downloadSelectedAsZip}
+            onClearAll={handleClearAll}
+            onRemoveSet={handleRemoveSet}
+            onRegenerateImage={regenerateIndividualImage}
+            onClearError={handleClearError}
+            onUpdateImageOrder={(newOrder) => dispatch(setSelectedImagesOrder(newOrder))}
+          />
 
-              {/* Image Sets Display - existing content */}
-              {imageSets.map((imageSet: GeneratedImageSet, setIndex: number) => (
-                <Card key={imageSet.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">"{imageSet.originalPrompt}"</CardTitle>
-                        <CardDescription>
-                          Generated {new Date(imageSet.generatedAt).toLocaleString()} • 
-                          {imageSet.imageUrls.length} image{imageSet.imageUrls.length > 1 ? 's' : ''} • 
-                          {MODEL_INFO[imageSet.provider as keyof typeof MODEL_INFO]?.name || imageSet.provider} • 
-                          {imageSet.aspectRatio}
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!showImageSelection && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => downloadAsZip(imageSet)}
-                            disabled={downloadingZip === imageSet.id}
-                          >
-                            {downloadingZip === imageSet.id ? (
-                              <>
-                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                Creating ZIP...
-                              </>
-                            ) : (
-                              <>
-                                <Package className="h-4 w-4 mr-2" />
-                                Download ZIP ({imageSet.imageUrls.length})
-                              </>
-                            )}
-                          </Button>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleRemoveSet(imageSet.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {imageSet.imageUrls.map((url: string, imageIndex: number) => {
-                        const imageId = getImageId(imageSet.id, imageIndex)
-                        const isSelected = selectedImagesOrder.includes(imageId)
-                        const orderNumber = getImageOrderNumber(imageSet.id, imageIndex)
-                        const isRegenerating = regeneratingImages.has(imageId)
-                        
-                        return (
-                          <div key={imageIndex} className="relative group">
-                            {/* Selection checkbox */}
-                            {showImageSelection && (
-                              <div className="absolute top-2 left-2 z-10">
-                                <div className="flex items-center gap-1">
-                                  <Checkbox 
-                                    id={`image-${imageSet.id}-${imageIndex}`}
-                                    checked={isSelected}
-                                    onCheckedChange={() => toggleImageSelection(imageSet.id, imageIndex)}
-                                    className="bg-white/90 border-2"
-                                  />
-                                  {orderNumber && (
-                                    <div className="bg-blue-600 text-white text-xs font-bold px-1.5 py-0.5 rounded">
-                                      #{orderNumber}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div 
-                              className={`aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 transition-colors ${
-                                showImageSelection && isSelected
-                                  ? 'border-blue-500 bg-blue-50' 
-                                  : showImageSelection 
-                                  ? 'border-gray-300 hover:border-blue-300' 
-                                  : 'border-transparent hover:border-blue-300'
-                              }`}
-                              onClick={showImageSelection ? () => toggleImageSelection(imageSet.id, imageIndex) : undefined}
-                              style={{ cursor: showImageSelection ? 'pointer' : 'default' }}
-                            >
-                              <img 
-                                src={url} 
-                                alt={`Image ${imageIndex + 1} of ${imageSet.imageUrls.length}: ${imageSet.originalPrompt}`}
-                                className="w-full h-full object-cover"
-                              />
-                              
-                              {/* Regenerating overlay */}
-                              {isRegenerating && (
-                                <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                                  <div className="text-white text-center">
-                                    <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin" />
-                                    <div className="text-sm">Regenerating...</div>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Action buttons overlay */}
-                              {!showImageSelection && !isRegenerating && (
-                                <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
-                                  <Button 
-                                    size="sm" 
-                                    variant="secondary"
-                                    onClick={() => downloadImage(url, `${setIndex + 1}_${imageIndex + 1}_${imageSet.provider}_${imageSet.aspectRatio}.png`)}
-                                  >
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Download
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="secondary"
-                                    onClick={() => regenerateIndividualImage(imageSet.id, imageIndex, imageSet.originalPrompt)}
-                                    disabled={isRegenerating}
-                                  >
-                                    <RefreshCw className="h-4 w-4 mr-2" />
-                                    Regenerate
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Image number badge */}
-                            <div className={`absolute top-2 ${showImageSelection ? 'right-2' : 'left-2'} bg-black/80 text-white text-sm font-bold px-2 py-1 rounded-md`}>
-                              #{(imageIndex + 1).toString().padStart(2, '0')}
-                            </div>
-                            
-                            {/* Image info badge */}
-                            <div className={`absolute ${showImageSelection ? 'bottom-2 right-2' : 'top-2 right-2'} bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-md`}>
-                              {imageIndex + 1}/{imageSet.imageUrls.length}
-                            </div>
-                            
-                            {/* Selection indicator overlay */}
-                            {showImageSelection && isSelected && (
-                              <div className="absolute inset-0 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                                <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium">
-                                  #{orderNumber}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                    
-                    {/* Image Set Summary */}
-                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-4">
-                          <span className="font-medium">Set #{setIndex + 1}</span>
-                          <span className="text-muted-foreground">{imageSet.imageUrls.length} images</span>
-                          <span className="text-muted-foreground">{imageSet.aspectRatio} aspect ratio</span>
-                          {showImageSelection && (
-                            <span className="text-blue-600 font-medium">
-                              {imageSet.imageUrls.filter((_, idx) => selectedImagesOrder.includes(getImageId(imageSet.id, idx))).length} selected
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{MODEL_INFO[imageSet.provider as keyof typeof MODEL_INFO]?.name || imageSet.provider}</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(imageSet.generatedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* Empty State */}
-          {imageSets.length === 0 && !isGenerating && (
-            <Card className="border-dashed">
-              <CardContent className="py-12">
-                <div className="text-center space-y-4">
-                  <ImageIcon className="h-12 w-12 mx-auto text-gray-400" />
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium text-gray-900">No images generated yet</h3>
-                    <p className="text-gray-500">
-                      Choose your AI model, extract scenes from your script, and generate images for selected scenes
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Loading State */}
-          {isGenerating && imageSets.length === 0 && (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center space-y-4">
-                  <div className="relative">
-                    <div className="w-16 h-16 mx-auto border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                    <ImageIcon className="h-8 w-8 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-blue-600" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {generationInfo || 'Generating images...'}
-                    </h3>
-                    <p className="text-gray-500">
-                      {selectedModel === 'minimax' 
-                        ? 'MiniMax processes images in batches of 5 with parallel execution. Please wait while all batches complete.'
-                        : selectedModel === 'dalle-3'
-                        ? 'DALL-E 3 processes images in batches of 10 with parallel execution. Please wait while all batches complete.'
-                        : selectedModel === 'gpt-image-1'
-                        ? 'GPT Image 1 processes images in batches of 5 with enhanced instruction following. Please wait while all batches complete.'
-                        : selectedModel === 'leonardo-phoenix'
-                        ? 'Leonardo Phoenix processes images in batches of 10 with enhanced quality. Please wait while all batches complete.'
-                        : selectedModel === 'ideogram'
-                        ? 'Ideogram V2 processes images in batches of 10 with exceptional typography via fal.ai. Please wait while all batches complete.'
-                        : `${currentModel.name} processes images in batches of 10. Please wait while all batches complete.`
-                      }
-                    </p>
-                    {batchProgress.total > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        Processing batch {batchProgress.currentBatch} of {batchProgress.totalBatches}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Video Selection Confirmation */}
+          <VideoSelectionConfirmation
+            selectedImagesOrder={selectedImagesOrder}
+            imageSets={imageSets}
+            onConfirmSelection={handleConfirmVideoSelection}
+            onClearSelection={handleClearVideoSelection}
+            onPreviewSelection={handlePreviewVideoSelection}
+          />
         </TabsContent>
 
         {/* Thumbnail Generator Tab */}
         <TabsContent value="thumbnail-generator" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5 text-green-600" />
-                Thumbnail Generator
-              </CardTitle>
-              <CardDescription>
-                Generate custom thumbnails using OpenAI's image editing with reference images and custom prompts
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Reference Images Upload */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-medium">Reference Images</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearThumbnailGenerator}
-                    disabled={isGeneratingThumbnail}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear All
-                  </Button>
-                </div>
-                
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-                  <div className="text-center">
-                    <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <div className="space-y-2">
-                      <Label htmlFor="reference-upload" className="cursor-pointer">
-                        <div className="text-lg font-medium text-gray-900">Upload Reference Images</div>
-                        <div className="text-sm text-gray-500">PNG, JPG up to 10MB each</div>
-                      </Label>
-                      <Input
-                        id="reference-upload"
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handleReferenceImageUpload}
-                        className="hidden"
-                        disabled={isGeneratingThumbnail}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={() => document.getElementById('reference-upload')?.click()}
-                        disabled={isGeneratingThumbnail}
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Choose Files
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reference Images Preview */}
-                {referenceImages.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">
-                      Uploaded Images ({referenceImages.length})
-                    </Label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {referenceImages.map((file, index) => (
-                        <div key={index} className="relative group">
-                          <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden border">
-                            <img
-                              src={URL.createObjectURL(file)}
-                              alt={`Reference ${index + 1}`}
-                              className="w-full h-full object-cover"
-                              onLoad={(e) => {
-                                // Clean up the object URL after the image loads
-                                const img = e.target as HTMLImageElement
-                                if (img.src.startsWith('blob:')) {
-                                  setTimeout(() => URL.revokeObjectURL(img.src), 100)
-                                }
-                              }}
-                            />
-                          </div>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => removeReferenceImage(index)}
-                            disabled={isGeneratingThumbnail}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                          <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                            {file.name.length > 15 ? `${file.name.substring(0, 12)}...` : file.name}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Custom Prompt */}
-              <div className="space-y-2">
-                <Label htmlFor="thumbnail-prompt" className="text-base font-medium">
-                  Custom Prompt
-                </Label>
-                <Textarea
-                  id="thumbnail-prompt"
-                  placeholder="Describe how you want to combine the reference images. For example: 'Generate a photorealistic image of a gift basket on a white background labeled 'Relax & Unwind' with a ribbon and handwriting-like font, containing all the items in the reference pictures.'"
-                  value={thumbnailPrompt}
-                  onChange={(e) => setThumbnailPrompt(e.target.value)}
-                  className="min-h-[120px]"
-                  disabled={isGeneratingThumbnail}
-                />
-                <p className="text-xs text-gray-500">
-                  Be specific about the composition, style, background, and how the reference images should be combined.
-                </p>
-              </div>
-
-              {/* Generate Button */}
-              <Button
-                onClick={generateThumbnail}
-                disabled={isGeneratingThumbnail || !thumbnailPrompt.trim() || referenceImages.length === 0}
-                className="w-full bg-green-600 hover:bg-green-700"
-                size="lg"
-              >
-                {isGeneratingThumbnail ? (
-                  <>
-                    <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                    Generating Thumbnail...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-5 w-5 mr-2" />
-                    Generate Thumbnail
-                  </>
-                )}
-              </Button>
-
-              {/* Error Display */}
-              {thumbnailError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-red-600" />
-                    <span className="font-medium text-red-800">Error</span>
-                  </div>
-                  <p className="text-red-700 mt-1 text-sm">{thumbnailError}</p>
-                </div>
-              )}
-
-              {/* Result Display */}
-              {thumbnailResult && (
-                <Card className="bg-green-50 border-green-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                        Generated Thumbnail
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={downloadThumbnail}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="aspect-video bg-white rounded-lg overflow-hidden border">
-                        <img
-                          src={thumbnailResult}
-                          alt="Generated thumbnail"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        <p><strong>Prompt used:</strong> {thumbnailPrompt}</p>
-                        <p><strong>Reference images:</strong> {referenceImages.length} files</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Info Box */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-blue-800">How it works:</p>
-                    <ul className="text-sm text-blue-700 space-y-1">
-                      <li>• Upload 1-4 reference images that you want to combine</li>
-                      <li>• Write a detailed prompt describing the final composition</li>
-                      <li>• OpenAI's GPT Image 1 model will create a new image based on your references</li>
-                      <li>• Perfect for creating thumbnails, product compositions, or artistic combinations</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <ThumbnailGenerator
+            thumbnailPrompt={thumbnailPrompt}
+            onThumbnailPromptChange={setThumbnailPrompt}
+            referenceImages={referenceImages}
+            onReferenceImagesChange={setReferenceImages}
+            isGeneratingThumbnail={isGeneratingThumbnail}
+            thumbnailResult={thumbnailResult}
+            thumbnailError={thumbnailError}
+            onGenerateThumbnail={generateThumbnail}
+            onDownloadThumbnail={downloadThumbnail}
+            onClearThumbnailGenerator={clearThumbnailGenerator}
+          />
         </TabsContent>
       </Tabs>
     </div>

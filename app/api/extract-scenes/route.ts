@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         
         // Generate image prompt for this chunk
         const promptResponse = await openai.chat.completions.create({
-          model: "gpt-4-turbo-preview",
+          model: "gpt-4o-mini",
           messages: [
             {
               role: "system",

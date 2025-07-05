@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   setSelectedVoice, 
-  setSelectedModel, 
+  setSelectedModel,
   setGenerateSubtitles,
   startAudioGeneration,
   startBatch,
@@ -193,7 +193,7 @@ export function AudioGenerator() {
     setMessageType(type)
     // Auto-clear success and info messages after 5 seconds
     if (type !== 'error') {
-      setTimeout(() => setMessage(""), 5000)
+    setTimeout(() => setMessage(""), 5000)
     }
   }
 
@@ -250,7 +250,7 @@ export function AudioGenerator() {
     if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
       console.log(`🔄 Provider changed to ${selectedProvider}, fetching voices...`)
       fetchApiVoices(selectedProvider)
-    } else {
+          } else {
       // Clear API voices for other providers
       setApiVoices([])
     }
@@ -471,8 +471,8 @@ export function AudioGenerator() {
     
     dispatch(startAudioGeneration({
       id: `audio_${Date.now()}`,
-      voice: selectedVoice,
-      model: selectedModel,
+        voice: selectedVoice,
+        model: selectedModel,
       generateSubtitles: false,
       textToProcess: textToGenerate,
       textChunks: chunks,
@@ -513,13 +513,13 @@ export function AudioGenerator() {
           };
 
           const response = await fetch('/api/generate-audio-comprehensive', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
-          });
+            });
 
-          if (!response.ok) {
-            const errorData = await response.json();
+              if (!response.ok) {
+              const errorData = await response.json();
             throw new Error(`Chunk ${chunkIndex + 1} failed: ${errorData.error}`);
           }
           
@@ -565,8 +565,8 @@ export function AudioGenerator() {
         };
 
         const finalizeResponse = await fetch('/api/finalize-audio', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(finalizeBody)
         });
         
@@ -598,10 +598,10 @@ export function AudioGenerator() {
         dispatch(saveGenerationToHistory());
         showMessage(`Successfully generated audio using ${currentProvider?.name}! Both original and compressed versions are available - switch between them in the player above.`, 'success');
         setGenerationStatusMessage("");
-        
-      } catch (error: any) {
+
+    } catch (error: any) {
         console.error('Finalization error:', error);
-        dispatch(setAudioGenerationError(error.message));
+      dispatch(setAudioGenerationError(error.message));
         showMessage(`Audio finalization failed: ${error.message}`, 'error');
       }
     };
@@ -650,6 +650,7 @@ export function AudioGenerator() {
     const link = document.createElement('a')
     link.href = audioUrl
     link.download = filename
+    link.target = '_blank'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -660,6 +661,7 @@ export function AudioGenerator() {
     const link = document.createElement('a')
     link.href = subtitlesUrl
     link.download = filename
+    link.target = '_blank'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -915,7 +917,7 @@ export function AudioGenerator() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+                </div>
 
             {/* Provider-specific settings */}
             {currentProvider && (
@@ -928,7 +930,7 @@ export function AudioGenerator() {
                       <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Loading languages...
-                      </div>
+                </div>
                     ) : (
                       <Select value={googleTtsLanguage} onValueChange={setGoogleTtsLanguage}>
                         <SelectTrigger>
@@ -943,21 +945,21 @@ export function AudioGenerator() {
                         </SelectContent>
                       </Select>
                     )}
-                  </div>
+                </div>
                 )}
 
                 {/* Voice Selection */}
-                <div className="space-y-2">
-                  <Label>Voice</Label>
+              <div className="space-y-2">
+                <Label>Voice</Label>
                   {isLoadingApiVoices ? (
                     <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading voices...
-                    </div>
+              </div>
                   ) : selectedProvider === 'google-tts' && !googleTtsLanguage ? (
                     <div className="p-2 text-sm text-gray-500 bg-gray-50 rounded border">
                       Please select a language first
-                    </div>
+                </div>
                   ) : (
                     <Select value={providerVoice} onValueChange={setProviderVoice}>
                       <SelectTrigger>
@@ -983,10 +985,10 @@ export function AudioGenerator() {
                               <div key="separator" className="relative">
                                 <div className="absolute inset-0 flex items-center">
                                   <div className="w-full border-t border-gray-300" />
-                                </div>
+              </div>
                                 <div className="relative flex justify-center text-xs uppercase">
                                   <span className="bg-white px-2 text-gray-500">Custom Voices</span>
-                                </div>
+            </div>
                               </div>
                             )
                           }
@@ -1009,7 +1011,7 @@ export function AudioGenerator() {
 
                 {/* Model Selection */}
                 {currentProvider.models && (
-                  <div className="space-y-2">
+              <div className="space-y-2">
                     <Label>Model</Label>
                     <Select value={providerModel} onValueChange={setProviderModel}>
                       <SelectTrigger>
@@ -1023,8 +1025,8 @@ export function AudioGenerator() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                )}
+              </div>
+            )}
 
                 {/* Language Selection for ElevenLabs only */}
                 {selectedProvider === 'elevenlabs' && currentProvider.languages && (
@@ -1136,7 +1138,7 @@ export function AudioGenerator() {
       {/* Current Generation */}
       {currentGeneration && (
         <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
+        <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PlayCircle className="h-5 w-5" />
               Current Generation
@@ -1144,8 +1146,8 @@ export function AudioGenerator() {
             <CardDescription>
               Generated on {new Date(currentGeneration.generatedAt).toLocaleString()}
             </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        </CardHeader>
+        <CardContent className="space-y-4">
             {/* Generation Details */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
@@ -1171,7 +1173,7 @@ export function AudioGenerator() {
                   {currentGeneration.status}
                 </Badge>
               </div>
-            </div>
+          </div>
 
             {/* Audio Player */}
             {currentGeneration.audioUrl && (
@@ -1215,8 +1217,8 @@ export function AudioGenerator() {
                           <span className="text-xs text-blue-600 ml-1 font-medium">(60-80% smaller)</span>
                         </span>
                       </label>
-                    </div>
-                  </div>
+              </div>
+            </div>
                   
                   {/* Quality Indicators */}
                   <div className="grid grid-cols-2 gap-3 text-xs">
@@ -1226,16 +1228,16 @@ export function AudioGenerator() {
                         • Full quality audio<br/>
                         • Perfect for video generation<br/>
                         • Larger file size
-                      </div>
-                    </div>
+                </div>
+                </div>
                     <div className={`p-2 rounded border ${selectedAudioType === 'compressed' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="font-medium text-gray-700">Compressed</div>
                       <div className="text-gray-500 mt-1">
                         • 16kHz, 32kbps mono<br/>
                         • Great for subtitles/transcription<br/>
                         • 60-80% smaller file size
-                      </div>
-                    </div>
+              </div>
+          </div>
                   </div>
                 </div>
 
@@ -1259,7 +1261,7 @@ export function AudioGenerator() {
                   {!currentGeneration.compressedAudioUrl && selectedAudioType === 'compressed' && (
                     <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
                       ⚠️ Compressed audio not available for this generation
-                    </div>
+          </div>
                   )}
                 </div>
                 
@@ -1289,7 +1291,7 @@ export function AudioGenerator() {
                         >
                           <Download className="h-3 w-3 mr-1" />
                           Original
-                        </Button>
+                  </Button>
                       )}
                       {selectedAudioType !== 'compressed' && (
                         <Button
@@ -1300,11 +1302,11 @@ export function AudioGenerator() {
                         >
                           <Download className="h-3 w-3 mr-1" />
                           Compressed
-                        </Button>
+                  </Button>
                       )}
-                    </div>
-                  )}
                 </div>
+                  )}
+              </div>
               </div>
             )}
 
@@ -1314,17 +1316,17 @@ export function AudioGenerator() {
                 <div className="flex items-center gap-2 mb-3">
                   <Subtitles className="h-5 w-5 text-blue-600" />
                   <span className="font-medium text-blue-800">Subtitles Generated</span>
-                </div>
+                      </div>
                 <div className="flex gap-2">
-                  <Button
+                      <Button 
                     onClick={() => handleDownloadSubtitles(currentGeneration.subtitlesUrl!, `subtitles-${currentGeneration.id}.srt`)}
-                    size="sm"
+                        size="sm" 
                     variant="outline"
-                  >
+                      >
                     <Download className="h-4 w-4 mr-2" />
                     Download Subtitles
-                  </Button>
-                </div>
+                      </Button>
+                    </div>
                 {currentGeneration.subtitlesContent && (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">
@@ -1335,7 +1337,7 @@ export function AudioGenerator() {
                     </pre>
                   </details>
                 )}
-              </div>
+                    </div>
             )}
 
             {currentGeneration.status === 'error' && currentGeneration.error && (
@@ -1343,12 +1345,12 @@ export function AudioGenerator() {
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-red-600" />
                   <span className="font-medium text-red-800">Generation Error:</span>
-                </div>
-                <p className="text-red-700 mt-1">{currentGeneration.error}</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+                <p className="text-red-700 mt-1">{currentGeneration.error}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       )}
 
       {/* Generation History */}
@@ -1384,7 +1386,7 @@ export function AudioGenerator() {
                         <Badge variant="outline" className="text-xs">
                           {generation.status}
                         </Badge>
-                      </div>
+              </div>
                     </div>
 
                     {/* Audio Type Toggle for History */}
@@ -1416,9 +1418,9 @@ export function AudioGenerator() {
                               />
                               <span className="text-xs text-gray-700">Compressed</span>
                             </label>
-                          </div>
-                        </div>
-                        
+              </div>
+            </div>
+
                         {/* Mini Audio Player */}
                         <div className="mt-2">
                           <audio controls className="w-full h-8" style={{ height: '32px' }}>
@@ -1428,13 +1430,13 @@ export function AudioGenerator() {
                             />
                             Your browser does not support the audio element.
                           </audio>
-                        </div>
-                        
+            </div>
+
                         {!generation.compressedAudioUrl && historyAudioType === 'compressed' && (
                           <div className="text-xs text-amber-600 mt-1">
                             ⚠️ Compressed audio not available
-                          </div>
-                        )}
+              </div>
+            )}
                       </div>
                     )}
 
@@ -1491,11 +1493,11 @@ export function AudioGenerator() {
                           Subtitles
                         </Button>
                       )}
-                    </div>
+                  </div>
                   </div>
                 );
               })}
-            </div>
+                </div>
           </CardContent>
         </Card>
       )}

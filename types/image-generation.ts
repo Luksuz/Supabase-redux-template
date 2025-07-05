@@ -1,4 +1,15 @@
-export type ImageProvider = 'minimax' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'dalle-3' | 'gpt-image-1' | 'leonardo-phoenix' | 'ideogram'
+export type ImageProvider =
+  | 'minimax'
+  | 'flux-dev'
+  | 'recraft-v3'
+  | 'stable-diffusion-v35-large'
+  | 'stable-diffusion-v35-medium'
+  | 'dalle-3'
+  | 'gpt-image-1'
+  | 'leonardo-phoenix'
+  | 'ideogram-v3'
+  | 'minimax-image-01'
+  | 'imagen';
 
 export interface GenerateImageRequestBody {
   provider: ImageProvider
@@ -10,6 +21,7 @@ export interface GenerateImageRequestBody {
   userId?: string
   stylePrefix?: 'esoteric-medieval' | 'dark-demonic' | 'renaissance' | 'gothic' | 'mystical' | 'ancient' | 'occult' | 'none' | ''
   customStylePrefix?: string
+  aspectRatio?: '16:9' | '1:1' | '9:16'
 }
 
 export interface GenerateImageResponse {
@@ -52,4 +64,7 @@ export interface ImageGenerationState {
   // Rate limiting for flux models
   lastFluxRequest: number | null
   remainingFluxRequests: number
+  // Image selection for video generation
+  confirmedImageSelection: string[]
+  selectedImagesOrder: string[]
 } 

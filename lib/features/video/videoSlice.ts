@@ -18,7 +18,12 @@ const initialState: VideoState = {
     useScriptBasedTiming: false,
     videoQuality: 'hd',
     includeSubtitles: true,
-    includeOverlay: false
+    includeOverlay: false,
+    videoMode: 'traditional',
+    zoomEffect: false,
+    dustOverlay: false,
+    introDuration: 60, // 1 minute default
+    useEqualIntroDuration: true
   },
   statusRefreshInterval: null
 }

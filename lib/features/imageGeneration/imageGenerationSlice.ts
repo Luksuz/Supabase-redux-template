@@ -18,7 +18,10 @@ const initialState: ImageGenerationState = {
   numberOfScenesToExtract: 5,
   // Rate limiting for flux models
   lastFluxRequest: null,
-  remainingFluxRequests: 10 // 10 per minute for flux
+  remainingFluxRequests: 10, // 10 per minute for flux
+  // Image selection for video generation
+  confirmedImageSelection: [],
+  selectedImagesOrder: []
 }
 
 export const imageGenerationSlice = createSlice({
@@ -139,11 +142,38 @@ export const imageGenerationSlice = createSlice({
 
     clearImageSets: (state) => {
       state.imageSets = []
-      state.currentGeneration = null
     },
 
     removeImageSet: (state, action: PayloadAction<string>) => {
       state.imageSets = state.imageSets.filter(set => set.id !== action.payload)
+    },
+    
+    // Update individual image within a set (for regeneration)
+    updateImageInSet: (state, action: PayloadAction<{ 
+      setId: string, 
+      imageIndex: number, 
+      newImageUrl: string 
+    }>) => {
+      const { setId, imageIndex, newImageUrl } = action.payload
+      const setIndex = state.imageSets.findIndex(set => set.id === setId)
+      
+      if (setIndex !== -1 && state.imageSets[setIndex].imageUrls[imageIndex]) {
+        state.imageSets[setIndex].imageUrls[imageIndex] = newImageUrl
+      }
+    },
+    
+    // Image selection for video generation
+    setConfirmedImageSelection: (state, action: PayloadAction<string[]>) => {
+      state.confirmedImageSelection = action.payload
+    },
+    clearConfirmedImageSelection: (state) => {
+      state.confirmedImageSelection = []
+    },
+    setSelectedImagesOrder: (state, action: PayloadAction<string[]>) => {
+      state.selectedImagesOrder = action.payload
+    },
+    clearSelectedImagesOrder: (state) => {
+      state.selectedImagesOrder = []
     }
   }
 })
@@ -164,7 +194,12 @@ export const {
   failGeneration,
   clearError,
   clearImageSets,
-  removeImageSet
+  removeImageSet,
+  updateImageInSet,
+  setConfirmedImageSelection,
+  clearConfirmedImageSelection,
+  setSelectedImagesOrder,
+  clearSelectedImagesOrder
 } = imageGenerationSlice.actions
 
 export default imageGenerationSlice.reducer

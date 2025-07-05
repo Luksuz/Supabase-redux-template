@@ -9,21 +9,23 @@ import {
   saveVideoToHistory,
   setIsGeneratingVideo
 } from '../lib/features/video/videoSlice'
-import { Button } from './ui/button'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
-import { Badge } from './ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from './ui/checkbox'
-import { Label } from './ui/label'
-import { Input } from './ui/input'
-import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Image as ImageIcon, Volume2, Subtitles, Settings, Palette } from 'lucide-react'
-import { CreateVideoRequestBody, VideoRecord, SegmentTiming } from '@/types/video-generation'
+import { CreateVideoRequestBody, VideoRecord, SegmentTiming, IntroImageConfig } from '@/types/video-generation'
+
+// Import modular components
+import { VideoPrerequisites } from './video-generation/VideoPrerequisites'
+import { VideoSettings } from './video-generation/VideoSettings'
+import { VideoGenerationStatus } from './video-generation/VideoGenerationStatus'
+import { VideoStatusMessage } from './video-generation/VideoStatusMessage'
+import { VideoEmptyState } from './video-generation/VideoEmptyState'
 
 export function VideoGenerator() {
   const dispatch = useAppDispatch()
   
-  // Use new Redux states from imageGeneration and audio slices
-  const { imageSets } = useAppSelector(state => state.imageGeneration)
+  // Use Redux state for user instead of NextAuth session
+  const { id: userId } = useAppSelector(state => state.user)
+  
+  // Use Redux states from imageGeneration, audio, and video slices
+  const { imageSets, selectedImagesOrder } = useAppSelector(state => state.imageGeneration)
   const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
   const { 
     currentGeneration, 
@@ -37,7 +39,7 @@ export function VideoGenerator() {
 
   // Add subtitle styling state
   const [subtitleSettings, setSubtitleSettings] = useState({
-    fontFamily: 'Arial',
+    fontFamily: 'Roboto',
     fontColor: '#ffffff',
     fontSize: 24,
     strokeWidth: 2,
@@ -45,8 +47,9 @@ export function VideoGenerator() {
     textTransform: 'none'
   })
 
-  // Updated: Use ordered image selection for video generation
-  const [selectedImagesForVideoOrder, setSelectedImagesForVideoOrder] = useState<string[]>([])
+  // Add state for intro images configuration (for Option 2)
+  const [introImages, setIntroImages] = useState<IntroImageConfig[]>([])
+  const [selectedLoopImageId, setSelectedLoopImageId] = useState<string>('')
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -57,75 +60,28 @@ export function VideoGenerator() {
     }
   }
 
-  // Get image URLs from generated image sets in order
+  // Get image URLs from selected images order in Redux
   const getOrderedImageUrls = (): string[] => {
     const urls: string[] = []
     
-    // Use the ordered selection if available
-    if (selectedImagesForVideoOrder.length > 0) {
-      selectedImagesForVideoOrder.forEach(imageId => {
-        const [setIndex, imageIndex] = imageId.split(':').map(Number)
-        if (imageSets[setIndex] && imageSets[setIndex].imageUrls[imageIndex]) {
-          urls.push(imageSets[setIndex].imageUrls[imageIndex])
+    // Use the ordered selection from Redux state
+    if (selectedImagesOrder.length > 0) {
+      selectedImagesOrder.forEach((imageId: string) => {
+        const [setId, imageIndex] = imageId.split(':')
+        const imageSet = imageSets.find(set => set.id === setId)
+        if (imageSet && imageSet.imageUrls[parseInt(imageIndex)]) {
+          urls.push(imageSet.imageUrls[parseInt(imageIndex)])
         }
       })
       return urls
     }
     
-    // Fallback: Extract URLs from all image sets
-    imageSets.forEach(imageSet => {
-      urls.push(...imageSet.imageUrls)
-    })
-    
-    // If no images are available, provide sample image URLs
-    if (urls.length === 0) {
-      return [
-        'https://picsum.photos/800/600?random=1',
-        'https://picsum.photos/800/600?random=2',
-        'https://picsum.photos/800/600?random=3'
-      ]
-    }
-    
-    console.log(`🖼️ Found ${urls.length} ordered image URLs`)
+    console.log(`🖼️ Found ${urls.length} ordered image URLs from Redux state`)
     return urls
   }
 
-  // Image selection functions for video generation order
-  const getImageId = (setIndex: number, imageIndex: number) => `${setIndex}:${imageIndex}`
-  
-  const toggleImageForVideo = (setIndex: number, imageIndex: number) => {
-    const imageId = getImageId(setIndex, imageIndex)
-    setSelectedImagesForVideoOrder(prev => {
-      if (prev.includes(imageId)) {
-        return prev.filter(id => id !== imageId)
-      } else {
-        return [...prev, imageId]
-      }
-    })
-  }
-
-  const selectAllImagesForVideo = () => {
-    const allImageIds: string[] = []
-    imageSets.forEach((set, setIndex) => {
-      set.imageUrls.forEach((_, imageIndex) => {
-        allImageIds.push(getImageId(setIndex, imageIndex))
-      })
-    })
-    setSelectedImagesForVideoOrder(allImageIds)
-  }
-
-  const clearSelectedImagesForVideo = () => {
-    setSelectedImagesForVideoOrder([])
-  }
-
-  const getImageOrderNumber = (setIndex: number, imageIndex: number) => {
-    const imageId = getImageId(setIndex, imageIndex)
-    const orderIndex = selectedImagesForVideoOrder.indexOf(imageId)
-    return orderIndex >= 0 ? orderIndex + 1 : null
-  }
-
   // Check if we have generated images
-  const hasGeneratedImages = imageSets.length > 0
+  const hasGeneratedImages = imageSets.length > 0 && selectedImagesOrder.length > 0
 
   // Initialize custom segment timings when images or audio change
   useEffect(() => {
@@ -144,7 +100,7 @@ export function VideoGenerator() {
         setCustomSegmentTimings(timings)
       }
     }
-  }, [selectedImagesForVideoOrder, imageSets.length, audioGeneration?.audioUrl, audioGeneration?.duration])
+  }, [selectedImagesOrder, imageSets.length, audioGeneration?.audioUrl, audioGeneration?.duration])
 
   // Debug logging for audio generation state
   useEffect(() => {
@@ -160,10 +116,11 @@ export function VideoGenerator() {
   useEffect(() => {
     console.log('🖼️ Image generation state:', { 
       imageSetsCount: imageSets.length, 
+      selectedImagesOrder: selectedImagesOrder.length,
       totalImages: getOrderedImageUrls().length,
       hasGeneratedImages 
     })
-  }, [imageSets, hasGeneratedImages])
+  }, [imageSets, selectedImagesOrder, hasGeneratedImages])
 
   // Check if we have all prerequisites for video generation
   const hasPrerequisites = hasGeneratedImages && audioGeneration?.audioUrl
@@ -173,7 +130,7 @@ export function VideoGenerator() {
     if (hasGeneratedImages && audioGeneration?.audioUrl) {
       showMessage('Ready to generate video! All prerequisites are met.', 'success')
     } else if (!hasGeneratedImages) {
-      showMessage('Generate images first to create a video.', 'info')
+      showMessage('Select images in Image Generator first to create a video.', 'info')
     } else if (!audioGeneration?.audioUrl) {
       showMessage('Generate audio first to create a video.', 'info')
     }
@@ -189,7 +146,7 @@ export function VideoGenerator() {
   // Distribute total duration equally across all segments
   const distributeEquallyAcrossSegments = async () => {
     if (getOrderedImageUrls().length === 0) {
-      showMessage('No images available for timing distribution', 'error')
+      showMessage('No images selected for timing distribution', 'error')
       return
     }
 
@@ -274,43 +231,46 @@ export function VideoGenerator() {
   // Check if script-based timing is available
   const scriptBasedTimingAvailable = audioGeneration?.scriptDurations && audioGeneration.scriptDurations.length > 0
 
-  // Font family options
-  const fontFamilyOptions = [
-    { value: 'Arial', label: 'Arial' },
-    { value: 'Helvetica', label: 'Helvetica' },
-    { value: 'Times New Roman', label: 'Times New Roman' },
-    { value: 'Georgia', label: 'Georgia' },
-    { value: 'Verdana', label: 'Verdana' },
-    { value: 'Trebuchet MS', label: 'Trebuchet MS' },
-    { value: 'Comic Sans MS', label: 'Comic Sans MS' },
-    { value: 'Impact', label: 'Impact' },
-    { value: 'Lucida Console', label: 'Lucida Console' },
-    { value: 'Tahoma', label: 'Tahoma' }
-  ]
-
-  // Handle video generation with ordered images
+  // Handle video generation with ordered images from Redux
   const handleGenerateVideo = async () => {
     try {
       dispatch(setIsGeneratingVideo(true))
 
-      // Use ordered images for video generation
+      // Use ordered images from Redux state
       const orderedImageUrls = getOrderedImageUrls()
       
       // Validate that at least one image is selected
       if (orderedImageUrls.length === 0) {
-        showMessage('Please select at least one image for video generation.', 'error')
+        showMessage('Please select images in the Image Generator first.', 'error')
         dispatch(setIsGeneratingVideo(false))
         return
       }
       
-      console.log(`🎬 Starting video generation with ${orderedImageUrls.length} ordered images`)
-      showMessage(`Starting video generation with ${orderedImageUrls.length} images in order...`, 'info')
+      console.log(`🎬 Starting video generation with ${orderedImageUrls.length} ordered images in ${settings.videoMode} mode`)
+      showMessage(`Starting ${settings.videoMode} video generation with ${orderedImageUrls.length} images...`, 'info')
       
       // Determine which timing mode to use and prepare segment timings
       let segmentTimings: SegmentTiming[] | undefined = undefined
-      let videoType: 'traditional' | 'segmented' | 'script-based' = 'traditional'
+      let videoType: 'traditional' | 'segmented' | 'script-based' | 'option1' | 'option2' = 'traditional'
 
-      if (settings.useSegmentedTiming) {
+      // Handle new video modes
+      if (settings.videoMode === 'option1') {
+        videoType = 'option1'
+        // Option 1: Loop all images with zoom effects - no specific segment timings needed
+      } else if (settings.videoMode === 'option2') {
+        videoType = 'option2'
+        // Option 2: Intro sequence + loop - validate intro images and loop image
+        if (introImages.length === 0) {
+          showMessage('Please configure intro images for Option 2 video mode.', 'error')
+          dispatch(setIsGeneratingVideo(false))
+          return
+        }
+        if (!selectedLoopImageId) {
+          showMessage('Please select a loop image for Option 2 video mode.', 'error')
+          dispatch(setIsGeneratingVideo(false))
+          return
+        }
+      } else if (settings.useSegmentedTiming) {
         // Custom segmented timing (manual user input) - adjust for selected images
         const selectedTimings = customSegmentTimings.slice(0, orderedImageUrls.length)
         segmentTimings = selectedTimings
@@ -323,23 +283,42 @@ export function VideoGenerator() {
       }
       // Otherwise, use traditional equal timing (no segmentTimings)
 
+      // Get loop image URL for Option 2
+      let loopImageUrl: string | undefined = undefined
+      if (settings.videoMode === 'option2' && selectedLoopImageId) {
+        const [setId, imageIndex] = selectedLoopImageId.split(':')
+        const imageSet = imageSets.find(set => set.id === setId)
+        if (imageSet && imageSet.imageUrls[parseInt(imageIndex)]) {
+          loopImageUrl = imageSet.imageUrls[parseInt(imageIndex)]
+        }
+      }
+
       // Prepare request body with ordered images
       const requestBody: CreateVideoRequestBody = {
         imageUrls: orderedImageUrls,
         audioUrl: audioGeneration?.audioUrl || 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
         compressedAudioUrl: audioGeneration?.compressedAudioUrl || undefined,
         subtitlesUrl: settings.includeSubtitles && audioGeneration?.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
-        userId: 'current_user',
+        userId: userId || 'current_user',
         thumbnailUrl: orderedImageUrls[0],
         segmentTimings: segmentTimings,
-        includeOverlay: settings.includeOverlay,
+        includeOverlay: settings.includeOverlay || false,
         fontFamily: subtitleSettings.fontFamily,
         fontColor: subtitleSettings.fontColor,
         fontSize: subtitleSettings.fontSize,
         strokeWidth: subtitleSettings.strokeWidth,
         fontWeight: subtitleSettings.fontWeight,
         textTransform: subtitleSettings.textTransform,
-        audioDuration: audioGeneration?.duration ?? undefined
+        audioDuration: audioGeneration?.duration ?? undefined,
+        // New video mode options
+        videoMode: settings.videoMode,
+        zoomEffect: settings.zoomEffect || false,
+        dustOverlay: settings.dustOverlay || false,
+        // Option 2 specific
+        introImages: settings.videoMode === 'option2' ? introImages : undefined,
+        introDuration: settings.videoMode === 'option2' ? settings.introDuration : undefined,
+        loopImageUrl: settings.videoMode === 'option2' ? loopImageUrl : undefined,
+        useEqualIntroDuration: settings.videoMode === 'option2' ? settings.useEqualIntroDuration : undefined
       }
 
       console.log('🎬 Starting video generation with:', requestBody)
@@ -366,7 +345,7 @@ export function VideoGenerator() {
         // Create video record for Redux state
         const videoRecord: VideoRecord = {
           id: data.video_id,
-          user_id: 'current_user',
+          user_id: userId || 'current_user',
           status: 'processing',
           shotstack_id: data.shotstack_id || '',
           image_urls: orderedImageUrls,
@@ -375,15 +354,16 @@ export function VideoGenerator() {
           thumbnail_url: orderedImageUrls[0],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          metadata: segmentTimings ? {
+          metadata: {
             type: videoType,
+            video_mode: settings.videoMode,
+            intro_images: settings.videoMode === 'option2' ? introImages : undefined,
+            loop_image: settings.videoMode === 'option2' ? loopImageUrl : undefined,
             segment_timings: segmentTimings,
-            total_duration: segmentTimings.reduce((sum, timing) => sum + timing.duration, 0),
+            total_duration: segmentTimings ? 
+              segmentTimings.reduce((sum, timing) => sum + timing.duration, 0) : 
+              audioGeneration?.duration || 30,
             scenes_count: orderedImageUrls.length
-          } : {
-            type: 'traditional',
-            scenes_count: orderedImageUrls.length,
-            total_duration: audioGeneration?.duration || 30 // Default duration
           }
         }
 
@@ -422,9 +402,15 @@ export function VideoGenerator() {
     const link = document.createElement('a')
     link.href = videoUrl
     link.download = filename
+    link.target = '_blank'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  // Settings change handler
+  const handleSettingsChange = (newSettings: any) => {
+    dispatch(setVideoSettings(newSettings))
   }
 
   // Calculate total duration for segmented timing
@@ -436,777 +422,61 @@ export function VideoGenerator() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Video Generator</h1>
         <p className="text-gray-600">
-          Create professional videos from your images and audio using Shotstack with dynamic slide effects
+          Create professional videos from your selected images and audio using Shotstack with dynamic slide effects, zoom animations, and advanced timing options
         </p>
       </div>
 
       {/* Prerequisites Check */}
-      <Card className="bg-white shadow-sm border border-gray-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5" />
-            Prerequisites Status
-          </CardTitle>
-          <CardDescription>
-            Ensure all required components are ready for video generation
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Images Status */}
-          <div className={`p-3 rounded-lg border ${
-            hasGeneratedImages ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'
-          }`}>
-            <div className="flex items-center gap-2 mb-2">
-              <ImageIcon className={`h-4 w-4 ${
-                hasGeneratedImages ? 'text-green-600' : 'text-orange-600'
-              }`} />
-              <span className="font-medium">Images</span>
-            </div>
-            <p className="text-sm text-gray-600">
-              {imageSets.length} images processed
-              {hasGeneratedImages && (
-                <span className="block">
-                  {imageSets.some(set => set.imageUrls.length > 0) ? 'uploaded to Supabase' : ''}
-                </span>
-              )}
-            </p>
-            {!hasGeneratedImages && (
-              <p className="text-xs text-orange-600 mt-1">Process images first</p>
-            )}
-          </div>
-
-          {/* Audio Status */}
-          <div className={`p-3 rounded-lg border ${audioGeneration?.audioUrl ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Volume2 className={`h-4 w-4 ${audioGeneration?.audioUrl ? 'text-green-600' : 'text-orange-600'}`} />
-              <span className="font-medium">Audio</span>
-            </div>
-            <p className="text-sm text-gray-600">
-              {audioGeneration?.audioUrl ? (
-                audioGeneration.duration ? 
-                  `${audioGeneration.duration.toFixed(1)}s audio ready` : 
-                  'Audio ready (duration unknown)'
-              ) : 'No audio generated'}
-            </p>
-            {!audioGeneration?.audioUrl && (
-              <p className="text-xs text-orange-600 mt-1">Generate audio first</p>
-            )}
-            {audioGeneration?.audioUrl && !audioGeneration.duration && (
-              <p className="text-xs text-orange-600 mt-1">Duration missing - may need to regenerate audio</p>
-            )}
-          </div>
-
-          {/* Subtitles Status */}
-          <div className={`p-3 rounded-lg border ${audioGeneration?.subtitlesUrl ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Subtitles className={`h-4 w-4 ${audioGeneration?.subtitlesUrl ? 'text-green-600' : 'text-gray-400'}`} />
-              <span className="font-medium">Subtitles</span>
-            </div>
-            <p className="text-sm text-gray-600">
-              {audioGeneration?.subtitlesUrl ? 'Subtitles available' : 'Optional subtitles'}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Image Selection for Video */}
-      {imageSets.length > 0 && (
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5" />
-                  Select Images for Video
-                </CardTitle>
-                <CardDescription>
-                  Choose which images to include in your video (displayed in 3 columns)
-                </CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearSelectedImagesForVideo}
-                  disabled={selectedImagesForVideoOrder.length === 0}
-                >
-                  Clear Selection
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={selectAllImagesForVideo}
-                >
-                  Select All
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <p className="text-sm text-muted-foreground">
-                {selectedImagesForVideoOrder.length} of {imageSets.reduce((total, set) => total + set.imageUrls.length + set.imageData.length, 0)} images selected
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4">
-              {imageSets.map((set, setIndex) => [
-                // Map through imageUrls
-                ...set.imageUrls.map((url, imageIndex) => {
-                  const imageId = getImageId(setIndex, imageIndex)
-                  const isSelected = selectedImagesForVideoOrder.includes(imageId)
-                  return (
-                    <div key={imageId} className="space-y-2">
-                      <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors cursor-pointer ${
-                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                      }`} onClick={() => toggleImageForVideo(setIndex, imageIndex)}>
-                        {/* Selection checkbox */}
-                        <div className="absolute top-2 left-2 z-10">
-                          <Checkbox
-                            checked={isSelected}
-                            onChange={() => {}} // Handled by parent click
-                            className="bg-white/90 border-gray-400 pointer-events-none"
-                          />
-                        </div>
-                        
-                        <img 
-                          src={url} 
-                          alt={`Generated image ${setIndex}-${imageIndex}`}
-                          className="w-full h-full object-cover"
-                        />
-                        
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                            <div className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
-                              Selected
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500 text-center truncate">
-                        {set.originalPrompt.substring(0, 40)}...
-                      </div>
-                    </div>
-                  )
-                }),
-                // Map through imageData (base64)
-                ...set.imageData.map((b64, imageIndex) => {
-                  const imageId = getImageId(setIndex, imageIndex)
-                  const isSelected = selectedImagesForVideoOrder.includes(imageId)
-                  return (
-                    <div key={imageId} className="space-y-2">
-                      <div className={`relative group border-2 rounded-lg overflow-hidden shadow-lg aspect-square transition-colors cursor-pointer ${
-                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                      }`} onClick={() => toggleImageForVideo(setIndex, imageIndex)}>
-                        {/* Selection checkbox */}
-                        <div className="absolute top-2 left-2 z-10">
-                          <Checkbox
-                            checked={isSelected}
-                            onChange={() => {}} // Handled by parent click
-                            className="bg-white/90 border-gray-400 pointer-events-none"
-                          />
-                        </div>
-                        
-                        <img 
-                          src={`data:image/png;base64,${b64}`}
-                          alt={`Generated image ${setIndex}-${imageIndex} (base64)`}
-                          className="w-full h-full object-cover"
-                        />
-                        
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                            <div className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
-                              Selected
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500 text-center truncate">
-                        {set.originalPrompt.substring(0, 40)}...
-                      </div>
-                    </div>
-                  )
-                })
-              ]).flat()}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <VideoPrerequisites
+        hasGeneratedImages={hasGeneratedImages}
+        imageSetsCount={selectedImagesOrder.length}
+        audioGeneration={audioGeneration}
+      />
 
       {/* Video Settings */}
-      <Card className="bg-white shadow-sm border border-gray-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Video Generation Settings
-          </CardTitle>
-          <CardDescription>
-            Configure timing, quality, and subtitle options
-            {!hasPrerequisites && (
-              <span className="block text-orange-600 mt-1">
-                Complete prerequisites above to enable video generation
-              </span>
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Basic Settings */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Video Quality</Label>
-              <Select 
-                value={settings.videoQuality} 
-                onValueChange={(value: 'hd' | 'sd') => dispatch(setVideoSettings({ videoQuality: value }))}
-                disabled={!hasPrerequisites}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hd">HD (1280x720)</SelectItem>
-                  <SelectItem value="sd">SD (854x480)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm">Timing Mode</Label>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="segmented-timing"
-                    checked={settings.useSegmentedTiming}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        dispatch(setVideoSettings({ useSegmentedTiming: true, useScriptBasedTiming: false }))
-                      } else {
-                        dispatch(setVideoSettings({ useSegmentedTiming: false }))
-                      }
-                    }}
-                    disabled={!hasPrerequisites}
-                  />
-                  <Label htmlFor="segmented-timing" className="text-sm">Custom segment timing</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="script-based-timing"
-                    checked={settings.useScriptBasedTiming}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        dispatch(setVideoSettings({ useScriptBasedTiming: true, useSegmentedTiming: false }))
-                      } else {
-                        dispatch(setVideoSettings({ useScriptBasedTiming: false }))
-                      }
-                    }}
-                    disabled={!hasPrerequisites || !scriptBasedTimingAvailable}
-                  />
-                  <Label htmlFor="script-based-timing" className="text-sm">
-                    Script-based timing {!scriptBasedTimingAvailable && '(not available)'}
-                  </Label>
-                </div>
-                {!scriptBasedTimingAvailable && (
-                  <p className="text-xs text-gray-500 ml-6">
-                    Script-based timing requires audio generation with individual script durations
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm">Subtitles</Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="include-subtitles"
-                  checked={settings.includeSubtitles}
-                  onCheckedChange={(checked) => dispatch(setVideoSettings({ includeSubtitles: checked as boolean }))}
-                  disabled={!hasPrerequisites || !audioGeneration?.subtitlesUrl}
-                />
-                <Label htmlFor="include-subtitles" className="text-sm">
-                  Include subtitles {!audioGeneration?.subtitlesUrl && '(not available)'}
-                </Label>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm">Dust Overlay</Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="include-overlay"
-                  checked={settings.includeOverlay}
-                  onCheckedChange={(checked) => dispatch(setVideoSettings({ includeOverlay: checked as boolean }))}
-                  disabled={!hasPrerequisites}
-                />
-                <Label htmlFor="include-overlay" className="text-sm">
-                  Add dust overlay effect to video
-                </Label>
-              </div>
-            </div>
-          </div>
-
-          {/* Subtitle Styling Controls */}
-          {settings.includeSubtitles && audioGeneration?.subtitlesUrl && (
-            <div className="space-y-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-4">
-                <Palette className="h-5 w-5 text-yellow-600" />
-                <h4 className="font-medium text-yellow-800">Subtitle Styling</h4>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Font Family */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Font Family</Label>
-                  <Select 
-                    value={subtitleSettings.fontFamily} 
-                    onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, fontFamily: value }))}
-                    disabled={!hasPrerequisites}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fontFamilyOptions.map((font) => (
-                        <SelectItem key={font.value} value={font.value}>
-                          {font.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Font Weight */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Font Weight</Label>
-                  <Select 
-                    value={subtitleSettings.fontWeight} 
-                    onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, fontWeight: value }))}
-                    disabled={!hasPrerequisites}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="normal">Normal (400)</SelectItem>
-                      <SelectItem value="500">Medium (500)</SelectItem>
-                      <SelectItem value="600">Semi Bold (600)</SelectItem>
-                      <SelectItem value="700">Bold (700)</SelectItem>
-                      <SelectItem value="800">Extra Bold (800)</SelectItem>
-                      <SelectItem value="900">Black (900)</SelectItem>
-                      <SelectItem value="1000">Ultra Black (1000)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Text Transform */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Text Style</Label>
-                  <Select 
-                    value={subtitleSettings.textTransform} 
-                    onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, textTransform: value }))}
-                    disabled={!hasPrerequisites}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Normal</SelectItem>
-                      <SelectItem value="uppercase">UPPERCASE</SelectItem>
-                      <SelectItem value="lowercase">lowercase</SelectItem>
-                      <SelectItem value="capitalize">Capitalize</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Font Color */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Font Color</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="color"
-                      value={subtitleSettings.fontColor}
-                      onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontColor: e.target.value }))}
-                      className="w-12 h-8 p-0 border rounded cursor-pointer"
-                      disabled={!hasPrerequisites}
-                    />
-                    <Input
-                      type="text"
-                      value={subtitleSettings.fontColor}
-                      onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontColor: e.target.value }))}
-                      placeholder="#ffffff"
-                      className="flex-1 h-8 text-xs"
-                      disabled={!hasPrerequisites}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Font Size */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Font Size: {subtitleSettings.fontSize}px</Label>
-                  <input
-                    type="range"
-                    min="12"
-                    max="60"
-                    step="2"
-                    value={subtitleSettings.fontSize}
-                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                    disabled={!hasPrerequisites}
-                  />
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>12px</span>
-                    <span>60px</span>
-                  </div>
-                </div>
-
-                {/* Stroke Width */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Stroke Outline: {subtitleSettings.strokeWidth}px</Label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="8"
-                    step="0.5"
-                    value={subtitleSettings.strokeWidth}
-                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, strokeWidth: parseFloat(e.target.value) }))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                    disabled={!hasPrerequisites}
-                  />
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>0px</span>
-                    <span>8px</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Live Preview */}
-              <div className="mt-4 p-4 bg-black rounded-lg">
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-2">Subtitle Preview:</p>
-                  <div 
-                    style={{
-                      fontFamily: subtitleSettings.fontFamily,
-                      color: subtitleSettings.fontColor,
-                      fontSize: `${Math.min(subtitleSettings.fontSize * 0.7, 24)}px`, // Scale down for preview
-                      textShadow: subtitleSettings.strokeWidth > 0 
-                        ? `${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, ${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000`
-                        : 'none',
-                      fontWeight: subtitleSettings.fontWeight,
-                      textTransform: subtitleSettings.textTransform as any
-                    }}
-                  >
-                    Sample subtitle text appears here
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Prerequisites Warning */}
-          {!hasPrerequisites && (
-            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
-                <span className="font-medium text-orange-800">Prerequisites Required</span>
-              </div>
-              <div className="text-sm text-orange-700 space-y-1">
-                {!hasGeneratedImages && <div>• Process images first</div>}
-                {!audioGeneration?.audioUrl && <div>• Generate audio from scripts</div>}
-              </div>
-            </div>
-          )}
-
-          {/* Segment Timing Configuration */}
-          {settings.useSegmentedTiming && (
-            <div className={`space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg ${!hasPrerequisites ? 'opacity-60' : ''}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Custom Segment Timing</h4>
-                  <p className="text-sm text-gray-600">
-                    Adjust how long each image appears in the video
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">
-                    Total: {totalSegmentDuration.toFixed(1)}s
-                  </div>
-                  {audioGeneration?.duration && (
-                    <div className={`text-xs ${
-                      Math.abs(totalSegmentDuration - audioGeneration.duration) < 0.5 
-                        ? 'text-green-600' 
-                        : 'text-orange-600'
-                    }`}>
-                      Audio: {audioGeneration.duration.toFixed(1)}s
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Button 
-                onClick={distributeEquallyAcrossSegments}
-                size="sm"
-                variant="outline"
-                disabled={!hasPrerequisites || !audioGeneration?.audioUrl}
-              >
-                Distribute Equally
-              </Button>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {hasGeneratedImages ? getOrderedImageUrls().map((imageUrl: string, index: number) => (
-                  <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
-                    <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
-                      <img
-                        src={imageUrl}
-                        alt={`Image ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-500">Image {index + 1}</div>
-                      <Input
-                        type="number"
-                        value={customSegmentTimings[index]?.duration.toFixed(1) || '0.0'}
-                        onChange={(e) => updateSegmentTiming(index, parseFloat(e.target.value) || 0)}
-                        className="h-6 text-xs"
-                        step="0.1"
-                        min="0.1"
-                        disabled={!hasPrerequisites}
-                      />
-                      <div className="text-xs text-gray-400">seconds</div>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="col-span-full text-center text-gray-500 py-4">
-                    No images processed yet
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Script-Based Timing Preview */}
-          {settings.useScriptBasedTiming && (
-            <div className={`space-y-4 p-4 border rounded-lg ${
-              scriptBasedTimingAvailable && hasPrerequisites 
-                ? 'bg-green-50 border-green-200' 
-                : 'bg-gray-50 border-gray-200 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Script-Based Timing Preview</h4>
-                  <p className="text-sm text-gray-600">
-                    Each image will show for the duration of its script's audio
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">
-                    Total: {scriptBasedTimingAvailable ? getScriptBasedTimings().reduce((sum, timing) => sum + timing.duration, 0).toFixed(1) : '0.0'}s
-                  </div>
-                  <div className={`text-xs ${scriptBasedTimingAvailable ? 'text-green-600' : 'text-gray-500'}`}>
-                    {scriptBasedTimingAvailable ? 'Matches audio duration' : 'Not available'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {hasGeneratedImages ? getOrderedImageUrls().map((imageUrl: string, index: number) => {
-                  // Use index-based matching for script durations
-                  const scriptDuration = audioGeneration?.scriptDurations?.[index]
-                  return (
-                    <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
-                      <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
-                        <img
-                          src={imageUrl}
-                          alt={`Image ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-grow">
-                        <div className="text-sm font-medium">Image {index + 1}</div>
-                        <div className="text-xs text-gray-500">
-                          {scriptDuration ? `${scriptDuration.duration.toFixed(1)}s` : 'No timing data'}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                }) : (
-                  <div className="col-span-full text-center text-gray-500 py-4">
-                    No images generated yet
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Generate Button */}
-          <Button
-            onClick={handleGenerateVideo}
-            disabled={isGeneratingVideo || !hasPrerequisites || selectedImagesForVideoOrder.length === 0}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
-            size="lg"
-          >
-            {isGeneratingVideo ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generating Video...
-              </>
-            ) : !hasPrerequisites ? (
-              <>
-                <VideoIcon className="h-4 w-4 mr-2" />
-                Complete Prerequisites to Generate Video
-              </>
-            ) : selectedImagesForVideoOrder.length === 0 ? (
-              <>
-                <VideoIcon className="h-4 w-4 mr-2" />
-                Select Images to Generate Video
-              </>
-            ) : (
-              <>
-                <VideoIcon className="h-4 w-4 mr-2" />
-                Generate Video with {selectedImagesForVideoOrder.length} Selected Image{selectedImagesForVideoOrder.length !== 1 ? 's' : ''} ({
-                  settings.useSegmentedTiming ? 'Custom Timing' :
-                  settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
-                  'Traditional'
-                })
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+      <VideoSettings
+        settings={settings}
+        onSettingsChange={handleSettingsChange}
+        hasPrerequisites={hasPrerequisites as boolean}
+        selectedImagesCount={selectedImagesOrder.length}
+        audioGeneration={audioGeneration}
+        isGeneratingVideo={isGeneratingVideo}
+        onGenerateVideo={handleGenerateVideo}
+        customSegmentTimings={customSegmentTimings}
+        onUpdateSegmentTiming={updateSegmentTiming}
+        onDistributeEquallyAcrossSegments={distributeEquallyAcrossSegments}
+        getScriptBasedTimings={getScriptBasedTimings}
+        scriptBasedTimingAvailable={scriptBasedTimingAvailable as boolean}
+        totalSegmentDuration={totalSegmentDuration}
+        subtitleSettings={subtitleSettings}
+        onSubtitleSettingsChange={setSubtitleSettings}
+        getOrderedImageUrls={getOrderedImageUrls}
+        imageSets={imageSets}
+        selectedImagesOrder={selectedImagesOrder}
+        introImages={introImages}
+        onIntroImagesChange={setIntroImages}
+        selectedLoopImageId={selectedLoopImageId}
+        onSelectedLoopImageIdChange={setSelectedLoopImageId}
+      />
 
       {/* Current Generation Status */}
-      {currentGeneration && (
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <VideoIcon className="h-5 w-5" />
-              Current Video Generation
-            </CardTitle>
-            <CardDescription>
-              Generated on {new Date(currentGeneration.created_at).toLocaleString()}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Generation Details */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Type:</span>
-                <p className="font-medium">{currentGeneration.metadata?.type || 'traditional'}</p>
-              </div>
-              <div>
-                <span className="text-gray-500">Images:</span>
-                <p className="font-medium">{currentGeneration.image_urls.length}</p>
-              </div>
-              <div>
-                <span className="text-gray-500">Duration:</span>
-                <p className="font-medium">
-                  {currentGeneration.metadata?.total_duration?.toFixed(1) || 'Unknown'}s
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Status:</span>
-                <Badge 
-                  variant={currentGeneration.status === 'completed' ? 'default' : 'secondary'}
-                  className={
-                    currentGeneration.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    currentGeneration.status === 'failed' ? 'bg-red-100 text-red-800' :
-                    'bg-blue-100 text-blue-800'
-                  }
-                >
-                  {currentGeneration.status}
-                </Badge>
-              </div>
-            </div>
-
-            {/* Processing Status */}
-            {currentGeneration.status === 'processing' && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                  <span className="font-medium text-blue-800">Video is being processed by Shotstack</span>
-                </div>
-                <p className="text-sm text-blue-700">
-                  This may take several minutes depending on video length and complexity. The page will update automatically when complete.
-                </p>
-              </div>
-            )}
-
-            {/* Completed Video */}
-            {currentGeneration.status === 'completed' && currentGeneration.final_video_url && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-800">Video Generated Successfully!</span>
-                </div>
-                <video controls className="w-full mb-3 rounded">
-                  <source src={currentGeneration.final_video_url} type="video/mp4" />
-                  Your browser does not support the video element.
-                </video>
-                <Button
-                  onClick={() => handleDownloadVideo(currentGeneration.final_video_url!, `video-${currentGeneration.id}.mp4`)}
-                  variant="outline"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Video
-                </Button>
-              </div>
-            )}
-
-            {/* Error */}
-            {currentGeneration.status === 'failed' && currentGeneration.error_message && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-red-600" />
-                  <span className="font-medium text-red-800">Generation Error:</span>
-                </div>
-                <p className="text-red-700 mt-1">{currentGeneration.error_message}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <VideoGenerationStatus
+        currentGeneration={currentGeneration}
+        onDownloadVideo={handleDownloadVideo}
+      />
 
       {/* Status Message */}
-      {message && (
-        <Card className={`border ${
-          messageType === 'success' ? 'border-green-200 bg-green-50' :
-          messageType === 'error' ? 'border-red-200 bg-red-50' :
-          'border-blue-200 bg-blue-50'
-        }`}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              {messageType === 'success' && <CheckCircle className="h-4 w-4 text-green-600" />}
-              {messageType === 'error' && <AlertCircle className="h-4 w-4 text-red-600" />}
-              {messageType === 'info' && <VideoIcon className="h-4 w-4 text-blue-600" />}
-              <span className={`text-sm ${
-                messageType === 'success' ? 'text-green-800' :
-                messageType === 'error' ? 'text-red-800' :
-                'text-blue-800'
-              }`}>
-                {message}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <VideoStatusMessage
+        message={message}
+        messageType={messageType}
+      />
 
       {/* Empty State */}
-      {!hasPrerequisites && (
-        <Card className="bg-gray-50 border border-gray-200">
-          <CardContent className="pt-6 text-center py-12">
-            <VideoIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Ready to Create Videos</h3>
-            <p className="text-gray-600 mb-4">
-              Complete the prerequisite steps to generate professional videos
-            </p>
-            <div className="space-y-2 text-sm text-gray-500">
-              {!hasGeneratedImages && <div>1. Process images</div>}
-              {!audioGeneration?.audioUrl && <div>2. Generate audio from scripts</div>}
-              <div>3. Configure video settings and generate</div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <VideoEmptyState
+        hasPrerequisites={hasPrerequisites as boolean}
+        hasGeneratedImages={hasGeneratedImages}
+        audioGeneration={audioGeneration}
+      />
     </div>
   )
 } 

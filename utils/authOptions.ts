@@ -12,7 +12,7 @@ export const authConfig: NextAuthConfig = {
       authorization: {
         params: {
           scope:
-            'openid email profile https://www.googleapis.com/auth/drive',
+            'openid email profile https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/youtube',
           prompt: 'consent',
           access_type: 'offline',
           response_type: 'code',
