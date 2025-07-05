@@ -17,12 +17,8 @@ export function SidebarNavigation({
   activeView, 
   onViewChange
 }: SidebarNavigationProps) {
-  const { hasProcessedImages, originalImages, savedImagesCount } = useAppSelector(state => state.images)
   const { hasGeneratedScripts, scripts, hasFullScript, fullScript } = useAppSelector(state => state.scripts)
-  const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
-  const { currentGeneration: videoGeneration, generationHistory, isGeneratingVideo } = useAppSelector(state => state.video)
-  const { generatedImages, isGenerating: isGeneratingImages } = useAppSelector(state => state.imageGeneration)
-  const user = useAppSelector(state => state.user)
+   const user = useAppSelector(state => state.user)
   
   // YouTube research state
   const youtube = useAppSelector(state => state.youtube)
