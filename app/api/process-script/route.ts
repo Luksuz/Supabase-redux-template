@@ -196,12 +196,11 @@ async function handleScriptChunkProcessing(body: any) {
     lighting, 
     customParameters,
     chunkId,
-    scriptSummary // New parameter for story context
+    scriptSummary // Now required parameter for story context
   } = body;
   
   console.log(`🎬 Processing chunk ${chunkIndex + 1}/${totalChunks} (${chunkId})`)
   console.log(`📝 Chunk text length: ${chunkText?.length || 0}`)
-  console.log(`📖 Script summary provided: ${scriptSummary ? 'YES' : 'NO'}`)
   
   if (!chunkText || chunkText.trim() === '') {
     console.log('❌ No chunk text provided')
@@ -210,6 +209,28 @@ async function handleScriptChunkProcessing(body: any) {
       { status: 400 }
     );
   }
+
+  // Validate that script summary is provided
+  if (!scriptSummary) {
+    console.log('❌ No script summary provided')
+    return NextResponse.json(
+      { error: "Script summary is required for chunk processing. Please generate a script summary first." },
+      { status: 400 }
+    );
+  }
+
+  // Validate script summary structure
+  if (!scriptSummary.storySummary || !scriptSummary.mainCharacters || !scriptSummary.setting || !scriptSummary.tone) {
+    console.log('❌ Incomplete script summary provided')
+    return NextResponse.json(
+      { error: "Complete script summary is required (storySummary, mainCharacters, setting, tone)" },
+      { status: 400 }
+    );
+  }
+
+  console.log(`📖 Script summary provided: YES`)
+  console.log(`   Story: ${scriptSummary.storySummary.substring(0, 50)}...`)
+  console.log(`   Characters: ${scriptSummary.mainCharacters.substring(0, 50)}...`)
 
   if (!process.env.OPENAI_API_KEY) {
     console.log('❌ OpenAI API key not configured')
@@ -222,7 +243,7 @@ async function handleScriptChunkProcessing(body: any) {
   console.log('✅ OpenAI API key is configured')
 
   try {
-    console.log(`🎬 Processing chunk ${chunkIndex + 1}/${totalChunks} (${chunkId})`)
+    console.log(`🎬 Processing chunk ${chunkIndex + 1}/${totalChunks} (${chunkId}) with story context`)
 
     // Build the prompt for generating visual prompts and search queries
     let systemPrompt = `You are an expert visual content analyst for AI image generation and stock media search. Your task is to analyze script content and generate two types of outputs:
@@ -230,25 +251,19 @@ async function handleScriptChunkProcessing(body: any) {
 1. A detailed visual prompt for AI image generation (15-30 words)
 2. A concise search query for stock media platforms (4-5 words max)
 
-IMPORTANT: You have access to the overall story context. Use this context to ensure your visual prompts and search queries are relevant to the story and maintain narrative consistency.
+IMPORTANT: You have access to the complete story context. Use this context to ensure your visual prompts and search queries are relevant to the story and maintain narrative consistency across all chunks.
 
 Visual Style: ${visualStyle || 'photorealistic'}
 Mood & Atmosphere: ${mood || 'dramatic'}
-Lighting: ${lighting || 'natural'}`
-
-    // Add story context if available
-    if (scriptSummary) {
-      systemPrompt += `
+Lighting: ${lighting || 'natural'}
 
 STORY CONTEXT (use this to maintain narrative consistency):
-- Story Summary: ${scriptSummary.storySummary || 'Not provided'}
-- Main Characters: ${scriptSummary.mainCharacters || 'Not provided'}
-- Setting: ${scriptSummary.setting || 'Not provided'}
-- Tone: ${scriptSummary.tone || 'Not provided'}
+- Story Summary: ${scriptSummary.storySummary}
+- Main Characters: ${scriptSummary.mainCharacters}
+- Setting: ${scriptSummary.setting}
+- Tone: ${scriptSummary.tone}
 
-When generating visual prompts and search queries, ensure they align with the overall story context, characters, setting, and tone.`
-
-    }
+When generating visual prompts and search queries, ensure they align with the overall story context, characters, setting, and tone. This will create a cohesive visual narrative across all video chunks.`
 
     systemPrompt += `
 
@@ -323,7 +338,7 @@ A dramatic battlefield scene at dusk, castle walls silhouetted against a darkeni
       const parsedResponse = JSON.parse(responseContent)
       const validatedResponse = SceneAnalysisSchema.parse(parsedResponse)
       
-      console.log(`✅ Generated content for chunk ${chunkIndex + 1}:`)
+      console.log(`✅ Generated content for chunk ${chunkIndex + 1} with story context:`)
       console.log(`   Visual Prompt: ${validatedResponse.visualPrompt}`)
       console.log(`   Search Query: ${validatedResponse.searchQuery}`)
       

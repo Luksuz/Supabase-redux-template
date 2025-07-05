@@ -147,6 +147,10 @@ export function BatchImageGenerator() {
   const [searchAgainProvider, setSearchAgainProvider] = useState(searchProvider)
   const [searchAgainType, setSearchAgainType] = useState(searchType)
   
+  // Custom AI generation state
+  const [selectedPromptId, setSelectedPromptId] = useState<string>("custom")
+  const [customImageCount, setCustomImageCount] = useState(1)
+  
   // Resize state
   const [resizingCard, setResizingCard] = useState<string | null>(null)
 
@@ -750,8 +754,8 @@ export function BatchImageGenerator() {
 
   // Create custom image
   const handleCreateCustomImage = async () => {
-    if (customMode === 'ai' && !customPrompt.trim()) {
-      showMessage('Please enter a prompt for AI generation', 'error')
+    if (customMode === 'ai' && !customPrompt.trim() && selectedPromptId === "custom") {
+      showMessage('Please enter a prompt or select from available prompts for AI generation', 'error')
       return
     }
     if (customMode === 'search' && !customSearchQuery.trim()) {
@@ -759,96 +763,176 @@ export function BatchImageGenerator() {
       return
     }
 
-    // Generate the custom ID beforehand
-    const customId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    if (customMode === 'ai' && selectedPromptId && selectedPromptId !== "custom") {
+      // Handle multiple images from selected prompt
+      const selectedPrompt = prompts.find((p: any) => p.chunkId === selectedPromptId)
+      if (!selectedPrompt) {
+        showMessage('Selected prompt not found', 'error')
+        return
+      }
 
-    // Add the custom card first
-    dispatch(addCustomImageCard({
-      prompt: customMode === 'ai' ? customPrompt.trim() : undefined,
-      searchQuery: customMode === 'search' ? customSearchQuery.trim() : undefined,
-      sourceType: customMode,
-      customProvider: customMode === 'ai' ? customProvider : undefined,
-      customSearchProvider: customMode === 'search' ? customSearchProvider : undefined,
-      customId: customId
-    }))
+      const customIds: string[] = []
+      const generationPromises: Promise<void>[] = []
 
-    try {
-      if (customMode === 'ai') {
-        // Generate AI image
-        dispatch(updateCardStatus({ promptId: customId, status: 'generating' }))
-        
-        const requestBody = {
-          provider: customProvider,
-          prompt: customPrompt.trim(),
-          aspectRatio: aspectRatio,
-          userId: 'script-processor-user'
-        }
+      // Create multiple custom cards
+      for (let i = 0; i < customImageCount; i++) {
+        const customId = `custom-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`
+        customIds.push(customId)
 
-        const imageUrl = await retryImageGeneration(
-          requestBody,
-          customId,
-          3,
-          (attempt) => {
-            if (attempt > 1) {
-              dispatch(updateCardStatus({ 
-                promptId: customId, 
-                status: 'generating'
-              }))
+        // Add the custom card
+        dispatch(addCustomImageCard({
+          prompt: selectedPrompt.prompt,
+          sourceType: 'ai',
+          customProvider: customProvider,
+          customId: customId
+        }))
+
+        // Create generation promise
+        const generationPromise = (async () => {
+          try {
+            dispatch(updateCardStatus({ promptId: customId, status: 'generating' }))
+            
+            const requestBody = {
+              provider: customProvider,
+              prompt: selectedPrompt.prompt,
+              aspectRatio: aspectRatio,
+              userId: 'script-processor-user'
             }
+
+            const imageUrl = await retryImageGeneration(
+              requestBody,
+              customId,
+              3,
+              (attempt) => {
+                if (attempt > 1) {
+                  dispatch(updateCardStatus({ 
+                    promptId: customId, 
+                    status: 'generating'
+                  }))
+                }
+              }
+            )
+            
+            dispatch(updateCardResult({
+              promptId: customId,
+              imageUrl: imageUrl,
+              status: 'completed',
+              mediaType: 'image'
+            }))
+          } catch (error) {
+            dispatch(updateCardResult({
+              promptId: customId,
+              imageUrl: null,
+              status: 'error',
+              error: (error as Error).message
+            }))
           }
-        )
-        
-        dispatch(updateCardResult({
-          promptId: customId,
-          imageUrl: imageUrl,
-          status: 'completed',
-          mediaType: 'image'
-        }))
-        showMessage('Custom image generated successfully!', 'success')
-      } else {
-        // Search stock media
-        dispatch(startStockSearch({ promptId: customId }))
-        
-        const response = await fetch(`/api/search-${customSearchProvider}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: customSearchQuery.trim(), type: searchType }),
-        })
-        
-        const data = await response.json()
-        
-        if (response.ok) {
-          dispatch(setStockSearchResults({ 
-            promptId: customId, 
-            results: data.results || [],
-            replaceSelected: true
+        })()
+
+        generationPromises.push(generationPromise)
+      }
+
+      // Wait for all generations to complete
+      try {
+        await Promise.all(generationPromises)
+        showMessage(`Generated ${customImageCount} custom images successfully!`, 'success')
+      } catch (error) {
+        showMessage(`Custom image generation completed with some errors`, 'error')
+      }
+    } else {
+      // Original single image generation logic
+      const customId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      // Add the custom card first
+      dispatch(addCustomImageCard({
+        prompt: customMode === 'ai' ? customPrompt.trim() : undefined,
+        searchQuery: customMode === 'search' ? customSearchQuery.trim() : undefined,
+        sourceType: customMode,
+        customProvider: customMode === 'ai' ? customProvider : undefined,
+        customSearchProvider: customMode === 'search' ? customSearchProvider : undefined,
+        customId: customId
+      }))
+
+      try {
+        if (customMode === 'ai') {
+          // Generate AI image
+          dispatch(updateCardStatus({ promptId: customId, status: 'generating' }))
+          
+          const requestBody = {
+            provider: customProvider,
+            prompt: customPrompt.trim(),
+            aspectRatio: aspectRatio,
+            userId: 'script-processor-user'
+          }
+
+          const imageUrl = await retryImageGeneration(
+            requestBody,
+            customId,
+            3,
+            (attempt) => {
+              if (attempt > 1) {
+                dispatch(updateCardStatus({ 
+                  promptId: customId, 
+                  status: 'generating'
+                }))
+              }
+            }
+          )
+          
+          dispatch(updateCardResult({
+            promptId: customId,
+            imageUrl: imageUrl,
+            status: 'completed',
+            mediaType: 'image'
           }))
-          showMessage('Stock search completed successfully!', 'success')
+          showMessage('Custom image generated successfully!', 'success')
         } else {
-          throw new Error(data.error || `${customSearchProvider} search failed`)
+          // Search stock media
+          dispatch(startStockSearch({ promptId: customId }))
+          
+          const response = await fetch(`/api/search-${customSearchProvider}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: customSearchQuery.trim(), type: searchType }),
+          })
+          
+          const data = await response.json()
+          
+          if (response.ok) {
+            dispatch(setStockSearchResults({ 
+              promptId: customId, 
+              results: data.results || [],
+              replaceSelected: true
+            }))
+            showMessage('Stock search completed successfully!', 'success')
+          } else {
+            throw new Error(data.error || `${customSearchProvider} search failed`)
+          }
         }
+      } catch (error) {
+        if (customMode === 'ai') {
+          dispatch(updateCardResult({
+            promptId: customId,
+            imageUrl: null,
+            status: 'error',
+            error: (error as Error).message
+          }))
+        } else {
+          dispatch(setStockSearchError({ 
+            promptId: customId, 
+            error: (error as Error).message 
+          }))
+        }
+        showMessage('Failed to create custom image: ' + (error as Error).message, 'error')
       }
-    } catch (error) {
-      if (customMode === 'ai') {
-        dispatch(updateCardResult({
-          promptId: customId,
-          imageUrl: null,
-          status: 'error',
-          error: (error as Error).message
-        }))
-      } else {
-        dispatch(setStockSearchError({ 
-          promptId: customId, 
-          error: (error as Error).message 
-        }))
-      }
-      showMessage('Failed to create custom image: ' + (error as Error).message, 'error')
     }
     
     // Close dialog and reset form
     setCustomImageDialog(false)
     setCustomPrompt("")
     setCustomSearchQuery("")
+    setSelectedPromptId("custom")
+    setCustomImageCount(1)
   }
 
   // Search again for a specific card
@@ -1064,8 +1148,18 @@ export function BatchImageGenerator() {
                 <Label>Images to Generate</Label>
                 <Input
                   type="number"
-                  value={imagesToGenerate}
-                  onChange={(e) => dispatch(setImagesToGenerate(parseInt(e.target.value)))}
+                  value={imagesToGenerate.toString()}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      dispatch(setImagesToGenerate(1))
+                    } else {
+                      const parsed = parseInt(value, 10)
+                      if (!isNaN(parsed)) {
+                        dispatch(setImagesToGenerate(parsed))
+                      }
+                    }
+                  }}
                   min={1}
                   max={50}
                 />
@@ -1299,7 +1393,12 @@ export function BatchImageGenerator() {
 
                     <CardHeader>
                     <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                      <span>Scene {card.sceneNumber}</span>
+                      <span>
+                        {card.promptId.startsWith('custom-') 
+                          ? `Custom Image ${card.sceneNumber}`
+                          : `Scene ${card.sceneNumber}`
+                        }
+                      </span>
                       <div className="flex gap-1">
                         <Badge variant={card.sourceType === 'search' ? 'secondary' : 'default'} className="text-xs">
                           {card.sourceType === 'search' ? 'Stock' : 'AI'}
@@ -1598,6 +1697,8 @@ export function BatchImageGenerator() {
             setCustomImageDialog(false)
             setCustomPrompt("")
             setCustomSearchQuery("")
+            setSelectedPromptId("custom")
+            setCustomImageCount(1)
           }
         }}
       >
@@ -1648,16 +1749,83 @@ export function BatchImageGenerator() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="custom-prompt">Prompt</Label>
-                    <Textarea
-                      id="custom-prompt"
-                      value={customPrompt}
-                      onChange={(e) => setCustomPrompt(e.target.value)}
-                      placeholder="Describe the image you want to generate..."
-                      className="min-h-[100px] mt-2"
-                    />
-                  </div>
+                  
+                  {/* Option to choose from available prompts */}
+                  {hasGeneratedPrompts && prompts.length > 0 && (
+                    <div>
+                      <Label>Choose from Available Prompts</Label>
+                      <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Select a prompt from your script..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <SelectItem value="custom">
+                            <em>Use custom prompt instead</em>
+                          </SelectItem>
+                          {prompts.map((prompt: any, index: number) => {
+                            const chunk = chunks.find((c: any) => c.id === prompt.chunkId)
+                            const sceneNumber = chunk ? chunk.chunkIndex + 1 : index + 1
+                            return (
+                              <SelectItem key={prompt.chunkId} value={prompt.chunkId}>
+                                <div className="flex flex-col items-start">
+                                  <div className="font-medium">Scene {sceneNumber}</div>
+                                  <div className="text-xs text-gray-500 line-clamp-2 max-w-xs">
+                                    {prompt.prompt.length > 160 
+                                      ? `${prompt.prompt.substring(0, 160)}...` 
+                                      : prompt.prompt
+                                    }
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  
+                  {/* Number of images input when using selected prompt */}
+                  {selectedPromptId && selectedPromptId !== "custom" && (
+                    <div>
+                      <Label htmlFor="custom-image-count">Number of Images to Generate</Label>
+                      <Input
+                        id="custom-image-count"
+                        type="number"
+                        value={customImageCount.toString()}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          if (value === '') {
+                            setCustomImageCount(1)
+                          } else {
+                            const parsed = parseInt(value, 10)
+                            if (!isNaN(parsed)) {
+                              setCustomImageCount(Math.max(1, Math.min(10, parsed)))
+                            }
+                          }
+                        }}
+                        min={1}
+                        max={10}
+                        className="mt-2"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Generate 1-10 different variations of the selected scene
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Manual prompt input (only show if no prompt selected) */}
+                  {selectedPromptId === "custom" && (
+                    <div>
+                      <Label htmlFor="custom-prompt">Custom Prompt</Label>
+                      <Textarea
+                        id="custom-prompt"
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder="Describe the image you want to generate..."
+                        className="min-h-[100px] mt-2"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1708,12 +1876,15 @@ export function BatchImageGenerator() {
                 <Button 
                   onClick={handleCreateCustomImage}
                   disabled={
-                    (customMode === 'ai' && !customPrompt.trim()) ||
+                    (customMode === 'ai' && !customPrompt.trim() && selectedPromptId === "custom") ||
                     (customMode === 'search' && !customSearchQuery.trim())
                   }
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Create
+                  {customMode === 'ai' && selectedPromptId && selectedPromptId !== "custom"
+                    ? `Generate ${customImageCount} Image${customImageCount > 1 ? 's' : ''}`
+                    : 'Create'
+                  }
                 </Button>
               </div>
             </div>

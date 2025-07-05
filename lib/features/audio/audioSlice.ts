@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TextChunk } from '../../text-chunking'
 
-export type AudioProvider = 'murf' | 'elevenlabs' | 'speechify'
+export type AudioProvider = 'murf' | 'elevenlabs' | 'speechify' | 'fal-playai' | 'fal-minimax'
 
 export interface MusicTrack {
   id: number;
@@ -113,6 +113,12 @@ export const audioSlice = createSlice({
       } else if (action.payload === 'speechify') {
         state.selectedVoice = 'henry' // Default Speechify voice
         state.selectedModel = 'simba-base'
+      } else if (action.payload === 'fal-playai') {
+        state.selectedVoice = 'Jennifer (English (US)/American)' // Default PlayAI voice
+        state.selectedModel = 'playai-tts-v3'
+      } else if (action.payload === 'fal-minimax') {
+        state.selectedVoice = 'male_narrator' // Default Minimax voice
+        state.selectedModel = 'minimax-speech-02-turbo'
       }
     },
     

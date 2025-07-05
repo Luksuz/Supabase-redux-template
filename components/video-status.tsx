@@ -24,6 +24,7 @@ export function VideoStatus() {
     generationHistory,
     isGeneratingVideo
   } = useAppSelector(state => state.video)
+  const { id: userId } = useAppSelector(state => state.user)
   
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
@@ -145,6 +146,16 @@ export function VideoStatus() {
 
   // Fetch videos from database
   const fetchVideos = async (isInitial = false) => {
+    if (!userId) {
+      console.log('🔄 No user ID available, skipping video fetch')
+      if (isInitial) {
+        setIsInitialLoading(false)
+      } else {
+        setIsRefreshing(false)
+      }
+      return
+    }
+
     if (isInitial) {
       setIsInitialLoading(true)
     } else {
@@ -152,8 +163,8 @@ export function VideoStatus() {
     }
     
     try {
-      console.log('🔄 Fetching videos from database...')
-      const response = await fetch('/api/get-videos?userId=current_user')
+      console.log('🔄 Fetching videos from database for user:', userId)
+      const response = await fetch('/api/get-videos?userId=' + userId)
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
@@ -186,7 +197,7 @@ export function VideoStatus() {
   // Fetch videos on component mount
   useEffect(() => {
     fetchVideos(true)
-  }, [])
+  }, [userId])
 
   // Check status of processing videos via Shotstack API
   const checkProcessingVideos = async () => {

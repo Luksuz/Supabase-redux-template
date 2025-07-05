@@ -9,7 +9,6 @@ export interface CreateVideoRequestBody {
   audioUrl: string
   audioDuration?: number
   subtitlesUrl?: string
-  userId: string
   thumbnailUrl?: string
   segmentTimings?: SegmentTiming[]
   musicUrl?: string
@@ -21,6 +20,11 @@ export interface CreateVideoRequestBody {
   fontColor?: string
   fontWeight?: string
   strokeWidth?: number
+  textTransform?: 'none' | 'uppercase'
+  // Subtitle positioning options
+  marginTop?: number
+  marginLeft?: number
+  marginRight?: number
 }
 
 export interface CreateVideoResponse {

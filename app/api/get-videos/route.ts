@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId') || 'current_user';
+
+    console.log(`🔐 Authenticated user: ${userId}`);
     
     console.log(`📋 Fetching videos for user: ${userId}`);
 

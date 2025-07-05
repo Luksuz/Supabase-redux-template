@@ -17,127 +17,6 @@ interface GenerateSubtitlesRequestBody {
     userId?: string;
 }
 
-// Comprehensive SRT reformatting utility
-function reformatSrtContent(srt: string): string {
-    console.log("🔄 Starting SRT reformatting with 4-word segments...")
-    
-    try {
-        const lines = srt.split('\n').map(line => line.trim()).filter(line => line.length > 0)
-        const subtitles: Array<{
-            index: number
-            startTime: string
-            endTime: string
-            text: string
-        }> = []
-        
-        // Parse existing SRT format
-        let i = 0
-        while (i < lines.length) {
-            const indexLine = lines[i]
-            if (!indexLine || !indexLine.match(/^\d+$/)) {
-                i++
-                continue
-            }
-            
-            const timingLine = lines[i + 1]
-            const textLines: string[] = []
-            
-            // Collect all text lines for this subtitle
-            let j = i + 2
-            while (j < lines.length && !lines[j].match(/^\d+$/)) {
-                if (lines[j].includes('-->')) {
-                    j++
-                    continue
-                }
-                textLines.push(lines[j])
-                j++
-            }
-            
-            if (timingLine && timingLine.includes('-->')) {
-                const [startTime, endTime] = timingLine.split(' --> ')
-                const text = textLines.join(' ').trim().toUpperCase()
-                
-                if (text) {
-                    subtitles.push({
-                        index: parseInt(indexLine),
-                        startTime: startTime.trim(),
-                        endTime: endTime.trim(),
-                        text
-                    })
-                }
-            }
-            
-            i = j
-        }
-        
-        console.log(`📊 Parsed ${subtitles.length} original subtitle segments`)
-        
-        // Split into 4-word segments with distributed timing
-        const reformattedSubtitles: Array<{
-            index: number
-            startTime: string
-            endTime: string
-            text: string
-        }> = []
-        
-        let newIndex = 1
-        
-        for (const subtitle of subtitles) {
-            const words = subtitle.text.split(/\s+/).filter(word => word.length > 0)
-            
-            if (words.length <= 4) {
-                // Keep as is if 4 words or fewer
-                reformattedSubtitles.push({
-                    ...subtitle,
-                    index: newIndex++
-                })
-            } else {
-                // Split into segments of max 4 words
-                const segments: string[] = []
-                for (let i = 0; i < words.length; i += 4) {
-                    segments.push(words.slice(i, i + 4).join(' '))
-                }
-                
-                // Calculate timing for each segment
-                const totalDurationMs = timeToMs(subtitle.endTime) - timeToMs(subtitle.startTime)
-                const segmentDurationMs = Math.floor(totalDurationMs / segments.length)
-                
-                for (let i = 0; i < segments.length; i++) {
-                    const segmentStartMs = timeToMs(subtitle.startTime) + (i * segmentDurationMs)
-                    const segmentEndMs = i === segments.length - 1 
-                        ? timeToMs(subtitle.endTime) // Last segment gets the exact end time
-                        : segmentStartMs + segmentDurationMs
-                    
-                    reformattedSubtitles.push({
-                        index: newIndex++,
-                        startTime: msToTime(segmentStartMs),
-                        endTime: msToTime(segmentEndMs),
-                        text: segments[i]
-                    })
-                }
-            }
-        }
-        
-        console.log(`✅ Reformatted into ${reformattedSubtitles.length} segments (4 words max each)`)
-        
-        // Generate new SRT content
-        const reformattedSrt = reformattedSubtitles
-            .map(sub => `${sub.index}\n${sub.startTime} --> ${sub.endTime}\n${sub.text}\n`)
-            .join('\n')
-        
-        return reformattedSrt
-        
-    } catch (error) {
-        console.error('❌ Error reformatting SRT:', error)
-        // Fallback to simple cleanup if parsing fails
-        return srt
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0)
-            .join('\n') + '\n'
-    }
-}
-
 // Helper function to convert SRT time format to milliseconds
 function timeToMs(timeStr: string): number {
     // Format: HH:MM:SS,mmm
@@ -239,15 +118,13 @@ export async function POST(request: NextRequest) {
             throw new Error('Failed to generate valid SRT data from OpenAI.');
         }
         
-        console.log("🔤 Raw SRT generated. Reformatting...");
-        const reformattedSrt = reformatSrtContent(rawSrt);
-        console.log("☁️ SRT reformatted. Uploading to Supabase...");
+        console.log("�� Raw SRT generated. Uploading original to Supabase...");
 
         const srtFileName = 'subtitles_' + Date.now() + '.srt';
         const destinationPath = 'subtitles/' + srtFileName;
         
         // Convert string to buffer for upload
-        const srtBuffer = Buffer.from(reformattedSrt, 'utf-8');
+        const srtBuffer = Buffer.from(rawSrt, 'utf-8');
         
         // Create temporary file for upload
         const tempSrtPath = path.join(tempDir, srtFileName);
@@ -260,13 +137,13 @@ export async function POST(request: NextRequest) {
         );
 
         if (!supabaseUrl) {
-            throw new Error("Failed to upload reformatted SRT to Supabase.");
+            throw new Error("Failed to upload original SRT to Supabase.");
         }
 
         // Clean up temporary SRT file
         await fsPromises.unlink(tempSrtPath);
 
-        console.log("✅ Subtitles generated and uploaded: " + supabaseUrl);
+        console.log("✅ Original subtitles generated and uploaded: " + supabaseUrl);
         return NextResponse.json({ 
             success: true,
             subtitlesUrl: supabaseUrl,

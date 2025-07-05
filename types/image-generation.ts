@@ -1,4 +1,4 @@
-export type ImageProvider = 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'dalle-3' | 'gpt-image-1' | 'leonardo-phoenix' | 'imagen'
+export type ImageProvider = 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'stable-diffusion-v35-medium' | 'ideogram-v3' | 'minimax-image-01' | 'dalle-3' | 'gpt-image-1' | 'leonardo-phoenix' | 'imagen'
 
 export interface GenerateImageRequestBody {
   provider: ImageProvider

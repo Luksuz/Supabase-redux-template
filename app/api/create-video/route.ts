@@ -4,10 +4,131 @@ import { createClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+import { uploadFileToSupabase } from "@/lib/upload-file";
+import os from 'os';
+import path from 'path';
+import fsPromises from 'fs/promises';
 
 // Shotstack API settings from environment variables
 const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY
 const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT
+
+/**
+ * Apply text transformation to SRT content based on textTransform setting
+ */
+function applyTextTransform(srt: string, textTransform: 'none' | 'uppercase'): string {
+  if (textTransform === 'none') {
+    return srt; // No transformation
+  }
+
+  console.log(`🔄 Applying text transform: ${textTransform}`);
+  
+  try {
+    const lines = srt.split('\n');
+    const transformedLines = lines.map(line => {
+      const trimmedLine = line.trim();
+      
+      // Skip index lines (pure numbers)
+      if (trimmedLine.match(/^\d+$/)) {
+        return line;
+      }
+      
+      // Skip timestamp lines (contains -->)
+      if (trimmedLine.includes('-->')) {
+        return line;
+      }
+      
+      // Skip empty lines
+      if (trimmedLine === '') {
+        return line;
+      }
+      
+      // Transform text lines
+      switch (textTransform) {
+        case 'uppercase':
+          return trimmedLine.toUpperCase();
+        default:
+          return line;
+      }
+    });
+    
+    console.log(`✅ Text transform ${textTransform} applied successfully`);
+    return transformedLines.join('\n');
+    
+  } catch (error) {
+    console.error('❌ Error applying text transform:', error);
+    return srt; // Return original on error
+  }
+}
+
+/**
+ * Download, transform, and re-upload SRT file
+ */
+async function processSubtitleFile(
+  subtitlesUrl: string, 
+  textTransform: 'none' | 'uppercase'
+): Promise<string> {
+  if (textTransform === 'none') {
+    console.log('📝 No text transform needed, using original subtitles URL');
+    return subtitlesUrl; // No processing needed
+  }
+
+  console.log(`📥 Processing subtitle file with transform: ${textTransform}`);
+  
+  const tempDir = path.join(os.tmpdir(), 'subtitle_processing');
+  await fsPromises.mkdir(tempDir, { recursive: true });
+  
+  const originalFileName = path.basename(new URL(subtitlesUrl).pathname);
+  const tempFilePath = path.join(tempDir, originalFileName);
+  
+  try {
+    // Download original SRT file
+    console.log('📥 Downloading original SRT file...');
+    const response = await fetch(subtitlesUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download SRT file: ${response.statusText}`);
+    }
+    
+    const originalSrtContent = await response.text();
+    console.log('✅ Original SRT downloaded successfully');
+    
+    // Apply text transformation
+    const transformedSrtContent = applyTextTransform(originalSrtContent, textTransform);
+    
+    // Write transformed content to temp file
+    await fsPromises.writeFile(tempFilePath, transformedSrtContent, 'utf-8');
+    
+    // Upload transformed file to same location (overwrite)
+    const urlParts = new URL(subtitlesUrl);
+    const supabasePath = urlParts.pathname.replace('/storage/v1/object/public/files/', '');
+    
+    console.log(`☁️ Uploading transformed SRT to: ${supabasePath}`);
+    const newSubtitlesUrl = await uploadFileToSupabase(
+      tempFilePath,
+      supabasePath,
+      'text/srt'
+    );
+    
+    if (!newSubtitlesUrl) {
+      throw new Error('Failed to upload transformed SRT file');
+    }
+    
+    console.log('✅ Transformed SRT uploaded successfully');
+    return newSubtitlesUrl;
+    
+  } catch (error) {
+    console.error('❌ Error processing subtitle file:', error);
+    // Return original URL on error
+    return subtitlesUrl;
+  } finally {
+    // Cleanup temp file
+    try {
+      await fsPromises.unlink(tempFilePath);
+    } catch (cleanupError) {
+      console.warn('⚠️ Failed to cleanup temp file:', cleanupError);
+    }
+  }
+}
 
 /**
  * Get audio duration from URL by fetching audio metadata
@@ -28,19 +149,71 @@ async function getAudioDuration(audioUrl: string): Promise<number | null> {
 
 export async function POST(request: NextRequest) {
   try {
+    // Map font family names to Shotstack-compatible names
+    const getShotstackFontFamily = (fontFamily: string): string => {
+      const fontMap: Record<string, string> = {
+        'Arapey Regular': 'serif', // Fallback to serif
+        'Clear Sans': 'sans-serif', // Fallback to sans-serif
+        'Didact Gothic': 'Didact Gothic',
+        'Montserrat ExtraBold': 'Montserrat',
+        'Montserrat SemiBold': 'Montserrat',
+        'OpenSans Bold': 'Open Sans',
+        'Permanent Marker': 'Permanent Marker',
+        'Roboto': 'Roboto',
+        'Sue Ellen Francisco': 'cursive', // Fallback to cursive
+        'UniNeue': 'sans-serif', // Fallback to sans-serif
+        'WorkSans Light': 'Work Sans'
+      }
+      
+      return fontMap[fontFamily] || 'Montserrat'
+    }
+
+    // Get the user from the authenticated session
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    const authenticatedUserId = user.id;
+    console.log(`🔐 Authenticated user: ${authenticatedUserId}`);
+
     const body: CreateVideoRequestBody = await request.json();
-    const { imageUrls, mediaTypes, audioUrl, audioDuration, subtitlesUrl, userId, thumbnailUrl, segmentTimings, musicUrl, musicVolume, muteStockVideo } = body;
+    const { 
+      imageUrls, 
+      mediaTypes, 
+      audioUrl, 
+      audioDuration, 
+      subtitlesUrl, 
+      thumbnailUrl, 
+      segmentTimings, 
+      musicUrl, 
+      musicVolume, 
+      muteStockVideo,
+      // Subtitle styling properties
+      fontFamily,
+      fontSize,
+      fontColor,
+      fontWeight,
+      strokeWidth,
+      marginTop,
+      marginLeft,
+      marginRight,
+      textTransform
+    } = body;
     console.log(`🖼️ Image URLs: ${imageUrls}`);
     console.log(`🎭 Media Types: ${mediaTypes}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
     console.log(`⏱️ Audio Duration: ${audioDuration ? `${audioDuration}s` : 'not provided'}`);
     console.log(`📝 Subtitles URL: ${subtitlesUrl}`);
-    console.log(`👤 User ID: ${userId}`);
+    console.log(`👤 User ID: ${authenticatedUserId}`);
     console.log(`📷 Thumbnail URL: ${thumbnailUrl}`);
     console.log(`⏱️ Segment Timings: ${segmentTimings}`);
     console.log(`🎶 Music URL: ${musicUrl}`);
     console.log(`🔊 Music Volume: ${musicVolume}`);
     console.log(`🔇 Mute Stock Video: ${muteStockVideo}`);
+    console.log(`📋 Text Transform: ${textTransform}`);
 
     
     console.log(`📋 Video creation request:
@@ -52,7 +225,7 @@ export async function POST(request: NextRequest) {
       - Music Volume: ${musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}
       - Mute Stock Video: ${muteStockVideo ? 'YES' : 'NO'}
       - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (traditional video)'}
-      - User ID: ${userId}
+      - User ID: ${authenticatedUserId}
     `);
 
     // Validate inputs
@@ -61,9 +234,6 @@ export async function POST(request: NextRequest) {
     }
     if (!audioUrl) {
       return NextResponse.json<CreateVideoResponse>({ error: 'Audio URL is required.' }, { status: 400 });
-    }
-    if (!userId) {
-      return NextResponse.json<CreateVideoResponse>({ error: 'User ID is required.' }, { status: 400 });
     }
 
     // Validate segment timings if provided
@@ -78,7 +248,7 @@ export async function POST(request: NextRequest) {
 
     // Generate a unique ID for this video
     const videoId = uuidv4();
-    console.log(`Starting video creation with ID: ${videoId} for user: ${userId}`);
+    console.log(`Starting video creation with ID: ${videoId} for user: ${authenticatedUserId}`);
 
     // Determine video creation mode and calculate durations
     let totalDuration: number;
@@ -120,30 +290,35 @@ export async function POST(request: NextRequest) {
     // Track for subtitles (captions) - Add this first if it exists
     if (subtitlesUrl) {
       console.log(`Adding subtitles to video: ${subtitlesUrl}`);
+      const transformedSubtitlesUrl = await processSubtitleFile(subtitlesUrl, textTransform || 'uppercase');
       const captionTrack = {
         clips: [
           {
             asset: {
               type: "caption",
-              src: subtitlesUrl,
+              src: transformedSubtitlesUrl,
               font: {
-                family: "Montserrat",
-                size: 40,
+                family: getShotstackFontFamily(fontFamily || 'Montserrat ExtraBold'),
+                size: fontSize || 24,
+                color: fontColor || '#ffffff',
+                weight: fontWeight || '700',
                 stroke: "#000000",
-                strokeWidth: 1
+                strokeWidth: strokeWidth || 2
               },
               background: {
                 color: "#ffffff",
                 opacity: 0,
                 padding: 12,
               },
+              // Apply margin positioning
+              margin: {
+                top: marginTop || 0.75,
+                left: marginLeft || 0,
+                right: marginRight || 0
+              }
             },
             start: 0,
-            length: totalDuration,
-            position: "bottom",
-            offset: {
-              y: 0.05
-            }
+            length: totalDuration
           }
         ]
       };
@@ -280,7 +455,36 @@ export async function POST(request: NextRequest) {
     //   console.log(`  Track ${index}: ${assetType}`);
     // });
 
+    // Create fonts array for Shotstack with Google Fonts URLs
+    const fonts = [
+      // Montserrat variants
+      {
+        src: "https://fonts.gstatic.com/s/montserrat/v26/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCtr6Ew-Y3tcoqK5.woff2"
+      },
+      // Roboto
+      {
+        src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2"
+      },
+      // Open Sans Bold
+      {
+        src: "https://fonts.gstatic.com/s/opensans/v40/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4taVQUwaEQXjN_mQ.woff2"
+      },
+      // Work Sans Light
+      {
+        src: "https://fonts.gstatic.com/s/worksans/v19/QGY_z_wNahGAdqQ43RhVcIgYT2Xz5u32K0nXBi8Jpg.woff2"
+      },
+      // Didact Gothic
+      {
+        src: "https://fonts.gstatic.com/s/didactgothic/v20/ahcfv8qz1zt6hCC5G4F_P4AShUG9f_sEkYlIZg.woff2"
+      },
+      // Permanent Marker
+      {
+        src: "https://fonts.gstatic.com/s/permanentmarker/v16/Fh4uPib9Iyv2ucM6pGQMWimMp004La2Cfw.woff2"
+      }
+    ];
+
     const timeline: any = {
+      fonts: fonts,
       tracks: tracks
     };
 
@@ -378,7 +582,6 @@ export async function POST(request: NextRequest) {
     console.log("Shotstack ID:", shotstackId);
 
     // Only create database record AFTER Shotstack successfully accepts the job
-    const supabase = await createClient();
     
     // Prepare metadata for segmented videos
     const metadata = isSegmentedVideo && segmentTimings ? {
@@ -392,7 +595,7 @@ export async function POST(request: NextRequest) {
       .from('video_records')
       .insert({
         id: videoId,
-        user_id: userId,
+        user_id: authenticatedUserId,
         status: 'processing',
         shotstack_id: shotstackId,
         image_urls: imageUrls,

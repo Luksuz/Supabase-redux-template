@@ -19,6 +19,56 @@ import { Input } from './ui/input'
 import { VideoIcon, Download, PlayCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Image as ImageIcon, Volume2, Subtitles, Settings, Music, Palette, VolumeX } from 'lucide-react'
 import { CreateVideoRequestBody, VideoRecord, SegmentTiming } from '@/types/video-generation'
 
+// Load Google Fonts for preview
+const loadGoogleFonts = () => {
+  if (typeof document !== 'undefined') {
+    const link = document.createElement('link')
+    link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&family=Roboto:wght@400;700&family=Open+Sans:wght@700&family=Work+Sans:wght@300&family=Didact+Gothic&family=Permanent+Marker&display=swap'
+    link.rel = 'stylesheet'
+    if (!document.querySelector(`link[href="${link.href}"]`)) {
+      document.head.appendChild(link)
+    }
+  }
+}
+
+// Map our font names to CSS font families (with fallbacks)
+const getFontFamily = (fontName: string): string => {
+  const fontMap: Record<string, string> = {
+    'Arapey Regular': '"Times New Roman", Times, serif', // Fallback to serif
+    'Clear Sans': '"Helvetica Neue", Helvetica, Arial, sans-serif', // Fallback to clean sans-serif
+    'Didact Gothic': '"Didact Gothic", "Arial", sans-serif',
+    'Montserrat ExtraBold': '"Montserrat", Arial, sans-serif',
+    'Montserrat SemiBold': '"Montserrat", Arial, sans-serif', 
+    'OpenSans Bold': '"Open Sans", Arial, sans-serif',
+    'Permanent Marker': '"Permanent Marker", "Comic Sans MS", cursive',
+    'Roboto': '"Roboto", Arial, sans-serif',
+    'Sue Ellen Francisco': '"Brush Script MT", cursive', // Handwriting-style fallback
+    'UniNeue': '"Helvetica Neue", Helvetica, Arial, sans-serif', // Clean modern fallback
+    'WorkSans Light': '"Work Sans", Arial, sans-serif'
+  }
+  
+  return fontMap[fontName] || '"Arial", sans-serif'
+}
+
+// Get appropriate font weight for preview
+const getFontWeight = (fontName: string): string => {
+  const weightMap: Record<string, string> = {
+    'Arapey Regular': '400',
+    'Clear Sans': '400',
+    'Didact Gothic': '400',
+    'Montserrat ExtraBold': '800',
+    'Montserrat SemiBold': '600', 
+    'OpenSans Bold': '700',
+    'Permanent Marker': '400',
+    'Roboto': '400',
+    'Sue Ellen Francisco': '400',
+    'UniNeue': '400',
+    'WorkSans Light': '300'
+  }
+  
+  return weightMap[fontName] || '400'
+}
+
 export function VideoGenerator() {
   const dispatch = useAppDispatch()
   const { originalImages } = useAppSelector(state => state.images)
@@ -29,6 +79,7 @@ export function VideoGenerator() {
     isGeneratingVideo,
     settings
   } = useAppSelector(state => state.video)
+  const { id: userId } = useAppSelector(state => state.user)
   
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
@@ -36,31 +87,65 @@ export function VideoGenerator() {
   
   // Subtitle styling state
   const [subtitleSettings, setSubtitleSettings] = useState({
-    fontFamily: 'Arial',
+    fontFamily: 'Montserrat ExtraBold',
     fontSize: 24,
     fontColor: '#ffffff',
     fontWeight: '700',
-    textTransform: 'none',
-    strokeWidth: 2
+    textTransform: 'uppercase' as 'none' | 'uppercase',
+    strokeWidth: 2,
+    // Positioning settings (margins as percentages 0-1)
+    marginTop: 0.75,    // 75% from top (bottom placement)
+    marginLeft: 0.05,   // 5% from left (slight padding)
+    marginRight: 0.05,  // 5% from right (slight padding)
+    position: 'bottom' as 'top' | 'center' | 'bottom'
   })
 
   // Font family options
   const fontFamilyOptions = [
-    { value: 'Arial', label: 'Arial' },
-    { value: 'Helvetica', label: 'Helvetica' },
-    { value: 'Times New Roman', label: 'Times New Roman' },
-    { value: 'Georgia', label: 'Georgia' },
-    { value: 'Verdana', label: 'Verdana' },
-    { value: 'Trebuchet MS', label: 'Trebuchet MS' },
-    { value: 'Impact', label: 'Impact' },
-    { value: 'Comic Sans MS', label: 'Comic Sans MS' },
-    { value: 'Courier New', label: 'Courier New' },
-    { value: 'Lucida Console', label: 'Lucida Console' }
+    { value: 'Arapey Regular', label: 'Arapey Regular' },
+    { value: 'Clear Sans', label: 'Clear Sans' },
+    { value: 'Didact Gothic', label: 'Didact Gothic' },
+    { value: 'Montserrat ExtraBold', label: 'Montserrat ExtraBold' },
+    { value: 'Montserrat SemiBold', label: 'Montserrat SemiBold' },
+    { value: 'OpenSans Bold', label: 'OpenSans Bold' },
+    { value: 'Permanent Marker', label: 'Permanent Marker' },
+    { value: 'Roboto', label: 'Roboto' },
+    { value: 'Sue Ellen Francisco', label: 'Sue Ellen Francisco' },
+    { value: 'UniNeue', label: 'UniNeue' },
+    { value: 'WorkSans Light', label: 'WorkSans Light' }
   ]
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
+  }
+
+  // Load fonts when component mounts
+  useEffect(() => {
+    loadGoogleFonts()
+  }, [])
+
+  // Handle subtitle position presets
+  const handleSubtitlePositionChange = (position: string) => {
+    let marginSettings = { marginTop: 0.75, marginLeft: 0.05, marginRight: 0.05 }
+    
+    switch (position) {
+      case 'bottom':
+        marginSettings = { marginTop: 0.75, marginLeft: 0.05, marginRight: 0.05 }
+        break
+      case 'top':
+        marginSettings = { marginTop: 0.05, marginLeft: 0.05, marginRight: 0.05 }
+        break
+      case 'center':
+        marginSettings = { marginTop: 0.4, marginLeft: 0.05, marginRight: 0.05 }
+        break
+    }
+    
+    setSubtitleSettings(prev => ({ 
+      ...prev, 
+      position: position as any,
+      ...marginSettings
+    }))
   }
 
   // Initialize custom segment timings when images or audio change
@@ -299,7 +384,6 @@ export function VideoGenerator() {
         audioUrl: audioGeneration.audioUrl,
         audioDuration: audioGeneration.duration || undefined,
         subtitlesUrl: settings.includeSubtitles && audioGeneration.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
-        userId: 'current_user',
         thumbnailUrl: imageUrls[0],
         segmentTimings: segmentTimings,
         musicUrl: settings.includeMusic ? getAvailableMusicUrl() || undefined : undefined,
@@ -311,7 +395,11 @@ export function VideoGenerator() {
           fontSize: subtitleSettings.fontSize,
           fontColor: subtitleSettings.fontColor,
           fontWeight: subtitleSettings.fontWeight,
-          strokeWidth: subtitleSettings.strokeWidth
+          strokeWidth: subtitleSettings.strokeWidth,
+          textTransform: subtitleSettings.textTransform,
+          marginTop: subtitleSettings.marginTop,
+          marginLeft: subtitleSettings.marginLeft,
+          marginRight: subtitleSettings.marginRight
         })
       }
 
@@ -341,7 +429,7 @@ export function VideoGenerator() {
         // Create video record for Redux state
         const videoRecord: VideoRecord = {
           id: data.video_id,
-          user_id: 'current_user',
+          user_id: userId || 'anonymous',
           status: 'processing',
           shotstack_id: data.shotstack_id || '',
           image_urls: imageUrls,
@@ -648,7 +736,7 @@ export function VideoGenerator() {
                     <Label className="text-sm">Text Style</Label>
                     <Select 
                       value={subtitleSettings.textTransform} 
-                      onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, textTransform: value }))}
+                      onValueChange={(value) => setSubtitleSettings(prev => ({ ...prev, textTransform: value as 'none' | 'uppercase' }))}
                       disabled={!hasPrerequisites}
                     >
                       <SelectTrigger>
@@ -657,8 +745,6 @@ export function VideoGenerator() {
                       <SelectContent>
                         <SelectItem value="none">Normal</SelectItem>
                         <SelectItem value="uppercase">UPPERCASE</SelectItem>
-                        <SelectItem value="lowercase">lowercase</SelectItem>
-                        <SelectItem value="capitalize">Capitalize</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -727,23 +813,72 @@ export function VideoGenerator() {
                   </div>
                 </div>
 
+                {/* Third row - Positioning controls */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Subtitle Position</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Position Presets */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Position Preset</Label>
+                      <Select 
+                        value={subtitleSettings.position} 
+                        onValueChange={handleSubtitlePositionChange}
+                        disabled={!hasPrerequisites}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bottom">Bottom</SelectItem>
+                          <SelectItem value="top">Top</SelectItem>
+                          <SelectItem value="center">Center</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Visual Position Preview */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Position Preview</Label>
+                      <div className="w-full h-16 bg-gray-300 rounded relative overflow-hidden">
+                        <div 
+                          className="absolute bg-blue-500 text-white text-xs px-2 py-1 rounded"
+                          style={{
+                            top: `${subtitleSettings.marginTop * 100}%`,
+                            left: `${subtitleSettings.marginLeft * 100}%`,
+                            right: `${subtitleSettings.marginRight * 100}%`,
+                            transform: 'translateY(-50%)'
+                          }}
+                        >
+                          Subtitle
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Live Preview */}
                 <div className="p-4 bg-gray-200 rounded-lg">
                   <div className="text-center">
                     <p className="text-xs text-gray-400 mb-2">Subtitle Preview:</p>
                     <div 
                       style={{
-                        fontFamily: subtitleSettings.fontFamily,
+                        fontFamily: getFontFamily(subtitleSettings.fontFamily),
                         color: subtitleSettings.fontColor,
                         fontSize: `${Math.min(subtitleSettings.fontSize * 0.7, 24)}px`, // Scale down for preview
                         textShadow: subtitleSettings.strokeWidth > 0 
                           ? `${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, ${subtitleSettings.strokeWidth * 0.7}px -${subtitleSettings.strokeWidth * 0.7}px 0px #000000, -${subtitleSettings.strokeWidth * 0.7}px ${subtitleSettings.strokeWidth * 0.7}px 0px #000000`
                           : 'none',
-                        fontWeight: subtitleSettings.fontWeight,
+                        fontWeight: getFontWeight(subtitleSettings.fontFamily),
                         textTransform: subtitleSettings.textTransform as any
                       }}
                     >
-                      Sample subtitle text appears here
+                      {subtitleSettings.textTransform === 'uppercase' 
+                        ? 'SAMPLE SUBTITLE TEXT APPEARS HERE'
+                        : 'Sample subtitle text appears here'
+                      }
                     </div>
                   </div>
                 </div>

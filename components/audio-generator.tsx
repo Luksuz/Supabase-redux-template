@@ -307,7 +307,11 @@ export function AudioGenerator() {
         ? '/api/generate-murf-audio' 
         : selectedProvider === 'elevenlabs' 
           ? '/api/generate-elevenlabs-audio'
-          : '/api/generate-speechify-audio';
+          : selectedProvider === 'speechify'
+            ? '/api/generate-speechify-audio'
+            : selectedProvider === 'fal-playai' || selectedProvider === 'fal-minimax'
+              ? '/api/generate-fal-audio'
+              : '/api/generate-speechify-audio';
         
       console.log(`🎵 Starting ${selectedProvider} batch audio generation for ${textChunks.length} chunks...`);
       
@@ -324,18 +328,19 @@ export function AudioGenerator() {
           dispatch(updateChunkProgress({ chunkIndex: chunk.chunkIndex, status: 'processing' }));
           
           try {
-      const payload = {
+            const requestBody = {
               text: chunk.text,
-        voiceId: selectedVoice,
+              voice: selectedVoice,
+              model: selectedModel,
               chunkIndex: chunk.chunkIndex,
-        sessionId: sessionId,
-              generateSubtitles: false, // Don't generate subtitles for individual chunks
-      };
+              sessionId: sessionId,
+              generateSubtitles: generateSubtitles
+            };
               
       const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(requestBody)
             });
 
               if (!response.ok) {
@@ -636,6 +641,57 @@ export function AudioGenerator() {
         </Select>
       );
     }
+    
+    if (selectedProvider === 'fal-playai') {
+      const playaiVoices = [
+        { value: 'Jennifer (English (US)/American)', label: 'Jennifer (English US/American)' },
+        { value: 'Serena (English (US)/American)', label: 'Serena (English US/American)' },
+        { value: 'David (English (US)/American)', label: 'David (English US/American)' },
+        { value: 'Matthew (English (US)/American)', label: 'Matthew (English US/American)' },
+        { value: 'William (English (US)/American)', label: 'William (English US/American)' },
+      ];
+      
+      return (
+        <Select 
+          value={selectedVoice} 
+          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {playaiVoices.map((voice) => (
+              <SelectItem key={voice.value} value={voice.value}>
+                {voice.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    
+    if (selectedProvider === 'fal-minimax') {
+      const minimaxVoices = [
+        { value: 'male_narrator', label: 'Male Narrator' },
+        { value: 'female_narrator', label: 'Female Narrator' },
+        { value: 'child_narrator', label: 'Child Narrator' },
+      ];
+      
+      return (
+        <Select 
+          value={selectedVoice} 
+          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {minimaxVoices.map((voice) => (
+              <SelectItem key={voice.value} value={voice.value}>
+                {voice.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    
     return null;
   };
 
@@ -655,6 +711,24 @@ export function AudioGenerator() {
     }
     if (provider === 'speechify') {
       return speechifyVoices.find(v => v.id === voiceId)?.displayName || voiceId;
+    }
+    if (provider === 'fal-playai') {
+      const playaiVoices = [
+        { value: 'Jennifer (English (US)/American)', label: 'Jennifer (English US/American)' },
+        { value: 'Serena (English (US)/American)', label: 'Serena (English US/American)' },
+        { value: 'David (English (US)/American)', label: 'David (English US/American)' },
+        { value: 'Matthew (English (US)/American)', label: 'Matthew (English US/American)' },
+        { value: 'William (English (US)/American)', label: 'William (English US/American)' },
+      ];
+      return playaiVoices.find(v => v.value === voiceId)?.label || voiceId;
+    }
+    if (provider === 'fal-minimax') {
+      const minimaxVoices = [
+        { value: 'English_CaptivatingStoryteller', label: 'English_CaptivatingStoryteller' },
+        { value: 'female_narrator', label: 'Female Narrator' },
+        { value: 'child_narrator', label: 'Child Narrator' },
+      ];
+      return minimaxVoices.find(v => v.value === voiceId)?.label || voiceId;
     }
     return voiceId;
   }
@@ -711,6 +785,14 @@ export function AudioGenerator() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="speechify" id="speechify" />
                   <Label htmlFor="speechify">Speechify</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="fal-playai" id="fal-playai" />
+                  <Label htmlFor="fal-playai">FAL PlayAI</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="fal-minimax" id="fal-minimax" />
+                  <Label htmlFor="fal-minimax">FAL Minimax</Label>
                 </div>
               </RadioGroup>
               </div>

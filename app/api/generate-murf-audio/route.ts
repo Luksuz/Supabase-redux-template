@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       console.log(`💾 Original audio saved locally: ${audioFilePath}`)
       
       // Get duration from original local file
-      const { stdout } = await execAsync(`C:\\ffmpeg\\bin\\ffprobe.exe -v error -show_entries format=duration -of csv=p=0 "${audioFilePath}"`)
+      const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioFilePath}"`)
       const duration = parseFloat(stdout.trim())
       if (isNaN(duration) || duration <= 0) {
         throw new Error(`Invalid duration detected from local file.`)
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         const compressedFilePath = path.join(tempDir, compressedFileName)
         
         console.log(`🗜️ Compressing audio for subtitles: ${audioFilePath} -> ${compressedFilePath}`)
-        const compressionCommand = `C:\\ffmpeg\\bin\\ffmpeg.exe -i "${audioFilePath}" -b:a 48k -ar 24000 -ac 1 -y "${compressedFilePath}"`
+        const compressionCommand = `ffmpeg -i "${audioFilePath}" -b:a 48k -ar 24000 -ac 1 -y "${compressedFilePath}"`
         await execAsync(compressionCommand)
 
         // Upload compressed audio to Supabase

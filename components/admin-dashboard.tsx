@@ -20,7 +20,9 @@ import {
   Edit,
   Mic,
   Plus,
-  Trash2
+  Trash2,
+  VideoIcon,
+  Download
 } from 'lucide-react'
 
 interface UserProfile {
@@ -29,6 +31,15 @@ interface UserProfile {
   created_at: string
   is_admin: boolean
   last_sign_in_at: string | null
+  videos: {
+    id: string
+    status: 'processing' | 'completed' | 'failed'
+    created_at: string
+    final_video_url?: string
+    thumbnail_url: string
+  }[]
+  video_count: number
+  completed_videos: number
 }
 
 interface AIVoice {
@@ -45,6 +56,11 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+
+  // User management
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [selectedUserVideos, setSelectedUserVideos] = useState<UserProfile | null>(null)
+  const [showUserVideosDialog, setShowUserVideosDialog] = useState(false)
 
   // AI Voices Management
   const [voices, setVoices] = useState<AIVoice[]>([])
@@ -112,6 +128,38 @@ export function AdminDashboard() {
     } catch (error) {
       showMessage('Error updating admin status: ' + (error as Error).message, 'error')
     }
+  }
+
+  const deleteUser = async (userId: string, userEmail: string) => {
+    const confirmMessage = `Are you sure you want to delete user "${userEmail}"?\n\nThis will permanently delete:\n• The user account\n• All their generated videos\n• All their data\n\nThis action cannot be undone.`
+    
+    if (!confirm(confirmMessage)) {
+      return
+    }
+
+    setDeletingUserId(userId)
+    try {
+      const response = await fetch(`/api/admin/users?userId=${userId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete user')
+      }
+
+      showMessage(`User "${userEmail}" deleted successfully`, 'success')
+      fetchUsers() // Refresh the list
+    } catch (error) {
+      showMessage('Error deleting user: ' + (error as Error).message, 'error')
+    } finally {
+      setDeletingUserId(null)
+    }
+  }
+
+  const openUserVideosDialog = (userProfile: UserProfile) => {
+    setSelectedUserVideos(userProfile)
+    setShowUserVideosDialog(true)
   }
 
   // AI Voices Management Functions
@@ -292,6 +340,12 @@ export function AdminDashboard() {
                     <Badge variant="outline">
                       {users.filter(u => !u.is_admin).length} Regular Users
                     </Badge>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                      {users.reduce((sum, u) => sum + u.video_count, 0)} Total Videos
+                    </Badge>
+                    <Badge variant="outline" className="bg-green-50 text-green-700">
+                      {users.reduce((sum, u) => sum + u.completed_videos, 0)} Completed
+                    </Badge>
                   </div>
                 </div>
 
@@ -315,9 +369,24 @@ export function AdminDashboard() {
                                 Admin
                               </Badge>
                             )}
+                            {userProfile.video_count > 0 && (
+                              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                {userProfile.completed_videos}/{userProfile.video_count} videos
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {userProfile.video_count > 0 && (
+                            <Button
+                              onClick={() => openUserVideosDialog(userProfile)}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <VideoIcon className="h-4 w-4 mr-1" />
+                              View Videos ({userProfile.video_count})
+                            </Button>
+                          )}
                           <Button
                             onClick={() => toggleUserAdminStatus(userProfile.id, userProfile.is_admin)}
                             size="sm"
@@ -327,6 +396,24 @@ export function AdminDashboard() {
                             <Shield className="h-4 w-4 mr-1" />
                             {userProfile.is_admin ? 'Remove Admin' : 'Make Admin'}
                           </Button>
+                          <Button
+                            onClick={() => deleteUser(userProfile.id, userProfile.email)}
+                            size="sm"
+                            variant="destructive"
+                            disabled={userProfile.id === user.id || deletingUserId === userProfile.id}
+                          >
+                            {deletingUserId === userProfile.id ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </>
+                            )}
+                          </Button>
                         </div>
                       </div>
                       
@@ -334,6 +421,11 @@ export function AdminDashboard() {
                         <div>Created: {new Date(userProfile.created_at).toLocaleDateString()}</div>
                         {userProfile.last_sign_in_at && (
                           <div>Last sign in: {new Date(userProfile.last_sign_in_at).toLocaleString()}</div>
+                        )}
+                        {userProfile.video_count > 0 && (
+                          <div className="flex items-center gap-4">
+                            <span>Videos: {userProfile.completed_videos} completed, {userProfile.video_count - userProfile.completed_videos} pending</span>
+                          </div>
                         )}
                         {userProfile.id === user.id && (
                           <Badge variant="outline" className="text-xs">
@@ -511,6 +603,119 @@ export function AdminDashboard() {
                     {editingVoice ? 'Update' : 'Create'}
                   </Button>
                 </div>
+              </div>
+              
+              <Dialog.Close asChild>
+                <button
+                  className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </Dialog.Close>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+
+        {/* User Videos Dialog */}
+        <Dialog.Root open={showUserVideosDialog} onOpenChange={setShowUserVideosDialog}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+            <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-6xl translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
+              <Dialog.Title className="text-lg font-semibold">
+                Videos by {selectedUserVideos?.email}
+              </Dialog.Title>
+              <Dialog.Description className="text-sm text-muted-foreground">
+                Total: {selectedUserVideos?.video_count} videos ({selectedUserVideos?.completed_videos} completed)
+              </Dialog.Description>
+              
+              <div className="max-h-[70vh] overflow-y-auto">
+                {selectedUserVideos?.videos && selectedUserVideos.videos.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedUserVideos.videos.map((video) => (
+                      <div key={video.id} className="border rounded-lg p-4 space-y-3">
+                        {/* Video Thumbnail */}
+                        <div className="aspect-video bg-gray-100 rounded overflow-hidden">
+                          {video.thumbnail_url ? (
+                            <img 
+                              src={video.thumbnail_url} 
+                              alt="Video thumbnail"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <VideoIcon className="h-8 w-8 text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Video Info */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Badge 
+                              variant={
+                                video.status === 'completed' ? 'default' : 
+                                video.status === 'failed' ? 'destructive' : 
+                                'secondary'
+                              }
+                              className={
+                                video.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                video.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                'bg-blue-100 text-blue-800'
+                              }
+                            >
+                              {video.status}
+                            </Badge>
+                            <span className="text-xs text-gray-500">
+                              {new Date(video.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          
+                          <div className="text-xs text-gray-600">
+                            ID: {video.id}
+                          </div>
+                          
+                          {/* Video Player for completed videos */}
+                          {video.status === 'completed' && video.final_video_url && (
+                            <video 
+                              controls 
+                              className="w-full rounded"
+                              preload="metadata"
+                            >
+                              <source src={video.final_video_url} type="video/mp4" />
+                              Your browser does not support the video element.
+                            </video>
+                          )}
+                          
+                          {/* Download Button for completed videos */}
+                          {video.status === 'completed' && video.final_video_url && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => {
+                                const link = document.createElement('a')
+                                link.href = video.final_video_url!
+                                link.download = `video-${video.id}.mp4`
+                                document.body.appendChild(link)
+                                link.click()
+                                document.body.removeChild(link)
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <VideoIcon className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                    <p>No videos found for this user.</p>
+                  </div>
+                )}
               </div>
               
               <Dialog.Close asChild>

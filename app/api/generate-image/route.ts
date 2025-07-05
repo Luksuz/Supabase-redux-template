@@ -124,6 +124,15 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
     case 'stable-diffusion-v35-large':
       modelEndpoint = 'fal-ai/stable-diffusion-v35-large';
       break;
+    case 'stable-diffusion-v35-medium':
+      modelEndpoint = 'fal-ai/stable-diffusion-v35-medium';
+      break;
+    case 'ideogram-v3':
+      modelEndpoint = 'fal-ai/ideogram/v3';
+      break;
+    case 'minimax-image-01':
+      modelEndpoint = 'fal-ai/minimax/image-01';
+      break;
     default:
       throw new Error(`Unsupported flux model: ${provider}`);
   }
@@ -135,7 +144,9 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
       num_inference_steps: 28,
       guidance_scale: 3.5,
       num_images: 1,
-      enable_safety_checker: false
+      enable_safety_checker: false,
+      // Add mode for Ideogram v3 (turbo mode)
+      ...(provider === 'ideogram-v3' && { mode: 'turbo' })
     },
   });
 
@@ -374,7 +385,7 @@ export async function POST(request: NextRequest) {
     console.log(`🎨 Received styled prompt: ${prompt.substring(0, 150)}...`);
 
     // Check API keys based on provider
-    if (['flux-dev', 'recraft-v3', 'stable-diffusion-v35-large'].includes(provider) && !FAL_API_KEY) {
+    if (['flux-dev', 'recraft-v3', 'stable-diffusion-v35-large', 'stable-diffusion-v35-medium', 'ideogram-v3', 'minimax-image-01'].includes(provider) && !FAL_API_KEY) {
       return NextResponse.json({ error: 'FAL API key is not configured for flux models.' }, { status: 500 });
     }
 
@@ -402,6 +413,9 @@ export async function POST(request: NextRequest) {
       case 'flux-dev':
       case 'recraft-v3':
       case 'stable-diffusion-v35-large':
+      case 'stable-diffusion-v35-medium':
+      case 'ideogram-v3':
+      case 'minimax-image-01':
         if (!FAL_API_KEY) throw new Error('FAL_API_KEY is not set');
         imageUrl = await generateFluxImage(provider, prompt, { width, height });
         break;

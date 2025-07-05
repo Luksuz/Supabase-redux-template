@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       const finalFileName = `final-audio-${Date.now()}.mp3`
       const finalFilePath = path.join(tempDir, finalFileName)
       
-      const ffmpegCommand = `C:\\ffmpeg\\bin\\ffmpeg.exe -f concat -safe 0 -i "${concatFilePath}" -c copy "${finalFilePath}"`
+      const ffmpegCommand = `ffmpeg -f concat -safe 0 -i "${concatFilePath}" -c copy "${finalFilePath}"`
       console.log(`🎬 Running ffmpeg concatenation: ${ffmpegCommand}`)
       
       await execAsync(ffmpegCommand)
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
       // Get duration of final audio using ffprob
       console.log(`⏱️ Getting final audio duration`)
-      const { stdout } = await execAsync(`C:\\ffmpeg\\bin\\ffprobe.exe -v error -show_entries format=duration -of csv=p=0 "${finalFilePath}"`)
+      const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${finalFilePath}"`)
       const finalDuration = parseFloat(stdout.trim())
       
       if (isNaN(finalDuration) || finalDuration <= 0) {
