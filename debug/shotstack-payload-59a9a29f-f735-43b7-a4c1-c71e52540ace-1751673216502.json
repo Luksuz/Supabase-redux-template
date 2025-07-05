@@ -1,0 +1,120 @@
+{
+  "metadata": {
+    "videoId": "59a9a29f-f735-43b7-a4c1-c71e52540ace",
+    "timestamp": "2025-07-04T23:53:36.503Z",
+    "videoType": "Traditional",
+    "totalDuration": 502.800816,
+    "imageCount": 5,
+    "hasAudio": true,
+    "hasSubtitles": true,
+    "hasMusic": false,
+    "musicVolume": "N/A",
+    "muteStockVideo": true
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "caption",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/subtitles/subtitles_1751671747214.srt",
+                "font": {
+                  "family": "Lucida Console",
+                  "size": 60,
+                  "color": "#ffffff",
+                  "weight": "1000",
+                  "stroke": "#000000",
+                  "strokeWidth": 2
+                },
+                "background": {
+                  "color": "#000000",
+                  "opacity": 0.4,
+                  "padding": 12,
+                  "borderRadius": 8
+                },
+                "margin": {
+                  "top": 0.05,
+                  "left": 0.05,
+                  "right": 0.05
+                }
+              },
+              "start": 0,
+              "length": 502.800816
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1751671527904-eacovu7zi-chunk-1-1751671574269.png"
+              },
+              "start": 0,
+              "length": 100.5601632,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1751671527904-eacovu7zi-chunk-7-1751671573819.png"
+              },
+              "start": 100.5601632,
+              "length": 100.5601632,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1751671527904-eacovu7zi-chunk-3-1751671574890.png"
+              },
+              "start": 201.1203264,
+              "length": 100.5601632,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1751671527904-eacovu7zi-chunk-26-1751671591961.png"
+              },
+              "start": 301.6804896,
+              "length": 100.5601632,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1751671527904-eacovu7zi-chunk-6-1751671594656.png"
+              },
+              "start": 402.2406528,
+              "length": 100.5601632,
+              "fit": "cover"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1751671670923.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 502.800816
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}
