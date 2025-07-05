@@ -8,8 +8,7 @@ export type ImageProvider =
   | 'gpt-image-1'
   | 'leonardo-phoenix'
   | 'ideogram-v3'
-  | 'minimax-image-01'
-  | 'imagen';
+  | 'minimax-image-01';
 
 export interface GenerateImageRequestBody {
   provider: ImageProvider

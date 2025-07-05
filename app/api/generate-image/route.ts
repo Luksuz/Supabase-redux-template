@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GenerateImageRequestBody, GenerateImageResponse } from '@/types/image-generation';
 import { fal } from "@fal-ai/client";
 import OpenAI from 'openai';
-import { GoogleGenAI } from "@google/genai";
 import { createClient } from '@supabase/supabase-js';
 
 const FAL_API_KEY = process.env.FAL_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const LEONARDO_API_URL = 'https://cloud.leonardo.ai/api/rest/v1';
 
 // Initialize Supabase client
@@ -19,10 +17,6 @@ const supabase = createClient(
 
 // Initialize OpenAI client
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
-
-// Initialize Google GenAI client
-const googleAI = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
-console.log('googleAI', googleAI);
 
 // Configure fal.ai
 if (FAL_API_KEY) {
@@ -334,37 +328,6 @@ async function generateLeonardoPhoenixImage(prompt: string, width: number, heigh
   return imageUrl;
 }
 
-// Generate image using Google Imagen
-async function generateImagenImage(prompt: string): Promise<string> {
-  if (!googleAI) {
-    throw new Error('Google GenAI client not initialized - check API key');
-  }
-
-  console.log(`🎨 Generating Google Imagen image`);
-  
-  const response = await googleAI.models.generateImages({
-    model: 'imagen-4.0-generate-preview-06-06',
-    prompt: prompt,
-    config: {
-      numberOfImages: 1,
-    },
-  });
-
-  console.log('Imagen response', response);
-
-  if (!response.generatedImages || response.generatedImages.length === 0) {
-    throw new Error('No image generated from Google Imagen');
-  }
-
-  const generatedImage = response.generatedImages[0];
-  if (!generatedImage.image?.imageBytes) {
-    throw new Error('No image data received from Google Imagen');
-  }
-
-  // Return as data URL for immediate use
-  return `data:image/png;base64,${generatedImage.image.imageBytes}`;
-}
-
 export async function POST(request: NextRequest) {
   const body: GenerateImageRequestBody = await request.json();
   const { 
@@ -401,10 +364,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Leonardo API key is not configured for Phoenix model.' }, { status: 500 });
     }
 
-    if (provider === 'imagen' && !GEMINI_API_KEY) {
-      return NextResponse.json({ error: 'Gemini API key is not configured for Imagen.' }, { status: 500 });
-    }
-
     // Main logic
     let imageUrl: string;
     const { width, height } = getImageDimensions(aspectRatio);
@@ -435,11 +394,6 @@ export async function POST(request: NextRequest) {
       case 'leonardo-phoenix':
         if (!LEONARDO_API_KEY) throw new Error('LEONARDO_API_KEY is not set');
         imageUrl = await generateLeonardoPhoenixImage(prompt, width, height);
-        break;
-      
-      case 'imagen':
-        if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set');
-        imageUrl = await generateImagenImage(prompt);
         break;
 
       default:
@@ -473,8 +427,5 @@ if (process.env.NODE_ENV !== 'test') {
   }
   if (!LEONARDO_API_KEY) {
     console.warn("Warning: LEONARDO_API_KEY environment variable is not set. Leonardo Phoenix image generation will fail.");
-  }
-  if (!GEMINI_API_KEY) {
-    console.warn("Warning: GEMINI_API_KEY environment variable is not set. Google Imagen image generation will fail.");
   }
 } 
