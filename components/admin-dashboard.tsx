@@ -22,7 +22,8 @@ import {
   Plus,
   Trash2,
   VideoIcon,
-  Download
+  Download,
+  Loader2
 } from 'lucide-react'
 
 interface UserProfile {
@@ -45,7 +46,7 @@ interface UserProfile {
 interface AIVoice {
   id: number
   created_at: string
-  provider: 'murf' | 'elevenlabs' | 'speechify'
+  provider: 'murf' | 'elevenlabs' | 'speechify' | 'playai' | 'minimax'
   voice_id: string
   name: string
 }
@@ -62,13 +63,21 @@ export function AdminDashboard() {
   const [selectedUserVideos, setSelectedUserVideos] = useState<UserProfile | null>(null)
   const [showUserVideosDialog, setShowUserVideosDialog] = useState(false)
 
+  // Create user functionality
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [createUserForm, setCreateUserForm] = useState({
+    email: '',
+    password: ''
+  })
+
   // AI Voices Management
   const [voices, setVoices] = useState<AIVoice[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(false)
   const [showVoiceDialog, setShowVoiceDialog] = useState(false)
   const [editingVoice, setEditingVoice] = useState<AIVoice | null>(null)
   const [voiceForm, setVoiceForm] = useState({
-    provider: 'murf' as 'murf' | 'elevenlabs' | 'speechify',
+    provider: 'murf' as 'murf' | 'elevenlabs' | 'speechify' | 'playai' | 'minimax',
     voice_id: '',
     name: ''
   })
@@ -275,6 +284,50 @@ export function AdminDashboard() {
     setShowVoiceDialog(true)
   }
 
+  // Create user functionality
+  const handleCreateUser = async () => {
+    if (!createUserForm.email || !createUserForm.password) {
+      showMessage('Please fill in all fields', 'error')
+      return
+    }
+
+    if (createUserForm.password.length < 6) {
+      showMessage('Password must be at least 6 characters long', 'error')
+      return
+    }
+
+    setIsCreatingUser(true)
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: createUserForm.email,
+          password: createUserForm.password
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create user')
+      }
+
+      showMessage('User created successfully!', 'success')
+      setShowCreateUserDialog(false)
+      setCreateUserForm({ email: '', password: '' })
+      fetchUsers()
+    } catch (error) {
+      showMessage('Error creating user: ' + (error as Error).message, 'error')
+    } finally {
+      setIsCreatingUser(false)
+    }
+  }
+
+  const openCreateUserDialog = () => {
+    setCreateUserForm({ email: '', password: '' })
+    setShowCreateUserDialog(true)
+  }
+
   if (!user.isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
@@ -347,6 +400,10 @@ export function AdminDashboard() {
                       {users.reduce((sum, u) => sum + u.completed_videos, 0)} Completed
                     </Badge>
                   </div>
+                  <Button onClick={openCreateUserDialog} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create User
+                  </Button>
                 </div>
 
                 <div className="grid gap-4">
@@ -479,6 +536,12 @@ export function AdminDashboard() {
                     <Badge variant="secondary">
                       {voices.filter(v => v.provider === 'speechify').length} Speechify
                     </Badge>
+                    <Badge variant="secondary">
+                      {voices.filter(v => v.provider === 'playai').length} PlayAI
+                    </Badge>
+                    <Badge variant="secondary">
+                      {voices.filter(v => v.provider === 'minimax').length} Minimax
+                    </Badge>
                   </div>
                   <Button onClick={openCreateVoiceDialog} size="sm">
                     <Plus className="h-4 w-4 mr-2" />
@@ -555,7 +618,7 @@ export function AdminDashboard() {
                   <Label>Provider</Label>
                   <Select 
                     value={voiceForm.provider} 
-                    onValueChange={(value: 'murf' | 'elevenlabs' | 'speechify') => 
+                    onValueChange={(value: 'murf' | 'elevenlabs' | 'speechify' | 'playai' | 'minimax') => 
                       setVoiceForm(prev => ({ ...prev, provider: value }))
                     }
                   >
@@ -566,6 +629,8 @@ export function AdminDashboard() {
                       <SelectItem value="murf">Murf.ai</SelectItem>
                       <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
                       <SelectItem value="speechify">Speechify</SelectItem>
+                      <SelectItem value="playai">PlayAI</SelectItem>
+                      <SelectItem value="minimax">Minimax</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -716,6 +781,75 @@ export function AdminDashboard() {
                     <p>No videos found for this user.</p>
                   </div>
                 )}
+              </div>
+              
+              <Dialog.Close asChild>
+                <button
+                  className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </Dialog.Close>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+
+        {/* Create User Dialog */}
+        <Dialog.Root open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+            <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
+              <Dialog.Title className="text-lg font-semibold">
+                Create New User
+              </Dialog.Title>
+              <Dialog.Description className="text-sm text-muted-foreground">
+                Create a new user account with email and password. The user will be automatically confirmed.
+              </Dialog.Description>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="user-email">Email</Label>
+                  <Input
+                    id="user-email"
+                    type="email"
+                    value={createUserForm.email}
+                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="user@example.com"
+                    className="mt-2"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="user-password">Password</Label>
+                  <Input
+                    id="user-password"
+                    type="password"
+                    value={createUserForm.password}
+                    onChange={(e) => setCreateUserForm(prev => ({ ...prev, password: e.target.value }))}
+                    placeholder="Minimum 6 characters"
+                    className="mt-2"
+                  />
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-4">
+                  <Dialog.Close asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </Dialog.Close>
+                  <Button 
+                    onClick={handleCreateUser}
+                    disabled={!createUserForm.email || !createUserForm.password || isCreatingUser}
+                  >
+                    {isCreatingUser ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create User'
+                    )}
+                  </Button>
+                </div>
               </div>
               
               <Dialog.Close asChild>

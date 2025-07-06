@@ -59,15 +59,6 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching profiles:', profilesError)
     }
 
-    // Check for API keys (without exposing the actual keys)
-    const { data: apiKeys, error: apiKeysError } = await supabase
-      .from('user_api_keys')
-      .select('user_id')
-
-    if (apiKeysError) {
-      console.error('Error checking API keys:', apiKeysError)
-    }
-
     // Fetch video records for all users
     const { data: videoRecords, error: videoError } = await supabase
       .from('video_records')
@@ -81,7 +72,6 @@ export async function GET(request: NextRequest) {
     // Combine data
     const usersWithProfiles = authUsers.users.map((authUser: any) => {
       const userProfile = profiles?.find(p => p.user_id === authUser.id)
-      const hasApiKey = apiKeys?.some(key => key.user_id === authUser.id) || false
       const userVideos = videoRecords?.filter(video => video.user_id === authUser.id) || []
       
       return {
@@ -90,7 +80,6 @@ export async function GET(request: NextRequest) {
         created_at: authUser.created_at,
         is_admin: userProfile?.is_admin || false,
         last_sign_in_at: authUser.last_sign_in_at || null,
-        has_api_key: hasApiKey,
         videos: userVideos,
         video_count: userVideos.length,
         completed_videos: userVideos.filter(v => v.status === 'completed').length
@@ -101,6 +90,116 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Admin users API error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error: ' + (error as Error).message },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { email, password } = await request.json()
+    
+    console.log('POST request received:', { email })
+    
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters long' }, { status: 400 })
+    }
+
+    const supabase = await createClient()
+    
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      console.error('User auth error in POST:', userError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    console.log('Current user:', user.email)
+
+    // Check if current user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profileError) {
+      console.error('Profile check error:', profileError)
+      return NextResponse.json({ error: 'Failed to verify admin status' }, { status: 500 })
+    }
+
+    if (!profile?.is_admin) {
+      console.error('User is not admin:', user.email)
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    // Use service role client for admin operations
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!serviceRoleKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
+      return NextResponse.json({ error: 'Service role key not configured' }, { status: 500 })
+    }
+
+    const supabaseService = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceRoleKey
+    )
+
+    console.log('Creating user with email:', email)
+
+    // Create user with auto-confirmation
+    const { data: newUser, error: createError } = await supabaseService.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true, // Auto-confirm the email
+      user_metadata: {
+        created_by_admin: true,
+        created_at: new Date().toISOString()
+      }
+    })
+
+    if (createError) {
+      console.error('Error creating user:', createError)
+      return NextResponse.json({ 
+        error: 'Failed to create user: ' + createError.message 
+      }, { status: 500 })
+    }
+
+    console.log('User created successfully:', newUser.user?.email)
+
+    // Create profile for the new user
+    const { error: profileCreateError } = await supabase
+      .from('profiles')
+      .insert([{
+        user_id: newUser.user.id,
+        is_admin: false,
+        created_at: new Date().toISOString()
+      }])
+
+    if (profileCreateError) {
+      console.warn('Failed to create profile for new user:', profileCreateError)
+      // Don't fail the request if profile creation fails
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'User created successfully',
+      user: {
+        id: newUser.user.id,
+        email: newUser.user.email
+      }
+    })
+
+  } catch (error) {
+    console.error('User creation error:', error)
     return NextResponse.json(
       { error: 'Internal server error: ' + (error as Error).message },
       { status: 500 }

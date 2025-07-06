@@ -233,7 +233,11 @@ export function AudioGenerator() {
         const response = await fetch('/api/admin/ai-voices');
         const data = await response.json();
         if (data.success) {
-          const providerCustomVoices = data.voices.filter((voice: CustomVoice) => voice.provider === selectedProvider);
+          // Map provider names for custom voice filtering
+          const providerForCustomVoices = selectedProvider === 'fal-playai' ? 'playai' : 
+                                         selectedProvider === 'fal-minimax' ? 'minimax' : 
+                                         selectedProvider;
+          const providerCustomVoices = data.voices.filter((voice: CustomVoice) => voice.provider === providerForCustomVoices);
           setCustomVoices(providerCustomVoices);
         }
       } catch (error) {
@@ -244,7 +248,7 @@ export function AudioGenerator() {
     fetchVoices();
   }, [selectedProvider]);
 
-  // Auto-select first voice when voices are loaded for FAL providers
+  // Auto-select first voice when voices are loaded for all providers
   useEffect(() => {
     if (selectedProvider === 'fal-playai' && playaiVoices.length > 0) {
       // If current voice is not in the fetched voices, select the first available
