@@ -167,7 +167,7 @@ async function generateSubtitlesFromAudio(audioUrl: string, userId: string): Pro
 }
 
 export async function POST(request: NextRequest) {
-    const { chunkUrls, userId = "unknown_user", provider, voice, elevenLabsVoiceId, fishAudioVoiceId, googleTtsVoiceName } = await request.json();
+    const { chunkUrls, userId = "unknown_user", provider, voice, elevenLabsVoiceId, fishAudioVoiceId, googleTtsVoiceName, generateSubtitles = false } = await request.json();
 
     if (!chunkUrls || !Array.isArray(chunkUrls) || chunkUrls.length === 0) {
         return NextResponse.json({ error: "chunkUrls is required and must be a non-empty array" }, { status: 400 });
@@ -242,12 +242,17 @@ export async function POST(request: NextRequest) {
         
         console.log(`☁️ Compressed audio uploaded: ${compressedAudioSupabaseUrl}`);
         
-        // 7. Generate subtitles using compressed audio
+        // 7. Generate subtitles using compressed audio (if requested)
         let subtitlesUrl: string | null = null;
-        try {
-            subtitlesUrl = await generateSubtitlesFromAudio(compressedAudioSupabaseUrl, userId);
-        } catch(subtitleError) {
-            console.warn(`⚠️ Could not generate subtitles.`, subtitleError)
+        if (generateSubtitles) {
+            console.log(`🔤 Generating subtitles using compressed audio...`);
+            try {
+                subtitlesUrl = await generateSubtitlesFromAudio(compressedAudioSupabaseUrl, userId);
+            } catch(subtitleError) {
+                console.warn(`⚠️ Could not generate subtitles.`, subtitleError)
+            }
+        } else {
+            console.log(`⏭️ Skipping subtitle generation (not requested)`);
         }
         
         // 8. Return original audio as main audio_url, compressed for subtitles

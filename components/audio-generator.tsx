@@ -135,6 +135,9 @@ export function AudioGenerator() {
   // Audio type selection for history items
   const [historyAudioTypes, setHistoryAudioTypes] = useState<Record<string, 'original' | 'compressed'>>({})
 
+  // Subtitles generation option
+  const [generateSubtitlesOption, setGenerateSubtitlesOption] = useState<boolean>(false)
+
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
@@ -396,7 +399,7 @@ export function AudioGenerator() {
       id: `audio_${Date.now()}`,
         voice: selectedVoice,
         model: selectedModel,
-      generateSubtitles: false,
+      generateSubtitles: generateSubtitlesOption,
       textToProcess: textToGenerate,
       textChunks: chunks,
       batchSize: 5
@@ -479,7 +482,8 @@ export function AudioGenerator() {
           userId: 'current_user',
           provider: selectedProvider,
           voice: providerVoice,
-          elevenLabsVoiceId: providerVoice
+          elevenLabsVoiceId: providerVoice,
+          generateSubtitles: generateSubtitlesOption
         };
 
         const finalizeResponse = await fetch('/api/finalize-audio', {
@@ -514,7 +518,8 @@ export function AudioGenerator() {
         }
 
         dispatch(saveGenerationToHistory());
-        showMessage(`Successfully generated audio using ${currentProvider?.name}! Both original and compressed versions are available - switch between them in the player above.`, 'success');
+        const subtitlesMessage = finalData.subtitlesUrl ? ' Subtitles were also generated and are available for download!' : '';
+        showMessage(`Successfully generated audio using ${currentProvider?.name}! Both original and compressed versions are available - switch between them in the player above.${subtitlesMessage}`, 'success');
         setGenerationStatusMessage("");
 
     } catch (error: any) {
@@ -833,6 +838,43 @@ export function AudioGenerator() {
                 )}
               </div>
             )}
+
+            {/* Subtitles Generation Option */}
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Subtitles className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <Label htmlFor="generateSubtitles" className="text-sm font-medium text-gray-900">
+                      Generate Subtitles
+                    </Label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Automatically create SRT subtitles using OpenAI Whisper
+                    </p>
+                  </div>
+                </div>
+                <Checkbox
+                  id="generateSubtitles"
+                  checked={generateSubtitlesOption}
+                  onCheckedChange={(checked) => setGenerateSubtitlesOption(checked as boolean)}
+                />
+              </div>
+              {generateSubtitlesOption && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-blue-800">
+                      <p className="font-medium">Subtitles will be generated automatically:</p>
+                      <ul className="mt-1 space-y-1 list-disc list-inside text-blue-700">
+                        <li>Uses OpenAI Whisper for accurate transcription</li>
+                        <li>Formatted as 4-word segments for better readability</li>
+                        <li>Available for download as SRT file</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Audio Progress */}
             {isGeneratingAudio && (

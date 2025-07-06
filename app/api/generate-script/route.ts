@@ -194,19 +194,7 @@ IMPORTANT GUIDELINES FOR WRITING INSTRUCTIONS:
 4. The narrator should begin directly with the story content, not with meta-references to the story itself.
 5. Ensure the story can flow naturally without headers, titles, or section markers.
 
-IMPORTANT INSTRUCTIONS FOR NARRATOR CALLS TO ACTION (CTAs):
-You MUST incorporate the following CTAs directly into the 'writingInstructions' of the appropriate sections. These CTAs are spoken by the narrator. Ensure these CTAs are integrated naturally within the narrative flow where specified.
-
-1.  **CTA 1 (After First Hook):** ${startSection <= 1 && endSection >= 2 ? "In the 'writingInstructions' for the FIRST SECTION, after approximately 70-100 words of narrative content (about 30-40 seconds of speaking time), include this EXACT text: \"Before we jump back in, tell us where you're tuning in from, and if this story touches you, make sure you're subscribed—because tomorrow, I've saved something extra special for you!\" This CTA should be placed after the initial hook and setup, once the audience is engaged with the story." : "You do not need to include this CTA in this batch of sections."}
-
-2.  **CTA 2 (Mid-Script ~10 minutes / ~1500 words):** ${(wordCount >= 1500) && (startSection <= Math.floor(numSections/3) && endSection >= Math.floor(numSections/3)) ? "For scripts long enough to have a 10-minute mark (around 1500 words of story content), embed this CTA into the 'writingInstructions' of a suitable mid-point section: \"Preparing and narrating this story took us a lot of time, so if you are enjoying it, subscribe to our channel, it means a lot to us! Now back to the story.\"" : "You do not need to include this CTA in this batch of sections."}
-
-3.  **CTA 3 (Later-Script ~40 minutes):** ${(wordCount >= 6000) && (startSection <= Math.floor(2*numSections/3) && endSection >= Math.floor(2*numSections/3)) ? "For very long scripts that would reach a 40-minute mark, embed this CTA into the 'writingInstructions' of an appropriate later section: \"Enjoying the video so far? Don't forget to subscribe!\"" : "You do not need to include this CTA in this batch of sections."}
-
-4.  **CTA 4 (End of Script):** ${(endSection == numSections) ? "After the main story narrative is completely finished, the 'writingInstructions' for the very final section (or a new, short concluding section you create) MUST include: \"Up next, you've got two more standout stories right on your screen. If this one hit the mark, you won't want to pass these up. Just click and check them out! And don't forget to subscribe and turn on the notification bell, so you don't miss any upload from us!\"" : "You do not need to include this CTA in this batch of sections."}
-
-Adherence to CTA placement and inclusion in 'writingInstructions' is critical.
-Make all sections flow logically. Ensure all generated content, including CTAs and image prompts, is safe, respectful, and avoids controversial subjects.
+Make all sections flow logically. Ensure all generated content, including image prompts, is safe, respectful, and avoids controversial subjects.
 
 ${parser.getFormatInstructions()}
 `;
