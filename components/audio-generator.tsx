@@ -150,6 +150,44 @@ export function AudioGenerator() {
           showMessage('Error fetching Speechify voices', 'error');
           setSpeechifyVoices([]);
         }
+      } else if (selectedProvider === 'fal-playai') {
+        try {
+          const response = await fetch('/api/playai-voices');
+          const data = await response.json();
+          
+          if (data.success) {
+            console.log('Play.ai voices response for FAL:', data.voices);
+            console.log('Valid Play.ai voices loaded for FAL:', data.voices.length);
+            setPlayaiVoices(data.voices);
+          } else {
+            console.error('Play.ai API error for FAL:', data.error);
+            showMessage('Failed to load Play.ai voices for FAL: ' + (data.error || 'Unknown error'), 'error');
+            setPlayaiVoices([]);
+          }
+        } catch (error) {
+          console.error('Error fetching Play.ai voices for FAL:', error);
+          showMessage('Error fetching Play.ai voices for FAL', 'error');
+          setPlayaiVoices([]);
+        }
+      } else if (selectedProvider === 'fal-minimax') {
+        try {
+          const response = await fetch('/api/minimax-voices');
+          const data = await response.json();
+          
+          if (data.success) {
+            console.log('Minimax voices response for FAL:', data.voices);
+            console.log('Valid Minimax voices loaded for FAL:', data.voices.length);
+            setMinimaxVoices(data.voices);
+          } else {
+            console.error('Minimax API error for FAL:', data.error);
+            showMessage('Failed to load Minimax voices for FAL: ' + (data.error || 'Unknown error'), 'error');
+            setMinimaxVoices([]);
+          }
+        } catch (error) {
+          console.error('Error fetching Minimax voices for FAL:', error);
+          showMessage('Error fetching Minimax voices for FAL', 'error');
+          setMinimaxVoices([]);
+        }
       } else if (selectedProvider === 'playai') {
         try {
           const response = await fetch('/api/playai-voices');
@@ -208,13 +246,13 @@ export function AudioGenerator() {
 
   // Auto-select first voice when voices are loaded for FAL providers
   useEffect(() => {
-    if (selectedProvider === 'playai' && playaiVoices.length > 0) {
+    if (selectedProvider === 'fal-playai' && playaiVoices.length > 0) {
       // If current voice is not in the fetched voices, select the first available
       const currentVoiceExists = playaiVoices.some(voice => voice.id === selectedVoice);
       if (!currentVoiceExists) {
         dispatch(setSelectedVoice(playaiVoices[0].id));
       }
-    } else if (selectedProvider === 'minimax' && minimaxVoices.length > 0) {
+    } else if (selectedProvider === 'fal-minimax' && minimaxVoices.length > 0) {
       // If current voice is not in the fetched voices, select the first available
       const currentVoiceExists = minimaxVoices.some(voice => voice.id === selectedVoice);
       if (!currentVoiceExists) {
@@ -366,11 +404,13 @@ export function AudioGenerator() {
           ? '/api/generate-elevenlabs-audio'
           : selectedProvider === 'speechify'
             ? '/api/generate-speechify-audio'
-            : selectedProvider === 'playai'
-              ? '/api/generate-playai-audio'
-              : selectedProvider === 'minimax'
-                ? '/api/generate-minimax-audio'
-                : '/api/generate-speechify-audio';
+            : selectedProvider === 'fal-playai' || selectedProvider === 'fal-minimax'
+              ? '/api/generate-fal-audio'
+              : selectedProvider === 'playai'
+                ? '/api/generate-playai-audio'
+                : selectedProvider === 'minimax'
+                  ? '/api/generate-minimax-audio'
+                  : '/api/generate-speechify-audio';
         
       console.log(`🎵 Starting ${selectedProvider} batch audio generation for ${textChunks.length} chunks...`);
       
@@ -701,6 +741,114 @@ export function AudioGenerator() {
       );
     }
     
+    if (selectedProvider === 'fal-playai') {
+      return (
+        <Select 
+          value={selectedVoice} 
+          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {/* API Voices from Play.ai */}
+            {playaiVoices.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Play.ai Voices (via FAL)
+                </div>
+                {playaiVoices.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    {voice.name} ({voice.gender}, {voice.language})
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            
+            {/* Custom Voices */}
+            {customVoices.length > 0 && (
+              <>
+                {playaiVoices.length > 0 && <div className="border-t my-1" />}
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Custom Voices
+                </div>
+                {customVoices.map((voice) => (
+                  <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                    {voice.name} <span className="text-xs text-gray-500">(Custom)</span>
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            
+            {/* Fallback to hardcoded voices if API fails */}
+            {playaiVoices.length === 0 && customVoices.length === 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Default Voices (API unavailable)
+                </div>
+                <SelectItem value="Jennifer (English (US)/American)">Jennifer (English US/American)</SelectItem>
+                <SelectItem value="Serena (English (US)/American)">Serena (English US/American)</SelectItem>
+                <SelectItem value="David (English (US)/American)">David (English US/American)</SelectItem>
+                <SelectItem value="Matthew (English (US)/American)">Matthew (English US/American)</SelectItem>
+                <SelectItem value="William (English (US)/American)">William (English US/American)</SelectItem>
+              </>
+            )}
+          </SelectContent>
+        </Select>
+      );
+    }
+    
+    if (selectedProvider === 'fal-minimax') {
+      return (
+        <Select 
+          value={selectedVoice} 
+          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {/* API Voices from Minimax */}
+            {minimaxVoices.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Minimax Voices (via FAL)
+                </div>
+                {minimaxVoices.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    {voice.name} {voice.description && `(${voice.description})`}
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            
+            {/* Custom Voices */}
+            {customVoices.length > 0 && (
+              <>
+                {minimaxVoices.length > 0 && <div className="border-t my-1" />}
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Custom Voices
+                </div>
+                {customVoices.map((voice) => (
+                  <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                    {voice.name} <span className="text-xs text-gray-500">(Custom)</span>
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            
+            {/* Fallback to hardcoded voices if API fails */}
+            {minimaxVoices.length === 0 && customVoices.length === 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
+                  Default Voices (API unavailable)
+                </div>
+                <SelectItem value="English_CaptivatingStoryteller">English_CaptivatingStoryteller</SelectItem>
+                <SelectItem value="female_narrator">Female Narrator</SelectItem>
+                <SelectItem value="child_narrator">Child Narrator</SelectItem>
+              </>
+            )}
+          </SelectContent>
+        </Select>
+      );
+    }
+    
     if (selectedProvider === 'playai') {
       return (
         <Select 
@@ -821,6 +969,36 @@ export function AudioGenerator() {
     if (provider === 'speechify') {
       return speechifyVoices.find(v => v.id === voiceId)?.displayName || voiceId;
     }
+    if (provider === 'fal-playai') {
+      // First check fetched Play.ai voices
+      const playaiVoice = playaiVoices.find(v => v.id === voiceId);
+      if (playaiVoice) {
+        return playaiVoice.name;
+      }
+      // Fallback to hardcoded voices if not found
+      const playaiVoicesFallback = [
+        { value: 'Jennifer (English (US)/American)', label: 'Jennifer (English US/American)' },
+        { value: 'Serena (English (US)/American)', label: 'Serena (English US/American)' },
+        { value: 'David (English (US)/American)', label: 'David (English US/American)' },
+        { value: 'Matthew (English (US)/American)', label: 'Matthew (English US/American)' },
+        { value: 'William (English (US)/American)', label: 'William (English US/American)' },
+      ];
+      return playaiVoicesFallback.find(v => v.value === voiceId)?.label || voiceId;
+    }
+    if (provider === 'fal-minimax') {
+      // First check fetched Minimax voices
+      const minimaxVoice = minimaxVoices.find(v => v.id === voiceId);
+      if (minimaxVoice) {
+        return minimaxVoice.name;
+      }
+      // Fallback to hardcoded voices if not found
+      const minimaxVoicesFallback = [
+        { value: 'English_CaptivatingStoryteller', label: 'English_CaptivatingStoryteller' },
+        { value: 'female_narrator', label: 'Female Narrator' },
+        { value: 'child_narrator', label: 'Child Narrator' },
+      ];
+      return minimaxVoicesFallback.find(v => v.value === voiceId)?.label || voiceId;
+    }
     if (provider === 'playai') {
       return playaiVoices.find(v => v.id === voiceId)?.name || voiceId;
     }
@@ -884,12 +1062,12 @@ export function AudioGenerator() {
                   <Label htmlFor="speechify">Speechify</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="playai" id="playai" />
-                  <Label htmlFor="playai">Play.ai</Label>
+                  <RadioGroupItem value="fal-playai" id="fal-playai" />
+                  <Label htmlFor="fal-playai">FAL PlayAI</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="minimax" id="minimax" />
-                  <Label htmlFor="minimax">Minimax</Label>
+                  <RadioGroupItem value="fal-minimax" id="fal-minimax" />
+                  <Label htmlFor="fal-minimax">FAL Minimax</Label>
                 </div>
               </RadioGroup>
               </div>
