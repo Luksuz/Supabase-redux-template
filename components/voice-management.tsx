@@ -13,11 +13,8 @@ import { AIVoice } from '@/app/api/ai-voices/route'
 
 // Available TTS providers
 const TTS_PROVIDERS = [
-  { id: 'openai', name: 'OpenAI' },
-  { id: 'elevenlabs', name: 'ElevenLabs' },
-  { id: 'google-tts', name: 'Google Cloud TTS' },
-  { id: 'minimax', name: 'MiniMax' },
-  { id: 'fish-audio', name: 'Fish Audio' }
+  { id: 'minimax', name: 'Minimax' },
+  { id: 'elevenlabs', name: 'ElevenLabs' }
 ]
 
 interface VoiceFormData {

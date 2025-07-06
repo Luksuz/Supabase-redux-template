@@ -170,47 +170,47 @@ export function AIImageGenerator() {
       `Processing batch ${batchIndex + 1}/${totalBatches} (${batchPrompts.length} images)...`
     ))
 
-    const requestPromises = batchPrompts.map(async (prompt, index) => {
-      try {
-        const response = await fetch('/api/generate-images', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            provider: selectedModel,
-            prompt: applyImageStyle(prompt),
-            numberOfImages: 1,
-            minimaxAspectRatio: aspectRatio,
-            userId: 'user-123',
-          }),
-        })
+      const requestPromises = batchPrompts.map(async (prompt, index) => {
+        try {
+          const response = await fetch('/api/generate-images', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: selectedModel,
+              prompt: applyImageStyle(prompt),
+              numberOfImages: 1,
+              minimaxAspectRatio: aspectRatio,
+              userId: 'user-123',
+            }),
+          })
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error(`Failed to generate image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error(`Failed to generate image ${index + 1} in batch ${batchIndex + 1}:`, errorData.error)
+            return []
+          }
+
+          const data = await response.json()
+          return data.imageUrls ? data.imageUrls : []
+        } catch (error) {
+          console.error(`Error generating image ${index + 1} in batch ${batchIndex + 1}:`, error)
           return []
         }
+      })
 
-        const data = await response.json()
-        return data.imageUrls ? data.imageUrls : []
-      } catch (error) {
-        console.error(`Error generating image ${index + 1} in batch ${batchIndex + 1}:`, error)
-        return []
-      }
-    })
+      // Wait for all requests in the batch to complete
+      const results = await Promise.all(requestPromises)
+      const imageUrls = results.flat()
 
-    // Wait for all requests in the batch to complete
-    const results = await Promise.all(requestPromises)
-    const imageUrls = results.flat()
+      // Update progress for the entire batch
+      setBatchProgress(prev => ({ 
+        ...prev, 
+        current: prev.current + batchPrompts.length 
+      }))
 
-    // Update progress for the entire batch
-    setBatchProgress(prev => ({ 
-      ...prev, 
-      current: prev.current + batchPrompts.length 
-    }))
-
-    return imageUrls
+      return imageUrls
   }
 
   const handleGenerateFromScenes = async () => {
@@ -249,19 +249,19 @@ export function AIImageGenerator() {
           ))
 
           // Wait times based on model capabilities
-          if (batchIndex < totalBatches - 1) {
+            if (batchIndex < totalBatches - 1) {
             const waitTime = selectedModel === 'gpt-image-1' ? 60 
               : selectedModel === 'dalle-3' ? 10 
               : selectedModel === 'minimax' ? 8
               : selectedModel === 'leonardo-phoenix' ? 30
               : 60
-
-            dispatch(updateGenerationInfo(
-              `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting ${waitTime} seconds before next batch...`
-            ))
-            
-            // Show countdown for the wait time
-            for (let countdown = waitTime; countdown > 0; countdown--) {
+              
+              dispatch(updateGenerationInfo(
+                `Batch ${batchIndex + 1}/${totalBatches} complete. Waiting ${waitTime} seconds before next batch...`
+              ))
+              
+              // Show countdown for the wait time
+              for (let countdown = waitTime; countdown > 0; countdown--) {
               dispatch(updateGenerationInfo(
                 `Waiting ${countdown} seconds before processing batch ${batchIndex + 2}/${totalBatches}...`
               ))
@@ -683,7 +683,7 @@ export function AIImageGenerator() {
           />
 
           {/* Image Style Selector */}
-          {extractedScenes.length > 0 && (
+              {extractedScenes.length > 0 && (
             <ImageStyleSelector
               selectedImageStyle={selectedImageStyle}
               onImageStyleChange={setSelectedImageStyle}

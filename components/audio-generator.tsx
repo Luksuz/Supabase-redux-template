@@ -37,60 +37,16 @@ interface TTSProvider {
 }
 
 const TTS_PROVIDERS: Record<string, TTSProvider> = {
-  openai: {
-    name: "OpenAI",
-    voices: [
-      { id: "alloy", name: "Alloy (Natural & Balanced)" },
-      { id: "echo", name: "Echo (Male, Clear)" },
-      { id: "fable", name: "Fable (British Male)" },
-      { id: "onyx", name: "Onyx (Deep Male)" },
-      { id: "nova", name: "Nova (Young Female)" },
-      { id: "shimmer", name: "Shimmer (Whispery Female)" },
-      { id: "ash", name: "Ash (Male, Professional)" },
-      { id: "ballad", name: "Ballad (Male, Soothing)" },
-      { id: "coral", name: "Coral (Female, Warm)" },
-      { id: "sage", name: "Sage (Female, Authoritative)" }
-    ],
-    models: [
-      { id: "tts-1", name: "Standard Quality" },
-      { id: "tts-1-hd", name: "High Definition" }
-    ]
-  },
   minimax: {
     name: "MiniMax",
     voices: [
-      { id: "audiobook_male_1", name: "Audiobook Male 1" },
-      { id: "audiobook_male_2", name: "Audiobook Male 2" },
-      { id: "audiobook_female_1", name: "Audiobook Female 1" },
-      { id: "audiobook_female_2", name: "Audiobook Female 2" },
-      { id: "male-qn-qingse", name: "Male Qingse" },
-      { id: "male-qn-jingying", name: "Male Jingying" },
-      { id: "male-qn-badao", name: "Male Badao" },
-      { id: "male-qn-daxuesheng", name: "Male Daxuesheng" },
-      { id: "female-shaonv", name: "Female Shaonv" },
-      { id: "female-yujie", name: "Female Yujie" },
-      { id: "female-chengshu", name: "Female Chengshu" },
-      { id: "female-tianmei", name: "Female Tianmei" },
-      { id: "broadcaster_male", name: "Broadcaster Male" },
-      { id: "broadcaster_female", name: "Broadcaster Female" },
-      { id: "caruso", name: "Caruso (Emotional)" }
+      // Voices will be loaded from API
     ],
     models: [
       { id: "speech-02-hd", name: "HD Model - Superior rhythm & stability" },
       { id: "speech-02-turbo", name: "Turbo Model - Enhanced multilingual" },
       { id: "speech-01-hd", name: "HD V1 - Rich voices & expressive emotions" },
       { id: "speech-01-turbo", name: "Turbo V1 - Excellent performance & low latency" }
-    ]
-  },
-  "fish-audio": {
-    name: "Fish Audio",
-    voices: [
-      { id: "7f92f8afb8ec43bf81429cc1c9199cb1", name: "Gentle Female Voice" },
-      { id: "54a5170f9f8e4d60a2a10e8aae699282", name: "Professional Male Voice" },
-    ],
-    models: [
-      { id: "speech-1", name: "Standard Quality" },
-      { id: "speech-1.6", name: "Enhanced Quality" }
     ]
   },
   elevenlabs: {
@@ -123,17 +79,11 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
       { code: "hu", name: "Hungarian" },
       { code: "ko", name: "Korean" }
     ]
-  },
-  "google-tts": {
-    name: "Google Cloud TTS",
-    voices: [
-      // Voices will be loaded from API
-    ]
   }
 }
 
-const AUDIO_CHUNK_MAX_LENGTH = 2500;
 const ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH = 1000;
+const MINIMAX_AUDIO_CHUNK_MAX_LENGTH = 2500;
 
 export function AudioGenerator() {
   const dispatch = useAppDispatch()
@@ -155,7 +105,7 @@ export function AudioGenerator() {
   } = useAppSelector(state => state.audio)
   
   // Provider-specific state
-  const [selectedProvider, setSelectedProvider] = useState<string>("openai")
+  const [selectedProvider, setSelectedProvider] = useState<string>("minimax")
   const [providerVoice, setProviderVoice] = useState<string>("")
   const [providerModel, setProviderModel] = useState<string>("")
   const [languageCode, setLanguageCode] = useState<string>("en")
@@ -167,9 +117,6 @@ export function AudioGenerator() {
   // Custom voices from database
   const [dbVoices, setDbVoices] = useState<AIVoice[]>([])
   const [isLoadingDbVoices, setIsLoadingDbVoices] = useState<boolean>(false)
-  
-  // Google TTS specific state
-  const [googleTtsLanguage, setGoogleTtsLanguage] = useState<string>("")
   
   // Voice Manager state
   const [showVoiceManager, setShowVoiceManager] = useState<boolean>(false)
@@ -225,9 +172,9 @@ export function AudioGenerator() {
     }
   }
 
-  // Load API voices on component mount if using ElevenLabs or Google TTS
+  // Load API voices on component mount if using ElevenLabs or MiniMax
   useEffect(() => {
-    if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
+    if (selectedProvider === 'elevenlabs' || selectedProvider === 'minimax') {
       fetchApiVoices(selectedProvider)
     }
   }, []) // Only run on mount
@@ -245,21 +192,18 @@ export function AudioGenerator() {
     }
   }, [hasFullScript, fullScript, inputText])
 
-  // Fetch voices when provider changes to ElevenLabs or Google TTS
+  // Fetch voices when provider changes to ElevenLabs or MiniMax
   useEffect(() => {
-    if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
+    if (selectedProvider === 'elevenlabs' || selectedProvider === 'minimax') {
       console.log(`🔄 Provider changed to ${selectedProvider}, fetching voices...`)
       fetchApiVoices(selectedProvider)
-          } else {
+    } else {
       // Clear API voices for other providers
       setApiVoices([])
     }
     
-    // Reset Google TTS language when provider changes
-    if (selectedProvider === 'google-tts') {
-      setGoogleTtsLanguage("")
-      setProviderVoice("")
-    }
+    // Reset voice selection when provider changes
+    setProviderVoice("")
   }, [selectedProvider])
 
   // Initialize language code properly for each provider
@@ -268,27 +212,6 @@ export function AudioGenerator() {
       setLanguageCode('en')
     }
   }, [selectedProvider])
-
-  // Initialize Google TTS language when voices are loaded
-  useEffect(() => {
-    if (selectedProvider === 'google-tts' && apiVoices.length > 0 && !googleTtsLanguage) {
-      const availableLanguages = getAvailableLanguages()
-      if (availableLanguages.length > 0) {
-        // Default to English (US) if available, otherwise first available language
-        const defaultLang = availableLanguages.find(lang => lang.code === 'en-US') || availableLanguages[0]
-        setGoogleTtsLanguage(defaultLang.code)
-        console.log(`🌍 Initialized Google TTS language to: ${defaultLang.code}`)
-      }
-    }
-  }, [selectedProvider, apiVoices])
-
-  // Reset voice selection when Google TTS language changes
-  useEffect(() => {
-    if (selectedProvider === 'google-tts' && googleTtsLanguage) {
-      setProviderVoice("") // Reset voice selection
-      console.log(`🔄 Reset voice selection for language: ${googleTtsLanguage}`)
-    }
-  }, [googleTtsLanguage])
 
   // Handle custom voice selection from voice manager
   const handleCustomVoiceSelect = (voiceId: string, voiceName: string) => {
@@ -305,8 +228,8 @@ export function AudioGenerator() {
       
       if (provider === 'elevenlabs') {
         apiUrl = '/api/list-elevenlabs-voices';
-      } else if (provider === 'google-tts') {
-        apiUrl = '/api/list-google-voices';
+      } else if (provider === 'minimax') {
+        apiUrl = '/api/list-minimax-voices';
       } else {
         console.warn(`No API voice fetching available for provider: ${provider}`);
         setIsLoadingApiVoices(false);
@@ -348,14 +271,14 @@ export function AudioGenerator() {
     setProviderModel(provider.models?.[0]?.id || "");
     
     // Fetch API voices if needed
-    if (newProvider === 'elevenlabs' || newProvider === 'google-tts') {
+    if (newProvider === 'elevenlabs' || newProvider === 'minimax') {
       fetchApiVoices(newProvider);
     }
   };
 
   // Text chunking functions
   const chunkText = (text: string, provider: string): string[] => {
-    const maxChunkLength = provider === 'elevenlabs' ? ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH : AUDIO_CHUNK_MAX_LENGTH;
+    const maxChunkLength = provider === 'elevenlabs' ? ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH : MINIMAX_AUDIO_CHUNK_MAX_LENGTH;
     const sentences = text.match(/[^\.!?]+[\.!?]+/g) || [text];
     const chunks: string[] = [];
     let currentChunk = '';
@@ -504,12 +427,9 @@ export function AudioGenerator() {
             chunkIndex,
             voice: providerVoice, 
             model: providerModel, 
-            fishAudioVoiceId: providerVoice, 
-            fishAudioModel: providerModel,
             elevenLabsVoiceId: providerVoice, 
             elevenLabsModelId: providerModel, 
-            languageCode: languageCode,
-            googleTtsVoiceName: providerVoice
+            languageCode: languageCode
           };
 
           const response = await fetch('/api/generate-audio-comprehensive', {
@@ -559,9 +479,7 @@ export function AudioGenerator() {
           userId: 'current_user',
           provider: selectedProvider,
           voice: providerVoice,
-          elevenLabsVoiceId: providerVoice,
-          fishAudioVoiceId: providerVoice,
-          googleTtsVoiceName: providerVoice
+          elevenLabsVoiceId: providerVoice
         };
 
         const finalizeResponse = await fetch('/api/finalize-audio', {
@@ -688,7 +606,7 @@ export function AudioGenerator() {
     
     let standardVoices: any[] = []
     
-    if (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts') {
+    if (selectedProvider === 'elevenlabs' || selectedProvider === 'minimax') {
       // For API-based providers, combine static and API voices as standard
       const dynamicVoices = apiVoices || []
       
@@ -712,14 +630,6 @@ export function AudioGenerator() {
       })
       
       standardVoices = Array.from(voiceMap.values())
-      
-      // Filter by language for Google TTS
-      if (selectedProvider === 'google-tts' && googleTtsLanguage) {
-        standardVoices = standardVoices.filter(voice => 
-          voice.id && voice.id.startsWith(googleTtsLanguage)
-        )
-        console.log(`🔍 Filtered to ${standardVoices.length} standard voices for language: ${googleTtsLanguage}`)
-      }
     } else {
       // For non-API providers, use static voices as standard
       standardVoices = staticVoices.map(voice => ({ ...voice, isCustom: false }))
@@ -746,102 +656,7 @@ export function AudioGenerator() {
     const allVoices = getDisplayVoices()
     const voice = allVoices.find(v => v.id === voiceId)
     
-    // For Google TTS, show simplified name since language is already selected
-    if (selectedProvider === 'google-tts' && voice?.name) {
-      // Remove language part from display name (e.g., "en-US-Wavenet-D (en-US) - FEMALE" -> "Wavenet-D - FEMALE")
-      const simplifiedName = voice.name.replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/ \([^)]+\)/, '')
-      return simplifiedName
-    }
-    
     return voice?.name || voiceId
-  }
-
-  // Get available languages from Google TTS voices
-  const getAvailableLanguages = () => {
-    if (selectedProvider !== 'google-tts' || !apiVoices || apiVoices.length === 0) {
-      return []
-    }
-    
-    const languages = new Set<string>()
-    apiVoices.forEach(voice => {
-      if (voice.id) {
-        // Extract language code from voice name (e.g., "en-US-Wavenet-D" -> "en-US")
-        const langMatch = voice.id.match(/^([a-z]{2}-[A-Z]{2})/)
-        if (langMatch) {
-          languages.add(langMatch[1])
-        }
-      }
-    })
-    
-    const sortedLanguages = Array.from(languages).sort()
-    console.log(`🌍 Available languages for Google TTS:`, sortedLanguages)
-    return sortedLanguages.map(lang => ({
-      code: lang,
-      name: getLanguageDisplayName(lang)
-    }))
-  }
-
-  // Get display name for language code
-  const getLanguageDisplayName = (langCode: string): string => {
-    const languageNames: Record<string, string> = {
-      'ar-XA': 'Arabic',
-      'bn-IN': 'Bengali (India)',
-      'bg-BG': 'Bulgarian',
-      'ca-ES': 'Catalan',
-      'zh-CN': 'Chinese (Mandarin)',
-      'zh-TW': 'Chinese (Taiwan)',
-      'cs-CZ': 'Czech',
-      'da-DK': 'Danish',
-      'nl-BE': 'Dutch (Belgium)',
-      'nl-NL': 'Dutch (Netherlands)',
-      'en-AU': 'English (Australia)',
-      'en-GB': 'English (UK)',
-      'en-IN': 'English (India)',
-      'en-US': 'English (US)',
-      'et-EE': 'Estonian',
-      'fi-FI': 'Finnish',
-      'fr-CA': 'French (Canada)',
-      'fr-FR': 'French (France)',
-      'de-DE': 'German',
-      'el-GR': 'Greek',
-      'gu-IN': 'Gujarati',
-      'he-IL': 'Hebrew',
-      'hi-IN': 'Hindi',
-      'hu-HU': 'Hungarian',
-      'is-IS': 'Icelandic',
-      'id-ID': 'Indonesian',
-      'it-IT': 'Italian',
-      'ja-JP': 'Japanese',
-      'kn-IN': 'Kannada',
-      'ko-KR': 'Korean',
-      'lv-LV': 'Latvian',
-      'lt-LT': 'Lithuanian',
-      'ms-MY': 'Malay',
-      'ml-IN': 'Malayalam',
-      'mr-IN': 'Marathi',
-      'nb-NO': 'Norwegian',
-      'pl-PL': 'Polish',
-      'pt-BR': 'Portuguese (Brazil)',
-      'pt-PT': 'Portuguese (Portugal)',
-      'pa-IN': 'Punjabi',
-      'ro-RO': 'Romanian',
-      'ru-RU': 'Russian',
-      'sr-RS': 'Serbian',
-      'sk-SK': 'Slovak',
-      'sl-SI': 'Slovenian',
-      'es-ES': 'Spanish (Spain)',
-      'es-US': 'Spanish (US)',
-      'sv-SE': 'Swedish',
-      'ta-IN': 'Tamil',
-      'te-IN': 'Telugu',
-      'th-TH': 'Thai',
-      'tr-TR': 'Turkish',
-      'uk-UA': 'Ukrainian',
-      'ur-IN': 'Urdu',
-      'vi-VN': 'Vietnamese'
-    }
-    
-    return languageNames[langCode] || langCode
   }
 
   // Reset audio type selection when new generation completes
@@ -921,33 +736,7 @@ export function AudioGenerator() {
 
             {/* Provider-specific settings */}
             {currentProvider && (
-              <div className={`grid gap-4 ${selectedProvider === 'google-tts' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
-                {/* Google TTS Language Selection (First Step) */}
-                {selectedProvider === 'google-tts' && (
-                  <div className="space-y-2">
-                    <Label>Language</Label>
-                    {isLoadingApiVoices ? (
-                      <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading languages...
-                </div>
-                    ) : (
-                      <Select value={googleTtsLanguage} onValueChange={setGoogleTtsLanguage}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a language" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getAvailableLanguages().map((lang) => (
-                            <SelectItem key={lang.code} value={lang.code}>
-                              {lang.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                </div>
-                )}
-
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 {/* Voice Selection */}
               <div className="space-y-2">
                 <Label>Voice</Label>
@@ -955,10 +744,6 @@ export function AudioGenerator() {
                     <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading voices...
-              </div>
-                  ) : selectedProvider === 'google-tts' && !googleTtsLanguage ? (
-                    <div className="p-2 text-sm text-gray-500 bg-gray-50 rounded border">
-                      Please select a language first
                 </div>
                   ) : (
                     <Select value={providerVoice} onValueChange={setProviderVoice}>
@@ -1044,23 +829,9 @@ export function AudioGenerator() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
+                </div>
                 )}
               </div>
-            )}
-
-            {/* Custom Fish Audio Voice ID */}
-            {selectedProvider === 'fish-audio' && providerVoice === 'custom' && (
-              <div className="space-y-2">
-                <Label>Custom Fish Audio Voice ID</Label>
-                <input
-                  type="text"
-                  value={customText}
-                  onChange={(e) => setCustomText(e.target.value)}
-                  placeholder="Enter Fish Audio voice ID"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-            </div>
             )}
 
             {/* Audio Progress */}
@@ -1112,9 +883,7 @@ export function AudioGenerator() {
               disabled={
                 isGeneratingAudio || 
                 !providerVoice || 
-                (selectedProvider === 'fish-audio' && providerVoice === 'custom' && !customText) ||
-                (selectedProvider === 'elevenlabs' && !languageCode) ||
-                (selectedProvider === 'google-tts' && !googleTtsLanguage)
+                (selectedProvider === 'elevenlabs' && !languageCode)
               }
               className="w-full bg-purple-600 hover:bg-purple-700"
               size="lg"
