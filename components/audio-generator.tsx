@@ -82,7 +82,7 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
   }
 }
 
-const ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH = 10000;
+const ELEVENLABS_AUDIO_CHUNK_MAX_LENGTH = 5000;
 const MINIMAX_AUDIO_CHUNK_MAX_LENGTH = 2500;
 
 export function AudioGenerator() {

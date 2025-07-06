@@ -579,7 +579,12 @@ export async function POST(request: NextRequest) {
       callback: process.env.SHOTSTACK_CALLBACK_URL
     };
 
-    console.log(JSON.stringify(shotstackPayload, null, 2));
+    // Log payload summary instead of full JSON to avoid memory issues with large base64 data
+    console.log("📤 Shotstack payload summary:");
+    console.log(`- Timeline tracks: ${timeline.tracks.length}`);
+    console.log(`- Output format: ${outputConfig.format}`);
+    console.log(`- Output size: ${outputConfig.size.width}x${outputConfig.size.height}`);
+    console.log(`- Callback URL: ${process.env.SHOTSTACK_CALLBACK_URL ? 'Set' : 'Not set'}`);
 
     console.log("📤 Sending Shotstack API request with payload summary:");
     console.log(`- Video type: ${isSegmentedVideo ? 'Segmented' : 'Traditional'}`);
@@ -605,6 +610,7 @@ export async function POST(request: NextRequest) {
 
     // If Shotstack returns an error, return it directly to user without saving any record
     if (!shotstackResponse.ok) {
+      console.log("Shotstack API error:", shotstackResponse);
       const errorData = await shotstackResponse.json();
       console.error('Shotstack API error:', errorData);
       
