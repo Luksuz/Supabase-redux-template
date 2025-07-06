@@ -74,6 +74,9 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
     case 'stable-diffusion-v35-large':
       modelEndpoint = 'fal-ai/stable-diffusion-v35-large';
       break;
+    case 'stable-diffusion-v35-medium':
+      modelEndpoint = 'fal-ai/stable-diffusion-v35-medium';
+      break;
     case 'ideogram-v3':
       modelEndpoint = 'fal-ai/ideogram/v3';
       break;
