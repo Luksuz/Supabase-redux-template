@@ -10,14 +10,25 @@ export interface ScriptChunk {
 export interface GeneratedPrompt {
   chunkId: string
   prompt: string
-  generated: boolean
   searchQuery: string
+  generated: boolean
+}
+
+// Add interface for script summary
+export interface ScriptSummary {
+  storySummary: string
+  mainCharacters: string
+  setting: string
+  tone: string
 }
 
 interface ScriptProcessorState {
   // Script input
   pastedScript: string
   fileName: string
+  
+  // Script summary
+  scriptSummary: ScriptSummary | null
   
   // Image generation parameters
   visualStyle: string
@@ -44,6 +55,8 @@ interface ScriptProcessorState {
 const initialState: ScriptProcessorState = {
   pastedScript: '',
   fileName: '',
+  
+  scriptSummary: null,
   
   visualStyle: 'photorealistic',
   mood: 'dramatic',
@@ -74,6 +87,7 @@ export const scriptProcessorSlice = createSlice({
       state.chunks = []
       state.prompts = []
       state.hasGeneratedPrompts = false
+      state.scriptSummary = null
       state.error = null
     },
     
@@ -82,7 +96,13 @@ export const scriptProcessorSlice = createSlice({
       state.chunks = []
       state.prompts = []
       state.hasGeneratedPrompts = false
+      state.scriptSummary = null
       state.error = null
+    },
+    
+    // Script summary actions
+    setScriptSummary: (state, action: PayloadAction<ScriptSummary>) => {
+      state.scriptSummary = action.payload
     },
     
     // Parameter actions
@@ -138,6 +158,7 @@ export const scriptProcessorSlice = createSlice({
       if (existingPrompt) {
         existingPrompt.prompt = prompt
         existingPrompt.generated = generated
+        existingPrompt.searchQuery = searchQuery
       } else {
         state.prompts.push({ chunkId, prompt, generated, searchQuery })
       }
@@ -163,13 +184,13 @@ export const scriptProcessorSlice = createSlice({
       state.error = null
     },
     
-    // Reset actions
     clearScript: (state) => {
       state.pastedScript = ''
       state.fileName = ''
       state.chunks = []
       state.prompts = []
       state.hasGeneratedPrompts = false
+      state.scriptSummary = null
       state.error = null
     }
   }
@@ -178,6 +199,7 @@ export const scriptProcessorSlice = createSlice({
 export const {
   setPastedScript,
   setUploadedFile,
+  setScriptSummary,
   setVisualStyle,
   setMood,
   setLighting,

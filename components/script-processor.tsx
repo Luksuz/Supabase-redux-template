@@ -19,8 +19,10 @@ import {
   setError,
   clearError,
   clearScript,
+  setScriptSummary,
   ScriptChunk,
-  GeneratedPrompt
+  GeneratedPrompt,
+  ScriptSummary
 } from '@/lib/features/scriptProcessor/scriptProcessorSlice'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -85,6 +87,7 @@ export function ScriptProcessor() {
   const {
     pastedScript,
     fileName,
+    scriptSummary,
     visualStyle,
     mood,
     lighting,
@@ -191,6 +194,40 @@ export function ScriptProcessor() {
     dispatch(setPastedScript(value))
   }
 
+  // Generate script summary
+  const generateScriptSummary = async (): Promise<ScriptSummary> => {
+    console.log('📖 Generating script summary...')
+    
+    const response = await fetch('/api/process-script', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fullScript: pastedScript,
+        summaryMode: true,
+        visualStyle,
+        mood,
+        lighting,
+        customParameters
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Failed to generate script summary:', errorText)
+      throw new Error(`Failed to generate script summary: ${response.status} ${errorText}`)
+    }
+
+    const data = await response.json()
+    if (!data.success || !data.summary) {
+      throw new Error('Invalid response from script summary API')
+    }
+
+    console.log('✅ Script summary generated successfully')
+    return data.summary
+  }
+
   // Process and generate prompts
   const handleProcessAndGenerate = async () => {
     console.log('🚀 Starting process and generate...')
@@ -217,13 +254,30 @@ export function ScriptProcessor() {
     dispatch(clearError())
 
     try {
-      // Use the script that's already in state (either pasted or from uploaded file)
+      // Step 1: Generate script summary if not already available
+      let currentScriptSummary = scriptSummary
+      if (!currentScriptSummary) {
+        console.log('📖 No script summary found, generating one...')
+        dispatch(updateProcessingProgress(5))
+        currentScriptSummary = await generateScriptSummary()
+        dispatch(setScriptSummary(currentScriptSummary))
+        dispatch(updateProcessingProgress(10))
+        console.log('✅ Script summary generated and stored')
+      } else {
+        console.log('✅ Using existing script summary')
+        dispatch(updateProcessingProgress(10))
+      }
+
+      // Step 2: Process chunks with script summary
       const finalChunks = chunkTextByWords(pastedScript)
       dispatch(setChunks(finalChunks))
 
       console.log('📝 Final chunks:', finalChunks.length)
+      console.log('📖 Using script summary for context')
 
       const totalChunks = finalChunks.length
+      const baseProgress = 10 // Progress after summary generation
+      const chunkProgressStep = (90 - baseProgress) / totalChunks // Remaining progress divided by chunks
 
       // Create all API requests asynchronously
       const apiRequests = finalChunks.map(async (chunk, i) => {
@@ -243,7 +297,8 @@ export function ScriptProcessor() {
               mood: mood,
               lighting: lighting,
               customParameters: customParameters,
-              chunkId: chunk.id
+              chunkId: chunk.id,
+              scriptSummary: currentScriptSummary // Include the script summary
             }),
           })
 
@@ -314,7 +369,7 @@ export function ScriptProcessor() {
         }
         
         completedCount++
-        const progress = Math.round((completedCount / totalChunks) * 100)
+        const progress = Math.round(baseProgress + (completedCount / totalChunks) * (90 - baseProgress))
         dispatch(updateProcessingProgress(progress))
       })
 
@@ -443,6 +498,41 @@ export function ScriptProcessor() {
         </CardContent>
       </Card>
 
+      {/* Script Summary Display */}
+      {scriptSummary && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Script Summary
+            </CardTitle>
+            <CardDescription>
+              AI-generated summary of your script for context
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Story Summary</Label>
+                <p className="text-sm text-gray-600 mt-1">{scriptSummary.storySummary}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Setting</Label>
+                <p className="text-sm text-gray-600 mt-1">{scriptSummary.setting}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Main Characters</Label>
+                <p className="text-sm text-gray-600 mt-1">{scriptSummary.mainCharacters}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Tone</Label>
+                <p className="text-sm text-gray-600 mt-1">{scriptSummary.tone}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Processing Parameters */}
       {hasScriptContent && (
         <Card>
@@ -537,7 +627,7 @@ export function ScriptProcessor() {
               ) : (
                 <>
                   <Wand2 className="h-4 w-4 mr-2" />
-                  Process
+                  Process Script & Generate Prompts
                 </>
               )}
             </Button>
@@ -546,7 +636,7 @@ export function ScriptProcessor() {
               <div className="mt-4">
                 <Progress value={processingProgress} className="w-full" />
                 <p className="text-sm text-gray-500 mt-2 text-center">
-                  Generating...
+                  {processingProgress < 10 ? 'Generating script summary...' : 'Generating visual prompts...'}
                 </p>
               </div>
             )}
