@@ -8,7 +8,7 @@ const openai = new OpenAI({
 export async function GET() {
   try {
     const models = await openai.models.list();
-    // Only include these popular models (manually added)
+    
     const popularModels = [
       { id: 'gpt-4o-mini', owned_by: 'openai' },
       { id: 'gpt-4o', owned_by: 'openai' },
@@ -23,13 +23,8 @@ export async function GET() {
         { id: 'claude-3-7-sonnet-20250219', owned_by: 'anthropic' },
     ];
 
-    // Only include models owned by 'organization-owner'
-    const orgModels = models.data
-      .filter(model => model.owned_by === 'pletfree-creations-ltd')
-      .map(model => ({ id: model.id, owned_by: model.owned_by }));
-
-    // Combine and deduplicate by id
-    const combined = [...popularModels, ...anthropicModels, ...orgModels];
+   
+    const combined = [...popularModels, ...anthropicModels];
     const uniqueModels = combined.filter(
       (model, idx, arr) => arr.findIndex(m => m.id === model.id) === idx
     );
