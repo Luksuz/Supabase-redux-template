@@ -45,7 +45,10 @@ import {
   CheckCircle2,
   Loader2,
   X,
-  Copy
+  Copy,
+  Edit3,
+  Check,
+  X as XIcon
 } from 'lucide-react'
 import mammoth from 'mammoth'
 
@@ -106,6 +109,8 @@ export function ScriptProcessor() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+  const [editingPromptId, setEditingPromptId] = useState<string | null>(null)
+  const [editingPromptText, setEditingPromptText] = useState("")
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -390,6 +395,37 @@ export function ScriptProcessor() {
   const copyPrompt = (prompt: string) => {
     navigator.clipboard.writeText(prompt)
     showMessage('Prompt copied to clipboard', 'success')
+  }
+
+  // Start editing a prompt
+  const startEditingPrompt = (chunkId: string, currentPrompt: string) => {
+    setEditingPromptId(chunkId)
+    setEditingPromptText(currentPrompt)
+  }
+
+  // Save edited prompt
+  const saveEditedPrompt = (chunkId: string) => {
+    if (editingPromptText.trim() === '') {
+      showMessage('Prompt cannot be empty', 'error')
+      return
+    }
+
+    dispatch(updatePrompt({
+      chunkId,
+      prompt: editingPromptText.trim(),
+      generated: true,
+      searchQuery: prompts.find(p => p.chunkId === chunkId)?.searchQuery || ''
+    }))
+
+    setEditingPromptId(null)
+    setEditingPromptText('')
+    showMessage('Prompt updated successfully', 'success')
+  }
+
+  // Cancel editing
+  const cancelEditingPrompt = () => {
+    setEditingPromptId(null)
+    setEditingPromptText('')
   }
 
   // Download prompts as text file
@@ -686,18 +722,66 @@ export function ScriptProcessor() {
                       </Badge>
                     </div>
                     {promptData.generated && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyPrompt(promptData.prompt)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {editingPromptId === promptData.chunkId ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => saveEditedPrompt(promptData.chunkId)}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={cancelEditingPrompt}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <XIcon className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startEditingPrompt(promptData.chunkId, promptData.prompt)}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyPrompt(promptData.prompt)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="bg-gray-50 p-3 rounded">
-                    <p className="text-sm whitespace-pre-wrap">{promptData.prompt}</p>
+                    {editingPromptId === promptData.chunkId ? (
+                      <Textarea
+                        value={editingPromptText}
+                        onChange={(e) => setEditingPromptText(e.target.value)}
+                        className="min-h-[100px] bg-white"
+                        placeholder="Edit your prompt here..."
+                        autoFocus
+                      />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{promptData.prompt}</p>
+                    )}
                   </div>
+                  {promptData.searchQuery && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      <span className="font-medium">Search Query:</span> {promptData.searchQuery}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
