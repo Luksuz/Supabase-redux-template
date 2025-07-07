@@ -154,6 +154,12 @@ IMPORTANT FORMATTING RULES:
 6. Follow the ${scriptFormat} format conventions while maintaining spoken narrative style.
 ${audience ? `7. Tailor the language and tone for the target audience: ${audience}.` : ""}
 
+MARKDOWN FORMATTING FOR SPECIAL ELEMENTS:
+- When including any Call-to-Action (CTA) text specified in the writing instructions, wrap it in **bold markdown** (e.g., **Subscribe to our channel for more amazing content!**)
+- When including any Hook text specified in the writing instructions, wrap it in **bold markdown** (e.g., **What if I told you everything you know is wrong?**)
+- Use *italics* for emphasis on important narrative points
+- This formatting helps distinguish interactive elements from regular narrative content
+
 CONTENT TO EXCLUDE:
 - Any form of title, header, or section name
 - Greetings or introductory phrases that aren't part of the narrative

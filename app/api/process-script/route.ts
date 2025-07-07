@@ -263,9 +263,12 @@ STORY CONTEXT (use this to maintain narrative consistency):
 - Setting: ${scriptSummary.setting}
 - Tone: ${scriptSummary.tone}
 
-When generating visual prompts and search queries, ensure they align with the overall story context, characters, setting, and tone. This will create a cohesive visual narrative across all video chunks.`
+When generating visual prompts and search queries, ensure they align with the overall story context, characters, setting, and tone. This will create a cohesive visual narrative across all video chunks.
 
-    systemPrompt += `
+MARKDOWN FORMATTING FOR SPECIAL ELEMENTS:
+- When the script chunk contains Call-to-Action (CTA) text, wrap it in **bold markdown** (e.g., **Subscribe to our channel for more amazing content!**)
+- When the script chunk contains Hook text, wrap it in **bold markdown** (e.g., **What if I told you everything you know is wrong?**)
+- This formatting helps distinguish interactive elements from regular narrative content
 
 For the visual prompt:
 - Focus on visual elements: setting, composition, framing, colors, textures

@@ -80,6 +80,10 @@ const ScriptGenerator: React.FC = () => {
   const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null);
   const [editingSectionData, setEditingSectionData] = useState<ScriptSection | null>(null);
   
+  // State for editing segments
+  const [editingSegmentIndex, setEditingSegmentIndex] = useState<number | null>(null);
+  const [editingSegmentText, setEditingSegmentText] = useState<string>("");
+  
   // New state variables for the additional fields
   const [povSelection, setPovSelection] = useState<string>("3rd Person");
   const [scriptFormat, setScriptFormat] = useState<string>("Story");
@@ -622,6 +626,41 @@ const ScriptGenerator: React.FC = () => {
   };
   
   const scriptSegments = splitIntoSegments(fullScript?.scriptWithMarkdown || '');
+
+  // Functions for editing segments
+  const startEditingSegment = (index: number) => {
+    setEditingSegmentIndex(index);
+    setEditingSegmentText(scriptSegments[index]);
+  };
+
+  const saveEditingSegment = () => {
+    if (editingSegmentIndex !== null && fullScript) {
+      // Update the segment in the segments array
+      const updatedSegments = [...scriptSegments];
+      updatedSegments[editingSegmentIndex] = editingSegmentText;
+      
+      // Rejoin all segments to create the updated full script
+      const updatedScript = updatedSegments.join(' ');
+      
+      // Update the full script in Redux
+      dispatch(setFullScript({
+        scriptWithMarkdown: updatedScript,
+        scriptCleaned: updatedScript.replace(/[#*_~`]/g, ''), // Simple markdown removal
+        title: fullScript.title,
+        theme: fullScript.theme,
+        wordCount: updatedScript.split(/\s+/).length
+      }));
+      
+      // Reset editing state
+      setEditingSegmentIndex(null);
+      setEditingSegmentText("");
+    }
+  };
+
+  const cancelEditingSegment = () => {
+    setEditingSegmentIndex(null);
+    setEditingSegmentText("");
+  };
 
   // Update the handleRegenerateScriptSegment function to better handle regeneration prompts
   const handleRegenerateScriptSegment = async (segmentIndex: number, segmentContent: string, prompt?: string) => {
@@ -1463,13 +1502,15 @@ const ScriptGenerator: React.FC = () => {
             <div className="border rounded-lg p-4 bg-card shadow-sm overflow-y-auto max-h-[600px]">
               <div className="prose prose-sm max-w-none dark:prose-invert">
                 <h1 className="text-xl font-bold mb-4">{fullScript.title}</h1>
-                {/* Modified to remove headers from the markdown rendering */}
+                {/* Use ReactMarkdown for proper markdown rendering */}
                 <ReactMarkdown
                   components={{
                     // Remove h1, h2, h3 headers from the output
                     h1: () => null,
                     h2: () => null,
-                    h3: () => null
+                    h3: () => null,
+                    // Make strong text bold for CTAs and hooks
+                    strong: ({ children }) => <strong className="font-bold text-blue-600">{children}</strong>
                   }}
                 >
                   {fullScript.scriptWithMarkdown}
@@ -1488,22 +1529,72 @@ const ScriptGenerator: React.FC = () => {
                   <div key={index} className="border rounded-lg p-4 bg-card shadow-sm">
                     <div className="flex justify-between items-center mb-2">
                       <h4 className="font-medium">Segment {index + 1}</h4>
-                                <Button
-                                  size="sm"
-                        variant="outline"
-                        onClick={() => handleDirectRegeneration(index, segment)}
-                        disabled={isGeneratingScript}
-                      >
-                        <RefreshCw size={14} className="mr-2" />
-                                      Regenerate
-                                </Button>
-                              </div>
-                    <div className="text-sm whitespace-pre-wrap">{segment}</div>
-                            </div>
-                ))}
-                          </div>
+                      <div className="flex gap-2">
+                        {editingSegmentIndex === index ? (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={saveEditingSegment}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={cancelEditingSegment}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditingSegment(index)}
+                            >
+                              <Edit size={14} className="mr-2" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDirectRegeneration(index, segment)}
+                              disabled={isGeneratingScript}
+                            >
+                              <RefreshCw size={14} className="mr-2" />
+                              Regenerate
+                            </Button>
+                          </>
                         )}
                       </div>
+                    </div>
+                    
+                    {editingSegmentIndex === index ? (
+                      <Textarea
+                        value={editingSegmentText}
+                        onChange={(e) => setEditingSegmentText(e.target.value)}
+                        className="min-h-[300px] font-mono text-sm"
+                        placeholder="Edit your segment text here..."
+                      />
+                    ) : (
+                      <div className="prose prose-sm max-w-none dark:prose-invert">
+                        <ReactMarkdown
+                          components={{
+                            // Make strong text bold for CTAs and hooks
+                            strong: ({ children }) => <strong className="font-bold text-blue-600">{children}</strong>
+                          }}
+                        >
+                          {segment}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
       <Dialog open={isPromptHistoryOpen} onOpenChange={setIsPromptHistoryOpen}>
