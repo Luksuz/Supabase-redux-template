@@ -793,6 +793,31 @@ export function AudioGenerator() {
                 <SelectItem value="David (English (US)/American)">David (English US/American)</SelectItem>
                 <SelectItem value="Matthew (English (US)/American)">Matthew (English US/American)</SelectItem>
                 <SelectItem value="William (English (US)/American)">William (English US/American)</SelectItem>
+                <SelectItem value="Emma (English (US)/American)">Emma (English US/American)</SelectItem>
+                <SelectItem value="Olivia (English (US)/American)">Olivia (English US/American)</SelectItem>
+                <SelectItem value="Liam (English (US)/American)">Liam (English US/American)</SelectItem>
+                <SelectItem value="Noah (English (US)/American)">Noah (English US/American)</SelectItem>
+                <SelectItem value="Sophia (English (US)/American)">Sophia (English US/American)</SelectItem>
+                <SelectItem value="Isabella (English (US)/American)">Isabella (English US/American)</SelectItem>
+                <SelectItem value="James (English (US)/American)">James (English US/American)</SelectItem>
+                <SelectItem value="Benjamin (English (US)/American)">Benjamin (English US/American)</SelectItem>
+                <SelectItem value="Charlotte (English (US)/American)">Charlotte (English US/American)</SelectItem>
+                <SelectItem value="Amelia (English (US)/American)">Amelia (English US/American)</SelectItem>
+                <SelectItem value="Alexander (English (US)/American)">Alexander (English US/American)</SelectItem>
+                <SelectItem value="Mia (English (US)/American)">Mia (English US/American)</SelectItem>
+                <SelectItem value="Ethan (English (US)/American)">Ethan (English US/American)</SelectItem>
+                <SelectItem value="Harper (English (US)/American)">Harper (English US/American)</SelectItem>
+                <SelectItem value="Lucas (English (US)/American)">Lucas (English US/American)</SelectItem>
+                <SelectItem value="Evelyn (English (UK)/British)">Evelyn (English UK/British)</SelectItem>
+                <SelectItem value="Oliver (English (UK)/British)">Oliver (English UK/British)</SelectItem>
+                <SelectItem value="Chloe (English (UK)/British)">Chloe (English UK/British)</SelectItem>
+                <SelectItem value="Henry (English (UK)/British)">Henry (English UK/British)</SelectItem>
+                <SelectItem value="Grace (English (UK)/British)">Grace (English UK/British)</SelectItem>
+                <SelectItem value="Sebastian (English (UK)/British)">Sebastian (English UK/British)</SelectItem>
+                <SelectItem value="Zoe (English (AU)/Australian)">Zoe (English AU/Australian)</SelectItem>
+                <SelectItem value="Jack (English (AU)/Australian)">Jack (English AU/Australian)</SelectItem>
+                <SelectItem value="Lily (English (AU)/Australian)">Lily (English AU/Australian)</SelectItem>
+                <SelectItem value="Ryan (English (AU)/Australian)">Ryan (English AU/Australian)</SelectItem>
               </>
             )}
           </SelectContent>
@@ -846,6 +871,28 @@ export function AudioGenerator() {
                 <SelectItem value="English_CaptivatingStoryteller">English_CaptivatingStoryteller</SelectItem>
                 <SelectItem value="female_narrator">Female Narrator</SelectItem>
                 <SelectItem value="child_narrator">Child Narrator</SelectItem>
+                <SelectItem value="English_ProfessionalNarrator">English_ProfessionalNarrator</SelectItem>
+                <SelectItem value="English_WarmStoryteller">English_WarmStoryteller</SelectItem>
+                <SelectItem value="English_EnergeticPresenter">English_EnergeticPresenter</SelectItem>
+                <SelectItem value="English_SoothingReader">English_SoothingReader</SelectItem>
+                <SelectItem value="English_AuthoritativeVoice">English_AuthoritativeVoice</SelectItem>
+                <SelectItem value="English_FriendlyGuide">English_FriendlyGuide</SelectItem>
+                <SelectItem value="English_DramaticReader">English_DramaticReader</SelectItem>
+                <SelectItem value="English_CalmNarrator">English_CalmNarrator</SelectItem>
+                <SelectItem value="English_ConfidentSpeaker">English_ConfidentSpeaker</SelectItem>
+                <SelectItem value="English_ExpressiveVoice">English_ExpressiveVoice</SelectItem>
+                <SelectItem value="English_ClearAnnouncer">English_ClearAnnouncer</SelectItem>
+                <SelectItem value="English_WisdomNarrator">English_WisdomNarrator</SelectItem>
+                <SelectItem value="English_CheerfulHost">English_CheerfulHost</SelectItem>
+                <SelectItem value="English_SeriousReader">English_SeriousReader</SelectItem>
+                <SelectItem value="English_PlayfulVoice">English_PlayfulVoice</SelectItem>
+                <SelectItem value="English_PowerfulSpeaker">English_PowerfulSpeaker</SelectItem>
+                <SelectItem value="English_GentleReader">English_GentleReader</SelectItem>
+                <SelectItem value="English_DynamicPresenter">English_DynamicPresenter</SelectItem>
+                <SelectItem value="English_SmoothNarrator">English_SmoothNarrator</SelectItem>
+                <SelectItem value="English_VibrantVoice">English_VibrantVoice</SelectItem>
+                <SelectItem value="English_ClassicReader">English_ClassicReader</SelectItem>
+                <SelectItem value="English_ModernSpeaker">English_ModernSpeaker</SelectItem>
               </>
             )}
           </SelectContent>
@@ -986,6 +1033,31 @@ export function AudioGenerator() {
         { value: 'David (English (US)/American)', label: 'David (English US/American)' },
         { value: 'Matthew (English (US)/American)', label: 'Matthew (English US/American)' },
         { value: 'William (English (US)/American)', label: 'William (English US/American)' },
+        { value: 'Emma (English (US)/American)', label: 'Emma (English US/American)' },
+        { value: 'Olivia (English (US)/American)', label: 'Olivia (English US/American)' },
+        { value: 'Liam (English (US)/American)', label: 'Liam (English US/American)' },
+        { value: 'Noah (English (US)/American)', label: 'Noah (English US/American)' },
+        { value: 'Sophia (English (US)/American)', label: 'Sophia (English US/American)' },
+        { value: 'Isabella (English (US)/American)', label: 'Isabella (English US/American)' },
+        { value: 'James (English (US)/American)', label: 'James (English US/American)' },
+        { value: 'Benjamin (English (US)/American)', label: 'Benjamin (English US/American)' },
+        { value: 'Charlotte (English (US)/American)', label: 'Charlotte (English US/American)' },
+        { value: 'Amelia (English (US)/American)', label: 'Amelia (English US/American)' },
+        { value: 'Alexander (English (US)/American)', label: 'Alexander (English US/American)' },
+        { value: 'Mia (English (US)/American)', label: 'Mia (English US/American)' },
+        { value: 'Ethan (English (US)/American)', label: 'Ethan (English US/American)' },
+        { value: 'Harper (English (US)/American)', label: 'Harper (English US/American)' },
+        { value: 'Lucas (English (US)/American)', label: 'Lucas (English US/American)' },
+        { value: 'Evelyn (English (UK)/British)', label: 'Evelyn (English UK/British)' },
+        { value: 'Oliver (English (UK)/British)', label: 'Oliver (English UK/British)' },
+        { value: 'Chloe (English (UK)/British)', label: 'Chloe (English UK/British)' },
+        { value: 'Henry (English (UK)/British)', label: 'Henry (English UK/British)' },
+        { value: 'Grace (English (UK)/British)', label: 'Grace (English UK/British)' },
+        { value: 'Sebastian (English (UK)/British)', label: 'Sebastian (English UK/British)' },
+        { value: 'Zoe (English (AU)/Australian)', label: 'Zoe (English AU/Australian)' },
+        { value: 'Jack (English (AU)/Australian)', label: 'Jack (English AU/Australian)' },
+        { value: 'Lily (English (AU)/Australian)', label: 'Lily (English AU/Australian)' },
+        { value: 'Ryan (English (AU)/Australian)', label: 'Ryan (English AU/Australian)' },
       ];
       return playaiVoicesFallback.find(v => v.value === voiceId)?.label || voiceId;
     }
@@ -1000,6 +1072,28 @@ export function AudioGenerator() {
         { value: 'English_CaptivatingStoryteller', label: 'English_CaptivatingStoryteller' },
         { value: 'female_narrator', label: 'Female Narrator' },
         { value: 'child_narrator', label: 'Child Narrator' },
+        { value: 'English_ProfessionalNarrator', label: 'English_ProfessionalNarrator' },
+        { value: 'English_WarmStoryteller', label: 'English_WarmStoryteller' },
+        { value: 'English_EnergeticPresenter', label: 'English_EnergeticPresenter' },
+        { value: 'English_SoothingReader', label: 'English_SoothingReader' },
+        { value: 'English_AuthoritativeVoice', label: 'English_AuthoritativeVoice' },
+        { value: 'English_FriendlyGuide', label: 'English_FriendlyGuide' },
+        { value: 'English_DramaticReader', label: 'English_DramaticReader' },
+        { value: 'English_CalmNarrator', label: 'English_CalmNarrator' },
+        { value: 'English_ConfidentSpeaker', label: 'English_ConfidentSpeaker' },
+        { value: 'English_ExpressiveVoice', label: 'English_ExpressiveVoice' },
+        { value: 'English_ClearAnnouncer', label: 'English_ClearAnnouncer' },
+        { value: 'English_WisdomNarrator', label: 'English_WisdomNarrator' },
+        { value: 'English_CheerfulHost', label: 'English_CheerfulHost' },
+        { value: 'English_SeriousReader', label: 'English_SeriousReader' },
+        { value: 'English_PlayfulVoice', label: 'English_PlayfulVoice' },
+        { value: 'English_PowerfulSpeaker', label: 'English_PowerfulSpeaker' },
+        { value: 'English_GentleReader', label: 'English_GentleReader' },
+        { value: 'English_DynamicPresenter', label: 'English_DynamicPresenter' },
+        { value: 'English_SmoothNarrator', label: 'English_SmoothNarrator' },
+        { value: 'English_VibrantVoice', label: 'English_VibrantVoice' },
+        { value: 'English_ClassicReader', label: 'English_ClassicReader' },
+        { value: 'English_ModernSpeaker', label: 'English_ModernSpeaker' },
       ];
       return minimaxVoicesFallback.find(v => v.value === voiceId)?.label || voiceId;
     }
