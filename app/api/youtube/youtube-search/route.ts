@@ -8,6 +8,7 @@ interface SearchParams {
   channelUrl?: string
   maxResults?: number
   sortOrder?: string
+  minDuration?: number
 }
 
 interface CustomSession {
@@ -216,6 +217,33 @@ async function resolveChannelId(usernameOrHandle: string, urlType: string, acces
   }
 }
 
+// Function to parse ISO 8601 duration and return seconds
+function parseISO8601Duration(duration: string): number {
+  console.log('⏱️ Parsing duration:', duration)
+  
+  if (!duration) return 0
+  
+  // Remove 'PT' prefix
+  const time = duration.replace('PT', '')
+  
+  let totalSeconds = 0
+  
+  // Parse hours
+  const hours = time.match(/(\d+)H/)
+  if (hours) totalSeconds += parseInt(hours[1]) * 3600
+  
+  // Parse minutes
+  const minutes = time.match(/(\d+)M/)
+  if (minutes) totalSeconds += parseInt(minutes[1]) * 60
+  
+  // Parse seconds
+  const seconds = time.match(/(\d+)S/)
+  if (seconds) totalSeconds += parseInt(seconds[1])
+  
+  console.log('⏱️ Parsed duration:', totalSeconds, 'seconds')
+  return totalSeconds
+}
+
 export async function POST(request: NextRequest) {
   console.log('🚀 YouTube search API endpoint hit')
   console.log('🌍 Environment:', process.env.NODE_ENV)
@@ -238,10 +266,10 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('📝 Parsing request body...')
-    const { searchQuery, channelUrl, maxResults = 50, sortOrder = 'date' }: SearchParams = await request.json()
+    const { searchQuery, channelUrl, maxResults = 50, sortOrder = 'date', minDuration }: SearchParams = await request.json()
     console.log('📝 Request body parsed successfully')
     
-    console.log('📋 Request params:', { searchQuery, channelUrl, maxResults, sortOrder })
+    console.log('📋 Request params:', { searchQuery, channelUrl, maxResults, sortOrder, minDuration })
     
     if (!searchQuery && !channelUrl) {
       console.log('❌ Validation failed: no search query or channel URL')
@@ -350,50 +378,76 @@ export async function POST(request: NextRequest) {
     console.log('✅ YouTube API request successful')
     console.log('📊 Returning response with', data.items?.length || 0, 'items')
     
-    // Fetch video statistics for all found videos
-    let videosWithStats = data.items || []
-    if (videosWithStats.length > 0) {
-      console.log('📊 Fetching video statistics...')
+    // Fetch video statistics and content details for all found videos
+    let videosWithStatsAndDuration = data.items || []
+    let filteredCount = 0
+    
+    if (videosWithStatsAndDuration.length > 0) {
+      console.log('📊 Fetching video statistics and duration data...')
       try {
-        const videoIds = videosWithStats.map((video: any) => video.id.videoId).join(',')
+        const videoIds = videosWithStatsAndDuration.map((video: any) => video.id.videoId).join(',')
         
-        const statsParams = new URLSearchParams({
-          part: 'statistics',
+        const detailsParams = new URLSearchParams({
+          part: 'statistics,contentDetails',
           id: videoIds
         })
 
         // Use OAuth token if available, otherwise fall back to API key
         if (validAccessToken) {
-          statsParams.append('access_token', validAccessToken)
-          console.log('🔑 Using OAuth token for statistics')
+          detailsParams.append('access_token', validAccessToken)
+          console.log('🔑 Using OAuth token for video details')
         } else {
-          statsParams.append('key', API_KEY)
-          console.log('🔑 Using API key for statistics')
+          detailsParams.append('key', API_KEY)
+          console.log('🔑 Using API key for video details')
         }
 
-        const statsResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?${statsParams}`)
-        console.log('📊 Statistics API response status:', statsResponse.status)
+        const detailsResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?${detailsParams}`)
+        console.log('📊 Video details API response status:', detailsResponse.status)
         
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json()
-          console.log('📊 Statistics fetched for', statsData.items?.length || 0, 'videos')
+        if (detailsResponse.ok) {
+          const detailsData = await detailsResponse.json()
+          console.log('📊 Video details fetched for', detailsData.items?.length || 0, 'videos')
           
-          // Merge statistics with video data
-          videosWithStats = videosWithStats.map((video: any) => {
-            const stats = statsData.items?.find((stat: any) => stat.id === video.id.videoId)
-            return {
-              ...video,
-              statistics: stats?.statistics || undefined
-            }
-          })
+          // Merge statistics and duration with video data, and filter out short videos
+          const originalCount = videosWithStatsAndDuration.length
+          videosWithStatsAndDuration = videosWithStatsAndDuration
+            .map((video: any) => {
+              const details = detailsData.items?.find((detail: any) => detail.id === video.id.videoId)
+              return {
+                ...video,
+                statistics: details?.statistics || undefined,
+                contentDetails: details?.contentDetails || undefined,
+                duration: details?.contentDetails?.duration || undefined
+              }
+            })
+            .filter((video: any) => {
+              // Filter out videos shorter than the specified duration (default 0 for no filtering)
+              const minimumDuration = minDuration ?? 0
+              if (video.duration && minimumDuration > 0) {
+                const durationInSeconds = parseISO8601Duration(video.duration)
+                const isLongEnough = durationInSeconds >= minimumDuration
+                if (!isLongEnough) {
+                  console.log(`🚫 Filtering out short video: "${video.snippet.title}" (${durationInSeconds}s < ${minimumDuration}s)`)
+                  filteredCount++
+                }
+                return isLongEnough
+              }
+              // If no duration info or no minimum duration specified, keep the video
+              if (!video.duration && minimumDuration > 0) {
+                console.log(`⚠️ No duration info for video: "${video.snippet.title}"`)
+              }
+              return true
+            })
           
-          console.log('📊 Statistics merged successfully')
+          console.log('📊 Statistics and duration merged successfully')
+          console.log(`🚫 Filtered out ${filteredCount} short videos (< ${minDuration ?? 0}s)`)
+          console.log(`✅ Returning ${videosWithStatsAndDuration.length} videos (from original ${originalCount})`)
         } else {
-          console.log('⚠️ Failed to fetch statistics, continuing without them')
+          console.log('⚠️ Failed to fetch video details, continuing without filtering')
         }
-      } catch (statsError) {
-        console.error('⚠️ Error fetching statistics:', statsError)
-        console.log('⚠️ Continuing without statistics')
+      } catch (detailsError) {
+        console.error('⚠️ Error fetching video details:', detailsError)
+        console.log('⚠️ Continuing without filtering')
       }
     }
     
@@ -401,12 +455,14 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         ...data,
-        items: videosWithStats
+        items: videosWithStatsAndDuration
       },
       searchInfo: {
         query: searchQuery,
         channelId,
-        maxResults
+        maxResults,
+        filteredShortVideos: filteredCount,
+        minDuration: minDuration ?? 0
       },
       authenticated: !!validAccessToken
     })

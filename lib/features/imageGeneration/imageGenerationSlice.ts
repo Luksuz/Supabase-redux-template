@@ -92,18 +92,22 @@ export const imageGenerationSlice = createSlice({
     startGeneration: (state, action: PayloadAction<{ 
       id: string
       prompt: string
+      finalPrompts: string[]
       numberOfImages: number
+      imageStyle?: string
     }>) => {
-      const { id, prompt, numberOfImages } = action.payload
+      const { id, prompt, finalPrompts, numberOfImages, imageStyle } = action.payload
       
       state.currentGeneration = {
         id,
         originalPrompt: prompt,
+        finalPrompts: finalPrompts,
         imageUrls: [],
         imageData: [],
         provider: state.selectedModel,
         generatedAt: new Date().toISOString(),
-        aspectRatio: state.aspectRatio
+        aspectRatio: state.aspectRatio,
+        imageStyle: imageStyle
       }
       state.isGenerating = true
       state.error = null

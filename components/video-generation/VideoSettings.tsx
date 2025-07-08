@@ -22,8 +22,6 @@ interface VideoSettingsProps {
   customSegmentTimings: SegmentTiming[]
   onUpdateSegmentTiming: (index: number, duration: number) => void
   onDistributeEquallyAcrossSegments: () => void
-  getScriptBasedTimings: () => SegmentTiming[]
-  scriptBasedTimingAvailable: boolean
   totalSegmentDuration: number
   // Subtitle styling props
   subtitleSettings: any
@@ -65,8 +63,6 @@ export function VideoSettings({
   customSegmentTimings,
   onUpdateSegmentTiming,
   onDistributeEquallyAcrossSegments,
-  getScriptBasedTimings,
-  scriptBasedTimingAvailable,
   totalSegmentDuration,
   subtitleSettings,
   onSubtitleSettingsChange,
@@ -150,28 +146,6 @@ export function VideoSettings({
                     />
                     <Label htmlFor="segmented-timing" className="text-sm">Custom segment timing</Label>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="script-based-timing"
-                      checked={settings.useScriptBasedTiming || false}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          onSettingsChange({ useScriptBasedTiming: true, useSegmentedTiming: false })
-                        } else {
-                          onSettingsChange({ useScriptBasedTiming: false })
-                        }
-                      }}
-                      disabled={!hasPrerequisites || !scriptBasedTimingAvailable}
-                    />
-                    <Label htmlFor="script-based-timing" className="text-sm">
-                      Script-based timing {!scriptBasedTimingAvailable && '(not available)'}
-                    </Label>
-                  </div>
-                  {!scriptBasedTimingAvailable && (
-                    <p className="text-xs text-gray-500 ml-6">
-                      Script-based timing requires audio generation with individual script durations
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -266,60 +240,6 @@ export function VideoSettings({
                       </div>
                     </div>
                   )) : (
-                    <div className="col-span-full text-center text-gray-500 py-4">
-                      No images selected for video
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Script-Based Timing Preview */}
-            {settings.useScriptBasedTiming && (
-              <div className={`space-y-4 p-4 border rounded-lg ${
-                scriptBasedTimingAvailable && hasPrerequisites 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-gray-50 border-gray-200 opacity-60'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Script-Based Timing Preview</h4>
-                    <p className="text-sm text-gray-600">
-                      Each image will show for the duration of its script's audio
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      Total: {scriptBasedTimingAvailable ? getScriptBasedTimings().reduce((sum, timing) => sum + timing.duration, 0).toFixed(1) : '0.0'}s
-                    </div>
-                    <div className={`text-xs ${scriptBasedTimingAvailable ? 'text-green-600' : 'text-gray-500'}`}>
-                      {scriptBasedTimingAvailable ? 'Matches audio duration' : 'Not available'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {selectedImagesCount > 0 ? getOrderedImageUrls().map((imageUrl: string, index: number) => {
-                    // Use index-based matching for script durations
-                    const scriptDuration = audioGeneration?.scriptDurations?.[index]
-                    return (
-                      <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
-                        <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
-                          <img
-                            src={imageUrl}
-                            alt={`Image ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-grow">
-                          <div className="text-sm font-medium">Image {index + 1}</div>
-                          <div className="text-xs text-gray-500">
-                            {scriptDuration ? `${scriptDuration.duration.toFixed(1)}s` : 'No timing data'}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  }) : (
                     <div className="col-span-full text-center text-gray-500 py-4">
                       No images selected for video
                     </div>
@@ -580,7 +500,6 @@ export function VideoSettings({
                   settings.videoMode === 'option1' ? 'Loop All with Zoom' :
                   settings.videoMode === 'option2' ? 'Intro + Loop' :
                   settings.useSegmentedTiming ? 'Custom Timing' :
-                  settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
                   'Traditional'
                 })
               </>

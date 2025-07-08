@@ -507,18 +507,76 @@ export function AudioGenerator() {
           subtitlesUrl: finalData.subtitlesUrl
         });
 
-        dispatch(completeAudioGeneration({
-          audioUrl: finalData.audioUrl,
-          compressedAudioUrl: finalData.compressedAudioUrl,
-          duration: finalData.duration || 0
-        }));
+        // If subtitles were requested but not yet ready, wait for them
+        if (generateSubtitlesOption && !finalData.subtitlesUrl) {
+          console.log('⏳ Subtitles requested but not ready, waiting for generation...');
+          setGenerationStatusMessage("Generating subtitles...");
+          dispatch(setIsGeneratingSubtitles(true));
+          
+          // Poll for subtitles completion
+          const pollForSubtitles = async (audioUrl: string, maxAttempts = 30, interval = 2000) => {
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+              try {
+                const subtitlesResponse = await fetch('/api/check-subtitles-status', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ audioUrl: finalData.audioUrl })
+                });
+                
+                if (subtitlesResponse.ok) {
+                  const subtitlesData = await subtitlesResponse.json();
+                  if (subtitlesData.success && subtitlesData.subtitlesUrl) {
+                    console.log('✅ Subtitles generation completed');
+                    dispatch(setIsGeneratingSubtitles(false));
+                    return subtitlesData.subtitlesUrl;
+                  }
+                }
+                
+                // Update status message with countdown
+                const remainingAttempts = maxAttempts - attempt - 1;
+                setGenerationStatusMessage(`Generating subtitles... (${remainingAttempts} checks remaining)`);
+                
+                // Wait before next attempt
+                await new Promise(resolve => setTimeout(resolve, interval));
+              } catch (error) {
+                console.warn(`Subtitles polling attempt ${attempt + 1} failed:`, error);
+              }
+            }
+            
+            console.warn('⚠️ Subtitles generation timed out, proceeding without subtitles');
+            dispatch(setIsGeneratingSubtitles(false));
+            return null;
+          };
+          
+          const subtitlesUrl = await pollForSubtitles(finalData.audioUrl);
+          
+          // Complete generation with or without subtitles
+          dispatch(completeAudioGeneration({
+            audioUrl: finalData.audioUrl,
+            compressedAudioUrl: finalData.compressedAudioUrl,
+            duration: finalData.duration || 0
+          }));
 
-        if (finalData.subtitlesUrl) {
-          dispatch(addSubtitlesToGeneration({ subtitlesUrl: finalData.subtitlesUrl }));
+          if (subtitlesUrl) {
+            dispatch(addSubtitlesToGeneration({ subtitlesUrl }));
+          }
+        } else {
+          // Complete generation immediately if no subtitles requested or already available
+          dispatch(completeAudioGeneration({
+            audioUrl: finalData.audioUrl,
+            compressedAudioUrl: finalData.compressedAudioUrl,
+            duration: finalData.duration || 0
+          }));
+
+          if (finalData.subtitlesUrl) {
+            dispatch(addSubtitlesToGeneration({ subtitlesUrl: finalData.subtitlesUrl }));
+          }
         }
 
         dispatch(saveGenerationToHistory());
-        const subtitlesMessage = finalData.subtitlesUrl ? ' Subtitles were also generated and are available for download!' : '';
+        const subtitlesMessage = (finalData.subtitlesUrl || generateSubtitlesOption) 
+          ? ' Subtitles were also generated and are available for download!' 
+          : '';
         showMessage(`Successfully generated audio using ${currentProvider?.name}! Both original and compressed versions are available - switch between them in the player above.${subtitlesMessage}`, 'success');
         setGenerationStatusMessage("");
 
@@ -526,6 +584,7 @@ export function AudioGenerator() {
         console.error('Finalization error:', error);
       dispatch(setAudioGenerationError(error.message));
         showMessage(`Audio finalization failed: ${error.message}`, 'error');
+        dispatch(setIsGeneratingSubtitles(false));
       }
     };
 

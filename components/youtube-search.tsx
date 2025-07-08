@@ -51,6 +51,7 @@ import {
   type GoogleResearchSummary,
   type YouTubeResearchSummary,
   addYouTubeResearchSummary,
+  setMinDuration,
 } from '@/lib/features/youtube/youtubeSlice'
 
 // Research interfaces
@@ -1241,6 +1242,7 @@ export default function YouTubeSearch() {
       channelUrl: searchForm.channelUrl.trim() || undefined,
       maxResults: searchForm.maxResults,
       sortOrder: searchForm.sortOrder,
+      minDuration: searchForm.minDuration,
     }))
   }
 
@@ -1784,7 +1786,7 @@ export default function YouTubeSearch() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="maxResults" className="block text-sm font-medium text-gray-700 mb-2">
                       Number of Results:
@@ -1815,6 +1817,31 @@ export default function YouTubeSearch() {
                       <option value="viewCount">Most Viewed</option>
                       <option value="rating">Highest Rated</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="minDuration" className="block text-sm font-medium text-gray-700 mb-2">
+                      Minimum Duration:
+                    </label>
+                    <select
+                      id="minDuration"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      value={searchForm.minDuration}
+                      onChange={(e) => dispatch(setMinDuration(parseInt(e.target.value)))}
+                    >
+                      <option value={0}>No minimum (include all videos)</option>
+                      <option value={30}>30 seconds</option>
+                      <option value={60}>1 minute</option>
+                      <option value={120}>2 minutes</option>
+                      <option value={300}>5 minutes</option>
+                      <option value={600}>10 minutes</option>
+                      <option value={1200}>20 minutes</option>
+                      <option value={1800}>30 minutes</option>
+                      <option value={3600}>1 hour</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Filter out videos shorter than the selected duration
+                    </p>
                   </div>
                 </div>
 
@@ -1854,6 +1881,20 @@ export default function YouTubeSearch() {
                   Found {searchResults.videos.length} videos for {getSearchInfoText()}
                   <br />
                   Requested: {searchResults.searchInfo.maxResults} results
+                  {searchResults.searchInfo.filteredShortVideos !== undefined && searchResults.searchInfo.filteredShortVideos > 0 && (
+                    <div className="text-sm text-green-600 mt-1">
+                      ⚡ Filtered out {searchResults.searchInfo.filteredShortVideos} short videos 
+                      {searchResults.searchInfo.minDuration && searchResults.searchInfo.minDuration > 0 ? (
+                        ` (less than ${
+                          searchResults.searchInfo.minDuration >= 3600 
+                            ? `${Math.floor(searchResults.searchInfo.minDuration / 3600)}h ${Math.floor((searchResults.searchInfo.minDuration % 3600) / 60)}m`
+                            : searchResults.searchInfo.minDuration >= 60 
+                              ? `${Math.floor(searchResults.searchInfo.minDuration / 60)}m ${searchResults.searchInfo.minDuration % 60}s`.replace(' 0s', '')
+                              : `${searchResults.searchInfo.minDuration}s`
+                        })`
+                      ) : ' (less than 1 minute)'}
+                    </div>
+                  )}
                 </div>
 
                 {/* Selection Controls */}

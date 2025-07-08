@@ -30,11 +30,13 @@ export interface GenerateImageResponse {
 export interface GeneratedImageSet {
   id: string
   originalPrompt: string
+  finalPrompts: string[]
   imageUrls: string[]
   imageData: string[] // base64 data
   provider: ImageProvider
   generatedAt: string
   aspectRatio?: string
+  imageStyle?: string
 }
 
 export interface ExtractedScene {

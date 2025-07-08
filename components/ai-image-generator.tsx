@@ -18,7 +18,8 @@ import {
   clearImageSets,
   removeImageSet,
   setSelectedImagesOrder,
-  clearSelectedImagesOrder
+  clearSelectedImagesOrder,
+  updateImageInSet
 } from '@/lib/features/imageGeneration/imageGenerationSlice'
 import type { ExtractedScene, GeneratedImageSet, ImageProvider } from '@/types/image-generation'
 import { v4 as uuidv4 } from 'uuid'
@@ -179,7 +180,7 @@ export function AIImageGenerator() {
             },
             body: JSON.stringify({
               provider: selectedModel,
-              prompt: applyImageStyle(prompt),
+              prompt: prompt,
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
               userId: 'user-123',
@@ -224,10 +225,15 @@ export function AIImageGenerator() {
     const batchSize = MODEL_INFO[selectedModel].batchSize
     const totalBatches = Math.ceil(selectedPrompts.length / batchSize)
     
+    // Apply style to all prompts upfront
+    const styledPrompts = selectedPrompts.map(prompt => applyImageStyle(prompt))
+    
     dispatch(startGeneration({ 
       id: generationId, 
       prompt: `Selected scenes: ${selectedPrompts.length} images`,
-      numberOfImages: selectedPrompts.length
+      finalPrompts: styledPrompts,
+      numberOfImages: selectedPrompts.length,
+      imageStyle: selectedImageStyle
     }))
 
     // Reset batch progress
@@ -241,7 +247,7 @@ export function AIImageGenerator() {
       // Process each batch
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
         try {
-          const batchImageUrls = await generateImagesBatch(selectedPrompts, batchIndex, totalBatches)
+          const batchImageUrls = await generateImagesBatch(styledPrompts, batchIndex, totalBatches)
           allImageUrls.push(...batchImageUrls)
           
           dispatch(updateGenerationInfo(
@@ -487,8 +493,21 @@ export function AIImageGenerator() {
   }
 
   // Individual image regeneration function
-  const regenerateIndividualImage = async (setId: string, imageIndex: number, originalPrompt: string) => {
+  const regenerateIndividualImage = async (setId: string, imageIndex: number) => {
     const imageId = getImageId(setId, imageIndex)
+    
+    // Find the image set to get the final prompt that was actually used
+    const imageSet = imageSets.find(set => set.id === setId)
+    if (!imageSet) {
+      console.error('Image set not found for regeneration')
+      return
+    }
+    
+    // Use finalPrompts array if available, otherwise fall back to originalPrompt with current style
+    // This provides backwards compatibility for older image sets
+    const promptToUse = (imageSet.finalPrompts && imageSet.finalPrompts[imageIndex]) 
+      ? imageSet.finalPrompts[imageIndex]
+      : applyImageStyle(imageSet.originalPrompt)
     
     try {
       setRegeneratingImages(prev => new Set(prev).add(imageId))
@@ -499,10 +518,10 @@ export function AIImageGenerator() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          provider: selectedModel,
-          prompt: applyImageStyle(originalPrompt),
+          provider: imageSet.provider, // Use the same provider as original
+          prompt: promptToUse, // Use the exact final prompt that was used originally
           numberOfImages: 1,
-          minimaxAspectRatio: aspectRatio,
+          minimaxAspectRatio: imageSet.aspectRatio || aspectRatio,
           userId: 'user-123',
         }),
       })
@@ -515,8 +534,18 @@ export function AIImageGenerator() {
       const data = await response.json()
       
       if (data.imageUrls && data.imageUrls.length > 0) {
-        console.log('Would update image:', { setId, imageIndex, newUrl: data.imageUrls[0] })
-        window.location.reload()
+        // Update the Redux state directly instead of reloading the page
+        const newImageUrl = data.imageUrls[0]
+        console.log('✅ Successfully regenerated image:', { setId, imageIndex, newUrl: newImageUrl, usedPrompt: promptToUse })
+        
+        // Use Redux action to update the image in the set
+        dispatch(updateImageInSet({
+          setId,
+          imageIndex,
+          newImageUrl
+        }))
+        
+        console.log('✅ Image updated in Redux state successfully')
       } else {
         throw new Error('No image URL returned')
       }

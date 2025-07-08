@@ -56,6 +56,8 @@ export interface SearchInfo {
   query?: string
   channelId?: string
   maxResults: number
+  filteredShortVideos?: number
+  minDuration?: number
 }
 
 // Video Summary interfaces
@@ -289,6 +291,7 @@ interface YouTubeState {
   channelUrl: string
   maxResults: number
   sortOrder: string
+  minDuration: number
   
   // Search results
   videos: Video[]
@@ -334,6 +337,7 @@ const initialState: YouTubeState = {
   channelUrl: '',
   maxResults: 50,
   sortOrder: 'date',
+  minDuration: 60,
   
   // Search results
   videos: [],
@@ -380,6 +384,7 @@ export const searchVideos = createAsyncThunk(
     channelUrl?: string
     maxResults: number
     sortOrder: string
+    minDuration?: number
   }) => {
     const response = await fetch('/api/youtube/youtube-search', {
       method: 'POST',
@@ -737,6 +742,10 @@ export const youtubeSlice = createSlice({
       state.sortOrder = action.payload
     },
     
+    setMinDuration: (state, action: PayloadAction<number>) => {
+      state.minDuration = action.payload
+    },
+    
     // Video selection actions
     toggleVideoSelection: (state, action: PayloadAction<string>) => {
       const videoId = action.payload
@@ -1087,6 +1096,7 @@ export const {
   setChannelUrl,
   setMaxResults,
   setSortOrder,
+  setMinDuration,
   toggleVideoSelection,
   selectAllVideos,
   deselectAllVideos,
@@ -1127,6 +1137,7 @@ export const selectSearchForm = (state: { youtube: YouTubeState }) => ({
   channelUrl: state.youtube.channelUrl,
   maxResults: state.youtube.maxResults,
   sortOrder: state.youtube.sortOrder,
+  minDuration: state.youtube.minDuration,
 })
 
 export const selectSearchResults = (state: { youtube: YouTubeState }) => ({

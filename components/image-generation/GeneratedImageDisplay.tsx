@@ -47,7 +47,7 @@ interface GeneratedImageDisplayProps {
   onDownloadSelectedAsZip: () => void
   onClearAll: () => void
   onRemoveSet: (setId: string) => void
-  onRegenerateImage: (setId: string, imageIndex: number, originalPrompt: string) => void
+  onRegenerateImage: (setId: string, imageIndex: number) => void
   onClearError: () => void
   onUpdateImageOrder: (newOrder: string[]) => void
 }
@@ -447,7 +447,7 @@ export function GeneratedImageDisplay({
                           <Button 
                             size="sm" 
                             variant="secondary"
-                            onClick={() => onRegenerateImage(imageSet.id, imageIndex, imageSet.originalPrompt)}
+                            onClick={() => onRegenerateImage(imageSet.id, imageIndex)}
                             disabled={isRegenerating}
                           >
                             <RefreshCw className="h-4 w-4 mr-2" />
