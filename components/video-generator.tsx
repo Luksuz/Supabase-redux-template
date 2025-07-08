@@ -445,8 +445,6 @@ export function VideoGenerator() {
         customSegmentTimings={customSegmentTimings}
         onUpdateSegmentTiming={updateSegmentTiming}
         onDistributeEquallyAcrossSegments={distributeEquallyAcrossSegments}
-        getScriptBasedTimings={getScriptBasedTimings}
-        scriptBasedTimingAvailable={scriptBasedTimingAvailable as boolean}
         totalSegmentDuration={totalSegmentDuration}
         subtitleSettings={subtitleSettings}
         onSubtitleSettingsChange={setSubtitleSettings}
