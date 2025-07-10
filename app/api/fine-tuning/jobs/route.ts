@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       // Calculate job-level totals
       const total_sections = sections.length
       const total_training_examples = sections.reduce((sum, section) => sum + (section.texts?.length || 0), 0)
-      const completed_sections = sections.filter(section => section.is_completed).length
+      const completed_sections = job.fine_tuning_outline_sections?.filter(section => section.is_completed).length || 0
       
       return {
         ...job,
