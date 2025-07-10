@@ -25,6 +25,26 @@ export interface SubtitleFile {
   method?: 'yt-dlp' | 'whisper' | 'supadata'
 }
 
+// Detailed Timestamp interface for Gemini analysis
+export interface DetailedTimestamp {
+  startTime: string
+  endTime: string
+  speaker: string
+  quote?: string
+  extraInfo: string
+  description: string
+  significance: string
+}
+
+// Key Quote interface for Gemini analysis  
+export interface KeyQuote {
+  startTime: string
+  endTime: string
+  speaker: string
+  quote: string
+  context: string
+}
+
 // Transcript Analysis interface
 export interface TranscriptAnalysis {
   timestamp: string
@@ -59,11 +79,12 @@ export interface VideoSummary {
   title: string
   keyPoints: string[]
   mainTopic: string
-  timestamp?: string
+  timestamp?: string // Keep for backward compatibility
+  timestamps?: DetailedTimestamp[] // NEW: Array of all timestamps from analysis
+  keyQuotes?: KeyQuote[] // NEW: Array of key quotes with timestamps
   narrativeElements: string[]
   emotionalTone: string
   dramaticElements?: string[]
-  keyQuotes?: string[]
   contextualInfo?: string
 }
 
@@ -769,14 +790,21 @@ export const youtubeSlice = createSlice({
       const index = state.selectedVideos.indexOf(videoId)
       
       if (index >= 0) {
+        // Remove video if already selected
         state.selectedVideos.splice(index, 1)
       } else {
+        // Check if we can add more videos (max 5)
+        if (state.selectedVideos.length >= 5) {
+          // Don't add - limit reached
+          return
+        }
         state.selectedVideos.push(videoId)
       }
     },
     
     selectAllVideos: (state) => {
-      state.selectedVideos = state.videos.map(v => v.id.videoId)
+      // Select only the first 5 videos (max limit)
+      state.selectedVideos = state.videos.slice(0, 5).map(v => v.id.videoId)
     },
     
     deselectAllVideos: (state) => {
@@ -841,6 +869,20 @@ export const youtubeSlice = createSlice({
     
     addYouTubeResearchSummary: (state, action: PayloadAction<YouTubeResearchSummary>) => {
       state.youtubeResearchSummaries.push(action.payload)
+    },
+    
+    updateGoogleResearchSummary: (state, action: PayloadAction<GoogleResearchSummary>) => {
+      const index = state.googleResearchSummaries.findIndex(s => s.id === action.payload.id)
+      if (index >= 0) {
+        state.googleResearchSummaries[index] = action.payload
+      }
+    },
+    
+    updateYouTubeResearchSummary: (state, action: PayloadAction<YouTubeResearchSummary>) => {
+      const index = state.youtubeResearchSummaries.findIndex(s => s.id === action.payload.id)
+      if (index >= 0) {
+        state.youtubeResearchSummaries[index] = action.payload
+      }
     },
     
     removeGoogleResearchSummary: (state, action: PayloadAction<string>) => {
@@ -1111,6 +1153,8 @@ export const {
   resetAll,
   addGoogleResearchSummary,
   addYouTubeResearchSummary,
+  updateGoogleResearchSummary,
+  updateYouTubeResearchSummary,
   removeGoogleResearchSummary,
   removeYouTubeResearchSummary,
   clearAllResearchSummaries,

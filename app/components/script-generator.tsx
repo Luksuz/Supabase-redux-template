@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader2, Copy, Download, Plus, Wand2, FileText, Youtube, Database, YoutubeIcon } from 'lucide-react'
+import { showToast } from '@/lib/utils/toast'
 
 export default function ScriptGenerator() {
   const dispatch = useAppDispatch()
@@ -203,10 +204,47 @@ export default function ScriptGenerator() {
         context += 'Narrative Elements:\n'
         video.narrativeElements.forEach(element => context += `- ${element}\n`)
         
+        // Add ALL timestamps from analysis if available
+        if (video.timestamps && video.timestamps.length > 0) {
+          context += `\nDetailed Timestamps (${video.timestamps.length} total):\n`
+          video.timestamps.forEach((timestamp: any, index: number) => {
+            const timestampUrl = `${youtubeUrl}&t=${Math.floor(srtToSeconds(timestamp.startTime))}s`
+            context += `${index + 1}. ${timestamp.startTime} - ${timestamp.endTime}: [${timestamp.speaker}]\n`
+            if (timestamp.quote) {
+              context += `   Quote: "${timestamp.quote}"\n`
+            }
+            context += `   Description: ${timestamp.description}\n`
+            context += `   Significance: ${timestamp.significance}\n`
+            context += `   Context: ${timestamp.extraInfo}\n`
+            context += `   YouTube Link: ${timestampUrl}\n`
+            
+            // Add to youtubeLinks for reference
+            youtubeLinks.push({
+              url: timestampUrl,
+              timestamp: timestamp.startTime,
+              title: `${video.title} - ${timestamp.startTime}`,
+              description: timestamp.description
+            })
+          })
+        }
+        
         // Add enhanced fields if available
         if (video.keyQuotes && video.keyQuotes.length > 0) {
-          context += 'Key Quotes:\n'
-          video.keyQuotes.forEach(quote => context += `- "${quote}"\n`)
+          context += '\nKey Quotes with Timestamps:\n'
+          video.keyQuotes.forEach((quote: any) => {
+            const quoteUrl = `${youtubeUrl}&t=${Math.floor(srtToSeconds(quote.startTime))}s`
+            context += `- [${quote.startTime}-${quote.endTime}] ${quote.speaker}: "${quote.quote}"\n`
+            context += `  Context: ${quote.context}\n`
+            context += `  YouTube Link: ${quoteUrl}\n`
+            
+            // Add to youtubeLinks for reference
+            youtubeLinks.push({
+              url: quoteUrl,
+              timestamp: quote.startTime,
+              title: `${video.title} - Quote at ${quote.startTime}`,
+              description: `Quote by ${quote.speaker}: ${quote.quote.substring(0, 100)}...`
+            })
+          })
         }
         
         if (video.dramaticElements && video.dramaticElements.length > 0) {
@@ -291,18 +329,38 @@ export default function ScriptGenerator() {
         context += 'Key Insights:\n'
         research.videosSummary.keyInsights.forEach(insight => context += `- ${insight}\n`)
         
-        // Add YouTube links from video summaries
+        // Add YouTube links from video summaries with ALL timestamps
         if (research.videosSummary.videoSummaries) {
           context += 'Video References:\n'
           research.videosSummary.videoSummaries.forEach((video, vidIdx) => {
             const youtubeUrl = `https://www.youtube.com/watch?v=${video.videoId}`
             context += `- ${video.title}: ${youtubeUrl}\n`
-            youtubeLinks.push({
-              url: youtubeUrl,
-              timestamp: video.timestamp,
-              title: video.title,
-              description: `YouTube Research: ${research.query}`
-            })
+            
+            // Add ALL timestamps if available
+            if (video.timestamps && video.timestamps.length > 0) {
+              context += `  Timestamps (${video.timestamps.length} total):\n`
+              video.timestamps.forEach((timestamp: any, tsIdx: number) => {
+                const timestampUrl = `${youtubeUrl}&t=${Math.floor(srtToSeconds(timestamp.startTime))}s`
+                context += `    ${tsIdx + 1}. ${timestamp.startTime}-${timestamp.endTime}: [${timestamp.speaker}] ${timestamp.description}\n`
+                if (timestamp.quote) {
+                  context += `       Quote: "${timestamp.quote}"\n`
+                }
+                
+                youtubeLinks.push({
+                  url: timestampUrl,
+                  timestamp: timestamp.startTime,
+                  title: `${video.title} - ${timestamp.startTime}`,
+                  description: timestamp.description
+                })
+              })
+            } else {
+              youtubeLinks.push({
+                url: youtubeUrl,
+                timestamp: video.timestamp,
+                title: video.title,
+                description: `YouTube Research: ${research.query}`
+              })
+            }
           })
         }
       })
@@ -775,7 +833,7 @@ export default function ScriptGenerator() {
     const context = buildYouTubeResearchContext()
     console.log('📋 Generated context length:', context.length)
     console.log('📋 Generated context:', context)
-    alert(`YouTube research context generated!\nLength: ${context.length} characters\nCheck console for full content.`)
+    showToast.success(`YouTube research context generated!\nLength: ${context.length} characters\nCheck console for full content.`)
   }
 
   return (

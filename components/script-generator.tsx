@@ -328,9 +328,8 @@ export function ScriptGenerator() {
   const [tone, setTone] = useState('')
   const [stylePreferences, setStylePreferences] = useState('')
   
-  // Word count and sections calculation
-  const [targetWordCount, setTargetWordCount] = useState<number>(4000)
-  const calculatedSections = Math.max(1, Math.ceil(targetWordCount / 800))
+  // Sections calculation - default to 5 sections focused on quality content
+  const [targetSections, setTargetSections] = useState<number>(5)
   
   // Model selection
   const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini')
@@ -568,8 +567,7 @@ export function ScriptGenerator() {
         model: selectedModel,
         additionalContext,
         additionalResearch,
-        targetWordCount: targetWordCount,
-        targetSections: calculatedSections
+        targetSections: targetSections
       }
 
       // Add promptId if a custom prompt is selected
@@ -614,8 +612,7 @@ export function ScriptGenerator() {
       const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
       const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
       const youtubeMessage = additionalResearch ? ' (Enhanced with YouTube data)' : ''
-      const wordCountMessage = ` (${calculatedSections} sections for ${targetWordCount} words)`
-      showMessage(`Sections generated! Please review and approve.${modelMessage}${promptMessage}${youtubeMessage}${wordCountMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
+      showMessage(`Sections generated! Please review and approve.${modelMessage}${promptMessage}${youtubeMessage} ${data.usingMock ? '(Using mock data)' : ''}`, 'success')
     } catch (error) {
       showMessage('Failed to generate sections', 'error')
     }
@@ -1749,30 +1746,30 @@ export function ScriptGenerator() {
                   <CardContent className="space-y-4">
                     {/* Word Count Configuration */}
                     <div className="space-y-2">
-                      <Label htmlFor="targetWordCount">Target Word Count</Label>
+                      <Label htmlFor="targetSections">Target Sections</Label>
                       <div className="flex items-center gap-4">
                         <Input
-                          id="targetWordCount"
+                          id="targetSections"
                           type="number"
-                          min="800"
-                          max="20000"
-                          step="100"
-                          placeholder="e.g., 4000"
-                          value={targetWordCount}
-                          onChange={(e) => setTargetWordCount(Number(e.target.value) || 4000)}
+                          min="1"
+                          max="10"
+                          step="1"
+                          placeholder="e.g., 5"
+                          value={targetSections}
+                          onChange={(e) => setTargetSections(Number(e.target.value) || 5)}
                           className="flex-1"
                         />
                         <div className="bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-sm">
                           <span className="text-blue-600 font-medium">
-                            {calculatedSections} section{calculatedSections !== 1 ? 's' : ''}
+                            {targetSections} section{targetSections !== 1 ? 's' : ''}
                           </span>
                           <span className="text-blue-500 text-xs ml-1">
-                            (~{Math.round(targetWordCount / calculatedSections)} words each)
+                            Quality-focused content
                           </span>
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        The script will be divided into {calculatedSections} section{calculatedSections !== 1 ? 's' : ''} of approximately 800 words each.
+                        The script will be divided into {targetSections} section{targetSections !== 1 ? 's' : ''} focused on engaging, quality content with proper clip integration.
                       </p>
                     </div>
 
@@ -1926,12 +1923,12 @@ export function ScriptGenerator() {
                   {currentJob.isGeneratingSections ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating {calculatedSections} Sections...
+                      Generating {targetSections} Sections...
                                   </>
                                 ) : (
                                   <>
                       <Edit3 className="h-4 w-4" />
-                      Generate {calculatedSections} Script Sections
+                      Generate {targetSections} Script Sections
                                   </>
                                 )}
                 </Button>

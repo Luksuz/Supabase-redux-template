@@ -13,7 +13,7 @@ interface WebSearchResult {
 async function searchGoogle(query: string, maxResults: number = 30): Promise<WebSearchResult[]> {
   try {
     const response = await fetch(
-      `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(query)}&api_key=${SERPAPI_KEY}&num=${Math.min(maxResults, 50)}`
+      `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(query)}&api_key=${SERPAPI_KEY}&num=${Math.min(maxResults, 50)}&hl=es`
     )
     const data = await response.json()
     

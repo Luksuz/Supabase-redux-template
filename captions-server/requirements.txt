@@ -1,5 +1,0 @@
-Flask
-Flask-CORS
-youtube-transcript-api
-requests
-gunicorn

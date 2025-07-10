@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Prompt } from '../types/prompt'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card'
@@ -10,6 +10,7 @@ import { Label } from './ui/label'
 import { Textarea } from './ui/textarea'
 import { Badge } from './ui/badge'
 import { Trash2, Edit, Plus, Copy, Eye } from 'lucide-react'
+import { showToast } from '@/lib/utils/toast'
 
 interface PromptManagerProps {
   onSelectPrompt?: (prompt: Prompt) => void
@@ -26,11 +27,6 @@ export default function PromptManager({ onSelectPrompt, selectedPromptId, showSe
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [viewingPrompt, setViewingPrompt] = useState<Prompt | null>(null)
 
-  // Simple toast replacement
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    alert(`${type === 'success' ? '✅' : '❌'} ${message}`)
-  }
-
   // Fetch prompts
   const fetchPrompts = async () => {
     try {
@@ -40,11 +36,11 @@ export default function PromptManager({ onSelectPrompt, selectedPromptId, showSe
       if (data.success) {
         setPrompts(data.prompts)
       } else {
-        showToast('Failed to fetch prompts', 'error')
+        showToast.error('Failed to fetch prompts')
       }
     } catch (error) {
       console.error('Error fetching prompts:', error)
-      showToast('Failed to fetch prompts', 'error')
+      showToast.error('Failed to fetch prompts')
     } finally {
       setLoading(false)
     }
@@ -72,17 +68,17 @@ export default function PromptManager({ onSelectPrompt, selectedPromptId, showSe
       const data = await response.json()
 
       if (data.success) {
-        showToast(editingPrompt ? 'Prompt updated!' : 'Prompt created!')
+        showToast.success(editingPrompt ? 'Prompt updated!' : 'Prompt created!')
         setIsDialogOpen(false)
         setEditingPrompt(null)
         setFormData({ title: '', prompt: '' })
         fetchPrompts()
       } else {
-        showToast(data.error || 'Failed to save prompt', 'error')
+        showToast.error(data.error || 'Failed to save prompt')
       }
     } catch (error) {
       console.error('Error saving prompt:', error)
-      showToast('Failed to save prompt', 'error')
+      showToast.error('Failed to save prompt')
     } finally {
       setIsSubmitting(false)
     }
@@ -100,14 +96,14 @@ export default function PromptManager({ onSelectPrompt, selectedPromptId, showSe
       const data = await response.json()
 
       if (data.success) {
-        showToast('Prompt deleted!')
+        showToast.success('Prompt deleted!')
         fetchPrompts()
       } else {
-        showToast(data.error || 'Failed to delete prompt', 'error')
+        showToast.error(data.error || 'Failed to delete prompt')
       }
     } catch (error) {
       console.error('Error deleting prompt:', error)
-      showToast('Failed to delete prompt', 'error')
+      showToast.error('Failed to delete prompt')
     }
   }
 
@@ -115,10 +111,10 @@ export default function PromptManager({ onSelectPrompt, selectedPromptId, showSe
   const handleCopy = async (prompt: string) => {
     try {
       await navigator.clipboard.writeText(prompt)
-      showToast('Prompt copied to clipboard!')
+      showToast.success('Prompt copied to clipboard!')
     } catch (error) {
       console.error('Error copying to clipboard:', error)
-      showToast('Failed to copy prompt', 'error')
+      showToast.error('Failed to copy prompt')
     }
   }
 

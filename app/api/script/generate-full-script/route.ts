@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     try {
       // Use custom prompt if provided, otherwise use the default style guide
       let prompt = `
-Follow these style rules for every script and section you write. by default, you should aim to generate at least 1000 words unless otherwise specified.
+Follow these style rules for every script and section you write:
 
 INTROS:
 - Keep intros short (30-50 words max), in medias res, simple, and straight to the point
@@ -147,16 +147,22 @@ DATES AND STRUCTURE:
 - Vary entry structure - don't follow the same format for every entry
 - For top 5/10 scripts about people, use only the person's name as the subheading
 
+YOUTUBE CLIP INTEGRATION:
+- Place clips throughout the script where they naturally enhance the narrative
+- For rap/hip-hop content: alternate between narration → clip → connecting narration → clip
+- For true crime content: use clips to show evidence/moments, then provide analysis
+- Narration should connect clips seamlessly without spoiling what's shown
+- Use format: [[CLIP: video_url | start_time-end_time | brief_description]]
+- Only use timestamps that exist within the actual video length
+- Extract timestamps from the research data provided
+
 GENERAL PRINCIPLES:
 - Remain unbiased, especially on sensitive topics
 - Use adverbs to sensationalize main events, but don't overdo it
 - The best trick is knowing what to leave out - avoid unnecessary details
 - Stay on topic and pick the most interesting, valuable, and exciting information
-
-EXAMPLES:
-- "July 7th, 2022, a Tiktoker shut down a bridge in Mexico... Here are five times TikTokers messed with the wrong cartel." (49 words, all key info, in medias res)
-- Add personal narrator comments for emphasis when appropriate
-- Keep background stories brief to maintain engagement
+- Focus on quality and engagement, NOT word count or length requirements
+- Avoid artificial padding or repetition to meet arbitrary length goals
 
 ALWAYS follow these rules. Focus on creating engaging, conversational content that flows naturally when spoken aloud.
 
@@ -174,40 +180,43 @@ SECTION DETAILS:
 - Writing Instructions: ${finalInstructions}
 
 REQUIREMENTS:
-- Write a complete and detailed (at least 1000 words), polished script for this specific section
+- Write a complete, polished script for this specific section
 - Follow the writing instructions precisely
 - Target the specified audience with the appropriate tone
 - Ensure the content fits naturally within the overall project theme
 - Make it engaging, professional, and ready for production use
 - Use natural, conversational language appropriate for voiceover
 - Include proper pacing and flow
-- Do not include stage directions or formatting - just the pure script content`
+- Do not include stage directions or formatting - just the pure script content
+- Focus on QUALITY over quantity - no artificial word count padding`
 
-      // Add YouTube links and timestamps at the beginning if provided
+      // Add research data if provided
+      if (additionalResearch) {
+        prompt += `\n\nRESEARCH DATA AND CLIP INFORMATION:
+Use the following research data to ground your script in real facts, quotes, and insights. Pay special attention to YouTube clips with their timestamps and descriptions:
+
+${additionalResearch}
+
+CLIP PLACEMENT INSTRUCTIONS:
+- Extract actual timestamps and descriptions from the research data above
+- Place clips throughout your script where they naturally fit the narrative
+- Use the format: [[CLIP: video_url | actual_timestamp_from_research | description]]
+- Ensure timestamps are within the actual video length (check research data)
+- Don't place all clips at the beginning - distribute them throughout the script
+- Let the narrative flow guide clip placement, not arbitrary rules`
+      }
+
+      // Handle legacy YouTube links format
       if (youtubeLinks && youtubeLinks.length > 0) {
-        prompt += `\n\nYOUTUBE REFERENCES:
-IMPORTANT: Start your script with YouTube reference links in this exact format: [[YT_LINK: {url}, {timestamps}]]
-For example: [[YT_LINK: https://youtube.com/watch?v=abc123, 2:15-3:30, 5:45-6:20]]
-
-YouTube Links and Timestamps for this section:
+        prompt += `\n\nLEGACY YOUTUBE LINKS PROVIDED:
 ${youtubeLinks.map((link: any, index: number) => 
   `${index + 1}. ${link.url} - Timestamps: ${link.timestamps || 'Full video'}`
 ).join('\n')}
 
-Use these references at the very beginning of your script in the standardized format shown above.`
+NOTE: Use these links but verify timestamps against the research data above for accuracy.`
       }
 
-      // Add research data if provided
-      if (additionalResearch) {
-        prompt += `\n\nRESEARCH DATA:
-Use the following research data to ground your script in real facts, quotes, and insights:
-
-${additionalResearch}
-
-IMPORTANT: Incorporate relevant information from this research data into your script. Use specific quotes, facts, and insights where appropriate.`
-      }
-
-      prompt += `\n\nWrite the script now:`
+      prompt += `\n\nWrite the script now, incorporating clips naturally throughout the content:`
 
       console.log('Sending request to OpenAI...')
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
@@ -217,7 +226,7 @@ IMPORTANT: Incorporate relevant information from this research data into your sc
         messages: [
           {
             role: "system",
-            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. When YouTube links and timestamps are provided, ALWAYS start your script with them in the exact format: [[YT_LINK: {url}, {timestamps}]] before beginning the actual script content."
+            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. When research data includes YouTube clips with timestamps and descriptions, integrate them throughout the script where they naturally enhance the narrative - not just at the beginning. Use the format [[CLIP: url | timestamp | description]] and ensure timestamps are accurate based on the research data provided. Focus on quality content that uses clips effectively to tell a compelling story."
           },
           {
             role: "user",
@@ -311,17 +320,58 @@ function generateMockScript(
   const audienceInfo = targetAudience ? ` for ${targetAudience}` : ''
   const toneInfo = tone ? ` in a ${tone} tone` : ''
   
-  const script = `This is the ${sectionTitle} section${contextInfo}${audienceInfo}. ${writingInstructions}
+  // Generate different patterns based on theme
+  let script = ''
+  
+  if (projectTheme === 'rap') {
+    script = `This is the ${sectionTitle} section${contextInfo}${audienceInfo}. ${writingInstructions}
 
-Welcome to this engaging content${contextInfo}. In this section, we explore the key concepts and ideas that make this topic both fascinating and relevant to your interests.
+Welcome to this engaging content about hip-hop culture and street dynamics${toneInfo ? `, presented${toneInfo}` : ''}. 
 
-${toneInfo ? `Using a ${tone} approach, we ` : 'We '}present information that is designed to be both informative and accessible, ensuring that complex ideas are broken down into digestible, actionable insights.
+[[CLIP: mock_youtube_url | 0:15-0:45 | dramatic_opening_moment]]
 
-${targetAudience ? `Speaking directly to ${targetAudience}, we ` : 'We '}dive deep into the subject matter while maintaining a conversational flow that keeps you engaged throughout this journey.
+What you just saw sets the stage for everything that's about to unfold. The streets don't play games, and neither do the artists who represent them.
 
-${stylePreferences ? `Following the style preference of ${stylePreferences}, this ` : 'This '}content has been crafted to flow naturally, with careful attention to pacing and clarity, making it perfect for audio delivery.
+[[CLIP: mock_youtube_url | 1:20-2:10 | main_incident_footage]]
 
-The section concludes by reinforcing the key messages while setting up a natural transition to the next part of our exploration, maintaining momentum and keeping the audience eager to continue.`
+That escalation happened faster than anyone expected. This is exactly what we're talking about when we say the internet changes everything.
+
+The connection between social media and street credibility has created a dangerous new reality for artists trying to balance authenticity with safety.
+
+[[CLIP: mock_youtube_url | 3:05-3:35 | aftermath_reaction]]
+
+And that's how quickly everything can change in this game.`
+  } else if (projectTheme === 'crime') {
+    script = `This is the ${sectionTitle} section${contextInfo}${audienceInfo}. ${writingInstructions}
+
+[[CLIP: mock_youtube_url | 0:00-0:30 | courtroom_incident_begins]]
+
+What you just witnessed was the moment everything changed in that courtroom. The tension that had been building for weeks finally erupted${toneInfo ? `, and the ${tone} reality` : ', and the reality'} of what happened next would shock everyone present.
+
+Legal experts had been watching this case closely, but nobody anticipated the dramatic turn it would take. The defendant's reaction revealed the depth of emotion that had been simmering beneath the surface throughout the proceedings.
+
+[[CLIP: mock_youtube_url | 2:15-3:00 | security_response]]
+
+The swift response from court security demonstrates just how quickly situations can escalate in high-stakes legal proceedings. This incident would later become a case study in courtroom security protocols.
+
+The implications of what happened that day continue to influence how similar cases are handled, making this a pivotal moment in legal history.`
+  } else {
+    script = `This is the ${sectionTitle} section${contextInfo}${audienceInfo}. ${writingInstructions}
+
+Welcome to this engaging exploration${contextInfo}${toneInfo ? `, presented${toneInfo}` : ''}. 
+
+[[CLIP: mock_youtube_url | 0:30-1:15 | key_demonstration]]
+
+As you can see from that example, the concepts we're discussing have real-world applications that directly impact our understanding of the subject.
+
+This section provides insights that are both informative and accessible, ensuring that complex ideas are broken down into digestible, actionable information.
+
+[[CLIP: mock_youtube_url | 2:45-3:20 | supporting_evidence]]
+
+That additional context helps reinforce the key points we've been exploring. The evidence speaks for itself and provides a solid foundation for our conclusions.
+
+${targetAudience ? `For ${targetAudience}, this ` : 'This '}information offers practical value that can be applied immediately, making the content both educational and useful.`
+  }
 
   console.log('Mock script generated, length:', script.length)
   return script

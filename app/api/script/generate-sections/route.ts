@@ -38,9 +38,25 @@ function themeToUserPrompt({
   if (theme === "rap") {
     basePrompt = `I need help creating a script about dangerous moments rappers faced while livestreaming. The title is "${title}". The theme focuses on hip-hop culture and street confrontations, targeting an audience of ${target_audience || "hip-hop fans aged 18-55 who follow rap beef and street culture"}. The tone should be ${tone || "streetwise and dramatic while maintaining authenticity"}.
 
-Style-wise, I want to use ${style_preferences || "urban slang naturally and build suspense through storytelling"}. The narrative should emphasize real consequences of social media behavior in street culture.`
+Style-wise, I want to use ${style_preferences || "urban slang naturally and build suspense through storytelling"}. The narrative should emphasize real consequences of social media behavior in street culture.
+
+IMPORTANT: For rap/hip-hop content, the script structure should follow this pattern:
+- Quick narration part (sets up context, builds tension)
+- YouTube clip placement 
+- Connecting narration (ties clips together without spoiling, maintains flow)
+- Next YouTube clip placement
+- Continue alternating pattern
+
+The narration should connect clips seamlessly and build a compelling narrative without repeating what's shown in the clips.`
   } else if (theme === "crime") {
-    basePrompt = `I need help crafting a script about dramatic courtroom cases and legal proceedings. The title is "${title}". The theme should focus on sudden violence in courtrooms and ongoing debates about legal procedures. This is aimed at ${target_audience || "an adult true crime audience aged 25-65 who follow high-profile court cases"}. The tone should be ${tone || "serious and analytical while building tension"}. Style preferences: ${style_preferences || "clear chronological structure with strategic pauses for impact"}.`
+    basePrompt = `I need help crafting a script about dramatic courtroom cases and legal proceedings. The title is "${title}". The theme should focus on sudden violence in courtrooms and ongoing debates about legal procedures. This is aimed at ${target_audience || "an adult true crime audience aged 25-65 who follow high-profile court cases"}. The tone should be ${tone || "serious and analytical while building tension"}. Style preferences: ${style_preferences || "clear chronological structure with strategic pauses for impact"}.
+
+IMPORTANT: For true crime content, the script structure should follow this pattern:
+- YouTube clip placement (shows the dramatic moment/evidence)
+- Narration (explains context, provides analysis, can be short or extensive depending on complexity)
+- Continue with next clip and narration as needed
+
+The narration should provide essential context and analysis without spoiling upcoming clips.`
   } else {
     basePrompt = `I need help creating a compelling script with the title "${title}". The content should target ${target_audience || "a general audience"} with a ${tone || "engaging and informative"} tone. Style preferences: ${style_preferences || "clear structure with engaging storytelling elements"}.`
   }
@@ -55,18 +71,23 @@ Style-wise, I want to use ${style_preferences || "urban slang naturally and buil
     basePrompt += `\n\nAdditional research materials: ${additionalResearch}`
   }
 
-  // Add section generation instructions
+  // Add section generation instructions - REMOVED WORD COUNT REQUIREMENTS
   const sectionsToGenerate = targetSections || 5
-  const wordsPerSection = targetWordCount ? Math.round(targetWordCount / sectionsToGenerate) : 800
   
-  basePrompt += `\n\nPlease create exactly ${sectionsToGenerate} detailed script sections that would work well for this theme and content. ${targetWordCount ? `The total target word count is ${targetWordCount} words, so each section should be approximately ${wordsPerSection} words.` : 'Each section should be approximately 800 words.'} Each section should include:
+  basePrompt += `\n\nPlease create exactly ${sectionsToGenerate} detailed script sections that would work well for this theme and content. Each section should focus on creating engaging, natural content without artificial padding or repetition. Each section should include:
 
 1. **title**: A compelling section title
-2. **writingInstructions**: Detailed instructions for what this section should cover, including specific narrative elements, pacing, key points to address, and how to incorporate any research data provided
-3. **researchData**: A string containing relevant YouTube links, timestamps, quotes, or specific research references from the provided materials that should be incorporated into this section. Extract the most relevant pieces from the research data provided. If no specific research is relevant to this section, use an empty string.
-the research data should be in doble [ ] brackets, for example: [[youtube link, timestamp, quote, etc.]]
+2. **writingInstructions**: Detailed instructions for what this section should cover, including:
+   - Specific narrative elements and pacing
+   - Key points to address from research data
+   - How to incorporate YouTube clips throughout the section (not just at the beginning)
+   - The flow pattern appropriate for this niche (${theme === "rap" ? "narration → clip → narration → clip" : theme === "crime" ? "clip → narration" : "flexible based on content"})
+   - Instructions on how narration should connect clips without spoiling them
+3. **researchData**: A string containing relevant YouTube links with their actual timestamps and descriptions of what happens in those clips, extracted from the research materials. Include specific quotes, moments, and context for each clip. Format as: [[CLIP: youtube_url | timestamp_range | description_of_what_happens]]
 
-The sections should flow logically and create a compelling narrative arc. Make the writing instructions specific and actionable - they will be used to generate the actual script content later.
+The sections should flow logically and create a compelling narrative arc. Make the writing instructions specific and actionable - they will be used to generate the actual script content with properly placed clips later.
+
+Focus on quality and engagement rather than length. The goal is compelling content that uses clips effectively to tell a story.
 
 Format your response as a JSON object with a "sections" array containing the section objects.`
 
@@ -345,8 +366,12 @@ function generateMockSections(
         target_audience ? `Target this for ${target_audience}.` : ""
       } ${
         tone ? `Use a ${tone} tone.` : ""
-      } Set the context and establish credibility. Use a compelling hook that makes the audience want to continue.`,
-      researchData: "",
+      } Set the context and establish credibility. Use a compelling hook that makes the audience want to continue. ${
+        theme === "rap" ? "Start with narration that sets up the first clip, then transition to the first YouTube clip." : 
+        theme === "crime" ? "Begin with a dramatic YouTube clip that shows the key moment, then provide context." : 
+        "Structure the opening to naturally incorporate video clips where they enhance the narrative."
+      }`,
+      researchData: "[[CLIP: mock_youtube_url | 0:00-0:30 | opening_dramatic_moment]]",
     },
     {
       title: "Main Content - Part 1",
@@ -356,29 +381,33 @@ function generateMockSections(
         tone ? `Maintain a ${tone} tone throughout.` : ""
       } Provide valuable information that supports the main theme. ${
         style_preferences ? `Style: ${style_preferences}` : ""
+      } ${
+        theme === "rap" ? "Alternate between narration and clips: narration → clip → connecting narration → next clip. Don't spoil what's in the clips." :
+        theme === "crime" ? "Use clips to show evidence/moments, then provide analysis and context through narration." :
+        "Integrate clips naturally to support the narrative flow."
       }`,
-      researchData: "",
+      researchData: "[[CLIP: mock_youtube_url | 1:15-2:45 | main_content_demonstration]]",
     },
     {
       title: "Main Content - Part 2",
       writingInstructions: `Continue building on the foundation from Part 1. Deepen the exploration of "${theme}" with additional insights, examples, or narrative development. ${
         tone ? `Keep the ${tone} tone consistent.` : ""
-      } Maintain momentum and ensure smooth transitions.`,
-      researchData: "",
+      } Maintain momentum and ensure smooth transitions. Focus on creating compelling content that naturally incorporates video clips to enhance the storytelling without artificial padding.`,
+      researchData: "[[CLIP: mock_youtube_url | 3:20-4:10 | additional_evidence_or_example]]",
     },
     {
       title: "Key Insights",
       writingInstructions: `Highlight the most important takeaways or pivotal moments related to "${theme}". ${
         target_audience ? `Make it relevant for ${target_audience}.` : ""
-      } This section should provide clarity and reinforcement of the main messages. Make it memorable and actionable.`,
-      researchData: "",
+      } This section should provide clarity and reinforcement of the main messages. Make it memorable and impactful, using clips to demonstrate key points rather than just describe them.`,
+      researchData: "[[CLIP: mock_youtube_url | 5:00-6:15 | key_moment_demonstration]]",
     },
     {
       title: "Conclusion",
       writingInstructions: `Provide a strong, satisfying conclusion that ties together all elements of the theme "${theme}". ${
         tone ? `End with a ${tone} tone.` : ""
-      } Reinforce the key messages and leave the audience with a clear understanding or call to action. End on a high note.`,
-      researchData: "",
+      } Reinforce the key messages and leave the audience with a clear understanding or call to action. End on a high note with a final impactful clip if available, or strong narration that wraps up the story.`,
+      researchData: "[[CLIP: mock_youtube_url | 7:30-8:00 | conclusion_moment]]",
     },
   ];
 
@@ -395,8 +424,8 @@ function generateMockSections(
           tone ? `Maintain the ${tone} tone.` : ""
         } Provide new insights, examples, or perspectives that add value to the overall narrative. ${
           style_preferences ? `Style: ${style_preferences}` : ""
-        }`,
-        researchData: "",
+        } Focus on quality content that effectively uses video clips to enhance the story.`,
+        researchData: `[[CLIP: mock_youtube_url | ${i * 2}:00-${i * 2 + 1}:30 | content_section_${i - 2}]]`,
       });
     }
   } else if (sectionsToGenerate < 5) {
