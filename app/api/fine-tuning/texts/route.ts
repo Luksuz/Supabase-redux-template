@@ -140,19 +140,36 @@ export async function PATCH(request: NextRequest) {
       text_id, 
       quality_score, 
       is_validated, 
-      validation_notes 
+      validation_notes,
+      updates 
     } = requestBody
 
-    if (!text_id || quality_score === undefined || is_validated === undefined) {
-      console.log('Validation failed:', { 
-        text_id: !!text_id, 
-        quality_score: quality_score !== undefined, 
-        is_validated: is_validated !== undefined 
-      })
-      return NextResponse.json(
-        { error: 'Text ID, quality score, and validation status are required' },
-        { status: 400 }
-      )
+    // Handle different update types
+    if (updates) {
+      // Content update mode
+      if (!text_id || !updates) {
+        console.log('Validation failed for content update:', { 
+          text_id: !!text_id, 
+          updates: !!updates 
+        })
+        return NextResponse.json(
+          { error: 'Text ID and updates are required' },
+          { status: 400 }
+        )
+      }
+    } else {
+      // Rating update mode (legacy)
+      if (!text_id || quality_score === undefined || is_validated === undefined) {
+        console.log('Validation failed for rating update:', { 
+          text_id: !!text_id, 
+          quality_score: quality_score !== undefined, 
+          is_validated: is_validated !== undefined 
+        })
+        return NextResponse.json(
+          { error: 'Text ID, quality score, and validation status are required' },
+          { status: 400 }
+        )
+      }
     }
 
     console.log('Verifying text ownership for text:', text_id)
@@ -178,26 +195,37 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Text not found or unauthorized' }, { status: 403 })
     }
 
-    console.log('Updating text rating:', { quality_score, is_validated, validation_notes })
-    // Update text rating
-    const { data: updatedText, error } = await supabase
-      .from('fine_tuning_texts')
-      .update({
+    let updateData: any = {}
+    
+    if (updates) {
+      // Content update mode
+      console.log('Updating text content:', updates)
+      updateData = { ...updates }
+    } else {
+      // Rating update mode (legacy)
+      console.log('Updating text rating:', { quality_score, is_validated, validation_notes })
+      updateData = {
         quality_score,
         is_validated,
         validation_notes
-      })
+      }
+    }
+
+    // Update text
+    const { data: updatedText, error } = await supabase
+      .from('fine_tuning_texts')
+      .update(updateData)
       .eq('id', text_id)
       .select()
       .single()
 
     if (error) {
-      console.error('Database error updating text rating:', error)
+      console.error('Database error updating text:', error)
       console.error('Error details:', JSON.stringify(error, null, 2))
-      return NextResponse.json({ error: 'Failed to update text rating' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to update text' }, { status: 500 })
     }
 
-    console.log('Text rating updated successfully:', updatedText?.id)
+    console.log('Text updated successfully:', updatedText?.id)
     return NextResponse.json({ text: updatedText })
 
   } catch (error) {

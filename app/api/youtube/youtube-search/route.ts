@@ -348,11 +348,56 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ YouTube API request successful')
-    console.log('📊 Returning response with', data.items?.length || 0, 'items')
+    console.log('📊 Found', data.items?.length || 0, 'videos')
+    
+    // Get video details including duration for all videos
+    let enrichedData = data
+    if (data.items && data.items.length > 0) {
+      console.log('📡 Getting video details including duration...')
+      const videoIds = data.items.map((item: any) => item.id.videoId).join(',')
+      
+      const detailsParams = new URLSearchParams({
+        part: 'contentDetails,statistics',
+        id: videoIds
+      })
+      
+      // Use OAuth token if available, otherwise fall back to API key
+      if (validAccessToken) {
+        detailsParams.append('access_token', validAccessToken)
+      } else {
+        detailsParams.append('key', API_KEY)
+      }
+      
+      try {
+        const detailsResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?${detailsParams}`)
+        const detailsData = await detailsResponse.json()
+        
+        if (detailsResponse.ok && detailsData.items) {
+          console.log('✅ Video details retrieved successfully')
+          // Merge duration and statistics data into the original items
+          enrichedData = {
+            ...data,
+            items: data.items.map((item: any) => {
+              const details = detailsData.items.find((detail: any) => detail.id === item.id.videoId)
+              return {
+                ...item,
+                contentDetails: details?.contentDetails || null,
+                statistics: details?.statistics || null
+              }
+            })
+          }
+        } else {
+          console.log('⚠️ Failed to get video details, using original data')
+        }
+      } catch (detailsError) {
+        console.error('⚠️ Error getting video details:', detailsError)
+        console.log('⚠️ Using original data without duration info')
+      }
+    }
     
     return NextResponse.json({
       success: true,
-      data,
+      data: enrichedData,
       searchInfo: {
         query: searchQuery,
         channelId,

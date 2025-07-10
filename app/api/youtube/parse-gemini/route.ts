@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Create ChatOpenAI model
     const model = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-4.1",
       temperature: 0.3,
       openAIApiKey: process.env.OPENAI_API_KEY,
     })

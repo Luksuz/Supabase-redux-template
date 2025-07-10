@@ -143,11 +143,7 @@ export default function YouTubeSearch() {
   const isVideoBelowDurationThreshold = (video: Video): boolean => {
     if (minDurationFilter === 0) return false // No filter applied
     
-    // TODO: Duration data needs to be added to YouTube search API response
-    // Currently, YouTube search results don't include duration by default
-    // This would require additional API calls to get video details
-    
-    // For now, check if duration data exists and filter accordingly
+    // Check if duration data exists and filter accordingly
     const duration = (video as any).contentDetails?.duration
     if (!duration) return false // Don't filter if no duration data available
     
@@ -285,7 +281,7 @@ export default function YouTubeSearch() {
                   emotionalTone: 'Analytical',
                   keyPoints: analysisResult.analysis.length > 0 ? [analysisResult.analysis[0].relevantContent] : [`Analysis of "${query}"`],
                   narrativeElements: [],
-                  keyQuotes: analysisResult.analysis.length > 0 && analysisResult.analysis[0].keyQuotes ? analysisResult.analysis[0].keyQuotes : [],
+                  keyQuotes: analysisResult.analysis.length > 0 && analysisResult.analysis[0].keyQuotes ? analysisResult.analysis[0].keyQuotes as any[] : [],
                   dramaticElements: analysisResult.analysis.length > 0 && analysisResult.analysis[0].dramaticElements ? analysisResult.analysis[0].dramaticElements : [],
                   contextualInfo: analysisResult.analysis.length > 0 ? analysisResult.analysis[0].contextualInfo || `Transcript analysis focusing on "${query}"` : `Transcript analysis focusing on "${query}"`,
                   timestamp: '0:00'
@@ -840,7 +836,9 @@ export default function YouTubeSearch() {
                     <input
                       type="number"
                       id="minDuration"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
+                        minDurationFilter > 0 ? 'border-blue-300 bg-blue-50' : 'border-gray-300'
+                      }`}
                       min="0"
                       max="1440"
                       value={minDurationFilter / 60}
@@ -849,6 +847,11 @@ export default function YouTubeSearch() {
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Filter out videos shorter than this duration
+                      {minDurationFilter > 0 && (
+                        <span className="text-blue-600 font-medium ml-1">
+                          (Currently filtering videos under {minDurationFilter / 60} minutes)
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1018,6 +1021,19 @@ export default function YouTubeSearch() {
                             <span className="font-medium">Published:</span>
                             <span>{formatDate(video.snippet.publishedAt)}</span>
                           </div>
+                          {(video as any).contentDetails?.duration && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Duration:</span>
+                              <span className="text-blue-600 font-medium">
+                                {(() => {
+                                  const seconds = parseDurationToSeconds((video as any).contentDetails.duration)
+                                  const minutes = Math.floor(seconds / 60)
+                                  const remainingSeconds = seconds % 60
+                                  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+                                })()}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2">
                             <span className="font-medium">YouTube:</span>
                             <a

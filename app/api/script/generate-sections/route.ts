@@ -18,8 +18,8 @@ type ThemePromptParams = {
   style_preferences?: string;
   additionalContext?: string;
   additionalResearch?: string;
-  targetWordCount?: number;
-  targetSections?: number;
+  enableIntroHook?: boolean;
+  introHookWordCount?: number;
 };
 
 function themeToUserPrompt({
@@ -30,15 +30,15 @@ function themeToUserPrompt({
   style_preferences,
   additionalContext,
   additionalResearch,
-  targetWordCount,
-  targetSections,
+  enableIntroHook,
+  introHookWordCount,
 }: ThemePromptParams) {
   let basePrompt = ''
   
   if (theme === "rap") {
     basePrompt = `I need help creating a script about dangerous moments rappers faced while livestreaming. The title is "${title}". The theme focuses on hip-hop culture and street confrontations, targeting an audience of ${target_audience || "hip-hop fans aged 18-55 who follow rap beef and street culture"}. The tone should be ${tone || "streetwise and dramatic while maintaining authenticity"}.
 
-Style-wise, I want to use ${style_preferences || "urban slang naturally and build suspense through storytelling"}. The narrative should emphasize real consequences of social media behavior in street culture.
+Style-wise, I want to use ${style_preferences || "urban slang naturally and build suspense through storytelling"}..
 
 IMPORTANT: For rap/hip-hop content, the script structure should follow this pattern:
 - Quick narration part (sets up context, builds tension)
@@ -66,15 +66,31 @@ The narration should provide essential context and analysis without spoiling upc
     basePrompt += `\n\nAdditional context: ${additionalContext}`
   }
 
-  // Add research materials if provided
+  // Add research materials if provide
   if (additionalResearch) {
     basePrompt += `\n\nAdditional research materials: ${additionalResearch}`
   }
 
-  // Add section generation instructions - REMOVED WORD COUNT REQUIREMENTS
-  const sectionsToGenerate = targetSections || 5
-  
-  basePrompt += `\n\nPlease create exactly ${sectionsToGenerate} detailed script sections that would work well for this theme and content. Each section should focus on creating engaging, natural content without artificial padding or repetition. Each section should include:
+  // Add intro hook instructions if enabled
+  if (enableIntroHook) {
+    basePrompt += `\n\nIMPORTANT: Generate a separate INTRO HOOK as the first section with exactly ${introHookWordCount || 50} words. This intro should:
+- Grab viewer attention immediately
+- Tease the main content without giving everything away
+- Use compelling language and intrigue
+- Be punchy and engaging
+- Reference the most interesting element from research
+
+The intro hook should be generated as a separate section with title "Intro Hook" and specific writing instructions.`
+  }
+
+  // Add section generation instructions - AI determines optimal sections
+  basePrompt += `\n\nAnalyze the provided research data and theme to determine the optimal number of script sections needed to thoroughly cover all concepts, insights, and narrative elements. ${enableIntroHook ? 'After the intro hook, create' : 'Create'} as many main content sections as needed to:
+- Utilize all valuable content from the research data
+- Explain each major concept or theme identified
+- Create a logical narrative flow
+- Ensure comprehensive coverage without padding
+
+Each section should include:
 
 1. **title**: A compelling section title
 2. **writingInstructions**: Detailed instructions for what this section should cover, including:
@@ -87,7 +103,13 @@ The narration should provide essential context and analysis without spoiling upc
 
 The sections should flow logically and create a compelling narrative arc. Make the writing instructions specific and actionable - they will be used to generate the actual script content with properly placed clips later.
 
-Focus on quality and engagement rather than length. The goal is compelling content that uses clips effectively to tell a story.
+Focus on quality and engagement rather than artificial length requirements. The goal is compelling content that uses clips effectively to tell a comprehensive story that covers all available research material.
+
+Determine the optimal number of sections based on:
+- Amount and complexity of research data provided
+- Natural narrative breaks and thematic divisions
+- Logical progression of ideas and concepts
+- Effective use of available video clips and timestamps
 
 Format your response as a JSON object with a "sections" array containing the section objects.`
 
@@ -98,7 +120,7 @@ function buildEnhancedSystemPrompt(theme: string, additionalResearch?: string) {
   let systemPrompt = themeToSystem[theme as keyof typeof themeToSystem] || themeToSystem.general
   
   if (additionalResearch && additionalResearch.includes('YOUTUBE RESEARCH DATA')) {
-    systemPrompt += `\n\nIMPORTANT: You have been provided with comprehensive YouTube research data including video transcripts, analysis results, and research summaries. Use this data to:\n- Ground your script sections in real examples and insights from the research\n- Reference specific quotes, themes, and patterns found in the analyzed content\n- Incorporate relevant timestamps and video references where appropriate\n- Build upon the narrative themes and character insights identified\n- Use the creative prompts and story ideas as inspiration for section development\n\nWhen creating sections, prioritize authenticity by drawing from the actual research data provided rather than generic examples.`
+    systemPrompt += `\n\nIMPORTANT: You have been provided with comprehensive YouTube research data including video transcripts, analysis results, and research summaries. Use this data to:\n- Ground your script sections in real examples and insights from the research\n- Reference specific quotes, themes, and patterns found in the analyzed content\n- Incorporate relevant timestamps and video references where appropriate\n- Build upon the narrative themes and character insights identified\n- Use the creative prompts and story ideas as inspiration for section development\n- Determine the optimal number of sections based on the volume and complexity of research data\n- Ensure each major concept, theme, or insight from the research gets proper coverage\n\nWhen creating sections, prioritize authenticity by drawing from the actual research data provided rather than generic examples. Create as many sections as needed to thoroughly utilize all valuable research content without artificial constraints.`
   }
   
   return systemPrompt
@@ -143,8 +165,8 @@ export async function POST(request: NextRequest) {
       customPrompt: customPromptParam,
       model: requestedModel,
       additionalResearch,
-      targetWordCount,
-      targetSections,
+      enableIntroHook,
+      introHookWordCount,
     } = requestBody;
 
     console.log("Extracted values:", {
@@ -158,8 +180,8 @@ export async function POST(request: NextRequest) {
       customPrompt: customPromptParam ? customPromptParam : null,
       model: requestedModel,
       additionalResearch: additionalResearch ? `${additionalResearch.length} characters` : 'undefined',
-      targetWordCount,
-      targetSections,
+      enableIntroHook,
+      introHookWordCount,
     });
 
     console.log("🔍 Detailed parameter analysis:", {
@@ -202,26 +224,6 @@ export async function POST(request: NextRequest) {
       console.log(`Using stored prompt: ${storedPrompt.title}`)
     }
 
-    console.log("Checking OpenAI API key...");
-    if (!process.env.OPENAI_API_KEY) {
-      console.warn("OpenAI API key not found, using mock sections");
-      const mockSections = generateMockSections(
-        theme,
-        target_audience,
-        tone,
-        style_preferences,
-        targetSections
-      );
-      
-      console.log("Generated mock sections:", mockSections.length);
-      return NextResponse.json({
-        success: true,
-        sections: mockSections,
-        usingMock: true,
-        requiresApproval: true,
-      });
-    }
-
     console.log(`🚀 Generating script sections for theme: ${theme}`);
 
     // Determine which model to use
@@ -240,8 +242,8 @@ export async function POST(request: NextRequest) {
       style_preferences,
       additionalContext,
       additionalResearch,
-      targetWordCount,
-      targetSections,
+      enableIntroHook,
+      introHookWordCount,
     })
 
     console.log("Sending request to OpenAI...");
@@ -339,103 +341,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Mock sections generator (fallback)
-function generateMockSections(
-  theme: string,
-  target_audience?: string,
-  tone?: string,
-  style_preferences?: string,
-  targetSections?: number
-) {
-  console.log("Generating mock sections with:", {
-    theme,
-    target_audience,
-    tone,
-    style_preferences,
-    targetSections,
-  });
-
-  const sectionsToGenerate = targetSections || 5;
-
-  const baseSections = [
-    {
-      title: "Opening Hook",
-      writingInstructions: `Create an engaging opening that immediately captures attention related to the theme "${theme}". ${
-        target_audience ? `Target this for ${target_audience}.` : ""
-      } ${
-        tone ? `Use a ${tone} tone.` : ""
-      } Set the context and establish credibility. Use a compelling hook that makes the audience want to continue. ${
-        theme === "rap" ? "Start with narration that sets up the first clip, then transition to the first YouTube clip." : 
-        theme === "crime" ? "Begin with a dramatic YouTube clip that shows the key moment, then provide context." : 
-        "Structure the opening to naturally incorporate video clips where they enhance the narrative."
-      }`,
-      researchData: "[[CLIP: mock_youtube_url | 0:00-0:30 | opening_dramatic_moment]]",
-    },
-    {
-      title: "Main Content - Part 1",
-      writingInstructions: `Develop the core content focusing on the primary aspects of "${theme}". ${
-        target_audience ? `Keep ${target_audience} in mind.` : ""
-      } ${
-        tone ? `Maintain a ${tone} tone throughout.` : ""
-      } Provide valuable information that supports the main theme. ${
-        style_preferences ? `Style: ${style_preferences}` : ""
-      } ${
-        theme === "rap" ? "Alternate between narration and clips: narration → clip → connecting narration → next clip. Don't spoil what's in the clips." :
-        theme === "crime" ? "Use clips to show evidence/moments, then provide analysis and context through narration." :
-        "Integrate clips naturally to support the narrative flow."
-      }`,
-      researchData: "[[CLIP: mock_youtube_url | 1:15-2:45 | main_content_demonstration]]",
-    },
-    {
-      title: "Main Content - Part 2",
-      writingInstructions: `Continue building on the foundation from Part 1. Deepen the exploration of "${theme}" with additional insights, examples, or narrative development. ${
-        tone ? `Keep the ${tone} tone consistent.` : ""
-      } Maintain momentum and ensure smooth transitions. Focus on creating compelling content that naturally incorporates video clips to enhance the storytelling without artificial padding.`,
-      researchData: "[[CLIP: mock_youtube_url | 3:20-4:10 | additional_evidence_or_example]]",
-    },
-    {
-      title: "Key Insights",
-      writingInstructions: `Highlight the most important takeaways or pivotal moments related to "${theme}". ${
-        target_audience ? `Make it relevant for ${target_audience}.` : ""
-      } This section should provide clarity and reinforcement of the main messages. Make it memorable and impactful, using clips to demonstrate key points rather than just describe them.`,
-      researchData: "[[CLIP: mock_youtube_url | 5:00-6:15 | key_moment_demonstration]]",
-    },
-    {
-      title: "Conclusion",
-      writingInstructions: `Provide a strong, satisfying conclusion that ties together all elements of the theme "${theme}". ${
-        tone ? `End with a ${tone} tone.` : ""
-      } Reinforce the key messages and leave the audience with a clear understanding or call to action. End on a high note with a final impactful clip if available, or strong narration that wraps up the story.`,
-      researchData: "[[CLIP: mock_youtube_url | 7:30-8:00 | conclusion_moment]]",
-    },
-  ];
-
-  // If we need more sections than the base 5, add additional content sections
-  const sections = [...baseSections];
-  
-  if (sectionsToGenerate > 5) {
-    for (let i = 6; i <= sectionsToGenerate; i++) {
-      sections.splice(-1, 0, {
-        title: `Content Development - Part ${i - 2}`,
-        writingInstructions: `Continue developing the theme "${theme}" with additional depth and detail. ${
-          target_audience ? `Keep ${target_audience} engaged.` : ""
-        } ${
-          tone ? `Maintain the ${tone} tone.` : ""
-        } Provide new insights, examples, or perspectives that add value to the overall narrative. ${
-          style_preferences ? `Style: ${style_preferences}` : ""
-        } Focus on quality content that effectively uses video clips to enhance the story.`,
-        researchData: `[[CLIP: mock_youtube_url | ${i * 2}:00-${i * 2 + 1}:30 | content_section_${i - 2}]]`,
-      });
-    }
-  } else if (sectionsToGenerate < 5) {
-    // If we need fewer sections, keep only the essential ones
-    sections.splice(sectionsToGenerate);
-  }
-
-  console.log(
-    "Mock sections created:",
-    sections.map((s) => ({ title: s.title }))
-  );
-  return sections;
 }

@@ -37,6 +37,7 @@ import {
   generateAudioThunk
 } from '../lib/features/scripts/scriptsSlice'
 import { initializeAuth, loginUser, logoutUser } from '../lib/features/user/userSlice'
+import { selectAvailableClips, populateClipsFromAnalysis, type AvailableClip } from '../lib/features/youtube/youtubeSlice'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Input } from './ui/input'
@@ -45,7 +46,8 @@ import { Badge } from './ui/badge'
 import { Textarea } from './ui/textarea'
 import { RatingComponent } from './ui/rating'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { FileText, Loader2, Edit3, Play, Download, Copy, CheckCircle, AlertCircle, User, LogOut, Lock, Settings, MessageCircle, Send, Bot } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
+import { FileText, Loader2, Edit3, Play, Download, Copy, CheckCircle, AlertCircle, User, LogOut, Lock, Settings, MessageCircle, Send, Bot, Eye, Zap, Plus, Trash2, Paperclip, Clock, Quote, Video } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
 // Chat message interface
@@ -316,6 +318,7 @@ export function ScriptGenerator() {
   
   // Get YouTube data from Redux
   const youtubeState = useAppSelector(state => state.youtube)
+  const availableClips = useAppSelector(selectAvailableClips)
   
   // Tab state
   const [activeTab, setActiveTab] = useState<'generator' | 'assistant'>('generator')
@@ -328,8 +331,23 @@ export function ScriptGenerator() {
   const [tone, setTone] = useState('')
   const [stylePreferences, setStylePreferences] = useState('')
   
-  // Sections calculation - default to 5 sections focused on quality content
-  const [targetSections, setTargetSections] = useState<number>(5)
+  // AI will automatically determine optimal sections based on content
+  
+  // Intro hook settings
+  const [enableIntroHook, setEnableIntroHook] = useState(false)
+  const [introHookWordCount, setIntroHookWordCount] = useState(50)
+  
+  // Preview modal state
+  const [showResearchPreview, setShowResearchPreview] = useState(false)
+  const [previewResearchData, setPreviewResearchData] = useState('')
+
+  // Clip attachment state
+  const [showClipAttachment, setShowClipAttachment] = useState(false)
+  const [selectedClip, setSelectedClip] = useState<AvailableClip | null>(null)
+  const [clipAttachmentTarget, setClipAttachmentTarget] = useState<{
+    sectionId: string
+    textareaRef: React.RefObject<HTMLTextAreaElement>
+  } | null>(null)
   
   // Model selection
   const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini')
@@ -476,6 +494,217 @@ export function ScriptGenerator() {
     }
   }
 
+  // Build comprehensive research data
+  const buildFullResearchData = () => {
+    let fullResearchData = ''
+    
+    // Check if we have YouTube research data available
+    const hasVideosSummary = !!youtubeState.videosSummary
+    const hasAnalysisResults = youtubeState.analysisResults && youtubeState.analysisResults.length > 0
+    const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
+    const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
+    const hasCompletedSubtitles = youtubeState.subtitleFiles && youtubeState.subtitleFiles.filter(sf => sf.status === 'completed').length > 0
+    
+    if (hasVideosSummary || hasAnalysisResults || hasGoogleResearch || hasYouTubeResearch || hasCompletedSubtitles) {
+      fullResearchData = '\n\n=== COMPREHENSIVE YOUTUBE RESEARCH DATA ===\n'
+      
+      // Add video collection analysis
+      if (hasVideosSummary) {
+        fullResearchData += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
+        fullResearchData += `Overall Theme: ${youtubeState.videosSummary?.overallTheme}\n\n`
+        fullResearchData += 'Key Insights:\n'
+        youtubeState.videosSummary?.keyInsights.forEach((insight, i) => {
+          fullResearchData += `${i + 1}. ${insight}\n`
+        })
+        
+        // Add individual video summaries with complete details
+        if (youtubeState.videosSummary?.videoSummaries && youtubeState.videosSummary.videoSummaries.length > 0) {
+          fullResearchData += '\n--- INDIVIDUAL VIDEO SUMMARIES WITH TIMESTAMPS ---\n'
+          youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
+            const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
+            fullResearchData += `\n=== Video ${i + 1}: ${video.title} ===\n`
+            fullResearchData += `URL: ${videoUrl}\n`
+            fullResearchData += `Video ID: ${video.videoId}\n`
+            fullResearchData += `Main Topic: ${video.mainTopic}\n`
+            fullResearchData += `Emotional Tone: ${video.emotionalTone}\n`
+            
+            if (video.keyPoints && video.keyPoints.length > 0) {
+              fullResearchData += `\nKey Points:\n`
+              video.keyPoints.forEach((point, idx) => {
+                fullResearchData += `  ${idx + 1}. ${point}\n`
+              })
+            }
+            
+            if (video.keyQuotes && video.keyQuotes.length > 0) {
+              fullResearchData += `\nKey Quotes:\n`
+              video.keyQuotes.forEach((quote, idx) => {
+                fullResearchData += `  "${quote}"\n`
+              })
+            }
+            
+                         // Add all timestamps with details
+             if (video.timestamps && video.timestamps.length > 0) {
+               fullResearchData += `\nTimestamps & Clips (${video.timestamps.length} total):\n`
+               video.timestamps.forEach((timestamp, idx) => {
+                 fullResearchData += `  ${idx + 1}. ${timestamp.startTime} - ${timestamp.endTime || 'End'}\n`
+                 fullResearchData += `     Speaker: ${timestamp.speaker}\n`
+                 fullResearchData += `     Description: ${timestamp.description}\n`
+                 if (timestamp.quote) {
+                   fullResearchData += `     Quote: "${timestamp.quote}"\n`
+                 }
+                 if (timestamp.extraInfo) {
+                   fullResearchData += `     Extra Info: ${timestamp.extraInfo}\n`
+                 }
+                 if (timestamp.significance) {
+                   fullResearchData += `     Significance: ${timestamp.significance}\n`
+                 }
+                 fullResearchData += `     URL with timestamp: ${videoUrl}&t=${timestamp.startTime.replace(/:/g, 'm').replace(/m$/, 's')}\n`
+               })
+             }
+            
+            if (video.timestamp) {
+              fullResearchData += `\nMain Timestamp: ${video.timestamp}\n`
+              fullResearchData += `Main Timestamp URL: ${videoUrl}&t=${video.timestamp.replace(/:/g, 'm').replace(/m$/, 's')}\n`
+            }
+            
+            if (video.contextualInfo) {
+              fullResearchData += `\nContextual Info: ${video.contextualInfo}\n`
+            }
+            
+            fullResearchData += '\n' + '='.repeat(50) + '\n'
+          })
+        }
+      }
+      
+      // Add Google research summaries
+      if (hasGoogleResearch) {
+        fullResearchData += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
+        youtubeState.googleResearchSummaries.forEach((research, i) => {
+          const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+          fullResearchData += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
+          fullResearchData += `Insights: ${research.insights}\n`
+          fullResearchData += '---\n'
+        })
+      }
+      
+      // Add YouTube research summaries
+      if (hasYouTubeResearch) {
+        fullResearchData += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
+        youtubeState.youtubeResearchSummaries.forEach((research, i) => {
+          const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
+          fullResearchData += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
+          fullResearchData += `Overall Theme: ${research.videosSummary.overallTheme}\n`
+          if (research.videosSummary.keyInsights) {
+            fullResearchData += `Key Insights:\n`
+            research.videosSummary.keyInsights.forEach((insight, idx) => {
+              fullResearchData += `  ${idx + 1}. ${insight}\n`
+            })
+          }
+          
+          // Add detailed video summaries with timestamps from YouTube research
+          if (research.videosSummary.videoSummaries && research.videosSummary.videoSummaries.length > 0) {
+            fullResearchData += `\nDetailed Video Analysis:\n`
+            research.videosSummary.videoSummaries.forEach((video, videoIdx) => {
+              const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
+              fullResearchData += `\n  Video ${videoIdx + 1}: ${video.title}\n`
+              fullResearchData += `  URL: ${videoUrl}\n`
+              fullResearchData += `  Main Topic: ${video.mainTopic}\n`
+              fullResearchData += `  Emotional Tone: ${video.emotionalTone}\n`
+              
+              if (video.keyPoints && video.keyPoints.length > 0) {
+                fullResearchData += `  Key Points:\n`
+                video.keyPoints.forEach((point, pointIdx) => {
+                  fullResearchData += `    ${pointIdx + 1}. ${point}\n`
+                })
+              }
+              
+              if (video.keyQuotes && video.keyQuotes.length > 0) {
+                fullResearchData += `  Key Quotes:\n`
+                video.keyQuotes.forEach((quote, quoteIdx) => {
+                  fullResearchData += `    "${quote}"\n`
+                })
+              }
+              
+              // Add all timestamps with details
+              if (video.timestamps && video.timestamps.length > 0) {
+                fullResearchData += `  Timestamps & Clips (${video.timestamps.length} total):\n`
+                video.timestamps.forEach((timestamp, tsIdx) => {
+                  fullResearchData += `    ${tsIdx + 1}. ${timestamp.startTime} - ${timestamp.endTime || 'End'}\n`
+                  fullResearchData += `       Speaker: ${timestamp.speaker}\n`
+                  fullResearchData += `       Description: ${timestamp.description}\n`
+                  if (timestamp.quote) {
+                    fullResearchData += `       Quote: "${timestamp.quote}"\n`
+                  }
+                  if (timestamp.extraInfo) {
+                    fullResearchData += `       Extra Info: ${timestamp.extraInfo}\n`
+                  }
+                  if (timestamp.significance) {
+                    fullResearchData += `       Significance: ${timestamp.significance}\n`
+                  }
+                  fullResearchData += `       URL with timestamp: ${videoUrl}&t=${timestamp.startTime.replace(/:/g, 'm').replace(/m$/, 's')}\n`
+                })
+              }
+              
+              if (video.timestamp) {
+                fullResearchData += `  Main Timestamp: ${video.timestamp}\n`
+                fullResearchData += `  Main Timestamp URL: ${videoUrl}&t=${video.timestamp.replace(/:/g, 'm').replace(/m$/, 's')}\n`
+              }
+              
+              if (video.contextualInfo) {
+                fullResearchData += `  Contextual Info: ${video.contextualInfo}\n`
+              }
+              
+              fullResearchData += `  ${'-'.repeat(30)}\n`
+            })
+          }
+          
+          fullResearchData += '---\n'
+        })
+      }
+      
+             // Add analysis results
+       if (hasAnalysisResults) {
+         fullResearchData += '\n--- ANALYSIS RESULTS ---\n'
+         youtubeState.analysisResults.forEach((result, i) => {
+           const videoUrl = `https://youtube.com/watch?v=${result.videoId}`
+           fullResearchData += `\nAnalysis ${i + 1}: ${result.query}\n`
+           fullResearchData += `Video ID: ${result.videoId}\n`
+           fullResearchData += `Video URL: ${videoUrl}\n`
+           
+           if (result.analysis && result.analysis.length > 0) {
+             fullResearchData += `Analysis Results:\n`
+             result.analysis.forEach((analysis, idx) => {
+               fullResearchData += `  ${idx + 1}. ${analysis.summary}\n`
+               if (analysis.relevantContent) {
+                 fullResearchData += `     Relevant Content: ${analysis.relevantContent}\n`
+               }
+               if (analysis.youtubeUrl) {
+                 fullResearchData += `     URL: ${analysis.youtubeUrl}\n`
+               }
+               if (analysis.dramaticElements && analysis.dramaticElements.length > 0) {
+                 fullResearchData += `     Dramatic Elements: ${analysis.dramaticElements.join(', ')}\n`
+               }
+               if (analysis.keyQuotes && analysis.keyQuotes.length > 0) {
+                 fullResearchData += `     Key Quotes: ${analysis.keyQuotes.join('; ')}\n`
+               }
+               
+               // Add timestamp if available in analysis (single timestamp, not array)
+               if (analysis.timestamp) {
+                 fullResearchData += `     Timestamp: ${analysis.timestamp}\n`
+                 fullResearchData += `     URL with timestamp: ${videoUrl}&t=${analysis.timestamp.replace(/:/g, 'm').replace(/m$/, 's')}\n`
+               }
+             })
+           }
+           fullResearchData += '---\n'
+         })
+       }
+      
+      fullResearchData += '\n=== END COMPREHENSIVE RESEARCH DATA ===\n'
+    }
+    
+    return fullResearchData
+  }
+
   // Generate sections (requires authentication)
   const handleGenerateSections = async () => {
     if (!user.isLoggedIn) {
@@ -490,73 +719,10 @@ export function ScriptGenerator() {
     showMessage('Generating script sections...', 'info')
 
     try {
-      // Build research context if YouTube data is available
-      let additionalContext = ''
-      let additionalResearch = ''
-      
-      // Check if we have YouTube research data available
-      const hasVideosSummary = !!youtubeState.videosSummary
-      const hasAnalysisResults = youtubeState.analysisResults && youtubeState.analysisResults.length > 0
-      const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
-      const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
-      const hasCompletedSubtitles = youtubeState.subtitleFiles && youtubeState.subtitleFiles.filter(sf => sf.status === 'completed').length > 0
-      
-      if (hasVideosSummary || hasAnalysisResults || hasGoogleResearch || hasYouTubeResearch || hasCompletedSubtitles) {
-        additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
-        
-        // Build simple research context
-        let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
-        
-        if (hasVideosSummary) {
-          context += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
-          context += `Overall Theme: ${youtubeState.videosSummary?.overallTheme}\n\n`
-          context += 'Key Insights:\n'
-          youtubeState.videosSummary?.keyInsights.forEach((insight, i) => {
-            context += `${i + 1}. ${insight}\n`
-          })
-          
-          // Add individual video summaries with URLs
-          if (youtubeState.videosSummary?.videoSummaries && youtubeState.videosSummary.videoSummaries.length > 0) {
-            context += '\n--- INDIVIDUAL VIDEO SUMMARIES ---\n'
-            youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
-              const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
-              context += `\nVideo ${i + 1}: ${video.title}\n`
-              context += `URL: ${videoUrl}\n`
-              context += `Main Topic: ${video.mainTopic}\n`
-              context += `Key Points: ${video.keyPoints.join('; ')}\n`
-              if (video.keyQuotes && video.keyQuotes.length > 0) {
-                context += `Key Quotes: ${video.keyQuotes.join('; ')}\n`
-              }
-              if (video.timestamp) {
-                context += `Important Timestamp: ${video.timestamp}\n`
-              }
-              context += `Emotional Tone: ${video.emotionalTone}\n`
-              context += '---\n'
-            })
-          }
-        }
-        
-        if (hasGoogleResearch) {
-          context += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
-          youtubeState.googleResearchSummaries.forEach((research, i) => {
-            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
-            context += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
-            context += `Insights: ${research.insights}\n`
-          })
-        }
-        
-        if (hasYouTubeResearch) {
-          context += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
-          youtubeState.youtubeResearchSummaries.forEach((research, i) => {
-            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
-            context += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
-            context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
-          })
-        }
-        
-        context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
-        additionalResearch = context
-      }
+      // Build comprehensive research context
+      const fullResearchData = buildFullResearchData()
+      const additionalContext = fullResearchData ? 'This script should incorporate insights from analyzed YouTube videos and research data with specific timestamps and clips.' : ''
+      const additionalResearch = fullResearchData
 
       const requestBody: any = {
         theme: currentJob.theme,
@@ -567,7 +733,8 @@ export function ScriptGenerator() {
         model: selectedModel,
         additionalContext,
         additionalResearch,
-        targetSections: targetSections
+        enableIntroHook: enableIntroHook,
+        introHookWordCount: introHookWordCount
       }
 
       // Add promptId if a custom prompt is selected
@@ -629,71 +796,10 @@ export function ScriptGenerator() {
     dispatch(startGeneratingScript(section.id))
 
     try {
-      // Build YouTube research context if available
-      let additionalContext = ''
-      let additionalResearch = ''
-      
-      // Check if we have YouTube research data available
-      const hasVideosSummary = !!youtubeState.videosSummary
-      const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
-      const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
-      
-      if (hasVideosSummary || hasGoogleResearch || hasYouTubeResearch) {
-        additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
-        
-        // Build comprehensive research context
-        let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
-        
-        if (hasVideosSummary) {
-          context += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
-          context += `Overall Theme: ${youtubeState.videosSummary?.overallTheme}\n\n`
-          context += 'Key Insights:\n'
-          youtubeState.videosSummary?.keyInsights.forEach((insight, i) => {
-            context += `${i + 1}. ${insight}\n`
-          })
-          
-          // Add individual video summaries with URLs
-          if (youtubeState.videosSummary?.videoSummaries && youtubeState.videosSummary.videoSummaries.length > 0) {
-            context += '\n--- INDIVIDUAL VIDEO SUMMARIES ---\n'
-            youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
-              const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
-              context += `\nVideo ${i + 1}: ${video.title}\n`
-              context += `URL: ${videoUrl}\n`
-              context += `Main Topic: ${video.mainTopic}\n`
-              context += `Key Points: ${video.keyPoints.join('; ')}\n`
-              if (video.keyQuotes && video.keyQuotes.length > 0) {
-                context += `Key Quotes: ${video.keyQuotes.join('; ')}\n`
-              }
-              if (video.timestamp) {
-                context += `Important Timestamp: ${video.timestamp}\n`
-              }
-              context += `Emotional Tone: ${video.emotionalTone}\n`
-              context += '---\n'
-            })
-          }
-        }
-        
-        if (hasGoogleResearch) {
-          context += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
-          youtubeState.googleResearchSummaries.forEach((research, i) => {
-            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
-            context += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
-            context += `Insights: ${research.insights}\n`
-          })
-        }
-        
-        if (hasYouTubeResearch) {
-          context += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
-          youtubeState.youtubeResearchSummaries.forEach((research, i) => {
-            const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
-            context += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
-            context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
-          })
-        }
-        
-        context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
-        additionalResearch = context
-      }
+      // Build comprehensive research context
+      const fullResearchData = buildFullResearchData()
+      const additionalContext = fullResearchData ? 'This script should incorporate insights from analyzed YouTube videos and research data with specific timestamps and clips.' : ''
+      const additionalResearch = fullResearchData
 
       const requestBody: any = {
         title: section.title,
@@ -765,73 +871,13 @@ export function ScriptGenerator() {
     dispatch(startGeneratingAllScripts())
     showMessage('Generating all scripts in parallel...', 'info')
 
+    // Build comprehensive research context once for all sections
+    const fullResearchData = buildFullResearchData()
+    const additionalContext = fullResearchData ? 'This script should incorporate insights from analyzed YouTube videos and research data with specific timestamps and clips.' : ''
+    const additionalResearch = fullResearchData
+
     const promises = currentJob.sections.map(async (section: FineTuningSection) => {
       try {
-        // Build YouTube research context if available
-        let additionalContext = ''
-        let additionalResearch = ''
-        
-        // Check if we have YouTube research data available
-        const hasVideosSummary = !!youtubeState.videosSummary
-        const hasGoogleResearch = youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0
-        const hasYouTubeResearch = youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0
-        
-        if (hasVideosSummary || hasGoogleResearch || hasYouTubeResearch) {
-          additionalContext = 'This script should incorporate insights from analyzed YouTube videos and research data.'
-          
-          // Build comprehensive research context
-          let context = '\n\n=== YOUTUBE RESEARCH DATA ===\n'
-          
-          if (hasVideosSummary) {
-            context += '\n--- VIDEO COLLECTION ANALYSIS ---\n'
-            context += `Overall Theme: ${youtubeState.videosSummary?.overallTheme}\n\n`
-            context += 'Key Insights:\n'
-            youtubeState.videosSummary?.keyInsights.forEach((insight, i) => {
-              context += `${i + 1}. ${insight}\n`
-            })
-            
-            // Add individual video summaries with URLs
-            if (youtubeState.videosSummary?.videoSummaries && youtubeState.videosSummary.videoSummaries.length > 0) {
-              context += '\n--- INDIVIDUAL VIDEO SUMMARIES ---\n'
-              youtubeState.videosSummary.videoSummaries.forEach((video, i) => {
-                const videoUrl = `https://youtube.com/watch?v=${video.videoId}`
-                context += `\nVideo ${i + 1}: ${video.title}\n`
-                context += `URL: ${videoUrl}\n`
-                context += `Main Topic: ${video.mainTopic}\n`
-                context += `Key Points: ${video.keyPoints.join('; ')}\n`
-                if (video.keyQuotes && video.keyQuotes.length > 0) {
-                  context += `Key Quotes: ${video.keyQuotes.join('; ')}\n`
-                }
-                if (video.timestamp) {
-                  context += `Important Timestamp: ${video.timestamp}\n`
-                }
-                context += `Emotional Tone: ${video.emotionalTone}\n`
-                context += '---\n'
-              })
-            }
-          }
-          
-          if (hasGoogleResearch) {
-            context += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
-            youtubeState.googleResearchSummaries.forEach((research, i) => {
-              const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
-              context += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
-              context += `Insights: ${research.insights}\n`
-            })
-          }
-          
-          if (hasYouTubeResearch) {
-            context += '\n--- YOUTUBE RESEARCH SUMMARIES ---\n'
-            youtubeState.youtubeResearchSummaries.forEach((research, i) => {
-              const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
-              context += `\nYouTube Research ${i + 1}${isApplied}: ${research.query}\n`
-              context += `Overall Theme: ${research.videosSummary.overallTheme}\n`
-            })
-          }
-          
-          context += '\n=== END YOUTUBE RESEARCH DATA ===\n'
-          additionalResearch = context
-        }
 
         const requestBody: any = {
           title: section.title,
@@ -1261,6 +1307,178 @@ export function ScriptGenerator() {
     dispatch(updatePendingScripts(updatedScripts))
   }
 
+  // Preview research data
+  const handlePreviewResearch = () => {
+    const researchData = buildFullResearchData()
+    if (researchData) {
+      setPreviewResearchData(researchData)
+      setShowResearchPreview(true)
+    } else {
+      showMessage('No research data available to preview', 'info')
+    }
+  }
+
+  // Add new pending section
+  const addNewPendingSection = () => {
+    const newSection: PendingSection = {
+      id: `new-${Date.now()}`,
+      title: 'New Section',
+      writingInstructions: 'Add your writing instructions here...',
+      tempId: `temp-${Date.now()}-${Math.random()}`
+    }
+    
+    const updatedSections = [...pendingSections, newSection]
+    dispatch(setPendingSections(updatedSections))
+    showMessage('New section added', 'success')
+  }
+
+  // Remove pending section
+  const removePendingSection = (tempId: string) => {
+    const updatedSections = pendingSections.filter(section => section.tempId !== tempId)
+    dispatch(setPendingSections(updatedSections))
+    showMessage('Section removed', 'success')
+  }
+
+  // Add new section to approved job
+  const addNewSection = async () => {
+    if (!currentJob) return
+
+    try {
+      const newSectionData = {
+        title: 'New Section',
+        writingInstructions: 'Add your writing instructions here...',
+        target_audience: 'General',
+        tone: 'Professional',
+        style_preferences: 'Clear and engaging'
+      }
+
+      const requestBody = {
+        job_id: currentJob.id,
+        sections: [newSectionData],
+        promptUsed: getPromptUsedText()
+      }
+
+      const response = await fetch('/api/fine-tuning/sections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.sections && data.sections.length > 0) {
+          // Add the new section to the current job sections
+          const updatedSections = [...currentJob.sections, data.sections[0]]
+          dispatch(setSections(updatedSections))
+          showMessage('New section added successfully!', 'success')
+        }
+      } else {
+        const data = await response.json()
+        showMessage(data.error || 'Failed to add section', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to add section', 'error')
+    }
+  }
+
+  // Remove section from approved job
+  const removeSection = async (sectionId: string) => {
+    if (!currentJob) return
+
+    try {
+      const response = await fetch(`/api/fine-tuning/sections/${sectionId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        // Remove section from Redux state
+        const updatedSections = currentJob.sections.filter(s => s.id !== sectionId)
+        dispatch(setSections(updatedSections))
+        showMessage('Section removed successfully!', 'success')
+      } else {
+        const data = await response.json()
+        showMessage(data.error || 'Failed to remove section', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to remove section', 'error')
+    }
+  }
+
+  // Clip attachment functions
+  const handleOpenClipAttachment = (sectionId: string, textareaRef: React.RefObject<HTMLTextAreaElement>) => {
+    // Auto-populate clips from analysis if not already done
+    if (availableClips.length === 0) {
+      dispatch(populateClipsFromAnalysis())
+    }
+    
+    setClipAttachmentTarget({ sectionId, textareaRef })
+    setShowClipAttachment(true)
+  }
+
+  const handleClipSelection = (clip: AvailableClip) => {
+    setSelectedClip(clip)
+  }
+
+  const handleInsertClip = () => {
+    if (!selectedClip || !clipAttachmentTarget?.textareaRef.current) return
+
+    const textarea = clipAttachmentTarget.textareaRef.current
+    const cursorPosition = textarea.selectionStart
+    const currentText = textarea.value
+    
+    // Format the clip reference
+    const clipReference = `[[CLIP: ${selectedClip.youtubeUrl}&t=${convertTimeToSeconds(selectedClip.startTime)}s | ${selectedClip.startTime} - ${selectedClip.endTime} | ${selectedClip.description}]]`
+    
+    // Insert the clip reference at cursor position
+    const newText = currentText.slice(0, cursorPosition) + clipReference + currentText.slice(cursorPosition)
+    
+    // Update the textarea directly
+    textarea.value = newText
+    textarea.focus()
+    textarea.setSelectionRange(cursorPosition + clipReference.length, cursorPosition + clipReference.length)
+    
+    // Trigger change event to update the state
+    const event = new Event('input', { bubbles: true })
+    textarea.dispatchEvent(event)
+    
+    // Close the clip attachment modal
+    setShowClipAttachment(false)
+    setSelectedClip(null)
+    setClipAttachmentTarget(null)
+    
+    showMessage('Clip inserted successfully!', 'success')
+  }
+
+  // Helper function to convert time format to seconds
+  const convertTimeToSeconds = (timeStr: string): number => {
+    const parts = timeStr.split(':')
+    if (parts.length === 3) {
+      const hours = parseInt(parts[0])
+      const minutes = parseInt(parts[1])
+      const seconds = parseInt(parts[2])
+      return hours * 3600 + minutes * 60 + seconds
+    } else if (parts.length === 2) {
+      const minutes = parseInt(parts[0])
+      const seconds = parseInt(parts[1])
+      return minutes * 60 + seconds
+    }
+    return parseInt(timeStr) || 0
+  }
+
+  // Helper function to format clip display
+  const formatClipDisplay = (clip: AvailableClip) => {
+    const duration = clip.startTime !== clip.endTime ? `${clip.startTime} - ${clip.endTime}` : clip.startTime
+    return {
+      title: clip.videoTitle,
+      duration,
+      description: clip.description,
+      quote: clip.quote,
+      speaker: clip.speaker,
+      source: clip.source,
+      confidence: clip.confidence
+    }
+  }
+
   // Show loading screen during auth initialization
   if (!user.initialized) {
     return (
@@ -1427,6 +1645,17 @@ export function ScriptGenerator() {
               <CardContent className="space-y-4">
                 {pendingSections.map((section) => (
                   <div key={section.tempId} className="border rounded-lg p-4 bg-white space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-gray-800">Section {pendingSections.indexOf(section) + 1}</h4>
+                      <Button
+                        onClick={() => removePendingSection(section.tempId)}
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50 border-red-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <div className="space-y-2">
                       <Label>Section Title</Label>
                       <Input
@@ -1447,6 +1676,17 @@ export function ScriptGenerator() {
                 ))}
                 
                 <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={addNewPendingSection}
+                    variant="outline"
+                    className="flex items-center gap-2 border-blue-300 text-blue-600 hover:bg-blue-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Section
+                  </Button>
+                </div>
+                
+                <div className="flex gap-2 pt-2">
                   <Button
                     onClick={handleApproveSections}
                     disabled={approvingSections}
@@ -1737,40 +1977,101 @@ export function ScriptGenerator() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                       <Edit3 className="h-5 w-5" />
-                      Configure Script Sections
+                      Configure Script Generation
                 </CardTitle>
                     <CardDescription>
-                      Set target audience, tone, and style preferences
+                      Set target audience, tone, and style preferences. AI will determine optimal sections automatically.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Word Count Configuration */}
+                    {/* AI Section Determination */}
                     <div className="space-y-2">
-                      <Label htmlFor="targetSections">Target Sections</Label>
-                      <div className="flex items-center gap-4">
-                        <Input
-                          id="targetSections"
-                          type="number"
-                          min="1"
-                          max="10"
-                          step="1"
-                          placeholder="e.g., 5"
-                          value={targetSections}
-                          onChange={(e) => setTargetSections(Number(e.target.value) || 5)}
-                          className="flex-1"
-                        />
-                        <div className="bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-sm">
-                          <span className="text-blue-600 font-medium">
-                            {targetSections} section{targetSections !== 1 ? 's' : ''}
-                          </span>
-                          <span className="text-blue-500 text-xs ml-1">
-                            Quality-focused content
-                          </span>
+                                             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                         <div className="flex items-center justify-between mb-2">
+                           <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                             <span className="text-blue-800 font-medium">AI-Powered Section Planning</span>
+                           </div>
+                           <Button
+                             onClick={handlePreviewResearch}
+                             variant="outline"
+                             size="sm"
+                             className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                           >
+                             <Eye className="h-4 w-4 mr-1" />
+                             Preview Research
+                           </Button>
+                         </div>
+                         <p className="text-sm text-blue-700">
+                           The AI will automatically analyze your research data and content to determine the optimal number of sections needed to:
+                         </p>
+                         <ul className="text-sm text-blue-600 mt-2 space-y-1 ml-4">
+                           <li>• Utilize all valuable content from research</li>
+                           <li>• Explain each major concept thoroughly</li>
+                           <li>• Create logical narrative flow</li>
+                           <li>• Ensure comprehensive coverage</li>
+                         </ul>
+                       </div>
+                    </div>
+
+                    {/* Intro Hook Settings */}
+                    <div className="space-y-4 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-5 w-5 text-orange-500" />
+                          <Label className="text-base font-medium">Video Intro Hook (Optional)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="enableIntroHook"
+                            checked={enableIntroHook}
+                            onChange={(e) => setEnableIntroHook(e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <Label htmlFor="enableIntroHook" className="text-sm">Enable</Label>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        The script will be divided into {targetSections} section{targetSections !== 1 ? 's' : ''} focused on engaging, quality content with proper clip integration.
-                      </p>
+                      
+                      {enableIntroHook && (
+                        <div className="space-y-3">
+                          <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                            <p className="text-sm text-orange-700">
+                              Generate a separate intro hook segment to grab viewer attention. Our intros are typically 30-65 words.
+                            </p>
+                          </div>
+                          
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1">
+                              <Label htmlFor="introHookWordCount" className="text-sm">Target Word Count</Label>
+                              <Input
+                                id="introHookWordCount"
+                                type="number"
+                                min="20"
+                                max="100"
+                                step="5"
+                                value={introHookWordCount}
+                                onChange={(e) => setIntroHookWordCount(Number(e.target.value) || 50)}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div className="bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-sm">
+                              <span className="text-blue-600 font-medium">
+                                {introHookWordCount} words
+                              </span>
+                              <span className="text-blue-500 text-xs ml-1 block">
+                                {introHookWordCount <= 35 ? 'Short & punchy' : 
+                                 introHookWordCount <= 55 ? 'Standard length' : 
+                                 'Detailed hook'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <p className="text-xs text-gray-500">
+                            The intro hook will be generated as a separate segment before the main script sections.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1915,23 +2216,33 @@ export function ScriptGenerator() {
                   </div>
                 )}
 
-                <Button 
-                  onClick={handleGenerateSections}
-                  disabled={currentJob.isGeneratingSections}
-                  className="w-full flex items-center justify-center gap-2"
-                >
-                  {currentJob.isGeneratingSections ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating {targetSections} Sections...
-                                  </>
-                                ) : (
-                                  <>
-                      <Edit3 className="h-4 w-4" />
-                      Generate {targetSections} Script Sections
-                                  </>
-                                )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleGenerateSections}
+                    disabled={currentJob.isGeneratingSections}
+                    className="flex-1 flex items-center justify-center gap-2"
+                  >
+                    {currentJob.isGeneratingSections ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        AI Analyzing Content & Generating Sections...
+                      </>
+                    ) : (
+                      <>
+                        <Edit3 className="h-4 w-4" />
+                        Generate Script Sections (AI-Determined)
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={addNewPendingSection}
+                    variant="outline"
+                    className="flex items-center gap-2 border-blue-300 text-blue-600 hover:bg-blue-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create Manual Section
+                  </Button>
+                </div>
                         </CardContent>
                       </Card>
               )}
@@ -1945,14 +2256,24 @@ export function ScriptGenerator() {
                         <Edit3 className="h-5 w-5" />
                         Script Sections
                       </CardTitle>
-                      <Button 
-                        onClick={handleGenerateAllScripts}
-                        disabled={currentJob.sections.some((s: FineTuningSection) => s.isGeneratingScript)}
-                        className="flex items-center gap-2"
-                      >
-                        <Play className="h-4 w-4" />
-                        Generate All Scripts
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          onClick={addNewSection}
+                          variant="outline"
+                          className="flex items-center gap-2 border-blue-300 text-blue-600 hover:bg-blue-50"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Section
+                        </Button>
+                        <Button 
+                          onClick={handleGenerateAllScripts}
+                          disabled={currentJob.sections.some((s: FineTuningSection) => s.isGeneratingScript)}
+                          className="flex items-center gap-2"
+                        >
+                          <Play className="h-4 w-4" />
+                          Generate All Scripts
+                        </Button>
+                      </div>
                     </div>
                     <CardDescription>
                       Review and edit sections, then generate training scripts
@@ -1984,6 +2305,14 @@ export function ScriptGenerator() {
                                   <Copy className="h-3 w-3" />
                                     </Button>
                               )}
+                              <Button
+                                onClick={() => removeSection(section.id)}
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:bg-red-50 border-red-300"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                                     <Button
                                 onClick={() => handleGenerateScript(section)}
                                 disabled={section.isGeneratingScript}
@@ -2139,6 +2468,51 @@ export function ScriptGenerator() {
       {activeTab === 'assistant' && (
         <ChatbotTab />
       )}
+
+      {/* Research Preview Modal */}
+      <Dialog open={showResearchPreview} onOpenChange={setShowResearchPreview}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Research Data Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+              <p className="text-sm text-blue-700">
+                This is the comprehensive research data that will be provided to the AI for script generation. 
+                It includes all YouTube videos, timestamps, quotes, and analysis results.
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+              <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono overflow-x-auto">
+                {previewResearchData || 'No research data available'}
+              </pre>
+            </div>
+            
+            <div className="flex justify-between items-center text-sm text-gray-500">
+              <span>
+                {previewResearchData ? `${previewResearchData.length} characters` : '0 characters'}
+              </span>
+              <Button
+                onClick={() => {
+                  if (previewResearchData) {
+                    navigator.clipboard.writeText(previewResearchData)
+                    showMessage('Research data copied to clipboard!', 'success')
+                  }
+                }}
+                variant="outline"
+                size="sm"
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Copy to Clipboard
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

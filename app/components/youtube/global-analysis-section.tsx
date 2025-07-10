@@ -28,17 +28,17 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
     const subtitleFile = subtitleFiles.find(sf => sf.videoId === videoId)
     return subtitleFile && subtitleFile.status === 'completed'
   })
-  
+
   const videosForGemini = selectedVideos.filter(videoId => {
     return videos.find(v => v.id.videoId === videoId)
   })
 
-  const canAnalyze = analysisType === 'standard' 
-    ? videosWithSubtitles.length > 0 
+  const canAnalyze = analysisType === 'standard'
+    ? videosWithSubtitles.length > 0
     : videosForGemini.length > 0
 
-  const availableCount = analysisType === 'standard' 
-    ? videosWithSubtitles.length 
+  const availableCount = analysisType === 'standard'
+    ? videosWithSubtitles.length
     : videosForGemini.length
 
   const getAnalysisTypeColor = (type: AnalysisType) => {
@@ -67,21 +67,20 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
           </div>
         )}
       </div>
-      
+
       {/* Analysis Type Selection */}
       <div className="mb-4 space-y-3">
         <label className={`block text-sm font-semibold ${getAnalysisTypeTextColor(analysisType)}`}>
           Choose Analysis Method:
         </label>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <button
             onClick={() => setAnalysisType('standard')}
-            className={`p-4 rounded-lg border-2 text-left transition-all ${
-              analysisType === 'standard'
+            className={`p-4 rounded-lg border-2 text-left transition-all ${analysisType === 'standard'
                 ? 'border-blue-500 bg-blue-100 text-blue-900'
                 : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2 mb-2">
               <Search className="h-5 w-5" />
@@ -91,14 +90,13 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
               Search through subtitles across all videos ({videosWithSubtitles.length} available)
             </p>
           </button>
-          
+
           <button
             onClick={() => setAnalysisType('full')}
-            className={`p-4 rounded-lg border-2 text-left transition-all ${
-              analysisType === 'full'
+            className={`p-4 rounded-lg border-2 text-left transition-all ${analysisType === 'full'
                 ? 'border-purple-500 bg-purple-100 text-purple-900'
                 : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50'
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2 mb-2">
               <Brain className="h-5 w-5" />
@@ -110,7 +108,7 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
           </button>
         </div>
       </div>
-      
+
       {/* Query Input and Analyze Button */}
       <div className="space-y-3">
         <div>
@@ -119,35 +117,33 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
           </label>
           <input
             type="text"
-            placeholder={analysisType === 'standard' 
-              ? "Enter phrase or topic to search across all videos..." 
+            placeholder={analysisType === 'standard'
+              ? "Enter phrase or topic to search across all videos..."
               : "Enter focus area for analysis across all videos..."
             }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-              analysisType === 'standard'
+            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-colors ${analysisType === 'standard'
                 ? 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
                 : 'border-purple-300 focus:ring-purple-500 focus:border-purple-500'
-            }`}
+              }`}
             disabled={!canAnalyze}
           />
         </div>
-        
+
         <button
           onClick={() => onBulkAnalysis(analysisType, query)}
           disabled={!canAnalyze || (analysisType === 'standard' && !query.trim()) || isAnalyzing}
-          className={`w-full font-semibold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-3 ${
-            analysisType === 'standard'
+          className={`w-full font-semibold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-3 ${analysisType === 'standard'
               ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white'
               : 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white'
-          } ${!canAnalyze || isAnalyzing ? 'cursor-not-allowed' : 'hover:scale-105'}`}
+            } ${!canAnalyze || isAnalyzing ? 'cursor-not-allowed' : 'hover:scale-105'}`}
         >
           {isAnalyzing ? (
             <>
               <Loader2 className="h-6 w-6 animate-spin" />
-              {analysisType === 'full' 
-                ? `AI Analyzing ${availableCount} Videos...` 
+              {analysisType === 'full'
+                ? `AI Analyzing ${availableCount} Videos...`
                 : `Analyzing ${availableCount} Transcripts...`
               }
             </>
@@ -173,7 +169,7 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       {!canAnalyze && (
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-sm text-yellow-800">
-            {analysisType === 'standard' 
+            {analysisType === 'standard'
               ? '⚠️ No videos with completed subtitles selected. Generate subtitles first.'
               : '⚠️ No videos available for AI analysis.'
             }
@@ -184,8 +180,8 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       {/* Info */}
       <div className="mt-4 text-xs text-gray-600 bg-gray-50 p-3 rounded">
         <p>
-          <strong>Bulk Analysis</strong> will process all selected videos and create a comprehensive research summary 
-          that will be added to your Current Research tab. This is ideal for finding patterns and insights across 
+          <strong>Bulk Analysis</strong> will process all selected videos and create a comprehensive research summary
+          that will be added to your Current Research tab. This is ideal for finding patterns and insights across
           multiple videos.
         </p>
       </div>

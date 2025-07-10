@@ -14,7 +14,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Badge } from '../../components/ui/badge'
 import { Progress } from '../../components/ui/progress'
-import { Loader2, Volume2, Download, Play, Pause, RefreshCw, Mic, Music, AlertCircle, CheckCircle, Settings, FileText } from 'lucide-react'
+import { Loader2, Volume2, Download, Play, Pause, RefreshCw, Mic, Music, AlertCircle, CheckCircle, Settings, FileText, Fish } from 'lucide-react'
 import { Input } from '../../components/ui/input'
 import { Textarea } from '../../components/ui/textarea'
 
@@ -41,12 +41,50 @@ export function AudioGeneration() {
     total: 0,
     currentSection: ''
   })
+  const [combineAudioProgress, setCombineAudioProgress] = useState<{
+    isGenerating: boolean
+    progress: number
+    status: string
+  }>({
+    isGenerating: false,
+    progress: 0,
+    status: ''
+  })
+  const [selectedProvider, setSelectedProvider] = useState<'elevenlabs' | 'voicemaker' | 'fishaudio'>('elevenlabs')
+  const [voicemakerVoices, setVoicemakerVoices] = useState<any[]>([])
+  const [loadingVoicemakerVoices, setLoadingVoicemakerVoices] = useState(false)
+  const [fishAudioVoices, setFishAudioVoices] = useState<any[]>([])
+  const [fishAudioModels, setFishAudioModels] = useState<any[]>([])
+  const [loadingFishAudioVoices, setLoadingFishAudioVoices] = useState(false)
+  const [selectedSessions, setSelectedSessions] = useState<string[]>([])
+  const [combineSessionsProgress, setCombineSessionsProgress] = useState<{
+    isGenerating: boolean
+    progress: number
+    status: string
+  }>({
+    isGenerating: false,
+    progress: 0,
+    status: ''
+  })
+  
+  // New state for auto-concatenation checkbox
+  const [autoConcatenateAfterGeneration, setAutoConcatenateAfterGeneration] = useState(false)
+  const [joinedScriptText, setJoinedScriptText] = useState('')
+  const [batchProcessing, setBatchProcessing] = useState({
+    isProcessing: false,
+    currentBatch: 0,
+    totalBatches: 0,
+    completedSections: 0,
+    totalSections: 0
+  })
 
   // Helper function to strip research data brackets from script text
   const stripResearchData = (text: string): string => {
     // Remove content within double brackets [[...]]
     return text.replace(/\[\[.*?\]\]/g, '').trim()
   }
+
+
 
   // Cleanup audio when component unmounts
   useEffect(() => {
@@ -66,10 +104,14 @@ export function AudioGeneration() {
 
   // Load voices on component mount
   useEffect(() => {
-    if (audioGeneration.voices.length === 0 && !audioGeneration.loadingVoices) {
+    if (selectedProvider === 'elevenlabs' && audioGeneration.voices.length === 0 && !audioGeneration.loadingVoices) {
       loadVoices()
+    } else if (selectedProvider === 'voicemaker' && voicemakerVoices.length === 0 && !loadingVoicemakerVoices) {
+      loadVoicemakerVoices()
+    } else if (selectedProvider === 'fishaudio' && fishAudioVoices.length === 0 && !loadingFishAudioVoices) {
+      loadFishAudioVoices()
     }
-  }, [])
+  }, [selectedProvider])
 
   const loadVoices = async () => {
     const result = await dispatch(loadVoicesThunk())
@@ -98,13 +140,14 @@ export function AudioGeneration() {
       sectionId,
       text: cleanScriptText,
       voiceId: audioGeneration.selectedVoice,
-      modelId: audioGeneration.selectedModel
+      modelId: audioGeneration.selectedModel,
+      provider: selectedProvider
     }))
 
     if (result.success) {
       const sizeInKB = Math.round((result.result.audioSize || 0) / 1024)
       showMessage(
-        `Audio generated successfully! ${result.result.chunksGenerated}/${result.result.totalChunks} chunks, ${sizeInKB}KB`,
+        `Audio generated successfully! ${result.result.chunksGenerated || 1}/${result.result.totalChunks || 1} chunks, ${sizeInKB}KB`,
         'success'
       )
     } else {
@@ -135,13 +178,14 @@ export function AudioGeneration() {
       sectionId: customSectionId,
       text: customText,
       voiceId: audioGeneration.selectedVoice,
-      modelId: audioGeneration.selectedModel
+      modelId: audioGeneration.selectedModel,
+      provider: selectedProvider
     }))
 
     if (result.success) {
       const sizeInKB = Math.round((result.result.audioSize || 0) / 1024)
       showMessage(
-        `Custom audio generated successfully! ${result.result.chunksGenerated}/${result.result.totalChunks} chunks, ${sizeInKB}KB`,
+        `Custom audio generated successfully! ${result.result.chunksGenerated || 1}/${result.result.totalChunks || 1} chunks, ${sizeInKB}KB`,
         'success'
       )
     } else {
@@ -149,8 +193,8 @@ export function AudioGeneration() {
     }
   }
 
-  // Generate audio for all sections that have scripts but no audio
-  const generateAudioForAll = async () => {
+  // Generate audio for all sections in batches of 5
+  const generateAllAudioInBatches = async () => {
     if (!audioGeneration.selectedVoice) {
       showMessage('Please select a voice first', 'error')
       return
@@ -177,75 +221,135 @@ export function AudioGeneration() {
       return
     }
 
-    // Initialize progress tracking
-    setBulkGenerationProgress({
-      isGenerating: true,
-      current: 0,
-      total: sectionsNeedingAudio.length,
-      currentSection: ''
+    // Split sections into batches of 5
+    const batchSize = 5
+    const batches = []
+    for (let i = 0; i < sectionsNeedingAudio.length; i += batchSize) {
+      batches.push(sectionsNeedingAudio.slice(i, i + batchSize))
+    }
+
+    // Initialize batch processing state
+    setBatchProcessing({
+      isProcessing: true,
+      currentBatch: 0,
+      totalBatches: batches.length,
+      completedSections: 0,
+      totalSections: sectionsNeedingAudio.length
     })
 
-    showMessage(`Starting audio generation for ${sectionsNeedingAudio.length} sections...`, 'info')
+    showMessage(`Starting audio generation for ${sectionsNeedingAudio.length} sections in ${batches.length} batch(es)...`, 'info')
 
-    let successCount = 0
-    let errorCount = 0
+    let totalSuccessCount = 0
+    let totalErrorCount = 0
 
-    // Generate audio for each section sequentially to avoid overwhelming the API
-    for (let i = 0; i < sectionsNeedingAudio.length; i++) {
-      const section = sectionsNeedingAudio[i]
+    // Process each batch
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex]
       
-      // Update progress
-      setBulkGenerationProgress(prev => ({
+      setBatchProcessing(prev => ({
         ...prev,
-        current: i + 1,
-        currentSection: section.title
+        currentBatch: batchIndex + 1
       }))
 
-      try {
-        const scriptText = section.texts[0].generated_script
-        // Strip research data brackets before sending to audio generation
-        const cleanScriptText = stripResearchData(scriptText)
-        
-        const result = await dispatch(generateAudioThunk({
-          sectionId: section.id,
-          text: cleanScriptText,
-          voiceId: audioGeneration.selectedVoice,
-          modelId: audioGeneration.selectedModel
-        }))
+      // Process sections in current batch asynchronously
+      const batchPromises = batch.map(async (section) => {
+        try {
+          const scriptText = section.texts[0].generated_script
+          const cleanScriptText = stripResearchData(scriptText)
+          
+          let result
+          if (selectedProvider === 'elevenlabs' || selectedProvider === 'fishaudio') {
+            result = await dispatch(generateAudioThunk({
+              sectionId: section.id,
+              text: cleanScriptText,
+              voiceId: audioGeneration.selectedVoice,
+              modelId: audioGeneration.selectedModel,
+              provider: selectedProvider
+            }))
+          } else if (selectedProvider === 'voicemaker') {
+            try {
+              await generateVoicemakerAudio(section.id, cleanScriptText)
+              result = { success: true }
+            } catch (error) {
+              result = { success: false, error: error instanceof Error ? error.message : 'VoiceMaker generation failed' }
+            }
+          } else {
+            result = { success: false, error: 'Unknown provider selected' }
+          }
 
-        if (result.success) {
-          successCount++
-          console.log(`✅ Audio generated for section: ${section.title}`)
-        } else {
-          errorCount++
-          console.error(`❌ Failed to generate audio for section: ${section.title}`, result.error)
-        }
+          // Update completed sections count
+          setBatchProcessing(prev => ({
+            ...prev,
+            completedSections: prev.completedSections + 1
+          }))
 
-        // Add a small delay between requests to avoid rate limiting
-        if (i < sectionsNeedingAudio.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          if (result.success) {
+            console.log(`✅ Audio generated for section: ${section.title}`)
+            return { success: true, section }
+          } else {
+            console.error(`❌ Failed to generate audio for section: ${section.title}`, result.error)
+            return { success: false, section, error: result.error }
+          }
+        } catch (error) {
+          console.error(`❌ Error generating audio for section: ${section.title}`, error)
+          setBatchProcessing(prev => ({
+            ...prev,
+            completedSections: prev.completedSections + 1
+          }))
+          return { success: false, section, error: error instanceof Error ? error.message : 'Unknown error' }
         }
-      } catch (error) {
-        errorCount++
-        console.error(`❌ Error generating audio for section: ${section.title}`, error)
+      })
+
+      // Wait for current batch to complete
+      const batchResults = await Promise.all(batchPromises)
+      
+      // Count successes and errors for this batch
+      const batchSuccessCount = batchResults.filter(r => r.success).length
+      const batchErrorCount = batchResults.filter(r => !r.success).length
+      
+      totalSuccessCount += batchSuccessCount
+      totalErrorCount += batchErrorCount
+
+      showMessage(`Batch ${batchIndex + 1}/${batches.length} completed: ${batchSuccessCount} success, ${batchErrorCount} failed`, 'info')
+
+      // Small delay between batches to avoid overwhelming the API
+      if (batchIndex < batches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
     }
 
-    // Reset progress
-    setBulkGenerationProgress({
-      isGenerating: false,
-      current: 0,
-      total: 0,
-      currentSection: ''
+    // Reset batch processing state
+    setBatchProcessing({
+      isProcessing: false,
+      currentBatch: 0,
+      totalBatches: 0,
+      completedSections: 0,
+      totalSections: 0
     })
 
     // Show final result
-    if (successCount === sectionsNeedingAudio.length) {
-      showMessage(`🎉 Successfully generated audio for all ${successCount} sections!`, 'success')
-    } else if (successCount > 0 && errorCount > 0) {
-      showMessage(`⚠️ Generated audio for ${successCount} sections, ${errorCount} failed`, 'info')
+    if (totalSuccessCount === sectionsNeedingAudio.length) {
+      showMessage(`🎉 Successfully generated audio for all ${totalSuccessCount} sections!`, 'success')
+      
+      // Auto-concatenate if checkbox is checked and we have multiple successful generations
+      if (autoConcatenateAfterGeneration && totalSuccessCount > 1) {
+        showMessage('🔄 Auto-concatenating audio files...', 'info')
+        setTimeout(() => {
+          combineAllAudio()
+        }, 2000)
+      }
+    } else if (totalSuccessCount > 0 && totalErrorCount > 0) {
+      showMessage(`⚠️ Generated audio for ${totalSuccessCount} sections, ${totalErrorCount} failed`, 'info')
+      
+      // Auto-concatenate if checkbox is checked and we have multiple successful generations
+      if (autoConcatenateAfterGeneration && totalSuccessCount > 1) {
+        showMessage('🔄 Auto-concatenating successfully generated audio files...', 'info')
+        setTimeout(() => {
+          combineAllAudio()
+        }, 2000)
+      }
     } else {
-      showMessage(`❌ Failed to generate audio for all ${errorCount} sections`, 'error')
+      showMessage(`❌ Failed to generate audio for all ${totalErrorCount} sections`, 'error')
     }
   }
 
@@ -304,9 +408,386 @@ export function AudioGeneration() {
     document.body.removeChild(link)
   }
 
+  // Combine all project audio files into one
+  const combineAllAudio = async () => {
+    if (!currentJob) return
+
+    // Get all sections with generated audio, sorted by their order
+    const sectionsWithAudio = currentJob.sections
+      .filter(section => {
+        const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
+        return audioState?.result?.success && audioState.audioUrl
+      })
+      .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+
+    if (sectionsWithAudio.length === 0) {
+      showMessage('No audio files available to combine', 'error')
+      return
+    }
+
+    if (sectionsWithAudio.length === 1) {
+      showMessage('Only one audio file available. Use the download button to get it.', 'info')
+      return
+    }
+
+    setCombineAudioProgress({
+      isGenerating: true,
+      progress: 0,
+      status: 'Preparing audio files for combination...'
+    })
+
+    try {
+      // Collect all audio URLs in chronological order
+      const audioUrls = sectionsWithAudio.map(section => {
+        const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
+        return {
+          url: audioState!.audioUrl!,
+          title: section.title,
+          order: section.section_order || 0
+        }
+      })
+
+      setCombineAudioProgress(prev => ({
+        ...prev,
+        progress: 25,
+        status: 'Sending audio files to combination service...'
+      }))
+
+      // Send to audio combination API
+      const response = await fetch('/api/elevenlabs/combine-audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audioUrls: audioUrls.map(a => a.url),
+          projectName: currentJob.name,
+          projectId: currentJob.id
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to combine audio files')
+      }
+
+      setCombineAudioProgress(prev => ({
+        ...prev,
+        progress: 75,
+        status: 'Processing and combining audio...'
+      }))
+
+      if (data.success) {
+        setCombineAudioProgress(prev => ({
+          ...prev,
+          progress: 100,
+          status: 'Audio combination completed!'
+        }))
+
+        // Create download link for combined audio
+        const combinedAudioUrl = data.audioUrl
+        const link = document.createElement('a')
+        link.href = combinedAudioUrl
+        link.download = `${currentJob.name.replace(/[^a-zA-Z0-9]/g, '_')}_combined_audio.mp3`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+
+        showMessage(`Successfully combined ${sectionsWithAudio.length} audio files! Download started.`, 'success')
+      } else {
+        throw new Error(data.error || 'Audio combination failed')
+      }
+    } catch (error) {
+      console.error('Error combining audio:', error)
+      showMessage(error instanceof Error ? error.message : 'Failed to combine audio files', 'error')
+    } finally {
+      setTimeout(() => {
+        setCombineAudioProgress({
+          isGenerating: false,
+          progress: 0,
+          status: ''
+        })
+      }, 3000)
+    }
+  }
+
+  // Load VoiceMaker voices
+  const loadVoicemakerVoices = async () => {
+    setLoadingVoicemakerVoices(true)
+    try {
+      const response = await fetch('/api/voicemaker/voices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          language: 'en-US'
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setVoicemakerVoices(data.voices || [])
+        showMessage(`Loaded ${data.voices?.length || 0} VoiceMaker voices`, 'success')
+      } else {
+        throw new Error(data.error || 'Failed to load VoiceMaker voices')
+      }
+    } catch (error) {
+      console.error('Error loading VoiceMaker voices:', error)
+      showMessage('Failed to load VoiceMaker voices', 'error')
+    } finally {
+      setLoadingVoicemakerVoices(false)
+    }
+  }
+
+  // Generate audio with VoiceMaker
+  const generateVoicemakerAudio = async (sectionId: string, scriptText: string) => {
+    if (!audioGeneration.selectedVoice) {
+      showMessage('Please select a voice first', 'error')
+      return
+    }
+
+    if (!user.isLoggedIn) {
+      showMessage('Please log in to generate audio', 'error')
+      return
+    }
+
+    // Strip research data brackets before sending to audio generation
+    const cleanScriptText = stripResearchData(scriptText)
+
+    try {
+      const response = await fetch('/api/voicemaker/generate-audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sectionId,
+          text: cleanScriptText,
+          voiceId: audioGeneration.selectedVoice,
+          engine: 'neural',
+          outputFormat: 'mp3',
+          sampleRate: '48000'
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        showMessage('VoiceMaker audio generated successfully!', 'success')
+        // The audio state will be updated through the existing Redux flow
+      } else {
+        throw new Error(data.error || 'VoiceMaker audio generation failed')
+      }
+    } catch (error) {
+      console.error('Error generating VoiceMaker audio:', error)
+      showMessage(error instanceof Error ? error.message : 'Failed to generate VoiceMaker audio', 'error')
+    }
+  }
+
+  // Load Fish Audio voices
+  const loadFishAudioVoices = async () => {
+    setLoadingFishAudioVoices(true)
+    try {
+      const response = await fetch('/api/fishaudio/voices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setFishAudioVoices(data.voices || [])
+        setFishAudioModels(data.models || [])
+        showMessage(`Loaded ${data.voices?.length || 0} Fish Audio voices`, 'success')
+      } else {
+        throw new Error(data.error || 'Failed to load Fish Audio voices')
+      }
+    } catch (error) {
+      console.error('Error loading Fish Audio voices:', error)
+      showMessage('Failed to load Fish Audio voices', 'error')
+    } finally {
+      setLoadingFishAudioVoices(false)
+    }
+  }
+
+  // Generate audio with Fish Audio
+  const generateFishAudio = async (sectionId: string, scriptText: string) => {
+    if (!audioGeneration.selectedVoice) {
+      showMessage('Please select a voice first', 'error')
+      return
+    }
+
+    if (!user.isLoggedIn) {
+      showMessage('Please log in to generate audio', 'error')
+      return
+    }
+
+    // Strip research data brackets before sending to audio generation
+    const cleanScriptText = stripResearchData(scriptText)
+
+    const result = await dispatch(generateAudioThunk({
+      sectionId,
+      text: cleanScriptText,
+      voiceId: audioGeneration.selectedVoice,
+      modelId: audioGeneration.selectedModel || 'speech-1',
+      provider: 'fishaudio'
+    }))
+
+    if (result.success) {
+      const sizeInKB = Math.round((result.result.audioSize || 0) / 1024)
+      showMessage(
+        `Fish Audio generated successfully! ${result.result.chunksGenerated || 1}/${result.result.totalChunks || 1} chunks, ${sizeInKB}KB`,
+        'success'
+      )
+    } else {
+      showMessage(result.error || 'Failed to generate Fish Audio', 'error')
+    }
+  }
+
+  // Combine selected audio sessions
+  const combineSelectedSessions = async () => {
+    if (selectedSessions.length < 2) {
+      showMessage('Please select at least 2 audio sessions to combine', 'error')
+      return
+    }
+
+    setCombineSessionsProgress({
+      isGenerating: true,
+      progress: 0,
+      status: 'Preparing selected sessions for combination...'
+    })
+
+    try {
+      // Get all audio states (both project sections and custom audio)
+      const allAudioStates = [
+        ...audioGeneration.sectionAudioStates,
+        ...customAudioStates
+      ]
+
+      // Get selected sessions' audio URLs
+      const selectedAudioData = selectedSessions.map(sessionId => {
+        const audioState = allAudioStates.find(state => state.sectionId === sessionId)
+        if (!audioState?.result?.success || !audioState.audioUrl) {
+          throw new Error(`Audio not found for session: ${sessionId}`)
+        }
+        
+        // Get session title
+        let sessionTitle = sessionId
+        if (sessionId.startsWith('custom-')) {
+          sessionTitle = `Custom Audio ${sessionId.split('-')[1]}`
+        } else if (currentJob) {
+          const section = currentJob.sections.find(s => s.id === sessionId)
+          sessionTitle = section?.title || sessionId
+        }
+
+        return {
+          url: audioState.audioUrl,
+          title: sessionTitle,
+          sessionId: sessionId
+        }
+      })
+
+      setCombineSessionsProgress(prev => ({
+        ...prev,
+        progress: 25,
+        status: 'Sending sessions to combination service...'
+      }))
+
+      // Send to audio combination API
+      const response = await fetch('/api/elevenlabs/combine-audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audioUrls: selectedAudioData.map(data => data.url),
+          projectName: `Selected_Sessions_${Date.now()}`,
+          projectId: 'session-combination',
+          sessionTitles: selectedAudioData.map(data => data.title)
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to combine selected sessions')
+      }
+
+      setCombineSessionsProgress(prev => ({
+        ...prev,
+        progress: 75,
+        status: 'Processing and combining sessions...'
+      }))
+
+      if (data.success) {
+        setCombineSessionsProgress(prev => ({
+          ...prev,
+          progress: 100,
+          status: 'Session combination completed!'
+        }))
+
+        // Create download link for combined audio
+        const combinedAudioUrl = data.audioUrl
+        const link = document.createElement('a')
+        link.href = combinedAudioUrl
+        link.download = `combined_sessions_${Date.now()}.mp3`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+
+        showMessage(`Successfully combined ${selectedSessions.length} audio sessions! Download started.`, 'success')
+        
+        // Clear selection
+        setSelectedSessions([])
+      } else {
+        throw new Error(data.error || 'Session combination failed')
+      }
+    } catch (error) {
+      console.error('Error combining sessions:', error)
+      showMessage(error instanceof Error ? error.message : 'Failed to combine selected sessions', 'error')
+    } finally {
+      setTimeout(() => {
+        setCombineSessionsProgress({
+          isGenerating: false,
+          progress: 0,
+          status: ''
+        })
+      }, 3000)
+    }
+  }
+
   const selectedVoiceName = audioGeneration.voices.find(v => v.id === audioGeneration.selectedVoice)?.name || 'Unknown Voice'
   const sectionsWithScripts = currentJob?.sections.filter(s => s.texts && s.texts.length > 0) || []
-  const customAudioStates = audioGeneration.sectionAudioStates.filter(s => s.sectionId.startsWith('custom-'))
+  // Fix duplicate issue: Create a Map to ensure unique audio states by sectionId
+  const customAudioStatesMap = new Map()
+  audioGeneration.sectionAudioStates
+    .filter(s => s.sectionId.startsWith('custom-'))
+    .forEach(state => customAudioStatesMap.set(state.sectionId, state))
+  const customAudioStates = Array.from(customAudioStatesMap.values())
+
+  // Function to join all script texts into one
+  const joinAllScriptTexts = () => {
+    if (!currentJob || !sectionsWithScripts.length) return ''
+    
+    return sectionsWithScripts
+      .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+      .map(section => {
+        const scriptText = section.texts[0].generated_script
+        return stripResearchData(scriptText)
+      })
+      .join('\n\n')
+  }
+
+  // Update joined text when sections change
+  useEffect(() => {
+    const joinedText = joinAllScriptTexts()
+    setJoinedScriptText(joinedText)
+  }, [currentJob, sectionsWithScripts])
 
   if (!user.isLoggedIn) {
     return (
@@ -359,78 +840,190 @@ export function AudioGeneration() {
             Voice Configuration
           </CardTitle>
           <CardDescription>
-            Choose your voice and model settings for audio generation
+            Choose your provider, voice and model settings for audio generation
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Provider Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Audio Provider
+            </label>
+            <Select 
+              value={selectedProvider} 
+              onValueChange={(value: 'elevenlabs' | 'voicemaker' | 'fishaudio') => {
+                setSelectedProvider(value)
+                // Clear selected voice when switching providers
+                dispatch(setSelectedVoice(''))
+                // Load voices for the new provider
+                if (value === 'voicemaker' && voicemakerVoices.length === 0) {
+                  loadVoicemakerVoices()
+                } else if (value === 'fishaudio' && fishAudioVoices.length === 0) {
+                  loadFishAudioVoices()
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="elevenlabs">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="h-3 w-3" />
+                    ElevenLabs (Premium Quality)
+                  </div>
+                </SelectItem>
+                {/* <SelectItem value="voicemaker">
+                  <div className="flex items-center gap-2">
+                    <Mic className="h-3 w-3" />
+                    VoiceMaker.in (Cost Effective)
+                  </div>
+                </SelectItem> */}
+                <SelectItem value="fishaudio">
+                  <div className="flex items-center gap-2">
+                    <Fish className="h-3 w-3" />
+                    Fish Audio (AI Powered)
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Voice
               </label>
-              <Select 
-                value={audioGeneration.selectedVoice} 
-                onValueChange={(value) => dispatch(setSelectedVoice(value))}
-                disabled={audioGeneration.loadingVoices}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={audioGeneration.loadingVoices ? "Loading voices..." : "Select a voice"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {audioGeneration.voices.map((voice) => (
-                    <SelectItem key={voice.id} value={voice.id}>
-                      <div className="flex items-center gap-2">
-                        <Mic className="h-3 w-3" />
-                        {voice.name}
-                        {voice.category && (
-                          <Badge variant="outline" className="text-xs">
-                            {voice.category}
-                          </Badge>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                              <Select 
+                  value={audioGeneration.selectedVoice} 
+                  onValueChange={(value) => dispatch(setSelectedVoice(value))}
+                  disabled={selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : loadingFishAudioVoices)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      selectedProvider === 'elevenlabs' 
+                        ? (audioGeneration.loadingVoices ? "Loading ElevenLabs voices..." : "Select an ElevenLabs voice")
+                        : selectedProvider === 'voicemaker'
+                        ? (loadingVoicemakerVoices ? "Loading VoiceMaker voices..." : "Select a VoiceMaker voice")
+                        : (loadingFishAudioVoices ? "Loading Fish Audio voices..." : "Select a Fish Audio voice")
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedProvider === 'elevenlabs' 
+                      ? audioGeneration.voices.map((voice) => (
+                          <SelectItem key={voice.id} value={voice.id}>
+                            <div className="flex items-center gap-2">
+                              <Mic className="h-3 w-3" />
+                              {voice.name}
+                              {voice.category && (
+                                <Badge variant="outline" className="text-xs">
+                                  {voice.category}
+                                </Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      : selectedProvider === 'voicemaker'
+                      ? voicemakerVoices.map((voice) => (
+                          <SelectItem key={voice.VoiceId} value={voice.VoiceId}>
+                            <div className="flex items-center gap-2">
+                              <Mic className="h-3 w-3" />
+                              {voice.VoiceWebname}
+                              <Badge variant="outline" className="text-xs">
+                                {voice.VoiceGender}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {voice.Country}
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))
+                      : fishAudioVoices.map((voice) => (
+                          <SelectItem key={voice.id} value={voice.id}>
+                            <div className="flex items-center gap-2">
+                              <Fish className="h-3 w-3" />
+                              {voice.name}
+                              <Badge variant="outline" className="text-xs">
+                                AI Voice
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))
+                    }
+                  </SelectContent>
+                </Select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Model
+                Model/Engine
               </label>
-              <Select 
-                value={audioGeneration.selectedModel} 
-                onValueChange={(value) => dispatch(setSelectedAudioModel(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="eleven_multilingual_v2">Multilingual V2 (High Quality)</SelectItem>
-                  <SelectItem value="eleven_flash_v2_5">Flash V2.5 (Fast)</SelectItem>
-                  <SelectItem value="eleven_turbo_v2_5">Turbo V2.5 (Fastest)</SelectItem>
-                </SelectContent>
-              </Select>
+              {selectedProvider === 'elevenlabs' ? (
+                <Select 
+                  value={audioGeneration.selectedModel} 
+                  onValueChange={(value) => dispatch(setSelectedAudioModel(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="eleven_multilingual_v2">Multilingual V2 (High Quality)</SelectItem>
+                    <SelectItem value="eleven_flash_v2_5">Flash V2.5 (Fast)</SelectItem>
+                    <SelectItem value="eleven_turbo_v2_5">Turbo V2.5 (Fastest)</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : selectedProvider === 'voicemaker' ? (
+                <Select 
+                  value="neural" 
+                  onValueChange={() => {}} // VoiceMaker only has neural engine
+                  disabled
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="neural">Neural Engine (High Quality)</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select 
+                  value={audioGeneration.selectedModel || 'speech-1'} 
+                  onValueChange={(value) => dispatch(setSelectedAudioModel(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fishAudioModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <Button
-              onClick={loadVoices}
+              onClick={selectedProvider === 'elevenlabs' ? loadVoices : (selectedProvider === 'voicemaker' ? loadVoicemakerVoices : loadFishAudioVoices)}
               variant="outline"
               size="sm"
-              disabled={audioGeneration.loadingVoices}
+              disabled={selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : loadingFishAudioVoices)}
             >
-              {audioGeneration.loadingVoices ? (
+              {(selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : loadingFishAudioVoices)) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Refresh Voices
+              Refresh {selectedProvider === 'elevenlabs' ? 'ElevenLabs' : (selectedProvider === 'voicemaker' ? 'VoiceMaker' : 'Fish Audio')} Voices
             </Button>
-            {audioGeneration.voices.length > 0 && (
+            {((selectedProvider === 'elevenlabs' && audioGeneration.voices.length > 0) || 
+              (selectedProvider === 'voicemaker' && voicemakerVoices.length > 0) ||
+              (selectedProvider === 'fishaudio' && fishAudioVoices.length > 0)) && (
               <Badge variant="secondary">
-                {audioGeneration.voices.length} voices available
+                {selectedProvider === 'elevenlabs' ? audioGeneration.voices.length : (selectedProvider === 'voicemaker' ? voicemakerVoices.length : fishAudioVoices.length)} voices available
               </Badge>
             )}
           </div>
@@ -479,7 +1072,14 @@ export function AudioGeneration() {
           </div>
 
           <Button
-            onClick={generateCustomAudio}
+            onClick={() => {
+              if (selectedProvider === 'elevenlabs' || selectedProvider === 'fishaudio') {
+                generateCustomAudio()
+              } else if (selectedProvider === 'voicemaker') {
+                const customSectionId = `custom-${Date.now()}`
+                generateVoicemakerAudio(customSectionId, customText)
+              }
+            }}
             disabled={!customText.trim() || !audioGeneration.selectedVoice || customAudioStates.some(s => s.isGenerating)}
             className="w-full"
           >
@@ -491,7 +1091,12 @@ export function AudioGeneration() {
             ) : (
               <>
                 <Music className="h-4 w-4 mr-2" />
-                Generate Audio with {selectedVoiceName}
+                Generate Audio with {selectedProvider === 'elevenlabs' ? selectedVoiceName : 
+                  selectedProvider === 'voicemaker' ? 
+                    (voicemakerVoices.find(v => v.VoiceId === audioGeneration.selectedVoice)?.VoiceWebname || 'Selected Voice') :
+                    (fishAudioVoices.find(v => v.id === audioGeneration.selectedVoice)?.name || 'Selected Voice')
+                } 
+                ({selectedProvider === 'elevenlabs' ? 'ElevenLabs' : selectedProvider === 'voicemaker' ? 'VoiceMaker' : 'Fish Audio'})
               </>
             )}
           </Button>
@@ -519,12 +1124,12 @@ export function AudioGeneration() {
             <CardDescription>Your generated custom audio files</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {customAudioStates.map((audioState) => {
+            {customAudioStates.map((audioState, index) => {
               const isCurrentlyPlaying = audioGeneration.isPlaying && audioGeneration.currentPlayingSection === audioState.sectionId
               const displayTitle = customTitle || `Custom Audio ${audioState.sectionId.split('-')[1]}`
 
               return (
-                <div key={audioState.sectionId} className="border rounded-lg p-4">
+                <div key={`${audioState.sectionId}-${index}`} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium">{displayTitle}</h4>
                     <div className="flex items-center gap-2">
@@ -547,7 +1152,7 @@ export function AudioGeneration() {
                     <div className="space-y-2 mb-4">
                       <Progress value={50} className="w-full" />
                       <p className="text-sm text-gray-600 text-center">
-                        Processing with ElevenLabs... This may take up to 5 minutes.
+                        Processing with {selectedProvider === 'elevenlabs' ? 'ElevenLabs' : selectedProvider === 'voicemaker' ? 'VoiceMaker' : 'Fish Audio'}... This may take up to 5 minutes.
                       </p>
                     </div>
                   )}
@@ -628,312 +1233,387 @@ export function AudioGeneration() {
         </Card>
       )}
 
+      {/* Session Audio Manager - Show all available audio sessions */}
+      {(() => {
+        // Get all available audio sessions (both project sections and custom audio)
+        const allAudioStates = [
+          ...audioGeneration.sectionAudioStates,
+          ...customAudioStates
+        ]
+        const availableSessions = allAudioStates.filter(state => state.result?.success && state.audioUrl)
+        
+        if (availableSessions.length === 0) return null
+
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Music className="h-5 w-5" />
+                    Audio Session Manager
+                  </CardTitle>
+                  <CardDescription>
+                    Select and combine audio sessions from different projects and custom audio
+                  </CardDescription>
+                </div>
+                {selectedSessions.length > 1 && (
+                  <Button
+                    onClick={combineSelectedSessions}
+                    disabled={combineSessionsProgress.isGenerating}
+                    variant="default"
+                    className="flex items-center gap-2"
+                  >
+                    {combineSessionsProgress.isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Combining...
+                      </>
+                    ) : (
+                      <>
+                        <Music className="h-4 w-4" />
+                        Combine Selected ({selectedSessions.length})
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Selection Controls */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => setSelectedSessions(availableSessions.map(s => s.sectionId))}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Select All ({availableSessions.length})
+                  </Button>
+                  <Button
+                    onClick={() => setSelectedSessions([])}
+                    variant="outline"
+                    size="sm"
+                    disabled={selectedSessions.length === 0}
+                  >
+                    Clear Selection
+                  </Button>
+                </div>
+                <Badge variant="secondary">
+                  {selectedSessions.length} of {availableSessions.length} selected
+                </Badge>
+              </div>
+
+              {/* Combine Progress */}
+              {combineSessionsProgress.isGenerating && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">{combineSessionsProgress.status}</span>
+                    <span className="text-gray-600">{combineSessionsProgress.progress}%</span>
+                  </div>
+                  <Progress value={combineSessionsProgress.progress} className="w-full" />
+                </div>
+              )}
+
+              {/* Session List */}
+              <div className="space-y-3">
+                {availableSessions.map((audioState, index) => {
+                  const isSelected = selectedSessions.includes(audioState.sectionId)
+                  const isCustom = audioState.sectionId.startsWith('custom-')
+                  
+                  // Get session title and info
+                  let sessionTitle = audioState.sectionId
+                  let sessionInfo = ''
+                  let sessionType = 'Unknown'
+                  
+                  if (isCustom) {
+                    sessionTitle = `Custom Audio ${audioState.sectionId.split('-')[1]}`
+                    sessionType = 'Custom'
+                    sessionInfo = 'Custom text-to-speech'
+                  } else if (currentJob) {
+                    const section = currentJob.sections.find(s => s.id === audioState.sectionId)
+                    if (section) {
+                      sessionTitle = section.title
+                      sessionType = 'Project'
+                      sessionInfo = `From project: ${currentJob.name}`
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={`session-${audioState.sectionId}-${index}`}
+                      className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                        isSelected 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedSessions(prev => prev.filter(id => id !== audioState.sectionId))
+                        } else {
+                          setSelectedSessions(prev => [...prev, audioState.sectionId])
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                            isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{sessionTitle}</h4>
+                            <p className="text-sm text-gray-600">{sessionInfo}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={
+                            sessionType === 'Project' ? 'text-blue-600 border-blue-300' : 'text-green-600 border-green-300'
+                          }>
+                            {sessionType}
+                          </Badge>
+                          <Badge variant="outline" className="text-gray-600">
+                            {Math.round((audioState.result?.audioSize || 0) / 1024)}KB
+                          </Badge>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              playPauseAudio(audioState.sectionId, audioState.audioUrl!)
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1"
+                          >
+                            {audioGeneration.isPlaying && audioGeneration.currentPlayingSection === audioState.sectionId ? (
+                              <Pause className="h-3 w-3" />
+                            ) : (
+                              <Play className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Instructions */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Music className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">💡 Session Audio Combination</p>
+                    <p>
+                      Select multiple audio sessions from different projects or custom audio to combine them into one file. 
+                      The audio will be joined in the order selected using FFmpeg for high-quality concatenation.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
+
       {/* Project Overview - Only show if there's a current job */}
       {currentJob && (
         <Card>
           <CardHeader>
             <CardTitle>Project: {currentJob.name}</CardTitle>
-            <CardDescription>{currentJob.theme}</CardDescription>
+            <CardDescription>
+              {sectionsWithScripts.length} script sections • ~{joinedScriptText.split(' ').length} words total
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-blue-600">{sectionsWithScripts.length}</div>
-                <div className="text-sm text-gray-600">Scripts Available</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-600">
-                  {audioGeneration.sectionAudioStates.filter(s => s.result?.success && !s.sectionId.startsWith('custom-')).length}
-                </div>
-                <div className="text-sm text-gray-600">Project Audio Generated</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-orange-600">
-                  {audioGeneration.sectionAudioStates.filter(s => s.isGenerating && !s.sectionId.startsWith('custom-')).length}
-                </div>
-                <div className="text-sm text-gray-600">Currently Generating</div>
-              </div>
+          <CardContent className="space-y-4">
+            {/* Joined Script Text */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Complete Script Text
+              </label>
+              <Textarea
+                value={joinedScriptText}
+                onChange={(e) => setJoinedScriptText(e.target.value)}
+                placeholder="All script sections will be joined here..."
+                className="min-h-[200px] font-mono text-sm"
+                rows={8}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {joinedScriptText.length} characters • Est. ~{Math.ceil(joinedScriptText.split(' ').length / 150)} min duration
+              </p>
             </div>
+
+            {/* Controls */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="joinChunks"
+                  checked={autoConcatenateAfterGeneration}
+                  onChange={(e) => setAutoConcatenateAfterGeneration(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="joinChunks" className="text-sm font-medium text-gray-700">
+                  Join audio chunks with FFmpeg
+                </label>
+              </div>
+              
+              <Button
+                onClick={generateAllAudioInBatches}
+                disabled={!audioGeneration.selectedVoice || batchProcessing.isProcessing || !joinedScriptText.trim()}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {batchProcessing.isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Generating ({batchProcessing.completedSections}/{batchProcessing.totalSections})
+                  </>
+                ) : (
+                  <>
+                    <Music className="h-4 w-4 mr-2" />
+                    Generate All Audio
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Batch Processing Progress */}
+            {batchProcessing.isProcessing && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-900">
+                    Processing Batch {batchProcessing.currentBatch} of {batchProcessing.totalBatches}
+                  </span>
+                  <span className="text-sm text-blue-700">
+                    {batchProcessing.completedSections}/{batchProcessing.totalSections} sections
+                  </span>
+                </div>
+                <Progress 
+                  value={(batchProcessing.completedSections / batchProcessing.totalSections) * 100} 
+                  className="w-full"
+                />
+                <p className="text-xs text-blue-600 mt-2">
+                  Processing {sectionsWithScripts.length} sections in batches of 5 for optimal performance
+                  {autoConcatenateAfterGeneration && " • Will auto-join with FFmpeg after completion"}
+                </p>
+              </div>
+            )}
+
+            {/* Combine Audio Progress */}
+            {combineAudioProgress.isGenerating && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-green-900">
+                    {combineAudioProgress.status}
+                  </span>
+                  <span className="text-sm text-green-700">{combineAudioProgress.progress}%</span>
+                </div>
+                <Progress value={combineAudioProgress.progress} className="w-full" />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Project Sections - Only show if there are scripts */}
-      {sectionsWithScripts.length > 0 && (
+      {/* Audio Results - Only show when joining is disabled or when final audio is ready */}
+      {sectionsWithScripts.length > 0 && !autoConcatenateAfterGeneration && (
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Project Scripts</CardTitle>
-                  <CardDescription>Generate audio from your project scripts</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const sectionsNeedingAudio = sectionsWithScripts.filter(section => {
-                      const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
-                      return !audioState?.result?.success && !audioState?.isGenerating
-                    })
-                    const isGeneratingAny = audioGeneration.sectionAudioStates.some(s => s.isGenerating && !s.sectionId.startsWith('custom-'))
-                    
-                    return (
-                      <>
-                        {sectionsNeedingAudio.length > 0 && (
-                          <Badge variant="outline" className="text-orange-600 border-orange-300">
-                            {sectionsNeedingAudio.length} need audio
-                          </Badge>
-                        )}
-                        <Button
-                          onClick={generateAudioForAll}
-                          disabled={sectionsNeedingAudio.length === 0 || isGeneratingAny || !audioGeneration.selectedVoice || bulkGenerationProgress.isGenerating}
-                          variant="default"
-                          size="sm"
-                        >
-                          {bulkGenerationProgress.isGenerating ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Generating {bulkGenerationProgress.current}/{bulkGenerationProgress.total}
-                            </>
-                          ) : isGeneratingAny ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <Music className="h-4 w-4 mr-2" />
-                              Generate Audio for All ({sectionsNeedingAudio.length})
-                            </>
-                          )}
-                        </Button>
-                      </>
-                    )
-                  })()}
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-
-          {/* Bulk Generation Info */}
-          {(() => {
-            const sectionsNeedingAudio = sectionsWithScripts.filter(section => {
-              const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
-              return !audioState?.result?.success && !audioState?.isGenerating
-            })
-            const isGeneratingAny = audioGeneration.sectionAudioStates.some(s => s.isGenerating && !s.sectionId.startsWith('custom-'))
-            
-            if (sectionsNeedingAudio.length > 1 && !isGeneratingAny) {
+          {audioGeneration.sectionAudioStates
+            .filter(audioState => 
+              audioState.result?.success && 
+              !audioState.sectionId.startsWith('custom-') &&
+              sectionsWithScripts.some(section => section.id === audioState.sectionId)
+            )
+            .map(audioState => {
+              const section = sectionsWithScripts.find(s => s.id === audioState.sectionId)
+              const isCurrentlyPlaying = audioGeneration.isPlaying && audioGeneration.currentPlayingSection === audioState.sectionId
+              
+              if (!section) return null
+              
               return (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Music className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-blue-800">
-                      <p className="font-medium mb-1">💡 Bulk Audio Generation Available</p>
-                      <p>
-                        You have {sectionsNeedingAudio.length} sections ready for audio generation. 
-                        Use the "Generate Audio for All" button above to process all sections automatically with a 2-second delay between each request to respect API rate limits.
-                      </p>
+                <Card key={audioState.sectionId} className="bg-green-50 border-green-200">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="font-medium text-green-900">{section.title}</h4>
+                                                 <p className="text-sm text-green-700">
+                           {Math.round((audioState.result?.audioSize || 0) / 1024)}KB • {selectedVoiceName}
+                         </p>
+                      </div>
+                      <Badge variant="outline" className="text-green-600 border-green-300">
+                        Ready
+                      </Badge>
                     </div>
-                  </div>
-                </div>
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => playPauseAudio(audioState.sectionId, audioState.audioUrl!)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        {isCurrentlyPlaying ? (
+                          <>
+                            <Pause className="h-4 w-4 mr-2" />
+                            Pause
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2" />
+                            Play
+                          </>
+                        )}
+                      </Button>
+                      
+                      <Button
+                        onClick={() => downloadAudio(section.title, audioState.audioUrl!)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               )
-            }
-            return null
-          })()}
+            })}
+        </div>
+      )}
 
-          {/* Bulk Generation Progress */}
-          {bulkGenerationProgress.isGenerating && (
-            <Card className="border-orange-200 bg-orange-50">
+      {/* Final Combined Audio - Only show when joining is enabled and audio is ready */}
+      {sectionsWithScripts.length > 0 && autoConcatenateAfterGeneration && !batchProcessing.isProcessing && !combineAudioProgress.isGenerating && (
+        (() => {
+          const sectionsWithAudio = sectionsWithScripts.filter(section => {
+            const audioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
+            return audioState?.result?.success && audioState.audioUrl
+          })
+          
+          return sectionsWithAudio.length > 1 && (
+            <Card className="bg-green-50 border-green-200">
               <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-                      <span className="font-medium text-orange-900">
-                        Bulk Audio Generation in Progress
-                      </span>
-                    </div>
-                    <Badge variant="outline" className="text-orange-600 border-orange-300">
-                      {bulkGenerationProgress.current} of {bulkGenerationProgress.total}
-                    </Badge>
-                  </div>
-                  
-                  <Progress 
-                    value={(bulkGenerationProgress.current / bulkGenerationProgress.total) * 100} 
-                    className="w-full"
-                  />
-                  
-                  <div className="text-sm text-orange-800">
-                    <p className="font-medium">Currently processing:</p>
-                    <p className="truncate">{bulkGenerationProgress.currentSection}</p>
-                    <p className="text-xs mt-2 text-orange-600">
-                      ⏱️ Each section takes 2-5 minutes to generate. Please be patient.
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-medium text-green-900">Combined Audio Ready</h4>
+                    <p className="text-sm text-green-700">
+                      {sectionsWithAudio.length} sections combined • {selectedVoiceName}
                     </p>
                   </div>
+                  <Badge variant="outline" className="text-green-600 border-green-300">
+                    FFmpeg Combined
+                  </Badge>
                 </div>
+                
+                <Button
+                  onClick={combineAllAudio}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Combined Audio ({sectionsWithAudio.length} sections)
+                </Button>
               </CardContent>
             </Card>
-          )}
-
-          {sectionsWithScripts.map((section) => {
-            const sectionAudioState = audioGeneration.sectionAudioStates.find(s => s.sectionId === section.id)
-            const scriptText = section.texts[0].generated_script
-            const isCurrentlyPlaying = audioGeneration.isPlaying && audioGeneration.currentPlayingSection === section.id
-
-            return (
-              <Card key={section.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{section.title}</CardTitle>
-                      <CardDescription>
-                        {scriptText.length} characters • ~{scriptText.split(' ').length} words • 
-                        Est. ~{Math.ceil(scriptText.split(' ').length / 150)} min duration
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {sectionAudioState?.result?.success && (
-                        <Badge variant="outline" className="text-green-600 border-green-300">
-                          Audio Ready
-                        </Badge>
-                      )}
-                      {sectionAudioState?.isGenerating && (
-                        <Badge variant="outline" className="text-orange-600 border-orange-300">
-                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          Generating
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Script Preview */}
-                  <div className="bg-gray-50 p-3 rounded border max-h-32 overflow-y-auto">
-                    <div className="text-sm text-gray-700">
-                      {scriptText.substring(0, 300)}...
-                    </div>
-                  </div>
-
-                  {/* Generate Button */}
-                  {!sectionAudioState?.result?.success && (
-                    <Button
-                      onClick={() => generateAudio(section.id, scriptText)}
-                      disabled={sectionAudioState?.isGenerating || !audioGeneration.selectedVoice}
-                      className="w-full"
-                    >
-                      {sectionAudioState?.isGenerating ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          Generating Audio...
-                        </>
-                      ) : (
-                        <>
-                          <Music className="h-4 w-4 mr-2" />
-                          Generate Audio with {selectedVoiceName}
-                        </>
-                      )}
-                    </Button>
-                  )}
-
-                  {/* Generation Time Warning */}
-                  {!sectionAudioState?.result?.success && !sectionAudioState?.isGenerating && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-amber-800">
-                          <p className="font-medium">⏱️ Expected Generation Time</p>
-                          <p className="mt-1">
-                            Audio generation may take up to 5 minutes. Please be patient while we process your text with ElevenLabs.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Generation Progress */}
-                  {sectionAudioState?.isGenerating && (
-                    <div className="space-y-2">
-                      <Progress value={50} className="w-full" />
-                      <p className="text-sm text-gray-600 text-center">
-                        Processing with ElevenLabs... This may take up to 5 minutes.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Audio Controls */}
-                  {sectionAudioState?.result?.success && sectionAudioState.audioUrl && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <h4 className="font-medium text-green-900 mb-3">Audio Generated Successfully!</h4>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-green-600">
-                            {sectionAudioState.result.chunksGenerated}/{sectionAudioState.result.totalChunks}
-                          </div>
-                          <div className="text-xs text-gray-600">Chunks</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-blue-600">
-                            {Math.round((sectionAudioState.result.audioSize || 0) / 1024)}KB
-                          </div>
-                          <div className="text-xs text-gray-600">Size</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-purple-600">{selectedVoiceName}</div>
-                          <div className="text-xs text-gray-600">Voice</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-orange-600">{sectionAudioState.result.modelId}</div>
-                          <div className="text-xs text-gray-600">Model</div>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => playPauseAudio(section.id, sectionAudioState.audioUrl!)}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          {isCurrentlyPlaying ? (
-                            <>
-                              <Pause className="h-4 w-4 mr-2" />
-                              Pause
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-4 w-4 mr-2" />
-                              Play
-                            </>
-                          )}
-                        </Button>
-                        
-                        <Button
-                          onClick={() => downloadAudio(section.title, sectionAudioState.audioUrl!)}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Error Display */}
-                  {sectionAudioState?.error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-red-800">
-                        <AlertCircle className="h-4 w-4" />
-                        <span className="font-medium">Error generating audio</span>
-                      </div>
-                      <p className="text-sm text-red-600 mt-1">{sectionAudioState.error}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+          )
+        })()
       )}
     </div>
   )

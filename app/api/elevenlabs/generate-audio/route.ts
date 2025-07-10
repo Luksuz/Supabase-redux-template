@@ -10,6 +10,132 @@ const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 const elevenlabs = elevenLabsApiKey ? new ElevenLabsClient({ apiKey: elevenLabsApiKey }) : null;
 
 function chunkText(text: string, maxChunkSize: number = 10000): string[] {
+  // First, try to split by section boundaries if they exist
+  const sectionBoundaries = detectSectionBoundaries(text);
+  
+  if (sectionBoundaries.length > 0) {
+    console.log(`📝 Detected ${sectionBoundaries.length} section boundaries, splitting by sections`);
+    return chunkBySections(text, sectionBoundaries, maxChunkSize);
+  }
+  
+  // Fallback to sentence-based chunking if no section boundaries found
+  console.log(`📝 No section boundaries detected, using sentence-based chunking`);
+  return chunkBySentences(text, maxChunkSize);
+}
+
+function detectSectionBoundaries(text: string): Array<{start: number, end: number, title?: string}> {
+  const boundaries: Array<{start: number, end: number, title?: string}> = [];
+  
+  // Look for common section markers (ordered by priority)
+  const sectionPatterns = [
+    // Script section markers with clear titles
+    /^(INTRO|OPENING|HOOK|CONCLUSION|ENDING|OUTRO)[:;\s]/gmi,
+    // Section titles with numbers or bullets
+    /^(\d+\.\s+[A-Z].+|•\s+[A-Z].+|\*\s+[A-Z].+)/gm,
+    // Section headers with caps (at least 3 words)
+    /^[A-Z][A-Z\s]{15,}/gm,
+    // Common section dividers
+    /^(---+|===+|\*\*\*+)/gm,
+    // Section breaks with clear indicators
+    /^(SECTION\s+\d+|PART\s+\d+|CHAPTER\s+\d+)/gmi,
+    // Paragraph breaks that might indicate section changes (3+ line breaks)
+    /\n\n\n+/g,
+    // Strong topic transitions (This is..., Now let's..., Moving on...)
+    /\n\n(This is|Now let's|Moving on|Next up|In this section|The next|Another|Finally)/gmi
+  ];
+  
+  let allMatches: Array<{index: number, text: string, pattern: number}> = [];
+  
+  // Collect all matches with their pattern priority
+  sectionPatterns.forEach((pattern, patternIndex) => {
+    const matches = Array.from(text.matchAll(pattern));
+    matches.forEach(match => {
+      if (match.index !== undefined) {
+        allMatches.push({
+          index: match.index,
+          text: match[0].trim(),
+          pattern: patternIndex
+        });
+      }
+    });
+  });
+  
+  // Sort by position and filter overlapping matches (prefer higher priority patterns)
+  allMatches.sort((a, b) => {
+    if (Math.abs(a.index - b.index) < 50) {
+      return a.pattern - b.pattern; // Lower pattern number = higher priority
+    }
+    return a.index - b.index;
+  });
+  
+  // Remove overlapping matches
+  const filteredMatches = allMatches.filter((match, index) => {
+    if (index === 0) return true;
+    const prevMatch = allMatches[index - 1];
+    return Math.abs(match.index - prevMatch.index) >= 50;
+  });
+  
+  // Convert to boundaries
+  let lastEnd = 0;
+  
+  for (const match of filteredMatches) {
+    if (match.index > lastEnd) {
+      boundaries.push({
+        start: lastEnd,
+        end: match.index,
+        title: match.text
+      });
+      lastEnd = match.index;
+    }
+  }
+  
+  // Add final section
+  if (lastEnd < text.length) {
+    boundaries.push({
+      start: lastEnd,
+      end: text.length
+    });
+  }
+  
+  // Filter out very small sections (less than 500 characters for better quality)
+  const validBoundaries = boundaries.filter(b => b.end - b.start > 500);
+  
+  console.log(`📝 Section boundary detection: found ${boundaries.length} potential boundaries, ${validBoundaries.length} valid boundaries`);
+  
+  return validBoundaries;
+}
+
+function chunkBySections(text: string, boundaries: Array<{start: number, end: number, title?: string}>, maxChunkSize: number): string[] {
+  const chunks: string[] = [];
+  
+  console.log(`📝 Chunking by sections: ${boundaries.length} sections detected`);
+  
+  boundaries.forEach((boundary, index) => {
+    const sectionText = text.substring(boundary.start, boundary.end).trim();
+    const sectionTitle = boundary.title || `Section ${index + 1}`;
+    
+    console.log(`📝 Processing section ${index + 1}: "${sectionTitle}" (${sectionText.length} characters)`);
+    
+    if (sectionText.length <= maxChunkSize) {
+      // Section fits in one chunk
+      chunks.push(sectionText);
+      console.log(`📝 Section ${index + 1} fits in one chunk`);
+    } else {
+      // Section is too large, split by sentences within the section
+      console.log(`📝 Section ${index + 1} is too large (${sectionText.length} > ${maxChunkSize}), splitting by sentences`);
+      const sectionChunks = chunkBySentences(sectionText, maxChunkSize);
+      chunks.push(...sectionChunks);
+      console.log(`📝 Section ${index + 1} split into ${sectionChunks.length} chunks`);
+    }
+  });
+  
+  const validChunks = chunks.filter(chunk => chunk.trim().length > 0);
+  console.log(`📝 Total chunks created: ${validChunks.length}`);
+  
+  return validChunks;
+}
+
+function chunkBySentences(text: string, maxChunkSize: number): string[] {
   const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
   const chunks: string[] = [];
   let currentChunk = '';

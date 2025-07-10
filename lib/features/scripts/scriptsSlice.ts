@@ -762,32 +762,58 @@ export const generateAudioThunk = (params: {
   text: string
   voiceId: string
   modelId: string
+  provider?: string
 }) => async (dispatch: any) => {
-  const { sectionId, text, voiceId, modelId } = params
+  const { sectionId, text, voiceId, modelId, provider = 'elevenlabs' } = params
   
   dispatch(startAudioGeneration(sectionId))
   
   try {
-    const response = await fetch('/api/elevenlabs/generate-audio', {
+    let apiEndpoint = '/api/elevenlabs/generate-audio'
+    let requestBody: any = {
+      text,
+      voiceId,
+      modelId,
+      sectionId
+    }
+
+    // Choose API endpoint based on provider
+    if (provider === 'fishaudio') {
+      apiEndpoint = '/api/fishaudio/generate-audio'
+      requestBody = {
+        text,
+        voiceId,
+        model: modelId,
+        sectionId
+      }
+    } else if (provider === 'voicemaker') {
+      apiEndpoint = '/api/voicemaker/generate-audio'
+      requestBody = {
+        text,
+        voiceId,
+        engine: 'neural',
+        sectionId
+      }
+    }
+
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        text,
-        voiceId,
-        modelId,
-        sectionId
-      })
+      body: JSON.stringify(requestBody)
     })
 
     const result = await response.json()
 
     if (response.ok && result.success) {
-      dispatch(setAudioGenerationResult({ sectionId, result }))
+      dispatch(setAudioGenerationResult({ sectionId, result: result.result || result }))
       
-      // Create audio URL if we have audio data
-      if (result.audioData) {
+      // Handle different response formats
+      let audioUrl = null
+      
+      if (provider === 'elevenlabs' && result.audioData) {
+        // ElevenLabs returns base64 data that needs to be converted to blob
         try {
           const binaryString = atob(result.audioData)
           const bytes = new Uint8Array(binaryString.length)
@@ -795,15 +821,22 @@ export const generateAudioThunk = (params: {
             bytes[i] = binaryString.charCodeAt(i)
           }
           const blob = new Blob([bytes], { type: 'audio/mpeg' })
-          const url = URL.createObjectURL(blob)
-          dispatch(setAudioUrl({ sectionId, audioUrl: url }))
+          audioUrl = URL.createObjectURL(blob)
         } catch (error) {
           console.error('Error creating audio URL:', error)
           dispatch(setAudioGenerationError({ sectionId, error: 'Error processing audio data' }))
+          return { success: false, error: 'Error processing audio data' }
         }
+      } else if ((provider === 'fishaudio' || provider === 'voicemaker') && result.audioUrl) {
+        // Fish Audio and VoiceMaker return direct audio URLs (data URLs)
+        audioUrl = result.audioUrl
+      }
+
+      if (audioUrl) {
+        dispatch(setAudioUrl({ sectionId, audioUrl }))
       }
       
-      return { success: true, result }
+      return { success: true, result: result.result || result }
     } else {
       const errorMessage = result.error || 'Failed to generate audio'
       dispatch(setAudioGenerationError({ sectionId, error: errorMessage }))

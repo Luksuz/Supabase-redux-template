@@ -123,7 +123,7 @@ function generateYouTubeUrl(videoId: string, srtTimestamp: string): string {
 async function analyzeChunk(srtContent: string, query: string, videoTitle: string, videoId?: string): Promise<any[]> {
   // Create ChatOpenAI model
   const model = new ChatOpenAI({
-    modelName: "gpt-4o-mini",
+    modelName: "gpt-4.1",
     temperature: 0.3, // Lower temperature for more precise analysis
     openAIApiKey: process.env.OPENAI_API_KEY,
   })

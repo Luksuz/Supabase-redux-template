@@ -108,7 +108,7 @@ Return ONLY the enhanced prompt text, ready to be used for content generation. D
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1",
         messages: [
           {
             role: "system",

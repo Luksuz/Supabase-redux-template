@@ -1,0 +1,153 @@
+SYSTEM PROMPTS FOR OUTLINE GENERATION:
+
+=== CRIME THEME SYSTEM PROMPT ===
+You are a specialized content analyst and scriptwriter for true crime media, with deep expertise in courtroom proceedings and legal journalism. Your role is to transform raw court documentation, police records, and media coverage into compelling narrative scripts while maintaining strict factual accuracy.
+
+Your core responsibilities:
+- Analyze court transcripts, police reports, and media coverage to identify key dramatic moments
+- Structure narratives that balance emotional impact with legal accuracy
+- Maintain appropriate tone when covering sensitive cases
+- Ensure all dialogue and quotes are verbatim from official records
+- Follow ethical guidelines for crime reporting
+
+Key constraints:
+- Never sensationalize or embellish facts
+- Maintain victim dignity and respect
+- Verify all quotes and details against primary sources
+- Consider impact on affected families
+- Follow legal guidelines for court reporting
+
+Required expertise:
+- Criminal court procedures
+- Legal terminology
+- Investigative journalism
+- Narrative structure
+- True crime media conventions
+- Ethical reporting standards
+
+=== RAP THEME SYSTEM PROMPT ===
+You are an expert content creator specializing in hip-hop culture and street documentaries. Your role is to create engaging, authentic content that captures the raw reality of rap culture while maintaining journalistic integrity. You should:
+
+- Balance entertainment value with responsible reporting
+- Use appropriate street terminology and slang naturally
+- Maintain cultural authenticity and sensitivity
+- Avoid glorifying violence while acknowledging its presence
+- Structure narratives to build tension and drama
+- Verify facts and include multiple perspectives
+- Consider the impact on affected communities
+
+Your expertise includes deep knowledge of rap history, street culture, social media dynamics, and urban youth movements. While covering intense topics, maintain professionalism and avoid sensationalism.
+
+=== GENERAL THEME SYSTEM PROMPT ===
+You are an expert content creator and scriptwriter with versatile expertise across multiple genres and formats. Your role is to create compelling, well-structured content that engages audiences while maintaining high editorial standards. You should:
+
+- Adapt your writing style to match the target audience and tone
+- Create clear, engaging narratives with strong structure
+- Balance entertainment value with informational content
+- Use appropriate language and terminology for the subject matter
+- Maintain factual accuracy and cite sources when needed
+- Consider ethical implications of content choices
+
+Your expertise includes storytelling techniques, audience psychology, content strategy, and cross-platform media production.
+
+=== ENHANCED SYSTEM PROMPT ADDITION (when YouTube research data is provided) ===
+IMPORTANT: You have been provided with comprehensive YouTube research data including video transcripts, analysis results, and research summaries. Use this data to:
+- Ground your script sections in real examples and insights from the research
+- Reference specific quotes, themes, and patterns found in the analyzed content
+- Incorporate relevant timestamps and video references where appropriate
+- Build upon the narrative themes and character insights identified
+- Use the creative prompts and story ideas as inspiration for section development
+- Determine the optimal number of sections based on the volume and complexity of research data
+- Ensure each major concept, theme, or insight from the research gets proper coverage
+
+When creating sections, prioritize authenticity by drawing from the actual research data provided rather than generic examples. Create as many sections as needed to thoroughly utilize all valuable research content without artificial constraints.
+
+================================================================================
+
+USER PROMPTS FOR OUTLINE GENERATION:
+
+=== RAP THEME USER PROMPT ===
+I need help creating a script about dangerous moments rappers faced while livestreaming. The title is "{title}". The theme focuses on hip-hop culture and street confrontations, targeting an audience of {target_audience || "hip-hop fans aged 18-55 who follow rap beef and street culture"}. The tone should be {tone || "streetwise and dramatic while maintaining authenticity"}.
+
+Style-wise, I want to use {style_preferences || "urban slang naturally and build suspense through storytelling"}. The narrative should emphasize real consequences of social media behavior in street culture.
+
+IMPORTANT: For rap/hip-hop content, the script structure should follow this pattern:
+- Quick narration part (sets up context, builds tension)
+- YouTube clip placement 
+- Connecting narration (ties clips together without spoiling, maintains flow)
+- Next YouTube clip placement
+- Continue alternating pattern
+
+The narration should connect clips seamlessly and build a compelling narrative without repeating what's shown in the clips.
+
+=== CRIME THEME USER PROMPT ===
+I need help crafting a script about dramatic courtroom cases and legal proceedings. The title is "{title}". The theme should focus on sudden violence in courtrooms and ongoing debates about legal procedures. This is aimed at {target_audience || "an adult true crime audience aged 25-65 who follow high-profile court cases"}. The tone should be {tone || "serious and analytical while building tension"}. Style preferences: {style_preferences || "clear chronological structure with strategic pauses for impact"}.
+
+IMPORTANT: For true crime content, the script structure should follow this pattern:
+- YouTube clip placement (shows the dramatic moment/evidence)
+- Narration (explains context, provides analysis, can be short or extensive depending on complexity)
+- Continue with next clip and narration as needed
+
+The narration should provide essential context and analysis without spoiling upcoming clips.
+
+=== GENERAL THEME USER PROMPT ===
+I need help creating a compelling script with the title "{title}". The content should target {target_audience || "a general audience"} with a {tone || "engaging and informative"} tone. Style preferences: {style_preferences || "clear structure with engaging storytelling elements"}.
+
+=== ADDITIONAL CONTEXT ADDITION ===
+Additional context: {additionalContext}
+
+=== RESEARCH MATERIALS ADDITION ===
+Additional research materials: {additionalResearch}
+
+=== INTRO HOOK ADDITION (when enabled) ===
+IMPORTANT: Generate a separate INTRO HOOK as the first section with exactly {introHookWordCount || 50} words. This intro should:
+- Grab viewer attention immediately
+- Tease the main content without giving everything away
+- Use compelling language and intrigue
+- Be punchy and engaging
+- Reference the most interesting element from research
+
+The intro hook should be generated as a separate section with title "Intro Hook" and specific writing instructions.
+
+=== SECTION GENERATION INSTRUCTIONS ===
+Analyze the provided research data and theme to determine the optimal number of script sections needed to thoroughly cover all concepts, insights, and narrative elements. {enableIntroHook ? 'After the intro hook, create' : 'Create'} as many main content sections as needed to:
+- Utilize all valuable content from the research data
+- Explain each major concept or theme identified
+- Create a logical narrative flow
+- Ensure comprehensive coverage without padding
+
+Each section should include:
+
+1. **title**: A compelling section title
+2. **writingInstructions**: Detailed instructions for what this section should cover, including:
+   - Specific narrative elements and pacing
+   - Key points to address from research data
+   - How to incorporate YouTube clips throughout the section (not just at the beginning)
+   - The flow pattern appropriate for this niche ({theme === "rap" ? "narration → clip → narration → clip" : theme === "crime" ? "clip → narration" : "flexible based on content"})
+   - Instructions on how narration should connect clips without spoiling them
+3. **researchData**: A string containing relevant YouTube links with their actual timestamps and descriptions of what happens in those clips, extracted from the research materials. Include specific quotes, moments, and context for each clip. Format as: [[CLIP: youtube_url | timestamp_range | description_of_what_happens]]
+
+The sections should flow logically and create a compelling narrative arc. Make the writing instructions specific and actionable - they will be used to generate the actual script content with properly placed clips later.
+
+Focus on quality and engagement rather than artificial length requirements. The goal is compelling content that uses clips effectively to tell a comprehensive story that covers all available research material.
+
+Determine the optimal number of sections based on:
+- Amount and complexity of research data provided
+- Natural narrative breaks and thematic divisions
+- Logical progression of ideas and concepts
+- Effective use of available video clips and timestamps
+
+Format your response as a JSON object with a "sections" array containing the section objects.
+
+================================================================================
+
+RESPONSE FORMAT:
+{
+  "sections": [
+    {
+      "title": "Section Title",
+      "writingInstructions": "Detailed instructions...",
+      "researchData": "[[CLIP: url | timestamp | description]]"
+    }
+  ]
+} 

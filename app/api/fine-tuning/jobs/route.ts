@@ -50,14 +50,27 @@ export async function GET(request: NextRequest) {
 
     console.log('Found jobs:', jobs?.length || 0)
 
-    // Transform data to match frontend structure
-    const transformedJobs = (jobs as DatabaseJob[]).map(job => ({
-      ...job,
-      sections: job.fine_tuning_outline_sections?.map((section: DatabaseSection) => ({
+    // Transform data to match frontend structure and update training_examples_count
+    const transformedJobs = (jobs as DatabaseJob[]).map(job => {
+      const sections = job.fine_tuning_outline_sections?.map((section: DatabaseSection) => ({
         ...section,
-        texts: section.fine_tuning_texts || []
+        texts: section.fine_tuning_texts || [],
+        training_examples_count: section.fine_tuning_texts?.length || 0
       })) || []
-    }))
+      
+      // Calculate job-level totals
+      const total_sections = sections.length
+      const total_training_examples = sections.reduce((sum, section) => sum + (section.texts?.length || 0), 0)
+      const completed_sections = sections.filter(section => section.is_completed).length
+      
+      return {
+        ...job,
+        sections,
+        total_sections,
+        total_training_examples,
+        completed_sections
+      }
+    })
 
     console.log('Returning transformed jobs')
     return NextResponse.json({ jobs: transformedJobs })

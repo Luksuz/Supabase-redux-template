@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { BookOpen, PenTool, ChevronDown, ChevronRight, Globe, FileText, Plus, Save, X, Edit } from 'lucide-react'
+import { BookOpen, PenTool, ChevronDown, ChevronRight, Globe, FileText, Plus, Save, X, Edit, Download } from 'lucide-react'
 import { clearAllResearchSummaries, markMultipleResearchAsApplied, removeGoogleResearchSummary, removeYouTubeResearchSummary, addGoogleResearchSummary, addYouTubeResearchSummary, updateGoogleResearchSummary, updateYouTubeResearchSummary } from '@/lib/features/youtube/youtubeSlice'
 import { AppDispatch } from '@/lib/store'
 import { showToast } from '@/lib/utils/toast'
@@ -46,6 +46,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
   const [historyLoading, setHistoryLoading] = React.useState(false)
   const [researchHistory, setResearchHistory] = React.useState<any[]>([])
   const [selectedHistoryItems, setSelectedHistoryItems] = React.useState<Set<string>>(new Set())
+  const [isExporting, setIsExporting] = React.useState(false)
   const [customResearch, setCustomResearch] = React.useState<CustomResearchData>({
     type: 'google',
     query: '',
@@ -359,6 +360,53 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
     setSelectedForScript(new Set())
   }
 
+  const handleExportResearch = async () => {
+    if (allSummaries.length === 0) {
+      showToast.error('No research data to export')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      console.log('📄 Exporting research data to DOCX...')
+      
+      const response = await fetch('/api/research/export-docx', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          researchData: allSummaries,
+          title: `Research Export - ${new Date().toLocaleDateString()}`
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to export research')
+      }
+
+      // Get the blob and create download link
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Research_Export_${new Date().toISOString().split('T')[0]}.docx`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      showToast.success(`Successfully exported ${allSummaries.length} research items to DOCX!`)
+      
+    } catch (error) {
+      console.error('Export error:', error)
+      showToast.error('Failed to export research: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const handleSaveCustomResearch = async () => {
     try {
       // Prepare the data for the API
@@ -573,6 +621,129 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
     }
   }
 
+  // Function to add new timestamp to a video summary
+  const addNewTimestamp = (summaryId: string, videoIndex: number, summary: any) => {
+    const newTimestamp = {
+      startTime: '00:00:00',
+      endTime: '00:00:00',
+      speaker: '',
+      description: '',
+      quote: '',
+      significance: ''
+    }
+    
+    const updatedSummary = {
+      ...summary,
+      videosSummary: {
+        ...summary.videosSummary,
+        videoSummaries: summary.videosSummary.videoSummaries.map((vs: any, idx: number) => 
+          idx === videoIndex 
+            ? { ...vs, timestamps: [...(vs.timestamps || []), newTimestamp] }
+            : vs
+        )
+      }
+    }
+    
+    if (summary.type === 'youtube') {
+      dispatch(updateYouTubeResearchSummary(updatedSummary))
+    }
+  }
+
+  // Function to remove timestamp from a video summary
+  const removeTimestamp = (summaryId: string, videoIndex: number, timestampIndex: number, summary: any) => {
+    const updatedSummary = {
+      ...summary,
+      videosSummary: {
+        ...summary.videosSummary,
+        videoSummaries: summary.videosSummary.videoSummaries.map((vs: any, idx: number) => 
+          idx === videoIndex 
+            ? { ...vs, timestamps: vs.timestamps.filter((_: any, tsIdx: number) => tsIdx !== timestampIndex) }
+            : vs
+        )
+      }
+    }
+    
+    if (summary.type === 'youtube') {
+      dispatch(updateYouTubeResearchSummary(updatedSummary))
+    }
+  }
+
+  // Function to add new key point to a video summary
+  const addNewKeyPoint = (summaryId: string, videoIndex: number, summary: any) => {
+    const updatedSummary = {
+      ...summary,
+      videosSummary: {
+        ...summary.videosSummary,
+        videoSummaries: summary.videosSummary.videoSummaries.map((vs: any, idx: number) => 
+          idx === videoIndex 
+            ? { ...vs, keyPoints: [...(vs.keyPoints || []), 'New key point'] }
+            : vs
+        )
+      }
+    }
+    
+    if (summary.type === 'youtube') {
+      dispatch(updateYouTubeResearchSummary(updatedSummary))
+    }
+  }
+
+  // Function to remove key point from a video summary
+  const removeKeyPoint = (summaryId: string, videoIndex: number, pointIndex: number, summary: any) => {
+    const updatedSummary = {
+      ...summary,
+      videosSummary: {
+        ...summary.videosSummary,
+        videoSummaries: summary.videosSummary.videoSummaries.map((vs: any, idx: number) => 
+          idx === videoIndex 
+            ? { ...vs, keyPoints: vs.keyPoints.filter((_: any, pIdx: number) => pIdx !== pointIndex) }
+            : vs
+        )
+      }
+    }
+    
+    if (summary.type === 'youtube') {
+      dispatch(updateYouTubeResearchSummary(updatedSummary))
+    }
+  }
+
+  // Function to add new key quote to a video summary
+  const addNewKeyQuote = (summaryId: string, videoIndex: number, summary: any) => {
+    const updatedSummary = {
+      ...summary,
+      videosSummary: {
+        ...summary.videosSummary,
+        videoSummaries: summary.videosSummary.videoSummaries.map((vs: any, idx: number) => 
+          idx === videoIndex 
+            ? { ...vs, keyQuotes: [...(vs.keyQuotes || []), 'New quote'] }
+            : vs
+        )
+      }
+    }
+    
+    if (summary.type === 'youtube') {
+      dispatch(updateYouTubeResearchSummary(updatedSummary))
+    }
+  }
+
+  // Function to remove key quote from a video summary
+  const removeKeyQuote = (summaryId: string, videoIndex: number, quoteIndex: number, summary: any) => {
+    const updatedSummary = {
+      ...summary,
+      videosSummary: {
+        ...summary.videosSummary,
+        videoSummaries: summary.videosSummary.videoSummaries.map((vs: any, idx: number) => 
+          idx === videoIndex 
+            ? { ...vs, keyQuotes: vs.keyQuotes.filter((_: any, qIdx: number) => qIdx !== quoteIndex) }
+            : vs
+        )
+      }
+    }
+    
+    if (summary.type === 'youtube') {
+      dispatch(updateYouTubeResearchSummary(updatedSummary))
+    }
+  }
+
   const allSummaries = React.useMemo(() => {
     // Create a Map to ensure uniqueness by ID
     const summaryMap = new Map()
@@ -695,6 +866,17 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
             <BookOpen className="h-4 w-4" />
             Research History
           </button>
+          
+          {allSummaries.length > 0 && (
+            <button
+              onClick={handleExportResearch}
+              disabled={isExporting}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {isExporting ? 'Exporting...' : 'Export Research'}
+            </button>
+          )}
           
           {selectedForScript.size > 0 && (
             <button
@@ -1367,23 +1549,28 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                 {summary.videosSummary.videoSummaries.map((videoSummary: any, index: number) => (
                                   <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                                     <div className="mb-2">
-                                      <h4 className="font-medium text-gray-900 mb-1">{videoSummary.title}</h4>
+                                      <h4 className="font-medium text-gray-900 mb-1">
+                                        {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.title`, videoSummary.title || '', summary.id, summary, 'Video title...')}
+                                      </h4>
                                       
                                       <div className="flex items-center gap-4 text-xs text-gray-500">
-                                        <span>Topic: {videoSummary.mainTopic}</span>
-                                        <span>Tone: {videoSummary.emotionalTone}</span>
+                                        <span>Topic: {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.mainTopic`, videoSummary.mainTopic || '', summary.id, summary, 'Main topic...')}</span>
+                                        <span>Tone: {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.emotionalTone`, videoSummary.emotionalTone || '', summary.id, summary, 'Emotional tone...')}</span>
                                         {videoSummary.timestamp && (
-                                          <a
-                                            href={`https://www.youtube.com/watch?v=${videoSummary.videoId}&t=${convertTimestampToSeconds(videoSummary.timestamp)}s`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-red-600 hover:text-red-800 underline flex items-center gap-1"
-                                          >
-                                            🕐 {videoSummary.timestamp}
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-6m-7 1l8-8m0 0V8m0 0H8" />
-                                            </svg>
-                                          </a>
+                                          <div className="flex items-center gap-1">
+                                            <span>🕐</span>
+                                            {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamp`, videoSummary.timestamp, summary.id, summary, 'HH:MM:SS')}
+                                            <a
+                                              href={`https://www.youtube.com/watch?v=${videoSummary.videoId}&t=${convertTimestampToSeconds(videoSummary.timestamp)}s`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-red-600 hover:text-red-800 underline flex items-center gap-1"
+                                            >
+                                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-6m-7 1l8-8m0 0V8m0 0H8" />
+                                              </svg>
+                                            </a>
+                                          </div>
                                         )}
                                       </div>
                                     </div>
@@ -1391,67 +1578,154 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                     {/* Show ALL timestamps from analysis if available */}
                                     {videoSummary.timestamps && videoSummary.timestamps.length > 0 && (
                                       <div className="mb-3">
-                                        <h5 className="text-sm font-medium text-gray-700 mb-2">Timestamps ({videoSummary.timestamps.length}):</h5>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <h5 className="text-sm font-medium text-gray-700">Timestamps ({videoSummary.timestamps.length}):</h5>
+                                          <button
+                                            onClick={() => addNewTimestamp(summary.id, index, summary)}
+                                            className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                            Add Timestamp
+                                          </button>
+                                        </div>
                                         <div className="space-y-2 max-h-40 overflow-y-auto">
                                           {videoSummary.timestamps.map((timestamp: any, timestampIndex: number) => (
                                             <div key={timestampIndex} className="bg-white p-2 rounded border text-xs">
                                               <div className="flex items-center gap-2 mb-1">
+                                                <div className="flex items-center gap-1">
+                                                  <span>🕐</span>
+                                                  {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamps.${timestampIndex}.startTime`, timestamp.startTime || '', summary.id, summary, 'HH:MM:SS')}
+                                                  <span>-</span>
+                                                  {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamps.${timestampIndex}.endTime`, timestamp.endTime || '', summary.id, summary, 'HH:MM:SS')}
+                                                </div>
                                                 <a
                                                   href={`https://www.youtube.com/watch?v=${videoSummary.videoId}&t=${convertTimestampToSeconds(timestamp.startTime)}s`}
                                                   target="_blank"
                                                   rel="noopener noreferrer"
-                                                  className="text-red-600 hover:text-red-800 underline font-medium"
+                                                  className="text-red-600 hover:text-red-800 underline"
                                                 >
-                                                  🕐 {timestamp.startTime} - {timestamp.endTime}
+                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-6m-7 1l8-8m0 0V8m0 0H8" />
+                                                  </svg>
                                                 </a>
-                                                <span className="text-blue-600 font-medium">{timestamp.speaker}</span>
+                                                <span className="text-blue-600 font-medium">
+                                                  {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamps.${timestampIndex}.speaker`, timestamp.speaker || '', summary.id, summary, 'Speaker name...')}
+                                                </span>
                                               </div>
-                                              <p className="text-gray-700 mb-1">{timestamp.description}</p>
+                                              <p className="text-gray-700 mb-1">
+                                                {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamps.${timestampIndex}.description`, timestamp.description || '', summary.id, summary, 'Description...')}
+                                              </p>
                                               {timestamp.quote && (
-                                                <p className="text-gray-600 italic">"{timestamp.quote}"</p>
+                                                <p className="text-gray-600 italic">
+                                                  "{renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamps.${timestampIndex}.quote`, timestamp.quote || '', summary.id, summary, 'Quote...')}"
+                                                </p>
                                               )}
-                                              <p className="text-gray-500 text-xs">{timestamp.significance}</p>
+                                              <p className="text-gray-500 text-xs">
+                                                {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamps.${timestampIndex}.significance`, timestamp.significance || '', summary.id, summary, 'Significance...')}
+                                              </p>
+                                              <div className="flex justify-end mt-1">
+                                                <button
+                                                  onClick={() => removeTimestamp(summary.id, index, timestampIndex, summary)}
+                                                  className="text-red-600 hover:text-red-800 text-xs flex items-center gap-1"
+                                                >
+                                                  <X className="h-3 w-3" />
+                                                  Remove
+                                                </button>
+                                              </div>
                                             </div>
                                           ))}
                                         </div>
                                       </div>
                                     )}
 
+                                    {/* Add timestamps button when no timestamps exist */}
+                                    {(!videoSummary.timestamps || videoSummary.timestamps.length === 0) && (
+                                      <div className="mb-3">
+                                        <button
+                                          onClick={() => addNewTimestamp(summary.id, index, summary)}
+                                          className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1 border border-blue-200 rounded px-2 py-1"
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                          Add First Timestamp
+                                        </button>
+                                      </div>
+                                    )}
+
                                     {videoSummary.contextualInfo && (
                                       <div className="mb-3">
                                         <p className="text-sm text-gray-700 bg-white p-2 rounded border">
-                                          {videoSummary.contextualInfo}
+                                          {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.contextualInfo`, videoSummary.contextualInfo || '', summary.id, summary, 'Contextual information...')}
                                         </p>
                                       </div>
                                     )}
                                     
                                     <div className="grid md:grid-cols-2 gap-3 text-sm">
-                                      {videoSummary.keyPoints && videoSummary.keyPoints.length > 0 && (
-                                        <div>
+                                      <div>
+                                        <div className="flex items-center justify-between mb-1">
                                           <span className="font-medium text-gray-800">Key Points:</span>
-                                          <ul className="mt-1 space-y-1">
-                                            {videoSummary.keyPoints.slice(0, 3).map((point: string, idx: number) => (
+                                          <button
+                                            onClick={() => addNewKeyPoint(summary.id, index, summary)}
+                                            className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                            Add
+                                          </button>
+                                        </div>
+                                        {videoSummary.keyPoints && videoSummary.keyPoints.length > 0 ? (
+                                          <ul className="space-y-1">
+                                            {videoSummary.keyPoints.map((point: string, idx: number) => (
                                               <li key={idx} className="text-gray-600 flex items-start gap-1">
                                                 <span className="text-blue-600">•</span>
-                                                {point}
+                                                <div className="flex-1 flex items-center gap-1">
+                                                  {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.keyPoints.${idx}`, point, summary.id, summary, 'Key point...')}
+                                                  <button
+                                                    onClick={() => removeKeyPoint(summary.id, index, idx, summary)}
+                                                    className="text-red-600 hover:text-red-800 text-xs"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                </div>
                                               </li>
                                             ))}
                                           </ul>
-                                        </div>
-                                      )}
+                                        ) : (
+                                          <p className="text-gray-500 text-xs italic">No key points added yet</p>
+                                        )}
+                                      </div>
                                       
-                                      {videoSummary.keyQuotes && videoSummary.keyQuotes.length > 0 && (
-                                        <div>
+                                      <div>
+                                        <div className="flex items-center justify-between mb-1">
                                           <span className="font-medium text-gray-800">Key Quotes:</span>
-                                          <ul className="mt-1 space-y-1">
-                                            {videoSummary.keyQuotes.slice(0, 2).map((quote: any, idx: number) => (
-                                              <li key={idx} className="text-gray-600 italic">
-                                                "{typeof quote === 'string' ? quote : quote.quote || quote.text}"
+                                          <button
+                                            onClick={() => addNewKeyQuote(summary.id, index, summary)}
+                                            className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                            Add
+                                          </button>
+                                        </div>
+                                        {videoSummary.keyQuotes && videoSummary.keyQuotes.length > 0 ? (
+                                          <ul className="space-y-1">
+                                            {videoSummary.keyQuotes.map((quote: any, idx: number) => (
+                                              <li key={idx} className="text-gray-600 italic flex items-start gap-1">
+                                                <span>"</span>
+                                                <div className="flex-1 flex items-center gap-1">
+                                                  {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.keyQuotes.${idx}`, typeof quote === 'string' ? quote : quote.quote || quote.text || '', summary.id, summary, 'Quote...')}
+                                                  <button
+                                                    onClick={() => removeKeyQuote(summary.id, index, idx, summary)}
+                                                    className="text-red-600 hover:text-red-800 text-xs"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                </div>
+                                                <span>"</span>
                                               </li>
                                             ))}
                                           </ul>
-                                        </div>
-                                      )}
+                                        ) : (
+                                          <p className="text-gray-500 text-xs italic">No key quotes added yet</p>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 ))}

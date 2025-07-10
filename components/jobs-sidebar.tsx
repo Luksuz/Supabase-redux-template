@@ -8,6 +8,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Textarea } from './ui/textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { 
   Loader2, 
   Edit2, 
@@ -29,7 +30,11 @@ import {
   User,
   Hash,
   BookOpen,
-  Briefcase
+  Briefcase,
+  Download,
+  Copy,
+  Eye,
+  ExternalLink
 } from 'lucide-react'
 
 interface FineTuningJob {
@@ -82,6 +87,13 @@ export function JobsSidebar() {
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set())
   const [deletingJob, setDeletingJob] = useState<string | null>(null)
   const [deletingSection, setDeletingSection] = useState<string | null>(null)
+  
+  // Modal states
+  const [scriptModalOpen, setScriptModalOpen] = useState(false)
+  const [selectedScript, setSelectedScript] = useState<any>(null)
+  const [editingScript, setEditingScript] = useState(false)
+  const [editedScriptContent, setEditedScriptContent] = useState('')
+  const [editedInputContent, setEditedInputContent] = useState('')
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -282,6 +294,106 @@ export function JobsSidebar() {
     setEditSectionData({})
   }
 
+  const openScriptModal = (script: any, section?: FineTuningSection) => {
+    setSelectedScript({ ...script, section })
+    setEditedScriptContent(script.generated_script)
+    setEditedInputContent(script.input_text)
+    setEditingScript(false)
+    setScriptModalOpen(true)
+  }
+
+  const saveScriptChanges = async () => {
+    if (!selectedScript) return
+
+    try {
+      const response = await fetch('/api/fine-tuning/texts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text_id: selectedScript.id,
+          updates: {
+            generated_script: editedScriptContent,
+            input_text: editedInputContent
+          }
+        })
+      })
+
+      if (response.ok) {
+        showMessage('Script updated successfully', 'success')
+        setEditingScript(false)
+        fetchJobs() // Refresh data
+      } else {
+        const data = await response.json()
+        showMessage(data.error || 'Failed to update script', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to update script', 'error')
+    }
+  }
+
+  const copyToClipboard = (text: string, type: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      showMessage(`${type} copied to clipboard`, 'success')
+    }).catch(() => {
+      showMessage(`Failed to copy ${type.toLowerCase()}`, 'error')
+    })
+  }
+
+  const downloadJobScript = (job: FineTuningJob) => {
+    if (!job.sections || job.sections.length === 0) {
+      showMessage('No sections found in this job', 'error')
+      return
+    }
+
+    let fullScript = `# ${job.name}\n\n**Theme:** ${job.theme}\n\n`
+    if (job.description) {
+      fullScript += `**Description:** ${job.description}\n\n`
+    }
+    fullScript += `---\n\n`
+
+    job.sections
+      .sort((a, b) => a.section_order - b.section_order)
+      .forEach((section, index) => {
+        fullScript += `## Section ${index + 1}: ${section.title}\n\n`
+        fullScript += `**Writing Instructions:** ${section.writing_instructions}\n\n`
+        
+        if (section.target_audience) {
+          fullScript += `**Target Audience:** ${section.target_audience}\n\n`
+        }
+        if (section.tone) {
+          fullScript += `**Tone:** ${section.tone}\n\n`
+        }
+        if (section.style_preferences) {
+          fullScript += `**Style:** ${section.style_preferences}\n\n`
+        }
+
+        if (section.texts && section.texts.length > 0) {
+          fullScript += `### Generated Scripts:\n\n`
+          section.texts.forEach((text, textIndex) => {
+            fullScript += `#### Script ${textIndex + 1}:\n`
+            fullScript += `${text.generated_script}\n\n`
+            if (text.input_text) {
+              fullScript += `*Input:* ${text.input_text}\n\n`
+            }
+            fullScript += `---\n\n`
+          })
+        }
+        fullScript += `\n`
+      })
+
+    const blob = new Blob([fullScript], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${job.name.replace(/[^a-zA-Z0-9]/g, '_')}_script.md`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    showMessage('Script downloaded successfully', 'success')
+  }
+
   useEffect(() => {
     fetchJobs()
   }, [user.isLoggedIn])
@@ -438,7 +550,7 @@ export function JobsSidebar() {
                                 <div className="flex items-center gap-2 mb-1">
                                   <h4 className="font-medium truncate">{section.title}</h4>
                                   <Badge variant="outline" className="text-xs h-4">
-                                    {section.training_examples_count}
+                                    {section.texts?.length || 0}
                                   </Badge>
                                 </div>
                                 <p className="text-gray-600 line-clamp-1">
@@ -465,6 +577,8 @@ export function JobsSidebar() {
             job={selectedJob!}
             onEdit={startEditingSection}
             onDelete={deleteSection}
+            onOpenScript={openScriptModal}
+            onCopyText={copyToClipboard}
             editingSection={editingSection}
             editSectionData={editSectionData}
             setEditSectionData={setEditSectionData}
@@ -477,6 +591,7 @@ export function JobsSidebar() {
             job={selectedJob}
             onEdit={startEditingJob}
             onDelete={deleteJob}
+            onDownload={downloadJobScript}
             editingJob={editingJob}
             editJobData={editJobData}
             setEditJobData={setEditJobData}
@@ -495,6 +610,147 @@ export function JobsSidebar() {
             </div>
           </div>
         )}
+
+        {/* Script Modal */}
+        <Dialog open={scriptModalOpen} onOpenChange={setScriptModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedScript?.section ? 
+                  `Script from "${selectedScript.section.title}"` : 
+                  'Script Details'
+                }
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedScript && (
+              <div className="space-y-6">
+                {/* Edit Mode Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">
+                      {selectedScript.quality_score ? 
+                        `Quality: ${selectedScript.quality_score}/10` : 
+                        'No Quality Score'
+                      }
+                    </Badge>
+                    {selectedScript.section && (
+                      <Badge variant="secondary">
+                        {selectedScript.section.title}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {editingScript ? (
+                      <>
+                        <Button onClick={saveScriptChanges} size="sm">
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </Button>
+                        <Button 
+                          onClick={() => setEditingScript(false)} 
+                          variant="outline" 
+                          size="sm"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        onClick={() => setEditingScript(true)} 
+                        variant="outline" 
+                        size="sm"
+                      >
+                        <Edit2 className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Input Text */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">Input Text</Label>
+                    <Button
+                      onClick={() => copyToClipboard(editingScript ? editedInputContent : selectedScript.input_text, 'Input')}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy
+                    </Button>
+                  </div>
+                  {editingScript ? (
+                    <Textarea
+                      value={editedInputContent}
+                      onChange={(e) => setEditedInputContent(e.target.value)}
+                      rows={6}
+                      className="font-mono text-sm"
+                    />
+                  ) : (
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <p className="whitespace-pre-wrap text-sm">{selectedScript.input_text}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Generated Script */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">Generated Script</Label>
+                    <Button
+                      onClick={() => copyToClipboard(editingScript ? editedScriptContent : selectedScript.generated_script, 'Script')}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy
+                    </Button>
+                  </div>
+                  {editingScript ? (
+                    <Textarea
+                      value={editedScriptContent}
+                      onChange={(e) => setEditedScriptContent(e.target.value)}
+                      rows={12}
+                      className="font-mono text-sm"
+                    />
+                  ) : (
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <p className="whitespace-pre-wrap text-sm">{selectedScript.generated_script}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section Details */}
+                {selectedScript.section && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-medium mb-3">Section Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Writing Instructions</Label>
+                        <p className="mt-1">{selectedScript.section.writing_instructions}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Target Audience</Label>
+                        <p className="mt-1">{selectedScript.section.target_audience || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Tone</Label>
+                        <p className="mt-1">{selectedScript.section.tone || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Style Preferences</Label>
+                        <p className="mt-1">{selectedScript.section.style_preferences || 'Not specified'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
@@ -505,6 +761,7 @@ function JobDetailView({
   job, 
   onEdit, 
   onDelete, 
+  onDownload,
   editingJob, 
   editJobData, 
   setEditJobData, 
@@ -515,6 +772,7 @@ function JobDetailView({
   job: FineTuningJob
   onEdit: (job: FineTuningJob) => void
   onDelete: (jobId: string) => void
+  onDownload: (job: FineTuningJob) => void
   editingJob: string | null
   editJobData: Partial<FineTuningJob>
   setEditJobData: (data: Partial<FineTuningJob>) => void
@@ -539,6 +797,10 @@ function JobDetailView({
           
           {!isEditing && (
             <div className="flex gap-2">
+              <Button onClick={() => onDownload(job)} variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Download Script
+              </Button>
               <Button onClick={() => onEdit(job)} variant="outline">
                 <Edit2 className="h-4 w-4 mr-2" />
                 Edit Job
@@ -675,7 +937,7 @@ function JobDetailView({
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="font-medium text-gray-900">{section.title}</h4>
                         <Badge variant={section.is_completed ? "default" : "secondary"}>
-                          {section.training_examples_count} texts
+                          {section.texts?.length || 0} texts
                         </Badge>
                       </div>
                       <p className="text-sm text-gray-600 mb-3 line-clamp-2">
@@ -717,6 +979,8 @@ function SectionDetailView({
   job, 
   onEdit, 
   onDelete, 
+  onOpenScript,
+  onCopyText,
   editingSection, 
   editSectionData, 
   setEditSectionData, 
@@ -728,6 +992,8 @@ function SectionDetailView({
   job: FineTuningJob
   onEdit: (section: FineTuningSection) => void
   onDelete: (sectionId: string) => void
+  onOpenScript: (script: any, section?: FineTuningSection) => void
+  onCopyText: (text: string, type: string) => void
   editingSection: string | null
   editSectionData: Partial<FineTuningSection>
   setEditSectionData: (data: Partial<FineTuningSection>) => void
@@ -887,7 +1153,7 @@ function SectionDetailView({
                       <FileText className="h-4 w-4 text-green-600" />
                       <span className="text-sm font-medium text-green-900">Texts</span>
                     </div>
-                    <p className="text-xl font-bold text-green-600">{section.training_examples_count}</p>
+                    <p className="text-xl font-bold text-green-600">{section.texts?.length || 0}</p>
                   </div>
                   <div className={`p-3 rounded-lg ${section.is_completed ? 'bg-green-50' : 'bg-yellow-50'}`}>
                     <div className="flex items-center gap-2 mb-1">
@@ -926,20 +1192,60 @@ function SectionDetailView({
                   <div key={text.id || index} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-start justify-between mb-2">
                       <h4 className="font-medium text-gray-900">Text #{index + 1}</h4>
-                      {text.quality_score && (
-                        <Badge variant="outline">
-                          Score: {text.quality_score}/10
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {text.quality_score && (
+                          <Badge variant="outline">
+                            Score: {text.quality_score}/10
+                          </Badge>
+                        )}
+                        <Button
+                          onClick={() => onOpenScript(text, section)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs font-medium text-gray-500">Input</Label>
-                        <p className="text-sm text-gray-900 mt-1 line-clamp-3">{text.input_text}</p>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-gray-500">Input</Label>
+                          <Button
+                            onClick={() => onCopyText(text.input_text, 'Input')}
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p 
+                          className="text-sm text-gray-900 mt-1 line-clamp-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                          onClick={() => onOpenScript(text, section)}
+                        >
+                          {text.input_text}
+                        </p>
                       </div>
                       <div>
-                        <Label className="text-xs font-medium text-gray-500">Generated Script</Label>
-                        <p className="text-sm text-gray-900 mt-1 line-clamp-3">{text.generated_script}</p>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-gray-500">Generated Script</Label>
+                          <Button
+                            onClick={() => onCopyText(text.generated_script, 'Script')}
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p 
+                          className="text-sm text-gray-900 mt-1 line-clamp-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                          onClick={() => onOpenScript(text, section)}
+                        >
+                          {text.generated_script}
+                        </p>
                       </div>
                     </div>
                   </div>

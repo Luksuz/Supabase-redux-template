@@ -66,6 +66,22 @@ export interface AnalysisResult {
   usingMock?: boolean
 }
 
+// Clip interface for script attachment
+export interface AvailableClip {
+  id: string
+  videoId: string
+  videoTitle: string
+  youtubeUrl: string
+  startTime: string
+  endTime: string
+  description: string
+  quote?: string
+  speaker?: string
+  significance?: string
+  source: 'analysis' | 'research' | 'gemini' // Where the clip came from
+  confidence?: number
+}
+
 // Search Info interface
 export interface SearchInfo {
   query?: string
@@ -297,6 +313,9 @@ interface YouTubeState {
   googleResearchSummaries: GoogleResearchSummary[]
   youtubeResearchSummaries: YouTubeResearchSummary[]
   
+  // Available clips for script attachment
+  availableClips: AvailableClip[]
+  
   // Loading and error states
   searchLoading: boolean
   error: string | null
@@ -337,6 +356,9 @@ const initialState: YouTubeState = {
   // Research summaries
   googleResearchSummaries: [],
   youtubeResearchSummaries: [],
+  
+  // Available clips for script attachment
+  availableClips: [],
   
   // Loading and error states
   searchLoading: false,
@@ -1010,6 +1032,112 @@ export const youtubeSlice = createSlice({
       state.totalVideosProcessing = 0
       state.completedVideosCount = 0
     },
+
+    // Clip management actions
+    addAvailableClip: (state, action: PayloadAction<AvailableClip>) => {
+      const newClip = action.payload
+      // Avoid duplicates by checking if clip with same id already exists
+      const existingClip = state.availableClips.find(clip => clip.id === newClip.id)
+      if (!existingClip) {
+        state.availableClips.push(newClip)
+      }
+    },
+
+    addMultipleAvailableClips: (state, action: PayloadAction<AvailableClip[]>) => {
+      const newClips = action.payload
+      newClips.forEach(newClip => {
+        // Avoid duplicates by checking if clip with same id already exists
+        const existingClip = state.availableClips.find(clip => clip.id === newClip.id)
+        if (!existingClip) {
+          state.availableClips.push(newClip)
+        }
+      })
+    },
+
+    removeAvailableClip: (state, action: PayloadAction<string>) => {
+      const clipId = action.payload
+      state.availableClips = state.availableClips.filter(clip => clip.id !== clipId)
+    },
+
+    clearAvailableClips: (state) => {
+      state.availableClips = []
+    },
+
+    // Auto-populate clips from analysis results
+    populateClipsFromAnalysis: (state) => {
+      const newClips: AvailableClip[] = []
+      
+      // Extract clips from analysis results
+      state.analysisResults.forEach(result => {
+        const video = state.videos.find(v => v.id.videoId === result.videoId)
+        const videoTitle = video?.snippet?.title || `Video ${result.videoId}`
+        
+        result.analysis.forEach((analysis, index) => {
+          const clipId = `analysis-${result.videoId}-${index}-${Date.now()}`
+          newClips.push({
+            id: clipId,
+            videoId: result.videoId,
+            videoTitle,
+            youtubeUrl: analysis.youtubeUrl || `https://youtube.com/watch?v=${result.videoId}`,
+            startTime: analysis.timestamp,
+            endTime: analysis.timestamp, // Use same timestamp as end if not provided
+            description: analysis.summary,
+            quote: analysis.keyQuotes?.[0] || analysis.relevantContent,
+            significance: analysis.contextualInfo,
+            source: 'analysis',
+            confidence: analysis.confidence
+          })
+        })
+      })
+
+      // Extract clips from research summaries
+      state.youtubeResearchSummaries.forEach(research => {
+        research.videosSummary.videoSummaries.forEach(videoSummary => {
+          // Add clips from detailed timestamps
+          videoSummary.timestamps?.forEach((timestamp, index) => {
+            const clipId = `research-${videoSummary.videoId}-${index}-${Date.now()}`
+            newClips.push({
+              id: clipId,
+              videoId: videoSummary.videoId,
+              videoTitle: videoSummary.title,
+              youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
+              startTime: timestamp.startTime,
+              endTime: timestamp.endTime,
+              description: timestamp.description,
+              quote: timestamp.quote,
+              speaker: timestamp.speaker,
+              significance: timestamp.significance,
+              source: 'research'
+            })
+          })
+
+          // Add clips from key quotes
+          videoSummary.keyQuotes?.forEach((quote, index) => {
+            const clipId = `quote-${videoSummary.videoId}-${index}-${Date.now()}`
+            newClips.push({
+              id: clipId,
+              videoId: videoSummary.videoId,
+              videoTitle: videoSummary.title,
+              youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
+              startTime: quote.startTime,
+              endTime: quote.endTime,
+              description: quote.context,
+              quote: quote.quote,
+              speaker: quote.speaker,
+              source: 'research'
+            })
+          })
+        })
+      })
+
+      // Add new clips, avoiding duplicates
+      newClips.forEach(newClip => {
+        const existingClip = state.availableClips.find(clip => clip.id === newClip.id)
+        if (!existingClip) {
+          state.availableClips.push(newClip)
+        }
+      })
+    },
   },
   extraReducers: (builder) => {
     // Search videos
@@ -1087,6 +1215,34 @@ export const youtubeSlice = createSlice({
         
         // Add new analysis result
         state.analysisResults.push(action.payload)
+        
+        // Auto-populate clips from the new analysis
+        const video = state.videos.find(v => v.id.videoId === videoId)
+        const videoTitle = video?.snippet?.title || `Video ${videoId}`
+        
+        action.payload.analysis.forEach((analysis, index) => {
+          const clipId = `analysis-${videoId}-${index}-${Date.now()}`
+          const newClip: AvailableClip = {
+            id: clipId,
+            videoId,
+            videoTitle,
+            youtubeUrl: analysis.youtubeUrl || `https://youtube.com/watch?v=${videoId}`,
+            startTime: analysis.timestamp,
+            endTime: analysis.timestamp,
+            description: analysis.summary,
+            quote: analysis.keyQuotes?.[0] || analysis.relevantContent,
+            significance: analysis.contextualInfo,
+            source: 'analysis',
+            confidence: analysis.confidence
+          }
+          
+          // Add clip if it doesn't already exist
+          const existingClip = state.availableClips.find(clip => clip.id === clipId)
+          if (!existingClip) {
+            state.availableClips.push(newClip)
+          }
+        })
+        
         state.error = null
       })
       .addCase(analyzeTranscript.rejected, (state, action) => {
@@ -1107,6 +1263,57 @@ export const youtubeSlice = createSlice({
         state.videosSummary = action.payload.summary
         // Add to YouTube research summaries
         state.youtubeResearchSummaries.push(action.payload.researchSummary)
+        
+        // Auto-populate clips from the new research summary
+        action.payload.researchSummary.videosSummary.videoSummaries.forEach(videoSummary => {
+          // Add clips from detailed timestamps
+          videoSummary.timestamps?.forEach((timestamp, index) => {
+            const clipId = `research-${videoSummary.videoId}-${index}-${Date.now()}`
+            const newClip: AvailableClip = {
+              id: clipId,
+              videoId: videoSummary.videoId,
+              videoTitle: videoSummary.title,
+              youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
+              startTime: timestamp.startTime,
+              endTime: timestamp.endTime,
+              description: timestamp.description,
+              quote: timestamp.quote,
+              speaker: timestamp.speaker,
+              significance: timestamp.significance,
+              source: 'research'
+            }
+            
+            // Add clip if it doesn't already exist
+            const existingClip = state.availableClips.find(clip => clip.id === clipId)
+            if (!existingClip) {
+              state.availableClips.push(newClip)
+            }
+          })
+
+          // Add clips from key quotes
+          videoSummary.keyQuotes?.forEach((quote, index) => {
+            const clipId = `quote-${videoSummary.videoId}-${index}-${Date.now()}`
+            const newClip: AvailableClip = {
+              id: clipId,
+              videoId: videoSummary.videoId,
+              videoTitle: videoSummary.title,
+              youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
+              startTime: quote.startTime,
+              endTime: quote.endTime,
+              description: quote.context,
+              quote: quote.quote,
+              speaker: quote.speaker,
+              source: 'research'
+            }
+            
+            // Add clip if it doesn't already exist
+            const existingClip = state.availableClips.find(clip => clip.id === clipId)
+            if (!existingClip) {
+              state.availableClips.push(newClip)
+            }
+          })
+        })
+        
         state.error = null
       })
       .addCase(summarizeVideos.rejected, (state, action) => {
@@ -1164,6 +1371,11 @@ export const {
   initializeSubtitleFiles,
   incrementCompletedVideos,
   resetProcessingCounters,
+  addAvailableClip,
+  addMultipleAvailableClips,
+  removeAvailableClip,
+  clearAvailableClips,
+  populateClipsFromAnalysis,
 } = youtubeSlice.actions
 
 // Export reducer
@@ -1212,4 +1424,6 @@ export const selectVideoSummarization = (state: { youtube: YouTubeState }) => ({
 export const selectResearchSummaries = (state: { youtube: YouTubeState }) => ({
   googleResearchSummaries: state.youtube.googleResearchSummaries,
   youtubeResearchSummaries: state.youtube.youtubeResearchSummaries,
-}) 
+})
+
+export const selectAvailableClips = (state: { youtube: YouTubeState }) => state.youtube.availableClips 
