@@ -12,9 +12,10 @@ import {
 import { Button } from '../../components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog'
 import { Badge } from '../../components/ui/badge'
 import { Progress } from '../../components/ui/progress'
-import { Loader2, Volume2, Download, Play, Pause, RefreshCw, Mic, Music, AlertCircle, CheckCircle, Settings, FileText, Fish } from 'lucide-react'
+import { Loader2, Volume2, Download, Play, Pause, RefreshCw, Mic, Music, AlertCircle, CheckCircle, Settings, FileText, Fish, Plus, Edit, Trash2 } from 'lucide-react'
 import { Input } from '../../components/ui/input'
 import { Textarea } from '../../components/ui/textarea'
 
@@ -76,6 +77,17 @@ export function AudioGeneration() {
     totalBatches: 0,
     completedSections: 0,
     totalSections: 0
+  })
+
+  // Voice Manager State
+  const [customVoices, setCustomVoices] = useState<any[]>([])
+  const [loadingCustomVoices, setLoadingCustomVoices] = useState(false)
+  const [showAddVoiceDialog, setShowAddVoiceDialog] = useState(false)
+  const [editingVoice, setEditingVoice] = useState<any>(null)
+  const [voiceForm, setVoiceForm] = useState({
+    name: '',
+    voice_id: '',
+    provider: 'elevenlabs' as 'elevenlabs' | 'voicemaker' | 'fishaudio'
   })
 
   // Helper function to strip research data brackets from script text
@@ -761,7 +773,30 @@ export function AudioGeneration() {
     }
   }
 
-  const selectedVoiceName = audioGeneration.voices.find(v => v.id === audioGeneration.selectedVoice)?.name || 'Unknown Voice'
+  const selectedVoiceName = (() => {
+    // Check API voices first
+    const apiVoice = selectedProvider === 'elevenlabs' 
+      ? audioGeneration.voices.find(v => v.id === audioGeneration.selectedVoice)
+      : selectedProvider === 'voicemaker'
+      ? voicemakerVoices.find(v => v.VoiceId === audioGeneration.selectedVoice)
+      : fishAudioVoices.find(v => v.id === audioGeneration.selectedVoice)
+    
+    if (apiVoice) {
+      return selectedProvider === 'elevenlabs' 
+        ? apiVoice.name
+        : selectedProvider === 'voicemaker'
+        ? apiVoice.VoiceWebname
+        : apiVoice.name
+    }
+    
+    // Check custom voices
+    const customVoice = customVoices.find(v => v.voice_id === audioGeneration.selectedVoice && v.provider === selectedProvider)
+    if (customVoice) {
+      return customVoice.name
+    }
+    
+    return 'Unknown Voice'
+  })()
   const sectionsWithScripts = currentJob?.sections.filter(s => s.texts && s.texts.length > 0) || []
   // Fix duplicate issue: Create a Map to ensure unique audio states by sectionId
   const customAudioStatesMap = new Map()
@@ -788,6 +823,105 @@ export function AudioGeneration() {
     const joinedText = joinAllScriptTexts()
     setJoinedScriptText(joinedText)
   }, [currentJob, sectionsWithScripts])
+
+  // Voice Manager Functions
+  const loadCustomVoices = async () => {
+    setLoadingCustomVoices(true)
+    try {
+      const response = await fetch('/api/voices')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setCustomVoices(data.voices || [])
+      } else {
+        showMessage(data.error || 'Failed to load custom voices', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to load custom voices', 'error')
+    } finally {
+      setLoadingCustomVoices(false)
+    }
+  }
+
+  const saveCustomVoice = async () => {
+    if (!voiceForm.name.trim() || !voiceForm.voice_id.trim()) {
+      showMessage('Please fill in all fields', 'error')
+      return
+    }
+
+    try {
+      const url = '/api/voices'
+      const method = editingVoice ? 'PUT' : 'POST'
+      const body = editingVoice 
+        ? { id: editingVoice.id, ...voiceForm }
+        : voiceForm
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        showMessage(
+          editingVoice ? 'Voice updated successfully' : 'Voice added successfully',
+          'success'
+        )
+        loadCustomVoices()
+        setShowAddVoiceDialog(false)
+        setEditingVoice(null)
+        setVoiceForm({
+          name: '',
+          voice_id: '',
+          provider: 'elevenlabs'
+        })
+      } else {
+        showMessage(data.error || 'Failed to save voice', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to save voice', 'error')
+    }
+  }
+
+  const deleteCustomVoice = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this voice?')) return
+
+    try {
+      const response = await fetch(`/api/voices?id=${id}`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        showMessage('Voice deleted successfully', 'success')
+        loadCustomVoices()
+      } else {
+        showMessage(data.error || 'Failed to delete voice', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to delete voice', 'error')
+    }
+  }
+
+  const startEditVoice = (voice: any) => {
+    setEditingVoice(voice)
+    setVoiceForm({
+      name: voice.name,
+      voice_id: voice.voice_id,
+      provider: voice.provider
+    })
+    setShowAddVoiceDialog(true)
+  }
+
+  // Load custom voices on component mount
+  useEffect(() => {
+    loadCustomVoices()
+  }, [])
 
   if (!user.isLoggedIn) {
     return (
@@ -910,45 +1044,90 @@ export function AudioGeneration() {
                   </SelectTrigger>
                   <SelectContent>
                     {selectedProvider === 'elevenlabs' 
-                      ? audioGeneration.voices.map((voice) => (
-                          <SelectItem key={voice.id} value={voice.id}>
-                            <div className="flex items-center gap-2">
-                              <Mic className="h-3 w-3" />
-                              {voice.name}
-                              {voice.category && (
-                                <Badge variant="outline" className="text-xs">
-                                  {voice.category}
+                      ? [
+                          // API voices
+                          ...audioGeneration.voices.map((voice) => (
+                            <SelectItem key={voice.id} value={voice.id}>
+                              <div className="flex items-center gap-2">
+                                <Mic className="h-3 w-3" />
+                                {voice.name}
+                                {voice.category && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {voice.category}
+                                  </Badge>
+                                )}
+                              </div>
+                            </SelectItem>
+                          )),
+                          // Custom voices for this provider
+                          ...customVoices.filter(v => v.provider === 'elevenlabs').map((voice) => (
+                            <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                              <div className="flex items-center gap-2">
+                                <Mic className="h-3 w-3" />
+                                {voice.name}
+                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600">
+                                  Custom
                                 </Badge>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))
+                              </div>
+                            </SelectItem>
+                          ))
+                        ]
                       : selectedProvider === 'voicemaker'
-                      ? voicemakerVoices.map((voice) => (
-                          <SelectItem key={voice.VoiceId} value={voice.VoiceId}>
-                            <div className="flex items-center gap-2">
-                              <Mic className="h-3 w-3" />
-                              {voice.VoiceWebname}
-                              <Badge variant="outline" className="text-xs">
-                                {voice.VoiceGender}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {voice.Country}
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        ))
-                      : fishAudioVoices.map((voice) => (
-                          <SelectItem key={voice.id} value={voice.id}>
-                            <div className="flex items-center gap-2">
-                              <Fish className="h-3 w-3" />
-                              {voice.name}
-                              <Badge variant="outline" className="text-xs">
-                                AI Voice
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        ))
+                      ? [
+                          // API voices
+                          ...voicemakerVoices.map((voice) => (
+                            <SelectItem key={voice.VoiceId} value={voice.VoiceId}>
+                              <div className="flex items-center gap-2">
+                                <Mic className="h-3 w-3" />
+                                {voice.VoiceWebname}
+                                <Badge variant="outline" className="text-xs">
+                                  {voice.VoiceGender}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {voice.Country}
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          )),
+                          // Custom voices for this provider
+                          ...customVoices.filter(v => v.provider === 'voicemaker').map((voice) => (
+                            <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                              <div className="flex items-center gap-2">
+                                <Mic className="h-3 w-3" />
+                                {voice.name}
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-600">
+                                  Custom
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))
+                        ]
+                      : [
+                          // API voices
+                          ...fishAudioVoices.map((voice) => (
+                            <SelectItem key={voice.id} value={voice.id}>
+                              <div className="flex items-center gap-2">
+                                <Fish className="h-3 w-3" />
+                                {voice.name}
+                                <Badge variant="outline" className="text-xs">
+                                  AI Voice
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          )),
+                          // Custom voices for this provider
+                          ...customVoices.filter(v => v.provider === 'fishaudio').map((voice) => (
+                            <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                              <div className="flex items-center gap-2">
+                                <Fish className="h-3 w-3" />
+                                {voice.name}
+                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600">
+                                  Custom
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))
+                        ]
                     }
                   </SelectContent>
                 </Select>
@@ -1021,12 +1200,200 @@ export function AudioGeneration() {
             </Button>
             {((selectedProvider === 'elevenlabs' && audioGeneration.voices.length > 0) || 
               (selectedProvider === 'voicemaker' && voicemakerVoices.length > 0) ||
-              (selectedProvider === 'fishaudio' && fishAudioVoices.length > 0)) && (
+              (selectedProvider === 'fishaudio' && fishAudioVoices.length > 0) ||
+              customVoices.filter(v => v.provider === selectedProvider).length > 0) && (
               <Badge variant="secondary">
-                {selectedProvider === 'elevenlabs' ? audioGeneration.voices.length : (selectedProvider === 'voicemaker' ? voicemakerVoices.length : fishAudioVoices.length)} voices available
+                {(() => {
+                  const apiVoices = selectedProvider === 'elevenlabs' ? audioGeneration.voices.length : 
+                    (selectedProvider === 'voicemaker' ? voicemakerVoices.length : fishAudioVoices.length)
+                  const customVoicesCount = customVoices.filter(v => v.provider === selectedProvider).length
+                  const total = apiVoices + customVoicesCount
+                  return `${total} voices available${customVoicesCount > 0 ? ` (${customVoicesCount} custom)` : ''}`
+                })()}
               </Badge>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Voice Manager */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mic className="h-5 w-5" />
+            Voice Manager
+          </CardTitle>
+          <CardDescription>
+            Manage your custom voices for all providers
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={loadCustomVoices}
+                variant="outline"
+                size="sm"
+                disabled={loadingCustomVoices}
+              >
+                {loadingCustomVoices ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Refresh
+              </Button>
+              {customVoices.length > 0 && (
+                <Badge variant="secondary">
+                  {customVoices.length} custom voices
+                </Badge>
+              )}
+            </div>
+            
+            <Dialog open={showAddVoiceDialog} onOpenChange={setShowAddVoiceDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm" onClick={() => {
+                  setEditingVoice(null)
+                  setVoiceForm({
+                    name: '',
+                    voice_id: '',
+                    provider: 'elevenlabs'
+                  })
+                }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Voice
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingVoice ? 'Edit Voice' : 'Add Custom Voice'}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Voice Name
+                    </label>
+                    <Input
+                      value={voiceForm.name}
+                      onChange={(e) => setVoiceForm({ ...voiceForm, name: e.target.value })}
+                      placeholder="e.g., My Custom Voice"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Voice ID
+                    </label>
+                    <Input
+                      value={voiceForm.voice_id}
+                      onChange={(e) => setVoiceForm({ ...voiceForm, voice_id: e.target.value })}
+                      placeholder="e.g., voice_id_from_provider"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Provider
+                    </label>
+                    <Select 
+                      value={voiceForm.provider} 
+                      onValueChange={(value: 'elevenlabs' | 'voicemaker' | 'fishaudio') => 
+                        setVoiceForm({ ...voiceForm, provider: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                        <SelectItem value="voicemaker">VoiceMaker</SelectItem>
+                        <SelectItem value="fishaudio">Fish Audio</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={saveCustomVoice}
+                      className="flex-1"
+                    >
+                      {editingVoice ? 'Update Voice' : 'Add Voice'}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowAddVoiceDialog(false)
+                        setEditingVoice(null)
+                        setVoiceForm({
+                          name: '',
+                          voice_id: '',
+                          provider: 'elevenlabs'
+                        })
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Voice List */}
+          {customVoices.length > 0 ? (
+            <div className="space-y-2">
+              {customVoices.map((voice) => (
+                <div key={voice.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      {voice.provider === 'elevenlabs' && <Volume2 className="h-4 w-4 text-blue-600" />}
+                      {voice.provider === 'voicemaker' && <Mic className="h-4 w-4 text-green-600" />}
+                      {voice.provider === 'fishaudio' && <Fish className="h-4 w-4 text-purple-600" />}
+                    </div>
+                    <div>
+                      <h4 className="font-medium">{voice.name}</h4>
+                      <p className="text-sm text-gray-600">
+                        {voice.voice_id} • {voice.provider}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={
+                      voice.provider === 'elevenlabs' ? 'text-blue-600 border-blue-300' :
+                      voice.provider === 'voicemaker' ? 'text-green-600 border-green-300' :
+                      'text-purple-600 border-purple-300'
+                    }>
+                      {voice.provider}
+                    </Badge>
+                    <Button
+                      onClick={() => startEditVoice(voice)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      onClick={() => deleteCustomVoice(voice.id)}
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Mic className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p className="text-lg font-medium mb-2">No custom voices yet</p>
+              <p className="text-sm">Add your first custom voice to get started</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
