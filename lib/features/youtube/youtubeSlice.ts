@@ -1220,7 +1220,7 @@ export const youtubeSlice = createSlice({
         const video = state.videos.find(v => v.id.videoId === videoId)
         const videoTitle = video?.snippet?.title || `Video ${videoId}`
         
-        action.payload.analysis.forEach((analysis, index) => {
+        action.payload.analysis.forEach((analysis: any, index: number) => {
           const clipId = `analysis-${videoId}-${index}-${Date.now()}`
           const newClip: AvailableClip = {
             id: clipId,
@@ -1265,9 +1265,9 @@ export const youtubeSlice = createSlice({
         state.youtubeResearchSummaries.push(action.payload.researchSummary)
         
         // Auto-populate clips from the new research summary
-        action.payload.researchSummary.videosSummary.videoSummaries.forEach(videoSummary => {
+        action.payload.researchSummary.videosSummary.videoSummaries.forEach((videoSummary: any) => {
           // Add clips from detailed timestamps
-          videoSummary.timestamps?.forEach((timestamp, index) => {
+          videoSummary.timestamps?.forEach((timestamp: any, index: number) => {
             const clipId = `research-${videoSummary.videoId}-${index}-${Date.now()}`
             const newClip: AvailableClip = {
               id: clipId,
@@ -1291,7 +1291,7 @@ export const youtubeSlice = createSlice({
           })
 
           // Add clips from key quotes
-          videoSummary.keyQuotes?.forEach((quote, index) => {
+          videoSummary.keyQuotes?.forEach((quote: any, index: number) => {
             const clipId = `quote-${videoSummary.videoId}-${index}-${Date.now()}`
             const newClip: AvailableClip = {
               id: clipId,
