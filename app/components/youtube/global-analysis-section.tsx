@@ -33,13 +33,10 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
     return videos.find(v => v.id.videoId === videoId)
   })
 
-  const canAnalyze = analysisType === 'standard'
-    ? videosWithSubtitles.length > 0
-    : videosForGemini.length > 0
+  // Since bulk analysis now auto-generates subtitles, we can analyze any selected videos
+  const canAnalyze = selectedVideos.length > 0
 
-  const availableCount = analysisType === 'standard'
-    ? videosWithSubtitles.length
-    : videosForGemini.length
+  const availableCount = selectedVideos.length
 
   const getAnalysisTypeColor = (type: AnalysisType) => {
     return type === 'standard' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'
@@ -87,7 +84,7 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
               <span className="font-medium">Bulk Transcript Analysis</span>
             </div>
             <p className="text-sm">
-              Search through subtitles across all videos ({videosWithSubtitles.length} available)
+              Search through subtitles across all videos ({selectedVideos.length} selected, subtitles auto-generated)
             </p>
           </button>
 
@@ -103,7 +100,7 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
               <span className="font-medium">Bulk AI Analysis</span>
             </div>
             <p className="text-sm">
-              Comprehensive AI analysis across all videos ({videosForGemini.length} available)
+              Comprehensive AI analysis across all videos ({selectedVideos.length} selected)
             </p>
           </button>
         </div>
@@ -113,7 +110,7 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       <div className="space-y-3">
         <div>
           <label className={`block text-sm font-medium ${getAnalysisTypeTextColor(analysisType)} mb-2`}>
-            {analysisType === 'standard' ? 'Search Query:' : 'Analysis Focus (Optional):'}
+            {analysisType === 'standard' ? 'Search Query (Optional):' : 'Analysis Focus (Optional):'}
           </label>
           <input
             type="text"
@@ -133,7 +130,7 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
 
         <button
           onClick={() => onBulkAnalysis(analysisType, query)}
-          disabled={!canAnalyze || (analysisType === 'standard' && !query.trim()) || isAnalyzing}
+          disabled={!canAnalyze || isAnalyzing}
           className={`w-full font-semibold py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-3 ${analysisType === 'standard'
               ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white'
               : 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white'
@@ -169,10 +166,7 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       {!canAnalyze && (
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-sm text-yellow-800">
-            {analysisType === 'standard'
-              ? '⚠️ No videos with completed subtitles selected. Generate subtitles first.'
-              : '⚠️ No videos available for AI analysis.'
-            }
+            ⚠️ Please select at least one video to analyze.
           </p>
         </div>
       )}
@@ -180,9 +174,9 @@ export const GlobalAnalysisSection: React.FC<GlobalAnalysisSectionProps> = ({
       {/* Info */}
       <div className="mt-4 text-xs text-gray-600 bg-gray-50 p-3 rounded">
         <p>
-          <strong>Bulk Analysis</strong> will process all selected videos and create a comprehensive research summary
-          that will be added to your Current Research tab. This is ideal for finding patterns and insights across
-          multiple videos.
+          <strong>Bulk Analysis</strong> will automatically generate subtitles (if needed), analyze all selected videos, 
+          and create a comprehensive research summary that will be added to your Current Research tab. 
+          This is ideal for finding patterns and insights across multiple videos.
         </p>
       </div>
     </div>

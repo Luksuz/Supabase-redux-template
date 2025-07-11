@@ -11,6 +11,14 @@ export interface Video {
     channelTitle: string
     publishedAt: string
   }
+  statistics?: {
+    viewCount: string
+    likeCount: string
+    commentCount: string
+  }
+  contentDetails?: {
+    duration: string
+  }
 }
 
 // Subtitle File interface

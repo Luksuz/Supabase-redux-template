@@ -225,65 +225,81 @@ export default function YouTubeSearch() {
     
     try {
       if (analysisType === 'standard') {
-        // Bulk transcript analysis
-        const videosWithSubtitles = searchResults.selectedVideos.filter(videoId => {
-          const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
-          return subtitleFile && subtitleFile.status === 'completed'
-        })
+        // Direct bulk transcript analysis - get transcripts and analyze in parallel
+        console.log(`🎬 Starting direct bulk transcript analysis for ${searchResults.selectedVideos.length} videos...`)
+        showToast.info(`🎬 Processing ${searchResults.selectedVideos.length} videos in parallel...`)
         
-        if (videosWithSubtitles.length === 0) {
-          dispatch(setError('No videos with completed subtitles selected for analysis.'))
-          return
-        }
-
-        // Analyze all transcripts and create a summary
-        const analysisPromises = videosWithSubtitles.map(videoId => {
-          const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
+        // Process all videos in parallel
+        const processingPromises = searchResults.selectedVideos.map(async (videoId) => {
           const video = searchResults.videos.find(v => v.id.videoId === videoId)
+          if (!video) return null
           
-          if (subtitleFile && video) {
-            return dispatch(analyzeTranscript({
-              videoId: videoId,
-              srtContent: subtitleFile.srtContent,
-              query: query.trim(),
-              videoTitle: video.snippet.title
-            }))
-          }
-          return null
-        }).filter(Boolean)
-        
-        const analysisResults = await Promise.all(analysisPromises)
-        
-        // Create individual research entries for each analyzed video
-        videosWithSubtitles.forEach(videoId => {
-          const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
-          const video = searchResults.videos.find(v => v.id.videoId === videoId)
-          const analysisResult = transcriptAnalysis.analysisResults.find(ar => ar.videoId === videoId)
-          
-          if (subtitleFile && video && analysisResult) {
+          try {
+            console.log(`📝 Getting transcript for: ${video.snippet.title}`)
+            
+            // Step 1: Get transcript via Supadata
+            const transcriptResponse = await fetch('/api/youtube/download-single', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ videoId })
+            })
+            
+            const transcriptData = await transcriptResponse.json()
+            
+            if (!transcriptResponse.ok || !transcriptData.success) {
+              throw new Error(transcriptData.error || `Failed to get transcript: ${transcriptResponse.status}`)
+            }
+            
+            console.log(`✅ Got transcript for: ${video.snippet.title}`)
+            
+            // Step 2: Clean SRT content and analyze
+            const srtContent = transcriptData.subtitleFile.srtContent
+            
+            // Step 3: Send to analyze API
+            const analysisResponse = await fetch('/api/youtube/analyze-transcript', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                srtContent: srtContent,
+                query: query.trim() || 'general analysis',
+                videoTitle: video.snippet.title,
+                videoId: videoId
+              })
+            })
+            
+            const analysisData = await analysisResponse.json()
+            
+            if (!analysisResponse.ok || !analysisData.success) {
+              throw new Error(analysisData.error || 'Failed to analyze transcript')
+            }
+            
+            console.log(`✅ Analyzed transcript for: ${video.snippet.title}`)
+            
+            // Step 4: Create research entry using the new comprehensive structure
+            const analysis = analysisData.analysis
             const individualSummary: YouTubeResearchSummary = {
               id: `transcript-${videoId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              query: `Transcript Analysis: "${query}" - ${video.snippet.title}`,
+              query: query ? `Transcript Analysis: "${query}" - ${video.snippet.title}` : `Transcript Analysis - ${video.snippet.title}`,
               videosSummary: {
-                overallTheme: `Analysis of "${query}" in: ${video.snippet.title}`,
-                keyInsights: analysisResult.analysis.length > 0 ? [analysisResult.analysis[0].summary] : [`Key insights from analyzing "${query}" in this video`],
-                characterInsights: [],
-                conflictElements: [],
-                storyIdeas: [`Content ideas based on "${query}" analysis from ${video.snippet.title}`],
-                commonPatterns: [`Patterns found for "${query}"`],
-                creativePrompt: `Based on the transcript analysis of "${query}" in ${video.snippet.title}, create content that explores these themes...`,
-                actionableItems: [`Review detailed transcript analysis for "${query}" in this video`],
-                narrativeThemes: [query],
+                overallTheme: query ? `Analysis of "${query}" in: ${video.snippet.title}` : `Analysis of: ${video.snippet.title}`,
+                keyInsights: analysis.keyPoints || [`Key insights from this video`],
+                characterInsights: analysis.characterInsights || [],
+                conflictElements: analysis.conflictElements || [],
+                storyIdeas: analysis.storyIdeas || [`Content ideas based on analysis from ${video.snippet.title}`],
+                commonPatterns: analysis.topics || (query ? [`Patterns found for "${query}"`] : ['General patterns']),
+                creativePrompt: analysis.creativePrompt || `Based on the transcript analysis of ${video.snippet.title}, create content that explores these themes...`,
+                actionableItems: analysis.actionableInsights || [`Review detailed transcript analysis for this video`],
+                narrativeThemes: analysis.topics || (query ? [query] : ['General content']),
                 videoSummaries: [{
                   videoId: videoId,
                   title: video.snippet.title,
-                  mainTopic: query,
-                  emotionalTone: 'Analytical',
-                  keyPoints: analysisResult.analysis.length > 0 ? [analysisResult.analysis[0].relevantContent] : [`Analysis of "${query}"`],
-                  narrativeElements: [],
-                  keyQuotes: analysisResult.analysis.length > 0 && analysisResult.analysis[0].keyQuotes ? analysisResult.analysis[0].keyQuotes as any[] : [],
-                  dramaticElements: analysisResult.analysis.length > 0 && analysisResult.analysis[0].dramaticElements ? analysisResult.analysis[0].dramaticElements : [],
-                  contextualInfo: analysisResult.analysis.length > 0 ? analysisResult.analysis[0].contextualInfo || `Transcript analysis focusing on "${query}"` : `Transcript analysis focusing on "${query}"`,
+                  mainTopic: query || 'General Content',
+                  emotionalTone: analysis.emotionalTone || 'Analytical',
+                  keyPoints: analysis.keyPoints || [`Analysis content`],
+                  narrativeElements: analysis.timestamps?.map((t: any) => `${t.startTime}: ${t.description}`) || [],
+                  keyQuotes: analysis.keyQuotes?.map((q: any) => q.quote) || [],
+                  dramaticElements: analysis.conflictElements || [],
+                  contextualInfo: analysis.summary || `Transcript analysis`,
                   timestamp: '0:00'
                 }]
               },
@@ -292,11 +308,50 @@ export default function YouTubeSearch() {
               usingMock: false
             }
             
-            dispatch(addYouTubeResearchSummary(individualSummary))
+            return {
+              videoId,
+              video,
+              summary: individualSummary
+            }
+            
+          } catch (error) {
+            console.error(`❌ Failed to process ${video.snippet.title}:`, error)
+            return {
+              videoId,
+              video,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
           }
         })
         
-        showToast.success(`✅ Bulk transcript analysis completed! Created ${videosWithSubtitles.length} individual research entries for "${query}"`)
+        // Wait for all processing to complete
+        const results = await Promise.all(processingPromises)
+        const successfulResults = results.filter(result => result && !result.error)
+        const failedResults = results.filter(result => result && result.error)
+        
+        // Add successful research entries to current research
+        successfulResults.forEach(result => {
+          if (result && result.summary) {
+            dispatch(addYouTubeResearchSummary(result.summary))
+          }
+        })
+        
+        // Show results
+        if (successfulResults.length === 0) {
+          dispatch(setError('Failed to process any videos. Please try again or select different videos.'))
+          return
+        }
+        
+        let successMessage = `✅ Bulk transcript analysis completed! Created ${successfulResults.length} individual research entries`
+        if (failedResults.length > 0) {
+          successMessage += ` (${failedResults.length} video(s) failed)`
+          
+          // Show warning about failed videos
+          const failedTitles = failedResults.map(r => r?.video?.snippet?.title || 'Unknown').slice(0, 3)
+          showToast.warning(`⚠️ ${failedResults.length} video(s) failed: ${failedTitles.join(', ')}${failedResults.length > 3 ? '...' : ''}`)
+        }
+        
+        showToast.success(successMessage)
         
       } else {
         // Bulk Gemini analysis - REAL IMPLEMENTATION
@@ -308,11 +363,70 @@ export default function YouTubeSearch() {
           dispatch(setError('No videos available for AI analysis.'))
           return
         }
+        
+        // First, generate subtitles for selected videos that don't have them
+        const videosNeedingSubtitles = videosForGemini.filter(videoId => {
+          const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
+          return !subtitleFile || subtitleFile.status !== 'completed'
+        })
+        
+        if (videosNeedingSubtitles.length > 0) {
+          console.log(`🎬 Generating subtitles for ${videosNeedingSubtitles.length} videos before AI analysis...`)
+          showToast.info(`🎬 Generating subtitles for ${videosNeedingSubtitles.length} videos before AI analysis...`)
+          
+          // Generate subtitles for videos that need them
+          await dispatch(generateSubtitlesIndividually(videosNeedingSubtitles))
+          
+          // Wait a bit for subtitles to be processed
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
 
-        console.log(`🚀 Starting bulk Gemini analysis for ${videosForGemini.length} videos`)
+        // Check how many videos have subtitles after generation attempt and categorize failures
+        const videosWithSubtitlesForGemini = []
+        const failedSubtitleVideos = []
+        const noTranscriptVideosGemini = []
+        
+        for (const videoId of videosForGemini) {
+          const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
+          
+          if (subtitleFile && subtitleFile.status === 'completed') {
+            videosWithSubtitlesForGemini.push(videoId)
+          } else if (subtitleFile && subtitleFile.status === 'error') {
+            // Check if the error is due to no transcript available
+            const errorMessage = subtitleFile.progress || ''
+            if (errorMessage.includes('No transcript content available') || 
+                errorMessage.includes('transcript not available') ||
+                errorMessage.includes('captions not available')) {
+              noTranscriptVideosGemini.push(videoId)
+            } else {
+              failedSubtitleVideos.push(videoId)
+            }
+          } else {
+            failedSubtitleVideos.push(videoId)
+          }
+        }
+        
+        const totalSubtitleFailures = failedSubtitleVideos.length + noTranscriptVideosGemini.length
+        
+        if (totalSubtitleFailures > 0) {
+          let warningMessage = `⚠️ Skipping ${totalSubtitleFailures} video(s): `
+          const warnings = []
+          if (noTranscriptVideosGemini.length > 0) {
+            warnings.push(`${noTranscriptVideosGemini.length} without transcripts`)
+          }
+          if (failedSubtitleVideos.length > 0) {
+            warnings.push(`${failedSubtitleVideos.length} with errors`)
+          }
+          warningMessage += warnings.join(', ')
+          warningMessage += `. Continuing AI analysis with ${videosWithSubtitlesForGemini.length} video(s).`
+          
+          showToast.warning(warningMessage)
+        }
+        
+        console.log(`🚀 Starting bulk Gemini analysis for ${videosWithSubtitlesForGemini.length} videos (${totalSubtitleFailures} skipped due to subtitle failures)`)
         
         // Process each video through the real Gemini API
-        const analysisPromises = videosForGemini.map(async (videoId) => {
+        const analysisPromises = videosWithSubtitlesForGemini.map(async (videoId) => {
           const video = searchResults.videos.find(v => v.id.videoId === videoId)
           if (!video) return null
 
@@ -431,10 +545,23 @@ export default function YouTubeSearch() {
           dispatch(addYouTubeResearchSummary(individualSummary))
         })
         
-        const successMessage = `✅ Bulk AI analysis completed! Successfully analyzed ${successfulResults.length}/${videosForGemini.length} videos and created individual research entries.`
+        const totalAttempted = videosWithSubtitlesForGemini.length
+        const totalSelected = videosForGemini.length
+        const subtitleFailures = totalSubtitleFailures
+        const analysisFailures = totalAttempted - successfulResults.length
+        
+        let successMessage = `✅ Bulk AI analysis completed! Successfully analyzed ${successfulResults.length}/${totalSelected} videos and created individual research entries.`
+        
+        if (subtitleFailures > 0 || analysisFailures > 0) {
+          const failures = []
+          if (subtitleFailures > 0) failures.push(`${subtitleFailures} subtitle generation failures`)
+          if (analysisFailures > 0) failures.push(`${analysisFailures} analysis failures`)
+          successMessage += ` (${failures.join(', ')})`
+        }
+        
         showToast.success(successMessage)
         
-        console.log(`🎉 Bulk Gemini analysis complete: ${successfulResults.length}/${videosForGemini.length} videos processed as individual entries`)
+        console.log(`🎉 Bulk Gemini analysis complete: ${successfulResults.length}/${totalSelected} videos processed as individual entries (${subtitleFailures} subtitle failures, ${analysisFailures} analysis failures)`)
       }
       
     } catch (error) {
@@ -936,39 +1063,8 @@ export default function YouTubeSearch() {
                     </div>
                   )}
 
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-                    <button
-                      onClick={handleGenerateSubtitles}
-                      disabled={searchResults.selectedVideos.length === 0 || subtitleGeneration.generatingSubtitles}
-                      className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm px-4 py-2 rounded transition-colors"
-                    >
-                      {subtitleGeneration.generatingSubtitles ? (
-                        <>
-                          <Loader2 className="inline-block w-4 h-4 mr-2 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        `Generate Subtitles (${searchResults.selectedVideos.length})`
-                      )}
-                    </button>
-                    
-                    <button
-                      onClick={handleSummarizeVideos}
-                      disabled={getVideosWithSubtitlesCount() === 0 || videoSummarization.summarizingVideos}
-                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2"
-                    >
-                      {videoSummarization.summarizingVideos ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Summarizing...
-                        </>
-                      ) : (
-                        <>
-                          <Brain className="h-4 w-4" />
-                          Summarize ({getVideosWithSubtitlesCount()})
-                        </>
-                      )}
-                    </button>
+                  <div className="bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2 rounded text-sm">
+                    ℹ️ Note: Bulk transcript analysis will automatically generate subtitles and summarize videos in the backend.
                   </div>
                 </div>
 
@@ -1021,12 +1117,20 @@ export default function YouTubeSearch() {
                             <span className="font-medium">Published:</span>
                             <span>{formatDate(video.snippet.publishedAt)}</span>
                           </div>
-                          {(video as any).contentDetails?.duration && (
+                          {video.statistics?.viewCount && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Views:</span>
+                              <span className="text-green-600 font-medium">
+                                {parseInt(video.statistics.viewCount).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {video.contentDetails?.duration && (
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Duration:</span>
                               <span className="text-blue-600 font-medium">
                                 {(() => {
-                                  const seconds = parseDurationToSeconds((video as any).contentDetails.duration)
+                                  const seconds = parseDurationToSeconds(video.contentDetails.duration)
                                   const minutes = Math.floor(seconds / 60)
                                   const remainingSeconds = seconds % 60
                                   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`

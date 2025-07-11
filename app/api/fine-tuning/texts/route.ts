@@ -159,16 +159,16 @@ export async function PATCH(request: NextRequest) {
       }
     } else {
       // Rating update mode (legacy)
-      if (!text_id || quality_score === undefined || is_validated === undefined) {
+    if (!text_id || quality_score === undefined || is_validated === undefined) {
         console.log('Validation failed for rating update:', { 
-          text_id: !!text_id, 
-          quality_score: quality_score !== undefined, 
-          is_validated: is_validated !== undefined 
-        })
-        return NextResponse.json(
-          { error: 'Text ID, quality score, and validation status are required' },
-          { status: 400 }
-        )
+        text_id: !!text_id, 
+        quality_score: quality_score !== undefined, 
+        is_validated: is_validated !== undefined 
+      })
+      return NextResponse.json(
+        { error: 'Text ID, quality score, and validation status are required' },
+        { status: 400 }
+      )
       }
     }
 
@@ -203,7 +203,7 @@ export async function PATCH(request: NextRequest) {
       updateData = { ...updates }
     } else {
       // Rating update mode (legacy)
-      console.log('Updating text rating:', { quality_score, is_validated, validation_notes })
+    console.log('Updating text rating:', { quality_score, is_validated, validation_notes })
       updateData = {
         quality_score,
         is_validated,

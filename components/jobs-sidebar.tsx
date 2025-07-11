@@ -1193,11 +1193,11 @@ function SectionDetailView({
                     <div className="flex items-start justify-between mb-2">
                       <h4 className="font-medium text-gray-900">Text #{index + 1}</h4>
                       <div className="flex items-center gap-2">
-                        {text.quality_score && (
-                          <Badge variant="outline">
-                            Score: {text.quality_score}/10
-                          </Badge>
-                        )}
+                      {text.quality_score && (
+                        <Badge variant="outline">
+                          Score: {text.quality_score}/10
+                        </Badge>
+                      )}
                         <Button
                           onClick={() => onOpenScript(text, section)}
                           variant="outline"
@@ -1211,7 +1211,7 @@ function SectionDetailView({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs font-medium text-gray-500">Input</Label>
+                        <Label className="text-xs font-medium text-gray-500">Input</Label>
                           <Button
                             onClick={() => onCopyText(text.input_text, 'Input')}
                             variant="ghost"
@@ -1230,7 +1230,7 @@ function SectionDetailView({
                       </div>
                       <div>
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs font-medium text-gray-500">Generated Script</Label>
+                        <Label className="text-xs font-medium text-gray-500">Generated Script</Label>
                           <Button
                             onClick={() => onCopyText(text.generated_script, 'Script')}
                             variant="ghost"

@@ -1560,16 +1560,16 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                           <div className="flex items-center gap-1">
                                             <span>🕐</span>
                                             {renderEditableField(`${summary.id}.videosSummary.videoSummaries.${index}.timestamp`, videoSummary.timestamp, summary.id, summary, 'HH:MM:SS')}
-                                            <a
-                                              href={`https://www.youtube.com/watch?v=${videoSummary.videoId}&t=${convertTimestampToSeconds(videoSummary.timestamp)}s`}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-red-600 hover:text-red-800 underline flex items-center gap-1"
-                                            >
-                                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-6m-7 1l8-8m0 0V8m0 0H8" />
-                                              </svg>
-                                            </a>
+                                          <a
+                                            href={`https://www.youtube.com/watch?v=${videoSummary.videoId}&t=${convertTimestampToSeconds(videoSummary.timestamp)}s`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-red-600 hover:text-red-800 underline flex items-center gap-1"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-6m-7 1l8-8m0 0V8m0 0H8" />
+                                            </svg>
+                                          </a>
                                           </div>
                                         )}
                                       </div>
@@ -1660,7 +1660,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                     )}
                                     
                                     <div className="grid md:grid-cols-2 gap-3 text-sm">
-                                      <div>
+                                        <div>
                                         <div className="flex items-center justify-between mb-1">
                                           <span className="font-medium text-gray-800">Key Points:</span>
                                           <button
@@ -1690,10 +1690,10 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                           </ul>
                                         ) : (
                                           <p className="text-gray-500 text-xs italic">No key points added yet</p>
-                                        )}
+                                      )}
                                       </div>
                                       
-                                      <div>
+                                        <div>
                                         <div className="flex items-center justify-between mb-1">
                                           <span className="font-medium text-gray-800">Key Quotes:</span>
                                           <button
@@ -1724,7 +1724,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                           </ul>
                                         ) : (
                                           <p className="text-gray-500 text-xs italic">No key quotes added yet</p>
-                                        )}
+                                      )}
                                       </div>
                                     </div>
                                   </div>

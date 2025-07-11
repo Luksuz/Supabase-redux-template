@@ -265,16 +265,16 @@ export function AudioGeneration() {
 
       // Process sections in current batch asynchronously
       const batchPromises = batch.map(async (section) => {
-        try {
-          const scriptText = section.texts[0].generated_script
-          const cleanScriptText = stripResearchData(scriptText)
-          
+      try {
+        const scriptText = section.texts[0].generated_script
+        const cleanScriptText = stripResearchData(scriptText)
+        
           let result
           if (selectedProvider === 'elevenlabs' || selectedProvider === 'fishaudio') {
             result = await dispatch(generateAudioThunk({
-              sectionId: section.id,
-              text: cleanScriptText,
-              voiceId: audioGeneration.selectedVoice,
+          sectionId: section.id,
+          text: cleanScriptText,
+          voiceId: audioGeneration.selectedVoice,
               modelId: audioGeneration.selectedModel,
               provider: selectedProvider
             }))
@@ -293,17 +293,17 @@ export function AudioGeneration() {
           setBatchProcessing(prev => ({
             ...prev,
             completedSections: prev.completedSections + 1
-          }))
+        }))
 
-          if (result.success) {
-            console.log(`✅ Audio generated for section: ${section.title}`)
+        if (result.success) {
+          console.log(`✅ Audio generated for section: ${section.title}`)
             return { success: true, section }
-          } else {
-            console.error(`❌ Failed to generate audio for section: ${section.title}`, result.error)
+        } else {
+          console.error(`❌ Failed to generate audio for section: ${section.title}`, result.error)
             return { success: false, section, error: result.error }
-          }
-        } catch (error) {
-          console.error(`❌ Error generating audio for section: ${section.title}`, error)
+        }
+      } catch (error) {
+        console.error(`❌ Error generating audio for section: ${section.title}`, error)
           setBatchProcessing(prev => ({
             ...prev,
             completedSections: prev.completedSections + 1
@@ -1028,12 +1028,12 @@ export function AudioGeneration() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Voice
               </label>
-                              <Select 
-                  value={audioGeneration.selectedVoice} 
-                  onValueChange={(value) => dispatch(setSelectedVoice(value))}
+              <Select 
+                value={audioGeneration.selectedVoice} 
+                onValueChange={(value) => dispatch(setSelectedVoice(value))}
                   disabled={selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : loadingFishAudioVoices)}
-                >
-                  <SelectTrigger>
+              >
+                <SelectTrigger>
                     <SelectValue placeholder={
                       selectedProvider === 'elevenlabs' 
                         ? (audioGeneration.loadingVoices ? "Loading ElevenLabs voices..." : "Select an ElevenLabs voice")
@@ -1041,23 +1041,23 @@ export function AudioGeneration() {
                         ? (loadingVoicemakerVoices ? "Loading VoiceMaker voices..." : "Select a VoiceMaker voice")
                         : (loadingFishAudioVoices ? "Loading Fish Audio voices..." : "Select a Fish Audio voice")
                     } />
-                  </SelectTrigger>
-                  <SelectContent>
+                </SelectTrigger>
+                <SelectContent>
                     {selectedProvider === 'elevenlabs' 
                       ? [
                           // API voices
                           ...audioGeneration.voices.map((voice) => (
-                            <SelectItem key={voice.id} value={voice.id}>
-                              <div className="flex items-center gap-2">
-                                <Mic className="h-3 w-3" />
-                                {voice.name}
-                                {voice.category && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {voice.category}
-                                  </Badge>
-                                )}
-                              </div>
-                            </SelectItem>
+                    <SelectItem key={voice.id} value={voice.id}>
+                      <div className="flex items-center gap-2">
+                        <Mic className="h-3 w-3" />
+                        {voice.name}
+                        {voice.category && (
+                          <Badge variant="outline" className="text-xs">
+                            {voice.category}
+                          </Badge>
+                        )}
+                      </div>
+                    </SelectItem>
                           )),
                           // Custom voices for this provider
                           ...customVoices.filter(v => v.provider === 'elevenlabs').map((voice) => (
@@ -1129,8 +1129,8 @@ export function AudioGeneration() {
                           ))
                         ]
                     }
-                  </SelectContent>
-                </Select>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -1138,19 +1138,19 @@ export function AudioGeneration() {
                 Model/Engine
               </label>
               {selectedProvider === 'elevenlabs' ? (
-                <Select 
-                  value={audioGeneration.selectedModel} 
-                  onValueChange={(value) => dispatch(setSelectedAudioModel(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="eleven_multilingual_v2">Multilingual V2 (High Quality)</SelectItem>
-                    <SelectItem value="eleven_flash_v2_5">Flash V2.5 (Fast)</SelectItem>
-                    <SelectItem value="eleven_turbo_v2_5">Turbo V2.5 (Fastest)</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Select 
+                value={audioGeneration.selectedModel} 
+                onValueChange={(value) => dispatch(setSelectedAudioModel(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="eleven_multilingual_v2">Multilingual V2 (High Quality)</SelectItem>
+                  <SelectItem value="eleven_flash_v2_5">Flash V2.5 (Fast)</SelectItem>
+                  <SelectItem value="eleven_turbo_v2_5">Turbo V2.5 (Fastest)</SelectItem>
+                </SelectContent>
+              </Select>
               ) : selectedProvider === 'voicemaker' ? (
                 <Select 
                   value="neural" 
@@ -1625,31 +1625,31 @@ export function AudioGeneration() {
                   </CardDescription>
                 </div>
                 {selectedSessions.length > 1 && (
-                  <Button
+                        <Button
                     onClick={combineSelectedSessions}
                     disabled={combineSessionsProgress.isGenerating}
-                    variant="default"
+                          variant="default"
                     className="flex items-center gap-2"
                   >
                     {combineSessionsProgress.isGenerating ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Combining...
-                      </>
-                    ) : (
-                      <>
+                            </>
+                          ) : (
+                            <>
                         <Music className="h-4 w-4" />
                         Combine Selected ({selectedSessions.length})
-                      </>
-                    )}
-                  </Button>
+                            </>
+                          )}
+                        </Button>
                 )}
               </div>
             </CardHeader>
             <CardContent>
               {/* Selection Controls */}
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                   <Button
                     onClick={() => setSelectedSessions(availableSessions.map(s => s.sectionId))}
                     variant="outline"
@@ -1665,12 +1665,12 @@ export function AudioGeneration() {
                   >
                     Clear Selection
                   </Button>
-                </div>
+                    </div>
                 <Badge variant="secondary">
                   {selectedSessions.length} of {availableSessions.length} selected
-                </Badge>
-              </div>
-
+                    </Badge>
+                  </div>
+                  
               {/* Combine Progress */}
               {combineSessionsProgress.isGenerating && (
                 <div className="mb-4 space-y-2">
@@ -1706,7 +1706,7 @@ export function AudioGeneration() {
                     }
                   }
 
-                  return (
+            return (
                     <div
                       key={`session-${audioState.sectionId}-${index}`}
                       className={`border rounded-lg p-4 cursor-pointer transition-all ${
@@ -1722,27 +1722,27 @@ export function AudioGeneration() {
                         }
                       }}
                     >
-                      <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
                             isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'
                           }`}>
                             {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
                           </div>
-                          <div>
+                    <div>
                             <h4 className="font-medium">{sessionTitle}</h4>
                             <p className="text-sm text-gray-600">{sessionInfo}</p>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
+                    </div>
+                    <div className="flex items-center gap-2">
                           <Badge variant="outline" className={
                             sessionType === 'Project' ? 'text-blue-600 border-blue-300' : 'text-green-600 border-green-300'
                           }>
                             {sessionType}
-                          </Badge>
+                        </Badge>
                           <Badge variant="outline" className="text-gray-600">
                             {Math.round((audioState.result?.audioSize || 0) / 1024)}KB
-                          </Badge>
+                        </Badge>
                           <Button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -1758,8 +1758,8 @@ export function AudioGeneration() {
                               <Play className="h-3 w-3" />
                             )}
                           </Button>
-                        </div>
-                      </div>
+                    </div>
+                  </div>
                     </div>
                   )
                 })}
@@ -1791,8 +1791,8 @@ export function AudioGeneration() {
             <CardDescription>
               {sectionsWithScripts.length} script sections • ~{joinedScriptText.split(' ').length} words total
             </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+                </CardHeader>
+                <CardContent className="space-y-4">
             {/* Joined Script Text */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1808,7 +1808,7 @@ export function AudioGeneration() {
               <p className="text-xs text-gray-500 mt-1">
                 {joinedScriptText.length} characters • Est. ~{Math.ceil(joinedScriptText.split(' ').length / 150)} min duration
               </p>
-            </div>
+                    </div>
 
             {/* Controls */}
             <div className="flex items-center justify-between">
@@ -1823,25 +1823,25 @@ export function AudioGeneration() {
                 <label htmlFor="joinChunks" className="text-sm font-medium text-gray-700">
                   Join audio chunks with FFmpeg
                 </label>
-              </div>
-              
-              <Button
+                  </div>
+
+                    <Button
                 onClick={generateAllAudioInBatches}
                 disabled={!audioGeneration.selectedVoice || batchProcessing.isProcessing || !joinedScriptText.trim()}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {batchProcessing.isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Generating ({batchProcessing.completedSections}/{batchProcessing.totalSections})
-                  </>
-                ) : (
-                  <>
-                    <Music className="h-4 w-4 mr-2" />
+                        </>
+                      ) : (
+                        <>
+                          <Music className="h-4 w-4 mr-2" />
                     Generate All Audio
-                  </>
-                )}
-              </Button>
+                        </>
+                      )}
+                    </Button>
             </div>
 
             {/* Batch Processing Progress */}
@@ -1863,8 +1863,8 @@ export function AudioGeneration() {
                   Processing {sectionsWithScripts.length} sections in batches of 5 for optimal performance
                   {autoConcatenateAfterGeneration && " • Will auto-join with FFmpeg after completion"}
                 </p>
-              </div>
-            )}
+                    </div>
+                  )}
 
             {/* Combine Audio Progress */}
             {combineAudioProgress.isGenerating && (
@@ -1876,7 +1876,7 @@ export function AudioGeneration() {
                   <span className="text-sm text-green-700">{combineAudioProgress.progress}%</span>
                 </div>
                 <Progress value={combineAudioProgress.progress} className="w-full" />
-              </div>
+                    </div>
             )}
           </CardContent>
         </Card>
@@ -1906,46 +1906,46 @@ export function AudioGeneration() {
                                                  <p className="text-sm text-green-700">
                            {Math.round((audioState.result?.audioSize || 0) / 1024)}KB • {selectedVoiceName}
                          </p>
-                      </div>
+                          </div>
                       <Badge variant="outline" className="text-green-600 border-green-300">
                         Ready
                       </Badge>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
                         onClick={() => playPauseAudio(audioState.sectionId, audioState.audioUrl!)}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        {isCurrentlyPlaying ? (
-                          <>
-                            <Pause className="h-4 w-4 mr-2" />
-                            Pause
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 mr-2" />
-                            Play
-                          </>
-                        )}
-                      </Button>
-                      
-                      <Button
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          {isCurrentlyPlaying ? (
+                            <>
+                              <Pause className="h-4 w-4 mr-2" />
+                              Pause
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-4 w-4 mr-2" />
+                              Play
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button
                         onClick={() => downloadAudio(section.title, audioState.audioUrl!)}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </Button>
-                    </div>
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
                   </CardContent>
                 </Card>
               )
             })}
-        </div>
-      )}
+                    </div>
+                  )}
 
       {/* Final Combined Audio - Only show when joining is enabled and audio is ready */}
       {sectionsWithScripts.length > 0 && autoConcatenateAfterGeneration && !batchProcessing.isProcessing && !combineAudioProgress.isGenerating && (
@@ -1964,11 +1964,11 @@ export function AudioGeneration() {
                     <p className="text-sm text-green-700">
                       {sectionsWithAudio.length} sections combined • {selectedVoiceName}
                     </p>
-                  </div>
+                      </div>
                   <Badge variant="outline" className="text-green-600 border-green-300">
                     FFmpeg Combined
                   </Badge>
-                </div>
+                    </div>
                 
                 <Button
                   onClick={combineAllAudio}
@@ -1977,9 +1977,9 @@ export function AudioGeneration() {
                   <Download className="h-4 w-4 mr-2" />
                   Download Combined Audio ({sectionsWithAudio.length} sections)
                 </Button>
-              </CardContent>
-            </Card>
-          )
+                </CardContent>
+              </Card>
+            )
         })()
       )}
     </div>
