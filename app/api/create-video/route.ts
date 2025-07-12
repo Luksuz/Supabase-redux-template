@@ -455,36 +455,7 @@ export async function POST(request: NextRequest) {
     //   console.log(`  Track ${index}: ${assetType}`);
     // });
 
-    // Create fonts array for Shotstack with Google Fonts URLs
-    const fonts = [
-      // Montserrat variants
-      {
-        src: "https://fonts.gstatic.com/s/montserrat/v26/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCtr6Ew-Y3tcoqK5.woff2"
-      },
-      // Roboto
-      {
-        src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2"
-      },
-      // Open Sans Bold
-      {
-        src: "https://fonts.gstatic.com/s/opensans/v40/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4taVQUwaEQXjN_mQ.woff2"
-      },
-      // Work Sans Light
-      {
-        src: "https://fonts.gstatic.com/s/worksans/v19/QGY_z_wNahGAdqQ43RhVcIgYT2Xz5u32K0nXBi8Jpg.woff2"
-      },
-      // Didact Gothic
-      {
-        src: "https://fonts.gstatic.com/s/didactgothic/v20/ahcfv8qz1zt6hCC5G4F_P4AShUG9f_sEkYlIZg.woff2"
-      },
-      // Permanent Marker
-      {
-        src: "https://fonts.gstatic.com/s/permanentmarker/v16/Fh4uPib9Iyv2ucM6pGQMWimMp004La2Cfw.woff2"
-      }
-    ];
-
     const timeline: any = {
-      fonts: fonts,
       tracks: tracks
     };
 

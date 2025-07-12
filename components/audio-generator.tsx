@@ -433,7 +433,7 @@ export function AudioGenerator() {
           try {
             const requestBody = {
               text: chunk.text,
-              voice: selectedVoice,
+              voiceId: selectedVoice,
               model: selectedModel,
               chunkIndex: chunk.chunkIndex,
               sessionId: sessionId,
