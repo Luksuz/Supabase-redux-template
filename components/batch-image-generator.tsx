@@ -77,7 +77,10 @@ const IMAGE_PROVIDERS = [
   { value: 'gpt-image-1', label: 'GPT Image 1', description: 'Latest OpenAI model' },
   { value: 'imagen', label: 'Google Imagen', description: 'Google\'s latest image model' },
   { value: 'flux-dev', label: 'Flux Dev', description: 'Open source, detailed' },
-  { value: 'leonardo-phoenix', label: 'Leonardo Phoenix', description: 'Artistic, cinematic' }
+  { value: 'leonardo-phoenix', label: 'Leonardo Phoenix', description: 'Artistic, cinematic' },
+  { value: 'ideogram-v3', label: 'Ideogram V3', description: 'Turbo mode, fast generation' },
+  { value: 'stable-diffusion-v35-medium', label: 'Stable Diffusion V3.5 Medium', description: 'Balanced quality and speed' },
+  { value: 'minimax-image-01', label: 'Minimax Image 01', description: 'High quality Chinese model' }
 ]
 
 const ASPECT_RATIOS = [
