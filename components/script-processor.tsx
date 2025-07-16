@@ -284,99 +284,121 @@ export function ScriptProcessor() {
       const baseProgress = 10 // Progress after summary generation
       const chunkProgressStep = (90 - baseProgress) / totalChunks // Remaining progress divided by chunks
 
-      // Create all API requests asynchronously
-      const apiRequests = finalChunks.map(async (chunk, i) => {
-        console.log(`🔄 Starting request for chunk ${i + 1}/${totalChunks}`)
-        
-        try {
-          const response = await fetch('/api/process-script', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              chunkText: chunk.text,
-              chunkIndex: i,
-              totalChunks: totalChunks,
-              visualStyle: visualStyle,
-              mood: mood,
-              lighting: lighting,
-              customParameters: customParameters,
-              chunkId: chunk.id,
-              scriptSummary: currentScriptSummary // Include the script summary
-            }),
-          })
-
-          console.log(`📡 API response status for chunk ${i + 1}:`, response.status)
-
-          if (!response.ok) {
-            const errorText = await response.text()
-            console.error(`❌ API error for chunk ${i + 1}:`, errorText)
-            throw new Error(`Failed to process chunk ${i + 1}: ${response.status} ${errorText}`)
-          }
-
-          const data = await response.json()
-          console.log(`✅ API response data for chunk ${i + 1}:`, data)
-          
-          return {
-            chunkId: chunk.id,
-            prompt: data.prompt || `Generated prompt for chunk ${i + 1}`,
-            searchQuery: data.searchQuery || '',
-            generated: true,
-            index: i
-          }
-          
-        } catch (error) {
-          console.error(`❌ Error processing chunk ${i + 1}:`, error)
-          return {
-            chunkId: chunk.id,
-            prompt: `Error processing chunk ${i + 1}: ${(error as Error).message}`,
-            searchQuery: '',
-            generated: false,
-            index: i
-          }
-        }
-      })
-
-      // Execute all requests in parallel and update progress as they complete
-      const results = await Promise.allSettled(apiRequests)
-      
-      // Process results and update state
+      // Process chunks in batches of 50 with 1-minute delay between batches
+      const batchSize = 50
       const generatedPrompts: GeneratedPrompt[] = []
       let completedCount = 0
 
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          const prompt = result.value
-          generatedPrompts.push({
-            chunkId: prompt.chunkId,
-            prompt: prompt.prompt,
-            searchQuery: prompt.searchQuery,
-            generated: prompt.generated
-          })
-          dispatch(updatePrompt({
-            chunkId: prompt.chunkId,
-            prompt: prompt.prompt,
-            searchQuery: prompt.searchQuery,
-            generated: prompt.generated
-          }))
-        } else {
-          // Handle rejected promises
-          const chunk = finalChunks[index]
-          const errorPrompt = {
-            chunkId: chunk.id,
-            prompt: `Error processing chunk ${index + 1}: ${result.reason}`,
-            searchQuery: '',
-            generated: false
-          }
-          generatedPrompts.push(errorPrompt)
-          dispatch(updatePrompt(errorPrompt))
-        }
+      // Split chunks into batches
+      for (let batchStart = 0; batchStart < finalChunks.length; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize, finalChunks.length)
+        const currentBatch = finalChunks.slice(batchStart, batchEnd)
+        const batchNumber = Math.floor(batchStart / batchSize) + 1
+        const totalBatches = Math.ceil(finalChunks.length / batchSize)
         
-        completedCount++
-        const progress = Math.round(baseProgress + (completedCount / totalChunks) * (90 - baseProgress))
-        dispatch(updateProcessingProgress(progress))
-      })
+        console.log(`🔄 Processing batch ${batchNumber}/${totalBatches} (chunks ${batchStart + 1}-${batchEnd})`)
+        
+        // Create API requests for current batch
+        const batchRequests = currentBatch.map(async (chunk, batchIndex) => {
+          const globalIndex = batchStart + batchIndex
+          console.log(`🔄 Starting request for chunk ${globalIndex + 1}/${totalChunks}`)
+          
+          try {
+            const response = await fetch('/api/process-script', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                chunkText: chunk.text,
+                chunkIndex: globalIndex,
+                totalChunks: totalChunks,
+                visualStyle: visualStyle,
+                mood: mood,
+                lighting: lighting,
+                customParameters: customParameters,
+                chunkId: chunk.id,
+                scriptSummary: currentScriptSummary // Include the script summary
+              }),
+            })
+
+            console.log(`📡 API response status for chunk ${globalIndex + 1}:`, response.status)
+
+            if (!response.ok) {
+              const errorText = await response.text()
+              console.error(`❌ API error for chunk ${globalIndex + 1}:`, errorText)
+              throw new Error(`Failed to process chunk ${globalIndex + 1}: ${response.status} ${errorText}`)
+            }
+
+            const data = await response.json()
+            console.log(`✅ API response data for chunk ${globalIndex + 1}:`, data)
+            
+            return {
+              chunkId: chunk.id,
+              prompt: data.prompt || `Generated prompt for chunk ${globalIndex + 1}`,
+              searchQuery: data.searchQuery || '',
+              generated: true,
+              index: globalIndex
+            }
+            
+          } catch (error) {
+            console.error(`❌ Error processing chunk ${globalIndex + 1}:`, error)
+            return {
+              chunkId: chunk.id,
+              prompt: `Error processing chunk ${globalIndex + 1}: ${(error as Error).message}`,
+              searchQuery: '',
+              generated: false,
+              index: globalIndex
+            }
+          }
+        })
+
+        // Execute current batch requests in parallel
+        const batchResults = await Promise.allSettled(batchRequests)
+        
+        // Process batch results
+        batchResults.forEach((result, batchIndex) => {
+          if (result.status === 'fulfilled') {
+            const prompt = result.value
+            generatedPrompts.push({
+              chunkId: prompt.chunkId,
+              prompt: prompt.prompt,
+              searchQuery: prompt.searchQuery,
+              generated: prompt.generated
+            })
+            dispatch(updatePrompt({
+              chunkId: prompt.chunkId,
+              prompt: prompt.prompt,
+              searchQuery: prompt.searchQuery,
+              generated: prompt.generated
+            }))
+          } else {
+            // Handle rejected promises
+            const chunk = currentBatch[batchIndex]
+            const errorPrompt = {
+              chunkId: chunk.id,
+              prompt: `Error processing chunk ${batchStart + batchIndex + 1}: ${result.reason}`,
+              searchQuery: '',
+              generated: false
+            }
+            generatedPrompts.push(errorPrompt)
+            dispatch(updatePrompt(errorPrompt))
+          }
+          
+          completedCount++
+          const progress = Math.round(baseProgress + (completedCount / totalChunks) * (90 - baseProgress))
+          dispatch(updateProcessingProgress(progress))
+        })
+
+        console.log(`✅ Completed batch ${batchNumber}/${totalBatches}`)
+        
+        // Add 1-minute delay between batches (except for the last batch)
+        if (batchEnd < finalChunks.length) {
+          console.log(`⏱️ Waiting 1 minute before processing next batch...`)
+          showMessage(`Batch ${batchNumber} completed. Waiting 1 minute before next batch...`, 'info')
+          await new Promise(resolve => setTimeout(resolve, 60000)) // 1 minute delay
+        }
+      }
 
       dispatch(setPrompts(generatedPrompts))
       dispatch(completeProcessing())
@@ -673,6 +695,11 @@ export function ScriptProcessor() {
                 <Progress value={processingProgress} className="w-full" />
                 <p className="text-sm text-gray-500 mt-2 text-center">
                   {processingProgress < 10 ? 'Generating script summary...' : 'Generating visual prompts...'}
+                  {chunks.length > 50 && (
+                    <span className="block text-xs text-gray-400 mt-1">
+                      Processing in batches of 50 with 1-minute delays between batches
+                    </span>
+                  )}
                 </p>
               </div>
             )}

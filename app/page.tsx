@@ -4,6 +4,7 @@ import { AuthStatus } from "@/components/auth-status";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 import { MainLayout } from "@/components/main-layout";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { AuthWrapper } from "@/components/auth-wrapper";
 import { hasEnvVars } from "@/lib/utils";
 
 export default function Home() {
@@ -25,7 +26,9 @@ export default function Home() {
         
         <div className="flex-1 w-full flex justify-center">
           <div className="w-full max-w-7xl">
-            <MainLayout />
+            <AuthWrapper>
+              <MainLayout />
+            </AuthWrapper>
           </div>
         </div>
 
