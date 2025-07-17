@@ -4,4 +4,5 @@ export interface Prompt {
   prompt: string;
   created_at: string;
   updated_at: string;
+  tag?: string;
 } 

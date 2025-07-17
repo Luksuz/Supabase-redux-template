@@ -14,6 +14,7 @@ import {
   toggleVideoSelection,
   selectAllVideos,
   deselectAllVideos,
+  clearAllVideos,
   setPreviewContent,
   clearError,
   setError,
@@ -983,6 +984,7 @@ export default function YouTubeSearch() {
                   </div>
                 </div>
 
+                <div className="flex gap-3">
                 <button
                   onClick={handleSearch}
                   disabled={searchResults.searchLoading || !isSearchFormValid}
@@ -990,10 +992,28 @@ export default function YouTubeSearch() {
                 >
                   {searchResults.searchLoading ? 'Searching...' : 'Search Videos'}
                 </button>
+                  
+                  {searchResults.videos.length > 0 && (
+                    <button
+                      onClick={() => dispatch(clearAllVideos())}
+                      disabled={searchResults.searchLoading}
+                      className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                    >
+                      Clear Results
+                    </button>
+                  )}
+                </div>
                 
                 {!isSearchFormValid && (
                   <p className="text-sm text-red-600 mt-2">
                     Please enter either a search query or a channel URL (or both).
+                  </p>
+                )}
+                
+                {searchResults.videos.length > 0 && (
+                  <p className="text-sm text-blue-600 mt-2 flex items-center gap-1">
+                    <span className="font-medium">💡 Persistent Search:</span>
+                    New searches will add to existing results. Use "Clear Results" to start fresh.
                   </p>
                 )}
               </div>

@@ -17,6 +17,7 @@ import { Badge } from '../../components/ui/badge'
 import { Progress } from '../../components/ui/progress'
 import { Loader2, Volume2, Download, Play, Pause, RefreshCw, Mic, Music, AlertCircle, CheckCircle, Settings, FileText, Fish, Plus, Edit, Trash2 } from 'lucide-react'
 import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 
 export function AudioGeneration() {
@@ -51,12 +52,15 @@ export function AudioGeneration() {
     progress: 0,
     status: ''
   })
-  const [selectedProvider, setSelectedProvider] = useState<'elevenlabs' | 'voicemaker' | 'fishaudio'>('elevenlabs')
+  const [selectedProvider, setSelectedProvider] = useState<'elevenlabs' | 'voicemaker' | 'fishaudio' | 'minimax'>('elevenlabs')
   const [voicemakerVoices, setVoicemakerVoices] = useState<any[]>([])
   const [loadingVoicemakerVoices, setLoadingVoicemakerVoices] = useState(false)
   const [fishAudioVoices, setFishAudioVoices] = useState<any[]>([])
   const [fishAudioModels, setFishAudioModels] = useState<any[]>([])
   const [loadingFishAudioVoices, setLoadingFishAudioVoices] = useState(false)
+  const [minimaxVoices, setMinimaxVoices] = useState<any[]>([])
+  const [minimaxModels, setMinimaxModels] = useState<any[]>([])
+  const [loadingMinimaxVoices, setLoadingMinimaxVoices] = useState(false)
   const [selectedSessions, setSelectedSessions] = useState<string[]>([])
   const [combineSessionsProgress, setCombineSessionsProgress] = useState<{
     isGenerating: boolean
@@ -87,8 +91,25 @@ export function AudioGeneration() {
   const [voiceForm, setVoiceForm] = useState({
     name: '',
     voice_id: '',
-    provider: 'elevenlabs' as 'elevenlabs' | 'voicemaker' | 'fishaudio'
+    provider: 'elevenlabs' as 'elevenlabs' | 'voicemaker' | 'fishaudio' | 'minimax'
   })
+
+  // ElevenLabs Voice Settings
+  const [elevenLabsSettings, setElevenLabsSettings] = useState({
+    stability: 0.5,
+    use_speaker_boost: true,
+    similarity_boost: 0.8,
+    style: 0.0,
+    speed: 1.0
+  })
+
+  // Final Edit State
+  const [editingScript, setEditingScript] = useState<{
+    sectionId: string
+    originalText: string
+    editedText: string
+  } | null>(null)
+  const [showFinalEditDialog, setShowFinalEditDialog] = useState(false)
 
   // Helper function to strip research data brackets from script text
   const stripResearchData = (text: string): string => {
@@ -122,6 +143,8 @@ export function AudioGeneration() {
       loadVoicemakerVoices()
     } else if (selectedProvider === 'fishaudio' && fishAudioVoices.length === 0 && !loadingFishAudioVoices) {
       loadFishAudioVoices()
+    } else if (selectedProvider === 'minimax' && minimaxVoices.length === 0 && !loadingMinimaxVoices) {
+      loadMinimaxVoices()
     }
   }, [selectedProvider])
 
@@ -153,7 +176,8 @@ export function AudioGeneration() {
       text: cleanScriptText,
       voiceId: audioGeneration.selectedVoice,
       modelId: audioGeneration.selectedModel,
-      provider: selectedProvider
+      provider: selectedProvider,
+      voiceSettings: selectedProvider === 'elevenlabs' ? elevenLabsSettings : undefined
     }))
 
     if (result.success) {
@@ -191,7 +215,8 @@ export function AudioGeneration() {
       text: customText,
       voiceId: audioGeneration.selectedVoice,
       modelId: audioGeneration.selectedModel,
-      provider: selectedProvider
+      provider: selectedProvider,
+      voiceSettings: selectedProvider === 'elevenlabs' ? elevenLabsSettings : undefined
     }))
 
     if (result.success) {
@@ -270,21 +295,15 @@ export function AudioGeneration() {
         const cleanScriptText = stripResearchData(scriptText)
         
           let result
-          if (selectedProvider === 'elevenlabs' || selectedProvider === 'fishaudio') {
+          if (selectedProvider === 'elevenlabs' || selectedProvider === 'fishaudio' || selectedProvider === 'minimax' || selectedProvider === 'voicemaker') {
             result = await dispatch(generateAudioThunk({
           sectionId: section.id,
           text: cleanScriptText,
           voiceId: audioGeneration.selectedVoice,
               modelId: audioGeneration.selectedModel,
-              provider: selectedProvider
+              provider: selectedProvider,
+              voiceSettings: selectedProvider === 'elevenlabs' ? elevenLabsSettings : undefined
             }))
-          } else if (selectedProvider === 'voicemaker') {
-            try {
-              await generateVoicemakerAudio(section.id, cleanScriptText)
-              result = { success: true }
-            } catch (error) {
-              result = { success: false, error: error instanceof Error ? error.message : 'VoiceMaker generation failed' }
-            }
           } else {
             result = { success: false, error: 'Unknown provider selected' }
           }
@@ -411,13 +430,84 @@ export function AudioGeneration() {
     }
   }
 
-  const downloadAudio = (sectionTitle: string, audioUrl: string) => {
+  const downloadAudio = async (sectionTitle: string, audioUrl: string) => {
+    try {
+      console.log(`🔽 Attempting to download audio: ${audioUrl}`)
+      
+      // Clean filename
+      const filename = `${sectionTitle.replace(/[^a-zA-Z0-9]/g, '_')}_audio.mp3`
+      
+      // Try direct download first (works for same-origin URLs)
+      try {
     const link = document.createElement('a')
     link.href = audioUrl
-    link.download = `${sectionTitle.replace(/[^a-zA-Z0-9]/g, '_')}_audio.mp3`
+        link.download = filename
+        link.style.display = 'none'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+        
+        // Check if download actually started (basic check)
+        showMessage(`Download started: ${filename}`, 'success')
+        return
+      } catch (directError) {
+        console.warn('Direct download failed, trying fetch method:', directError)
+      }
+      
+      // Fallback: Fetch the audio and create blob URL
+      showMessage('Starting download...', 'info')
+      
+      const response = await fetch(audioUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'audio/mpeg,audio/*,*/*'
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      
+      // Create download link with blob URL
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filename
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      // Clean up blob URL after a delay
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl)
+      }, 1000)
+      
+      showMessage(`Audio downloaded: ${filename}`, 'success')
+      
+    } catch (error) {
+      console.error('Audio download failed:', error)
+      
+      // Show specific error message
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        showMessage('Download failed: Network error or CORS restriction', 'error')
+      } else if (error instanceof Error) {
+        showMessage(`Download failed: ${error.message}`, 'error')
+      } else {
+        showMessage('Download failed: Unknown error', 'error')
+      }
+      
+      // Fallback: Try opening in new tab
+      try {
+        window.open(audioUrl, '_blank')
+        showMessage('Opened audio in new tab - you can save it manually', 'info')
+      } catch (fallbackError) {
+        console.error('Fallback open failed:', fallbackError)
+        showMessage('Could not download or open audio file', 'error')
+      }
+    }
   }
 
   // Combine all project audio files into one
@@ -499,14 +589,24 @@ export function AudioGeneration() {
 
         // Create download link for combined audio
         const combinedAudioUrl = data.audioUrl
+        const filename = `${currentJob.name.replace(/[^a-zA-Z0-9]/g, '_')}_combined_audio.mp3`
+        
+        try {
         const link = document.createElement('a')
         link.href = combinedAudioUrl
-        link.download = `${currentJob.name.replace(/[^a-zA-Z0-9]/g, '_')}_combined_audio.mp3`
+          link.download = filename
+          link.style.display = 'none'
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
 
         showMessage(`Successfully combined ${sectionsWithAudio.length} audio files! Download started.`, 'success')
+        } catch (downloadError) {
+          console.error('Combined audio download failed:', downloadError)
+          // Fallback: open in new tab
+          window.open(combinedAudioUrl, '_blank')
+          showMessage(`Combined audio ready - opened in new tab: ${filename}`, 'info')
+        }
       } else {
         throw new Error(data.error || 'Audio combination failed')
       }
@@ -554,51 +654,6 @@ export function AudioGeneration() {
     }
   }
 
-  // Generate audio with VoiceMaker
-  const generateVoicemakerAudio = async (sectionId: string, scriptText: string) => {
-    if (!audioGeneration.selectedVoice) {
-      showMessage('Please select a voice first', 'error')
-      return
-    }
-
-    if (!user.isLoggedIn) {
-      showMessage('Please log in to generate audio', 'error')
-      return
-    }
-
-    // Strip research data brackets before sending to audio generation
-    const cleanScriptText = stripResearchData(scriptText)
-
-    try {
-      const response = await fetch('/api/voicemaker/generate-audio', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sectionId,
-          text: cleanScriptText,
-          voiceId: audioGeneration.selectedVoice,
-          engine: 'neural',
-          outputFormat: 'mp3',
-          sampleRate: '48000'
-        })
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        showMessage('VoiceMaker audio generated successfully!', 'success')
-        // The audio state will be updated through the existing Redux flow
-      } else {
-        throw new Error(data.error || 'VoiceMaker audio generation failed')
-      }
-    } catch (error) {
-      console.error('Error generating VoiceMaker audio:', error)
-      showMessage(error instanceof Error ? error.message : 'Failed to generate VoiceMaker audio', 'error')
-    }
-  }
-
   // Load Fish Audio voices
   const loadFishAudioVoices = async () => {
     setLoadingFishAudioVoices(true)
@@ -624,6 +679,34 @@ export function AudioGeneration() {
       showMessage('Failed to load Fish Audio voices', 'error')
     } finally {
       setLoadingFishAudioVoices(false)
+    }
+  }
+
+  // Load Minimax voices
+  const loadMinimaxVoices = async () => {
+    setLoadingMinimaxVoices(true)
+    try {
+      const response = await fetch('/api/minimax/voices', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setMinimaxVoices(data.voices || [])
+        setMinimaxModels(data.models || [])
+        showMessage(`Loaded ${data.voices?.length || 0} Minimax voices`, 'success')
+      } else {
+        throw new Error(data.error || 'Failed to load Minimax voices')
+      }
+    } catch (error) {
+      console.error('Error loading Minimax voices:', error)
+      showMessage('Failed to load Minimax voices', 'error')
+    } finally {
+      setLoadingMinimaxVoices(false)
     }
   }
 
@@ -658,6 +741,40 @@ export function AudioGeneration() {
       )
     } else {
       showMessage(result.error || 'Failed to generate Fish Audio', 'error')
+    }
+  }
+
+  // Generate audio with Minimax
+  const generateMinimaxAudio = async (sectionId: string, scriptText: string) => {
+    if (!audioGeneration.selectedVoice) {
+      showMessage('Please select a voice first', 'error')
+      return
+    }
+
+    if (!user.isLoggedIn) {
+      showMessage('Please log in to generate audio', 'error')
+      return
+    }
+
+    // Strip research data brackets before sending to audio generation
+    const cleanScriptText = stripResearchData(scriptText)
+
+    const result = await dispatch(generateAudioThunk({
+      sectionId,
+      text: cleanScriptText,
+      voiceId: audioGeneration.selectedVoice,
+      modelId: audioGeneration.selectedModel || 'speech-02-hd',
+      provider: 'minimax'
+    }))
+
+    if (result.success) {
+      const sizeInKB = Math.round((result.result.audioSize || 0) / 1024)
+      showMessage(
+        `Minimax audio generated successfully! ${result.result.chunksGenerated || 1}/${result.result.totalChunks || 1} chunks, ${sizeInKB}KB`,
+        'success'
+      )
+    } else {
+      showMessage(result.error || 'Failed to generate Minimax audio', 'error')
     }
   }
 
@@ -745,14 +862,24 @@ export function AudioGeneration() {
 
         // Create download link for combined audio
         const combinedAudioUrl = data.audioUrl
+        const filename = `combined_sessions_${Date.now()}.mp3`
+        
+        try {
         const link = document.createElement('a')
         link.href = combinedAudioUrl
-        link.download = `combined_sessions_${Date.now()}.mp3`
+          link.download = filename
+          link.style.display = 'none'
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
 
         showMessage(`Successfully combined ${selectedSessions.length} audio sessions! Download started.`, 'success')
+        } catch (downloadError) {
+          console.error('Session combination download failed:', downloadError)
+          // Fallback: open in new tab
+          window.open(combinedAudioUrl, '_blank')
+          showMessage(`Combined sessions ready - opened in new tab: ${filename}`, 'info')
+        }
         
         // Clear selection
         setSelectedSessions([])
@@ -923,6 +1050,55 @@ export function AudioGeneration() {
     loadCustomVoices()
   }, [])
 
+  // Final edit functions
+  const openFinalEdit = (sectionId: string, scriptText: string) => {
+    const cleanText = stripResearchData(scriptText)
+    setEditingScript({
+      sectionId,
+      originalText: scriptText,
+      editedText: cleanText
+    })
+    setShowFinalEditDialog(true)
+  }
+
+  const generateAudioWithEditedText = async () => {
+    if (!editingScript || !audioGeneration.selectedVoice) {
+      showMessage('Missing edited text or voice selection', 'error')
+      return
+    }
+
+    if (!user.isLoggedIn) {
+      showMessage('Please log in to generate audio', 'error')
+      return
+    }
+
+    const result = await dispatch(generateAudioThunk({
+      sectionId: editingScript.sectionId,
+      text: editingScript.editedText,
+      voiceId: audioGeneration.selectedVoice,
+      modelId: audioGeneration.selectedModel,
+      provider: selectedProvider,
+      voiceSettings: selectedProvider === 'elevenlabs' ? elevenLabsSettings : undefined
+    }))
+
+    if (result.success) {
+      const sizeInKB = Math.round((result.result.audioSize || 0) / 1024)
+      showMessage(
+        `Audio generated from edited script! ${result.result.chunksGenerated || 1}/${result.result.totalChunks || 1} chunks, ${sizeInKB}KB`,
+        'success'
+      )
+      setShowFinalEditDialog(false)
+      setEditingScript(null)
+    } else {
+      showMessage(result.error || 'Failed to generate audio from edited script', 'error')
+    }
+  }
+
+  const cancelFinalEdit = () => {
+    setShowFinalEditDialog(false)
+    setEditingScript(null)
+  }
+
   if (!user.isLoggedIn) {
     return (
       <div className="flex-1 p-6">
@@ -985,7 +1161,7 @@ export function AudioGeneration() {
             </label>
             <Select 
               value={selectedProvider} 
-              onValueChange={(value: 'elevenlabs' | 'voicemaker' | 'fishaudio') => {
+              onValueChange={(value: 'elevenlabs' | 'voicemaker' | 'fishaudio' | 'minimax') => {
                 setSelectedProvider(value)
                 // Clear selected voice when switching providers
                 dispatch(setSelectedVoice(''))
@@ -994,6 +1170,8 @@ export function AudioGeneration() {
                   loadVoicemakerVoices()
                 } else if (value === 'fishaudio' && fishAudioVoices.length === 0) {
                   loadFishAudioVoices()
+                } else if (value === 'minimax' && minimaxVoices.length === 0) {
+                  loadMinimaxVoices()
                 }
               }}
             >
@@ -1007,16 +1185,22 @@ export function AudioGeneration() {
                     ElevenLabs (Premium Quality)
                   </div>
                 </SelectItem>
-                {/* <SelectItem value="voicemaker">
+                <SelectItem value="voicemaker">
                   <div className="flex items-center gap-2">
                     <Mic className="h-3 w-3" />
                     VoiceMaker.in (Cost Effective)
                   </div>
-                </SelectItem> */}
+                </SelectItem>
                 <SelectItem value="fishaudio">
                   <div className="flex items-center gap-2">
                     <Fish className="h-3 w-3" />
                     Fish Audio (AI Powered)
+                  </div>
+                </SelectItem>
+                <SelectItem value="minimax">
+                  <div className="flex items-center gap-2">
+                    <Music className="h-3 w-3" />
+                    Minimax (Text-to-Audio)
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -1031,7 +1215,7 @@ export function AudioGeneration() {
               <Select 
                 value={audioGeneration.selectedVoice} 
                 onValueChange={(value) => dispatch(setSelectedVoice(value))}
-                  disabled={selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : loadingFishAudioVoices)}
+                  disabled={selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : (selectedProvider === 'fishaudio' ? loadingFishAudioVoices : loadingMinimaxVoices))}
               >
                 <SelectTrigger>
                     <SelectValue placeholder={
@@ -1039,7 +1223,9 @@ export function AudioGeneration() {
                         ? (audioGeneration.loadingVoices ? "Loading ElevenLabs voices..." : "Select an ElevenLabs voice")
                         : selectedProvider === 'voicemaker'
                         ? (loadingVoicemakerVoices ? "Loading VoiceMaker voices..." : "Select a VoiceMaker voice")
-                        : (loadingFishAudioVoices ? "Loading Fish Audio voices..." : "Select a Fish Audio voice")
+                        : selectedProvider === 'fishaudio'
+                        ? (loadingFishAudioVoices ? "Loading Fish Audio voices..." : "Select a Fish Audio voice")
+                        : (loadingMinimaxVoices ? "Loading Minimax voices..." : "Select a Minimax voice")
                     } />
                 </SelectTrigger>
                 <SelectContent>
@@ -1096,6 +1282,33 @@ export function AudioGeneration() {
                                 <Mic className="h-3 w-3" />
                                 {voice.name}
                                 <Badge variant="outline" className="text-xs bg-green-50 text-green-600">
+                                  Custom
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))
+                        ]
+                      : selectedProvider === 'minimax'
+                      ? [
+                          // API voices
+                          ...minimaxVoices.map((voice) => (
+                            <SelectItem key={voice.id} value={voice.id}>
+                              <div className="flex items-center gap-2">
+                                <Music className="h-3 w-3" />
+                                {voice.name}
+                                <Badge variant="outline" className="text-xs">
+                                  {voice.category}
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          )),
+                          // Custom voices for this provider
+                          ...customVoices.filter(v => v.provider === 'minimax').map((voice) => (
+                            <SelectItem key={`custom-${voice.id}`} value={voice.voice_id}>
+                              <div className="flex items-center gap-2">
+                                <Music className="h-3 w-3" />
+                                {voice.name}
+                                <Badge variant="outline" className="text-xs bg-orange-50 text-orange-600">
                                   Custom
                                 </Badge>
                               </div>
@@ -1164,6 +1377,21 @@ export function AudioGeneration() {
                     <SelectItem value="neural">Neural Engine (High Quality)</SelectItem>
                   </SelectContent>
                 </Select>
+              ) : selectedProvider === 'minimax' ? (
+                <Select 
+                  value={audioGeneration.selectedModel || 'speech-02-hd'} 
+                  onValueChange={(value) => dispatch(setSelectedAudioModel(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="speech-02-hd">Speech 02 HD (Best Quality & Stability)</SelectItem>
+                    <SelectItem value="speech-02-turbo">Speech 02 Turbo (Enhanced Multilingual)</SelectItem>
+                    <SelectItem value="speech-01-hd">Speech 01 HD (Rich Voices & Emotions)</SelectItem>
+                    <SelectItem value="speech-01-turbo">Speech 01 Turbo (Low Latency)</SelectItem>
+                  </SelectContent>
+                </Select>
               ) : (
                 <Select 
                   value={audioGeneration.selectedModel || 'speech-1'} 
@@ -1184,19 +1412,108 @@ export function AudioGeneration() {
             </div>
           </div>
 
+          {/* ElevenLabs Voice Settings */}
+          {selectedProvider === 'elevenlabs' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                ElevenLabs Voice Settings
+              </h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-blue-800 mb-2">
+                    Stability ({elevenLabsSettings.stability})
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={elevenLabsSettings.stability}
+                    onChange={(e) => setElevenLabsSettings(prev => ({ ...prev, stability: parseFloat(e.target.value) }))}
+                    className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <p className="text-xs text-blue-600 mt-1">Lower values = more emotional range, Higher values = more stable</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-blue-800 mb-2">
+                    Similarity Boost ({elevenLabsSettings.similarity_boost})
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={elevenLabsSettings.similarity_boost}
+                    onChange={(e) => setElevenLabsSettings(prev => ({ ...prev, similarity_boost: parseFloat(e.target.value) }))}
+                    className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <p className="text-xs text-blue-600 mt-1">How closely AI should adhere to the original voice</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-blue-800 mb-2">
+                    Style ({elevenLabsSettings.style})
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={elevenLabsSettings.style}
+                    onChange={(e) => setElevenLabsSettings(prev => ({ ...prev, style: parseFloat(e.target.value) }))}
+                    className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <p className="text-xs text-blue-600 mt-1">Style exaggeration of the voice (0 = default)</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-blue-800 mb-2">
+                    Speed ({elevenLabsSettings.speed})
+                  </label>
+                  <input
+                    type="range"
+                    min="0.25"
+                    max="4.0"
+                    step="0.25"
+                    value={elevenLabsSettings.speed}
+                    onChange={(e) => setElevenLabsSettings(prev => ({ ...prev, speed: parseFloat(e.target.value) }))}
+                    className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <p className="text-xs text-blue-600 mt-1">Speech speed (1.0 = normal speed)</p>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-blue-800">
+                    <input
+                      type="checkbox"
+                      checked={elevenLabsSettings.use_speaker_boost}
+                      onChange={(e) => setElevenLabsSettings(prev => ({ ...prev, use_speaker_boost: e.target.checked }))}
+                      className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Speaker Boost
+                  </label>
+                  <p className="text-xs text-blue-600 mt-1 ml-6">Boosts similarity to original speaker (increases latency)</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <Button
-              onClick={selectedProvider === 'elevenlabs' ? loadVoices : (selectedProvider === 'voicemaker' ? loadVoicemakerVoices : loadFishAudioVoices)}
+              onClick={selectedProvider === 'elevenlabs' ? loadVoices : (selectedProvider === 'voicemaker' ? loadVoicemakerVoices : (selectedProvider === 'fishaudio' ? loadFishAudioVoices : loadMinimaxVoices))}
               variant="outline"
               size="sm"
-              disabled={selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : loadingFishAudioVoices)}
+              disabled={selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : (selectedProvider === 'fishaudio' ? loadingFishAudioVoices : loadingMinimaxVoices))}
             >
-              {(selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : loadingFishAudioVoices)) ? (
+              {(selectedProvider === 'elevenlabs' ? audioGeneration.loadingVoices : (selectedProvider === 'voicemaker' ? loadingVoicemakerVoices : (selectedProvider === 'fishaudio' ? loadingFishAudioVoices : loadingMinimaxVoices))) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Refresh {selectedProvider === 'elevenlabs' ? 'ElevenLabs' : (selectedProvider === 'voicemaker' ? 'VoiceMaker' : 'Fish Audio')} Voices
+              Refresh {selectedProvider === 'elevenlabs' ? 'ElevenLabs' : (selectedProvider === 'voicemaker' ? 'VoiceMaker' : (selectedProvider === 'minimax' ? 'Minimax' : 'Fish Audio'))} Voices
             </Button>
             {((selectedProvider === 'elevenlabs' && audioGeneration.voices.length > 0) || 
               (selectedProvider === 'voicemaker' && voicemakerVoices.length > 0) ||
@@ -1299,7 +1616,7 @@ export function AudioGeneration() {
                     </label>
                     <Select 
                       value={voiceForm.provider} 
-                      onValueChange={(value: 'elevenlabs' | 'voicemaker' | 'fishaudio') => 
+                      onValueChange={(value: 'elevenlabs' | 'voicemaker' | 'fishaudio' | 'minimax') => 
                         setVoiceForm({ ...voiceForm, provider: value })
                       }
                     >
@@ -1310,6 +1627,7 @@ export function AudioGeneration() {
                         <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
                         <SelectItem value="voicemaker">VoiceMaker</SelectItem>
                         <SelectItem value="fishaudio">Fish Audio</SelectItem>
+                        <SelectItem value="minimax">Minimax</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1440,12 +1758,7 @@ export function AudioGeneration() {
 
           <Button
             onClick={() => {
-              if (selectedProvider === 'elevenlabs' || selectedProvider === 'fishaudio') {
-                generateCustomAudio()
-              } else if (selectedProvider === 'voicemaker') {
-                const customSectionId = `custom-${Date.now()}`
-                generateVoicemakerAudio(customSectionId, customText)
-              }
+              generateCustomAudio()
             }}
             disabled={!customText.trim() || !audioGeneration.selectedVoice || customAudioStates.some(s => s.isGenerating)}
             className="w-full"
@@ -1463,7 +1776,7 @@ export function AudioGeneration() {
                     (voicemakerVoices.find(v => v.VoiceId === audioGeneration.selectedVoice)?.VoiceWebname || 'Selected Voice') :
                     (fishAudioVoices.find(v => v.id === audioGeneration.selectedVoice)?.name || 'Selected Voice')
                 } 
-                ({selectedProvider === 'elevenlabs' ? 'ElevenLabs' : selectedProvider === 'voicemaker' ? 'VoiceMaker' : 'Fish Audio'})
+                ({selectedProvider === 'elevenlabs' ? 'ElevenLabs' : selectedProvider === 'voicemaker' ? 'VoiceMaker' : selectedProvider === 'minimax' ? 'Minimax' : 'Fish Audio'})
               </>
             )}
           </Button>
@@ -1519,7 +1832,7 @@ export function AudioGeneration() {
                     <div className="space-y-2 mb-4">
                       <Progress value={50} className="w-full" />
                       <p className="text-sm text-gray-600 text-center">
-                        Processing with {selectedProvider === 'elevenlabs' ? 'ElevenLabs' : selectedProvider === 'voicemaker' ? 'VoiceMaker' : 'Fish Audio'}... This may take up to 5 minutes.
+                        Processing with {selectedProvider === 'elevenlabs' ? 'ElevenLabs' : selectedProvider === 'voicemaker' ? 'VoiceMaker' : selectedProvider === 'minimax' ? 'Minimax' : 'Fish Audio'}... This may take up to 5 minutes.
                       </p>
                     </div>
                   )}
@@ -1825,10 +2138,20 @@ export function AudioGeneration() {
                 </label>
                   </div>
 
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => openFinalEdit('joined-script', joinedScriptText)}
+                        variant="outline"
+                        className="flex items-center gap-1"
+                        disabled={!joinedScriptText.trim()}
+                      >
+                        <Edit className="h-4 w-4" />
+                        Final Edit
+                      </Button>
                     <Button
                 onClick={generateAllAudioInBatches}
                 disabled={!audioGeneration.selectedVoice || batchProcessing.isProcessing || !joinedScriptText.trim()}
-                className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-blue-600 hover:bg-blue-700 flex-1"
               >
                 {batchProcessing.isProcessing ? (
                         <>
@@ -1842,6 +2165,7 @@ export function AudioGeneration() {
                         </>
                       )}
                     </Button>
+                    </div>
             </div>
 
             {/* Batch Processing Progress */}
@@ -1914,6 +2238,15 @@ export function AudioGeneration() {
 
                       <div className="flex gap-2">
                         <Button
+                          onClick={() => openFinalEdit(audioState.sectionId, section.texts[0].generated_script)}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                        >
+                          <Edit className="h-4 w-4" />
+                          Final Edit
+                        </Button>
+                        <Button
                         onClick={() => playPauseAudio(audioState.sectionId, audioState.audioUrl!)}
                           variant="outline"
                           className="flex-1"
@@ -1982,6 +2315,73 @@ export function AudioGeneration() {
             )
         })()
       )}
+
+      {/* Final Edit Dialog */}
+      <Dialog open={showFinalEditDialog} onOpenChange={setShowFinalEditDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Final Edit Before Audio Generation
+            </DialogTitle>
+          </DialogHeader>
+          {editingScript && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-sm text-blue-700">
+                  Make final edits to your script before generating audio. Research brackets [[...]] have been automatically removed.
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="finalEditTextarea">Script Text (Editable)</Label>
+                <Textarea
+                  id="finalEditTextarea"
+                  value={editingScript.editedText}
+                  onChange={(e) => setEditingScript(prev => prev ? { ...prev, editedText: e.target.value } : null)}
+                  className="min-h-[300px] font-mono text-sm"
+                  placeholder="Edit your script text here before generating audio..."
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>{editingScript.editedText.length} characters • {editingScript.editedText.trim().split(/\s+/).length} words</span>
+                  <span>Est. ~{Math.ceil(editingScript.editedText.trim().split(/\s+/).length / 150)} min duration</span>
+                </div>
+              </div>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-800">
+                    <p className="font-medium">Voice Settings</p>
+                    <p className="mt-1">
+                      Audio will be generated using <strong>{selectedVoiceName}</strong> ({selectedProvider}) 
+                      with model <strong>{audioGeneration.selectedModel}</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  onClick={generateAudioWithEditedText}
+                  disabled={!editingScript.editedText.trim() || !audioGeneration.selectedVoice}
+                  className="flex-1"
+                >
+                  <Music className="h-4 w-4 mr-2" />
+                  Generate Audio with Edited Text
+                </Button>
+                <Button
+                  onClick={cancelFinalEdit}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

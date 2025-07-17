@@ -1,0 +1,100 @@
+{
+  "id": "ae14de5e-5a3b-49af-9fe4-6d53e5add1f0",
+  "model": "sonar-pro",
+  "created": 1752696299,
+  "usage": {
+    "prompt_tokens": 66,
+    "completion_tokens": 453,
+    "total_tokens": 519,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://www.youtube.com/watch?v=r6Fn3LuX2Fc",
+    "https://en.wikipedia.org/wiki/Drake_(musician)",
+    "https://www.youtube.com/watch?v=OUMbvsRyU_o",
+    "https://www.tiktok.com/discover/white-rapper-show-punishment",
+    "https://www.tiktok.com/@ynwmellyfan253/video/7514095138625522967",
+    "https://en.wikipedia.org/wiki/Post_Malone",
+    "https://www.youtube.com/watch?v=RIPknhvAA0k",
+    "https://www.instagram.com/p/DMJTPvRv6Zf/",
+    "https://www.tiktok.com/discover/lawyer-rapper-case",
+    "https://www.tiktok.com/discover/ynw-melly-video-incident"
+  ],
+  "search_results": [
+    {
+      "title": "Rappers Most HEATED Courtroom Moments - YouTube",
+      "url": "https://www.youtube.com/watch?v=r6Fn3LuX2Fc",
+      "date": "2025-01-31",
+      "last_updated": "2025-03-05"
+    },
+    {
+      "title": "Drake (musician) - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Drake_(musician)",
+      "date": "2005-04-01",
+      "last_updated": "2025-07-16"
+    },
+    {
+      "title": "Moula 1st Crashes JOEAZY Court Room! Exclusive Call - YouTube",
+      "url": "https://www.youtube.com/watch?v=OUMbvsRyU_o",
+      "date": "2025-07-08",
+      "last_updated": "2025-07-16"
+    },
+    {
+      "title": "White Rapper Show Punishment - TikTok",
+      "url": "https://www.tiktok.com/discover/white-rapper-show-punishment",
+      "date": "2025-07-07",
+      "last_updated": null
+    },
+    {
+      "title": "YNW Melly's Courtroom Incident Goes Viral - TikTok",
+      "url": "https://www.tiktok.com/@ynwmellyfan253/video/7514095138625522967",
+      "date": "2025-06-09",
+      "last_updated": null
+    },
+    {
+      "title": "Post Malone - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Post_Malone",
+      "date": "2015-10-03",
+      "last_updated": "2025-07-14"
+    },
+    {
+      "title": "New Young Thug Court Footage Goes Viral.. - YouTube",
+      "url": "https://www.youtube.com/watch?v=RIPknhvAA0k",
+      "date": "2024-09-11",
+      "last_updated": null
+    },
+    {
+      "title": "Nicki Minaj & SZA go Back and Forth on Twitter - Instagram",
+      "url": "https://www.instagram.com/p/DMJTPvRv6Zf/",
+      "date": "2025-07-15",
+      "last_updated": null
+    },
+    {
+      "title": "Lawyer Rapper Case - TikTok",
+      "url": "https://www.tiktok.com/discover/lawyer-rapper-case",
+      "date": "2025-07-14",
+      "last_updated": null
+    },
+    {
+      "title": "Ynw Melly Video Incident - TikTok",
+      "url": "https://www.tiktok.com/discover/ynw-melly-video-incident",
+      "date": "2025-07-07",
+      "last_updated": null
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Several **rappers have had viral courtroom incidents** that captured public attention, often due to dramatic or unexpected behavior rather than traditional \"accidents\" like physical mishaps. Here are some of the most notable cases:\n\n- **YNW Melly**: During his high-profile double murder trial, YNW Melly was told to stop laughing in court, which went viral on social media[5]. His demeanor and reactions throughout the proceedings have repeatedly sparked viral moments, including his appearance after cutting off his dreadlocks following years in jail[10][9].\n\n- **Young Thug**: Courtroom footage involving Young Thug has repeatedly gone viral, especially as his YSL RICO trial has featured dramatic testimony and reactions. Clips of Young Thug reacting to witness statements and other courtroom developments have circulated widely online[7].\n\n- **Tay-K**: The rapper Tay-K became infamous for his lack of visible emotion during sentencing, but when the cameras returned, he was seen wiping his face, suggesting he was crying. His case went viral not only for his music referencing his crimes but also for his courtroom demeanor and the reactions of those present[1].\n\n- **Calvin Griffith (Miami rapper)**: In a bizarre incident, Calvin Griffith began twerking in court after failing to get the judge's attention, causing the jury to break out in laughter. This unusual behavior quickly spread online and became a viral courtroom moment[1].\n\n- **Moula 1st**: In Toronto, Moula 1st, known as a social media agitator, crashed a courtroom during a high-profile case. His presence was so disruptive that he was kicked out, and the incident became a topic of discussion in the local rap community and on social media[3].\n\nWhile these incidents are not \"accidents\" in the sense of physical mishaps, they are **viral courtroom moments** involving rappers that have drawn widespread attention for their dramatic, unexpected, or disruptive nature. If you are seeking physical accidents (such as falls or injuries) specifically inside courtrooms, there is little evidence of such events involving top rappers in the public record. Most viral moments are related to **behavioral outbursts, emotional reactions, or disruptions** rather than literal accidents."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

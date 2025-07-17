@@ -50,6 +50,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { FileText, Loader2, Edit3, Play, Download, Copy, CheckCircle, AlertCircle, User, LogOut, Lock, Settings, MessageCircle, Send, Bot, Eye, Zap, Plus, Trash2, Paperclip, Clock, Quote, Video } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
+// Timestamp interface for selection with enhanced element types
+interface AvailableTimestamp {
+  id: string
+  videoId: string
+  videoTitle: string
+  youtubeUrl: string
+  startTime: string
+  endTime: string
+  description: string
+  quote?: string
+  speaker?: string
+  source: 'analysis' | 'research' | 'gemini'
+  confidence?: number
+  elementType?: 'quote' | 'background_footage' | 'crime_scene' | 'dramatic_moment' | 'security_camera' | 'news_footage' | 'court_footage' | 'evidence' | 'the_moment'
+}
+
 // Chat message interface
 interface ChatMessage {
   id: string
@@ -348,6 +364,15 @@ export function ScriptGenerator() {
     sectionId: string
     textareaRef: React.RefObject<HTMLTextAreaElement>
   } | null>(null)
+
+  // Timestamp selection state
+  const [showTimestampPicker, setShowTimestampPicker] = useState(false)
+  const [selectedTimestamp, setSelectedTimestamp] = useState<AvailableTimestamp | null>(null)
+  const [timestampInsertionTarget, setTimestampInsertionTarget] = useState<{
+    textId: string
+    textareaRef: React.RefObject<HTMLTextAreaElement>
+  } | null>(null)
+  const [availableTimestamps, setAvailableTimestamps] = useState<AvailableTimestamp[]>([])
   
   // Model selection
   const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini')
@@ -374,6 +399,83 @@ export function ScriptGenerator() {
   useEffect(() => {
     dispatch(fetchPromptsThunk())
   }, [dispatch])
+
+  // Load available timestamps when YouTube data changes
+  useEffect(() => {
+    const timestamps: AvailableTimestamp[] = []
+    
+    // Extract timestamps from video summaries with enhanced element types
+    if (youtubeState.videosSummary?.videoSummaries) {
+      youtubeState.videosSummary.videoSummaries.forEach(video => {
+        if (video.timestamps) {
+          video.timestamps.forEach((timestamp, index) => {
+            timestamps.push({
+              id: `summary-${video.videoId}-${index}`,
+              videoId: video.videoId,
+              videoTitle: video.title,
+              youtubeUrl: `https://youtube.com/watch?v=${video.videoId}`,
+              startTime: timestamp.startTime,
+              endTime: timestamp.endTime,
+              description: timestamp.description,
+              quote: timestamp.quote,
+              speaker: timestamp.speaker,
+              source: 'research',
+              elementType: (timestamp as any).elementType || 'quote' // Extract enhanced element type
+            })
+          })
+        }
+      })
+    }
+
+    // Extract timestamps from YouTube research summaries with enhanced element types
+    youtubeState.youtubeResearchSummaries.forEach(research => {
+      research.videosSummary.videoSummaries.forEach(video => {
+        if (video.timestamps) {
+          video.timestamps.forEach((timestamp, index) => {
+            timestamps.push({
+              id: `youtube-research-${video.videoId}-${index}`,
+              videoId: video.videoId,
+              videoTitle: video.title,
+              youtubeUrl: `https://youtube.com/watch?v=${video.videoId}`,
+              startTime: timestamp.startTime,
+              endTime: timestamp.endTime,
+              description: timestamp.description,
+              quote: timestamp.quote,
+              speaker: timestamp.speaker,
+              source: 'research',
+              elementType: (timestamp as any).elementType || 'quote' // Extract enhanced element type
+            })
+          })
+        }
+      })
+    })
+
+    // Extract timestamps from analysis results with enhanced element types
+    youtubeState.analysisResults.forEach(result => {
+      const video = youtubeState.videos.find(v => v.id.videoId === result.videoId)
+      const videoTitle = video?.snippet?.title || `Video ${result.videoId}`
+      
+      result.analysis.forEach((analysis, index) => {
+        if (analysis.timestamp) {
+          timestamps.push({
+            id: `analysis-${result.videoId}-${index}`,
+            videoId: result.videoId,
+            videoTitle,
+            youtubeUrl: analysis.youtubeUrl || `https://youtube.com/watch?v=${result.videoId}`,
+            startTime: analysis.timestamp,
+            endTime: analysis.timestamp, // Same as start time for analysis results
+            description: analysis.summary,
+            quote: analysis.keyQuotes?.[0],
+            source: 'analysis',
+            confidence: analysis.confidence,
+            elementType: (analysis as any).elementType || 'quote' // Extract enhanced element type
+          })
+        }
+      })
+    })
+
+    setAvailableTimestamps(timestamps)
+  }, [youtubeState])
 
   // Load fine-tuned models when user logs in
   const loadFineTunedModels = async () => {
@@ -576,13 +678,68 @@ export function ScriptGenerator() {
         }
       }
       
-      // Add Google research summaries
+      // Add Perplexity research summaries
       if (hasGoogleResearch) {
-        fullResearchData += '\n--- GOOGLE RESEARCH SUMMARIES ---\n'
+        fullResearchData += '\n--- PERPLEXITY RESEARCH SUMMARIES ---\n'
         youtubeState.googleResearchSummaries.forEach((research, i) => {
           const isApplied = research.appliedToScript ? ' [APPLIED]' : ''
-          fullResearchData += `\nGoogle Research ${i + 1}${isApplied}: ${research.query}\n`
+          fullResearchData += `\nPerplexity Research ${i + 1}${isApplied}: ${research.query}\n`
+          
+          // Use rich research data if available
+          if (research.researchSummary) {
+            const rs = research.researchSummary
+            fullResearchData += `Overall Theme: ${rs.overallTheme}\n`
+            
+            if (rs.keyInsights && rs.keyInsights.length > 0) {
+              fullResearchData += `Key Insights:\n`
+              rs.keyInsights.forEach((insight, idx) => {
+                fullResearchData += `  ${idx + 1}. ${insight}\n`
+              })
+            }
+            
+            if (rs.visualAudioCues && rs.visualAudioCues.length > 0) {
+              fullResearchData += `Visual/Audio Cues:\n`
+              rs.visualAudioCues.forEach((cue, idx) => {
+                fullResearchData += `  ${idx + 1}. ${cue}\n`
+              })
+            }
+            
+            if (rs.audienceQuestions && rs.audienceQuestions.length > 0) {
+              fullResearchData += `Audience Questions/Hooks:\n`
+              rs.audienceQuestions.forEach((question, idx) => {
+                fullResearchData += `  ${idx + 1}. ${question}\n`
+              })
+            }
+            
+            if (rs.conflictElements && rs.conflictElements.length > 0) {
+              fullResearchData += `Dramatic Elements:\n`
+              rs.conflictElements.forEach((element, idx) => {
+                fullResearchData += `  ${idx + 1}. ${element}\n`
+              })
+            }
+            
+            if (rs.storyIdeas && rs.storyIdeas.length > 0) {
+              fullResearchData += `Story Ideas:\n`
+              rs.storyIdeas.forEach((idea, idx) => {
+                fullResearchData += `  ${idx + 1}. ${idea}\n`
+              })
+            }
+            
+            if (rs.creativePrompt) {
+              fullResearchData += `Creative Prompt: ${rs.creativePrompt}\n`
+            }
+            
+            if (rs.actionableItems && rs.actionableItems.length > 0) {
+              fullResearchData += `Actionable Items:\n`
+              rs.actionableItems.forEach((item, idx) => {
+                fullResearchData += `  ${idx + 1}. ${item}\n`
+              })
+            }
+          } else {
+            // Fallback to legacy format
           fullResearchData += `Insights: ${research.insights}\n`
+          }
+          
           fullResearchData += '---\n'
         })
       }
@@ -1479,6 +1636,195 @@ export function ScriptGenerator() {
     }
   }
 
+  // Timestamp selection functions
+  const handleOpenTimestampPicker = (textId: string, textareaRef: React.RefObject<HTMLTextAreaElement>) => {
+    setTimestampInsertionTarget({ textId, textareaRef })
+    setShowTimestampPicker(true)
+  }
+
+  const handleTimestampSelection = (timestamp: AvailableTimestamp) => {
+    setSelectedTimestamp(timestamp)
+  }
+
+  const handleInsertTimestamp = () => {
+    if (!selectedTimestamp || !timestampInsertionTarget?.textId) return
+
+    const textarea = timestampInsertionTarget.textareaRef.current
+    const cursorPosition = textarea?.selectionStart || 0
+    
+    // Convert timestamps to 00m00 format for consistent output
+    const convertToMinutesFormat = (time: string) => {
+      if (time.includes('m')) return time // Already in correct format
+      
+      const parts = time.split(':')
+      if (parts.length === 3) {
+        // HH:MM:SS format
+        const minutes = parseInt(parts[1]) + (parseInt(parts[0]) * 60)
+        return `${minutes.toString().padStart(2, '0')}m${parts[2]}`
+      } else if (parts.length === 2) {
+        // MM:SS format
+        return `${parts[0]}m${parts[1]}`
+      }
+      return time
+    }
+
+    const startFormatted = convertToMinutesFormat(selectedTimestamp.startTime)
+    const endFormatted = convertToMinutesFormat(selectedTimestamp.endTime)
+    const timeRange = startFormatted !== endFormatted ? `${startFormatted} - ${endFormatted}` : startFormatted
+    
+    // Generate enhanced timestamp reference based on element type
+    let timestampReference = ''
+    
+    const elementType = selectedTimestamp.elementType || 'quote'
+    
+    if (elementType === 'quote') {
+      // Standard quote format: [[TIMESTAMP: 00m00 - 00m00 | description | "quote"]]
+      timestampReference = `[[TIMESTAMP: ${timeRange} | ${selectedTimestamp.description}${selectedTimestamp.quote ? ` | "${selectedTimestamp.quote}"` : ''}]]`
+    } else {
+      // Enhanced element formats: [[TYPE: 00m00 - 00m00 | description]]
+      const typeMapping = {
+        'background_footage': 'BACKGROUND FOOTAGE',
+        'crime_scene': 'CRIME SCENE FOOTAGE',
+        'dramatic_moment': 'DRAMATIC MOMENT',
+        'security_camera': 'SECURITY CAMERA',
+        'news_footage': 'NEWS FOOTAGE',
+        'court_footage': 'COURT FOOTAGE',
+        'evidence': 'EVIDENCE FOOTAGE',
+        'the_moment': 'THE MOMENT'
+      }
+      
+      const typeName = typeMapping[elementType as keyof typeof typeMapping] || 'VIDEO ELEMENT'
+      
+      // For special cases like "THE MOMENT RAPPER GOT KILLED"
+      if (elementType === 'the_moment' && selectedTimestamp.description.toLowerCase().includes('killed')) {
+        timestampReference = `[[THE MOMENT RAPPER GOT KILLED: ${timeRange} | ${selectedTimestamp.description}]]`
+      } else if (elementType === 'the_moment' && selectedTimestamp.description.toLowerCase().includes('shot')) {
+        timestampReference = `[[THE MOMENT ${selectedTimestamp.description.split(' ')[0]?.toUpperCase() || 'PERSON'} GOT SHOT: ${timeRange} | ${selectedTimestamp.description}]]`
+      } else {
+        timestampReference = `[[${typeName}: ${timeRange} | ${selectedTimestamp.description}]]`
+      }
+    }
+    
+    // Check if this is a pending script or an approved script
+    const pendingScript = pendingScripts.find(ps => ps.tempId === timestampInsertionTarget.textId)
+    
+    if (pendingScript) {
+      // Handle pending script - update Redux state directly
+      const currentText = pendingScript.generatedScript
+      const newText = currentText.slice(0, cursorPosition) + timestampReference + currentText.slice(cursorPosition)
+      
+      updatePendingScript(timestampInsertionTarget.textId, { generatedScript: newText })
+      
+      // Update textarea cursor position
+      if (textarea) {
+        setTimeout(() => {
+          textarea.focus()
+          textarea.setSelectionRange(cursorPosition + timestampReference.length, cursorPosition + timestampReference.length)
+        }, 0)
+      }
+    } else {
+      // Handle approved script - update database
+      const section = currentJob?.sections.find(s => s.texts?.[0]?.id === timestampInsertionTarget.textId)
+      if (!section || !section.texts?.[0]) return
+
+      const currentText = section.texts[0].generated_script
+      const newText = currentText.slice(0, cursorPosition) + timestampReference + currentText.slice(cursorPosition)
+      
+      updateGeneratedScript(timestampInsertionTarget.textId, newText)
+    }
+    
+    // Close the timestamp picker modal
+    setShowTimestampPicker(false)
+    setSelectedTimestamp(null)
+    setTimestampInsertionTarget(null)
+    
+    showMessage('Timestamp inserted successfully!', 'success')
+  }
+
+  // Function to update generated script content
+  const updateGeneratedScript = async (textId: string, newScript: string) => {
+    try {
+      const response = await fetch('/api/fine-tuning/texts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text_id: textId, 
+          generated_script: newScript,
+          character_count: newScript.length,
+          word_count: newScript.trim().split(/\s+/).length
+        })
+      })
+
+      if (response.ok) {
+        // Refresh the job data to get updated content
+        const jobResponse = await fetch(`/api/fine-tuning/jobs/${currentJob?.id}`)
+        if (jobResponse.ok) {
+          const jobData = await jobResponse.json()
+          dispatch(setCurrentJob(jobData.job))
+        }
+      } else {
+        const data = await response.json()
+        showMessage(data.error || 'Failed to update script', 'error')
+      }
+    } catch (error) {
+      showMessage('Failed to update script', 'error')
+    }
+  }
+
+  // Helper function to format timestamp display with enhanced element types
+  const formatTimestampDisplay = (timestamp: AvailableTimestamp) => {
+    // Convert timestamps to consistent format (00m00-00m00)
+    const convertToMinutesFormat = (time: string) => {
+      // Handle various input formats: 00:00:00, 00:00, or already in 00m00 format
+      if (time.includes('m')) return time // Already in correct format
+      
+      const parts = time.split(':')
+      if (parts.length === 3) {
+        // HH:MM:SS format
+        const minutes = parseInt(parts[1]) + (parseInt(parts[0]) * 60)
+        return `${minutes.toString().padStart(2, '0')}m${parts[2]}`
+      } else if (parts.length === 2) {
+        // MM:SS format
+        return `${parts[0]}m${parts[1]}`
+      }
+      return time // Return as is if format is unclear
+    }
+
+    const startFormatted = convertToMinutesFormat(timestamp.startTime)
+    const endFormatted = convertToMinutesFormat(timestamp.endTime)
+    const duration = startFormatted !== endFormatted ? `${startFormatted} - ${endFormatted}` : startFormatted
+
+    // Get enhanced element type display
+    const getElementTypeDisplay = (elementType?: string) => {
+      switch (elementType) {
+        case 'background_footage': return { label: 'Background Footage', color: 'bg-blue-100 text-blue-800' }
+        case 'crime_scene': return { label: 'Crime Scene', color: 'bg-red-100 text-red-800' }
+        case 'dramatic_moment': return { label: 'Dramatic Moment', color: 'bg-purple-100 text-purple-800' }
+        case 'security_camera': return { label: 'Security Camera', color: 'bg-gray-100 text-gray-800' }
+        case 'news_footage': return { label: 'News Footage', color: 'bg-green-100 text-green-800' }
+        case 'court_footage': return { label: 'Court Footage', color: 'bg-yellow-100 text-yellow-800' }
+        case 'evidence': return { label: 'Evidence', color: 'bg-orange-100 text-orange-800' }
+        case 'the_moment': return { label: 'The Moment', color: 'bg-pink-100 text-pink-800' }
+        case 'quote':
+        default: return { label: 'Quote/Dialogue', color: 'bg-indigo-100 text-indigo-800' }
+      }
+    }
+
+    const elementDisplay = getElementTypeDisplay(timestamp.elementType)
+
+    return {
+      title: timestamp.videoTitle,
+      duration,
+      description: timestamp.description,
+      quote: timestamp.quote,
+      speaker: timestamp.speaker,
+      source: timestamp.source,
+      confidence: timestamp.confidence,
+      elementType: timestamp.elementType || 'quote',
+      elementDisplay
+    }
+  }
+
   // Show loading screen during auth initialization
   if (!user.initialized) {
     return (
@@ -1824,13 +2170,30 @@ export function ScriptGenerator() {
                         <Badge variant="secondary">
                           {pendingScript.characterCount} chars • {pendingScript.wordCount} words
                         </Badge>
+                        <Button
+                          onClick={() => {
+                            const textareaRef = { current: document.getElementById(`pending-script-${pendingScript.tempId}`) as HTMLTextAreaElement }
+                            handleOpenTimestampPicker(pendingScript.tempId, textareaRef)
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="ml-auto flex items-center gap-1"
+                          disabled={availableTimestamps.length === 0}
+                        >
+                          <Clock className="h-3 w-3" />
+                          Add Timestamp {availableTimestamps.length > 0 && `(${availableTimestamps.length})`}
+                        </Button>
                       </div>
                       <Textarea
+                        id={`pending-script-${pendingScript.tempId}`}
                         value={pendingScript.generatedScript}
                         onChange={(e) => updatePendingScript(pendingScript.tempId, { generatedScript: e.target.value })}
                         className="min-h-[200px] bg-gray-50 border-gray-200 font-mono text-sm"
-                        placeholder="Edit the generated script content here..."
+                        placeholder="Edit the generated script content here... Click anywhere and use 'Add Timestamp' to insert timestamps."
                       />
+                      <p className="text-xs text-blue-600">
+                        💡 Click anywhere in the script above, then use "Add Timestamp" to insert timestamps at that position
+                      </p>
                     </div>
                     
                     <div className="flex gap-2">
@@ -2395,13 +2758,38 @@ export function ScriptGenerator() {
                                 <CheckCircle className="h-4 w-4 text-green-600" />
                                 <span className="text-sm font-medium text-green-800">Generated Script</span>
                                 <Badge variant="secondary">{section.texts.length} version(s)</Badge>
+                                <Button
+                                  onClick={() => {
+                                    const textareaRef = { current: document.getElementById(`script-${section.texts[0].id}`) as HTMLTextAreaElement }
+                                    handleOpenTimestampPicker(section.texts[0].id, textareaRef)
+                                  }}
+                                  variant="outline"
+                                  size="sm"
+                                  className="ml-auto flex items-center gap-1"
+                                  disabled={availableTimestamps.length === 0}
+                                >
+                                  <Clock className="h-3 w-3" />
+                                  Add Timestamp {availableTimestamps.length > 0 && `(${availableTimestamps.length})`}
+                                </Button>
                                       </div>
-                              <div className="bg-white rounded p-3 text-sm whitespace-pre-wrap border">
-                                {section.texts[0].generated_script}
-                                      </div>
+                              <Textarea
+                                id={`script-${section.texts[0].id}`}
+                                value={section.texts[0].generated_script}
+                                readOnly
+                                onClick={(e) => {
+                                  // Allow cursor positioning even in read-only mode
+                                  const textarea = e.target as HTMLTextAreaElement
+                                  textarea.focus()
+                                }}
+                                className="bg-white border-gray-200 font-mono text-sm min-h-[200px] cursor-text"
+                                placeholder="Click anywhere in this text area and use 'Add Timestamp' to insert timestamps..."
+                              />
                               <div className="mt-2 text-xs text-gray-500">
                                 {section.texts[0].character_count} characters • {section.texts[0].word_count} words
                               </div>
+                              <p className="text-xs text-blue-600 mt-1">
+                                💡 Click anywhere in the script above, then use "Add Timestamp" to insert timestamps at that position
+                              </p>
                               
                               {/* Text Rating */}
                               <div className="mt-3">
@@ -2468,6 +2856,140 @@ export function ScriptGenerator() {
       {activeTab === 'assistant' && (
         <ChatbotTab />
       )}
+
+      {/* Timestamp Picker Modal */}
+      <Dialog open={showTimestampPicker} onOpenChange={setShowTimestampPicker}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Select Timestamp to Insert
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+              <p className="text-sm text-blue-700">
+                Select a timestamp from your research data to insert into the script. 
+                The timestamp will be inserted at your cursor position.
+              </p>
+              <div className="mt-2 text-xs text-blue-600">
+                <p className="font-medium">Enhanced Formats Available:</p>
+                <div className="grid grid-cols-2 gap-1 mt-1">
+                  <span>• Standard quotes/dialogue</span>
+                  <span>• Background footage</span>
+                  <span>• Crime scene footage</span>
+                  <span>• Dramatic moments</span>
+                  <span>• Security camera footage</span>
+                  <span>• News footage</span>
+                  <span>• Court footage</span>
+                  <span>• Evidence presentation</span>
+                </div>
+              </div>
+            </div>
+            
+            {availableTimestamps.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No timestamps available from your research data.</p>
+                <p className="text-sm">Analyze some YouTube videos first to get timestamps.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {availableTimestamps.map((timestamp) => {
+                  const display = formatTimestampDisplay(timestamp)
+                  return (
+                    <div
+                      key={timestamp.id}
+                      onClick={() => handleTimestampSelection(timestamp)}
+                      className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                        selectedTimestamp?.id === timestamp.id
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Video className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                            <h4 className="font-medium text-sm truncate">{display.title}</h4>
+                            <Badge variant="outline" className="text-xs">
+                              {display.source}
+                            </Badge>
+                            <Badge className={`text-xs px-2 py-1 rounded-full ${display.elementDisplay.color}`}>
+                              {display.elementDisplay.label}
+                            </Badge>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {display.duration}
+                            </span>
+                            {display.speaker && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {display.speaker}
+                              </span>
+                            )}
+                            {display.confidence && (
+                              <span className="text-xs">
+                                {Math.round(display.confidence * 100)}% confidence
+                              </span>
+                            )}
+                          </div>
+                          
+                          <p className="text-sm text-gray-700 mb-2">{display.description}</p>
+                          
+                          {display.quote && (
+                            <div className="bg-gray-100 border-l-4 border-gray-400 pl-3 py-1">
+                              <Quote className="h-3 w-3 text-gray-500 inline mr-1" />
+                              <span className="text-sm italic text-gray-600">"{display.quote}"</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex-shrink-0">
+                          <a
+                            href={`${timestamp.youtubeUrl}&t=${convertTimeToSeconds(timestamp.startTime)}s`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-blue-600 hover:text-blue-800 text-xs"
+                          >
+                            Watch →
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            
+            <div className="flex gap-2 pt-4 border-t">
+              <Button
+                onClick={handleInsertTimestamp}
+                disabled={!selectedTimestamp}
+                className="flex-1"
+              >
+                <Clock className="h-4 w-4 mr-2" />
+                Insert Selected Timestamp
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowTimestampPicker(false)
+                  setSelectedTimestamp(null)
+                  setTimestampInsertionTarget(null)
+                }}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Research Preview Modal */}
       <Dialog open={showResearchPreview} onOpenChange={setShowResearchPreview}>

@@ -1,0 +1,65 @@
+{
+  "id": "d38fc99f-4af5-43dd-a8e4-4883968bacf9",
+  "model": "sonar-pro",
+  "created": 1752694605,
+  "usage": {
+    "prompt_tokens": 47,
+    "completion_tokens": 434,
+    "total_tokens": 481,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://en.wikipedia.org/wiki/List_of_serial_rapists",
+    "https://www.ice.gov/news/releases/ice-arrests-sexual-predators-who-victimized-children-across-nation",
+    "https://www.security.org/blog/u-s-cities-ranked-by-the-frequency-of-registered-sex-offenders/",
+    "https://www.ussc.gov/sites/default/files/pdf/research-and-publications/quick-facts/Sexual_Abuse_FY21.pdf",
+    "https://www.usmarshals.gov/what-we-do/fugitive-investigations/most-wanted-international-sex-offenders"
+  ],
+  "search_results": [
+    {
+      "title": "List of serial rapists",
+      "url": "https://en.wikipedia.org/wiki/List_of_serial_rapists",
+      "date": "2019-10-18",
+      "last_updated": "2025-07-01"
+    },
+    {
+      "title": "ICE arrests sexual predators who victimized children ...",
+      "url": "https://www.ice.gov/news/releases/ice-arrests-sexual-predators-who-victimized-children-across-nation",
+      "date": "2025-06-13",
+      "last_updated": "2025-05-14"
+    },
+    {
+      "title": "United States Cities Ranked by the Frequency of ...",
+      "url": "https://www.security.org/blog/u-s-cities-ranked-by-the-frequency-of-registered-sex-offenders/",
+      "date": "2024-01-25",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "Quick Facts on Sexual Abuse Offenses",
+      "url": "https://www.ussc.gov/sites/default/files/pdf/research-and-publications/quick-facts/Sexual_Abuse_FY21.pdf",
+      "date": null,
+      "last_updated": "2025-01-29"
+    },
+    {
+      "title": "Most Wanted International Sex Offenders",
+      "url": "https://www.usmarshals.gov/what-we-do/fugitive-investigations/most-wanted-international-sex-offenders",
+      "date": null,
+      "last_updated": "2025-07-16"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Several individuals have become notorious for large-scale or particularly egregious cases of **child molestation**, often drawing international attention due to the scope and severity of their crimes. Here are some of the most prominent cases, based on available public records and reporting:\n\n- **William Vahey**: An American teacher who worked at international schools across several countries, Vahey was first convicted of child molestation as a teenager. Over decades, he abused at least 90 boys, often drugging them with sleeping medication hidden in cookies and producing child pornography. Vahey evaded detection by failing to register as a sex offender and ultimately died by suicide after his crimes came to light. His case is notable for the sheer number of victims and the international scope of his offenses[1].\n\n- **Nathaniel Bar-Jonah**: Born David Paul Brown, Bar-Jonah was a violent child predator in the United States, with crimes including kidnappings, rapes, assaults, and suspected murders. He was linked to the disappearance and suspected murder of Zach Ramsey and was even suspected of cannibalism. His offenses spanned decades, and he was considered one of the most dangerous child predators in U.S. history[1].\n\nLaw enforcement agencies, such as U.S. Immigration and Customs Enforcement (ICE), regularly arrest individuals convicted of child sex crimes. For example, recent operations have led to the arrest of individuals like Carlos Araujo and Filemon Martinez-Medina, both convicted of aggravated sexual assault of minors[2]. These cases highlight ongoing efforts to remove dangerous offenders from communities.\n\n**Statistical context**: According to the U.S. Sentencing Commission, the vast majority of sexual abuse offenders are men (93.6%), and in fiscal year 2021, over 1,000 cases involving sexual abuse offenses were reported to the commission[4].\n\n**Geographic context**: Some U.S. cities have higher concentrations of registered sex offenders, such as Wilmington, Delaware, and Orlando, Florida, which may reflect both reporting practices and local enforcement[3].\n\nThese cases and statistics underscore the persistent threat posed by serial child molesters and the importance of vigilant law enforcement and community awareness."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

@@ -1,9 +1,11 @@
 'use client'
 
 import React from 'react'
-import { Loader2, Globe, FileSearch, ChevronDown, ChevronRight, Brain } from 'lucide-react'
-import { performGoogleResearch, removeGoogleResearchSummary, clearAllResearchSummaries, addGoogleResearchSummary } from '@/lib/features/youtube/youtubeSlice'
-import { AppDispatch } from '@/lib/store'
+import { Loader2, Globe, FileSearch, ChevronDown, ChevronRight, Brain, Save } from 'lucide-react'
+import { performGoogleResearch, removeGoogleResearchSummary, clearAllResearchSummaries, addGoogleResearchSummary, setIsResearching, setIsSummarizing, setPendingWebResults, setSelectedArticles, setLastSearchQuery, setLastSearchContext, addSavingToHistory, removeSavingToHistory, clearResearchState, selectResearchLoadingStates, setAvailableLinks } from '@/lib/features/youtube/youtubeSlice'
+import { AppDispatch, RootState } from '@/lib/store'
+import { useSelector } from 'react-redux'
+import { showToast } from '@/lib/utils/toast'
 
 interface ResearchTabProps {
   researchSummaries: any
@@ -16,18 +18,86 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
 }) => {
   const [researchQuery, setResearchQuery] = React.useState('')
   const [researchContext, setResearchContext] = React.useState('')
-  const [isResearching, setIsResearching] = React.useState(false)
-  const [isSummarizing, setIsSummarizing] = React.useState(false)
   const [expandedResults, setExpandedResults] = React.useState<Set<string>>(new Set())
-  const [pendingWebResults, setPendingWebResults] = React.useState<any[]>([])
-  const [selectedArticles, setSelectedArticles] = React.useState<Set<number>>(new Set())
-  const [lastSearchQuery, setLastSearchQuery] = React.useState('')
-  const [lastSearchContext, setLastSearchContext] = React.useState('')
+  const [directUrl, setDirectUrl] = React.useState('')
+  const [scrapingDirectUrl, setScrapingDirectUrl] = React.useState(false)
+  const [extractionPrompt, setExtractionPrompt] = React.useState('')
+  
+  // Get research loading states from Redux
+  const {
+    isResearching,
+    isSummarizing,
+    savingToHistory,
+    pendingWebResults,
+    selectedArticles,
+    lastSearchQuery,
+    lastSearchContext
+  } = useSelector((state: RootState) => selectResearchLoadingStates(state))
+
+  // Update local form state when Redux state has values (on component mount/remount)
+  React.useEffect(() => {
+    if (lastSearchQuery && !researchQuery) {
+      setResearchQuery(lastSearchQuery)
+    }
+    if (lastSearchContext && !researchContext) {
+      setResearchContext(lastSearchContext)
+    }
+  }, [lastSearchQuery, lastSearchContext, researchQuery, researchContext])
+
+  // Save research to history function
+  const saveToResearchHistory = async (research: any) => {
+    const researchId = research.id
+    dispatch(addSavingToHistory(researchId))
+    
+    try {
+      const requestData = {
+        title: research.query,
+        query: research.query,
+        type: 'google',
+        content: {
+          researchSummary: research.researchSummary,
+          insights: research.insights,
+          keyFindings: research.keyFindings,
+          recommendations: research.recommendations,
+          webResults: research.webResults || [],
+          sources: research.sources || []
+        },
+        tags: [],
+        category: 'Perplexity Research',
+        source: 'perplexity_api'
+      }
+
+      const response = await fetch('/api/research-cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save research to history')
+      }
+
+      showToast.success(`Research "${research.query}" saved to history successfully!`)
+      
+    } catch (error) {
+      console.error('Error saving research to history:', error)
+      showToast.error(`Failed to save to history: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      dispatch(removeSavingToHistory(researchId))
+    }
+  }
 
   const handleResearch = async () => {
     if (!researchQuery.trim()) return
 
-    setIsResearching(true)
+    dispatch(setIsResearching(true))
+    dispatch(setLastSearchQuery(researchQuery))
+    dispatch(setLastSearchContext(researchContext))
+    
     try {
       // Only perform web search, don't summarize yet
       const webResponse = await fetch('/api/research/web-search', {
@@ -45,96 +115,154 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
         throw new Error(webData.error || 'Failed to search web')
       }
 
-      // Store results for user selection
-      setPendingWebResults(webData.results || [])
-      setSelectedArticles(new Set(webData.results?.map((_: any, index: number) => index) || []))
-      setLastSearchQuery(researchQuery)
-      setLastSearchContext(researchContext)
+      // Store search results for selection
+      dispatch(setPendingWebResults(webData.search_results || []))
+      dispatch(setSelectedArticles([]))
       
-      console.log(`🔍 Found ${webData.results?.length || 0} articles for "${researchQuery}"`)
+      // Set available links for scraping if provided by the API
+      if (webData.availableLinks && webData.availableLinks.length > 0) {
+        dispatch(setAvailableLinks(webData.availableLinks))
+        console.log(`🔗 Found ${webData.availableLinks.length} links available for scraping`)
+      }
+      
+      console.log(`🔍 Found ${webData.search_results?.length || 0} search results from Perplexity for "${researchQuery}"`)
       
     } catch (error) {
       console.error('Research error:', error)
+      showToast.error(`Research failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
-      setIsResearching(false)
+      dispatch(setIsResearching(false))
     }
   }
 
-  const handleSummarizeSelected = async () => {
-    if (selectedArticles.size === 0) {
-      alert('Please select at least one article to summarize.')
+  const handleScrapeSelected = async () => {
+    if (selectedArticles.length === 0) {
+      showToast.error('Please select at least one link to scrape.')
       return
     }
 
-    setIsSummarizing(true)
+    dispatch(setIsSummarizing(true))
     try {
-      const selectedWebResults = Array.from(selectedArticles).map(index => pendingWebResults[index])
-      
-      // Generate summary from selected articles
-      const summaryResponse = await fetch('/api/research/generate-google-summary', {
+      const selectedResults = selectedArticles.map(index => pendingWebResults[index])
+      console.log('Selected results for scraping:', selectedResults)
+
+      // Process each selected link individually
+      const scrapePromises = selectedResults.map(async (result) => {
+        try {
+          const response = await fetch('/api/research/scrape-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: lastSearchQuery,
-          context: lastSearchContext,
-          webResults: selectedWebResults
+              url: result.url, 
+              title: result.title 
         })
       })
 
-      const summaryData = await summaryResponse.json()
-      if (!summaryData.success) {
-        throw new Error(summaryData.error || 'Failed to generate research summary')
-      }
+          const data = await response.json()
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to scrape link')
+          }
 
-      const researchSummary = {
-        id: `google-${Date.now()}`,
-        query: lastSearchQuery,
-        context: lastSearchContext,
-        webResults: selectedWebResults,
-        insights: summaryData.insights,
-        keyFindings: summaryData.keyFindings,
-        recommendations: summaryData.recommendations,
-        sources: summaryData.sources || [],
-        timestamp: new Date().toISOString(),
-        usingMock: summaryData.usingMock,
-        appliedToScript: false
-      }
+          return { success: true, url: result.url, research: data.research }
+        } catch (error) {
+          console.error(`Failed to scrape ${result.url}:`, error)
+          return { success: false, url: result.url, error }
+        }
+      })
 
-      dispatch(addGoogleResearchSummary(researchSummary))
+      const results = await Promise.all(scrapePromises)
       
-      // Clear pending results and form
-      setPendingWebResults([])
-      setSelectedArticles(new Set())
-      setResearchQuery('')
-      setResearchContext('')
-      setLastSearchQuery('')
-      setLastSearchContext('')
+      const successfulResults = results.filter(r => r.success)
+      const failedResults = results.filter(r => !r.success)
+
+      // Add successful research results to current research
+      successfulResults.forEach(result => {
+        if (result.research) {
+          dispatch(addGoogleResearchSummary(result.research))
+        }
+      })
+
+      // Only clear selections, keep the search results for more scraping
+      dispatch(setSelectedArticles([]))
+
+      // Show results
+      if (successfulResults.length > 0 && failedResults.length === 0) {
+        showToast.success(`Successfully scraped all ${successfulResults.length} links! You can select more to scrape.`)
+      } else if (successfulResults.length > 0 && failedResults.length > 0) {
+        showToast.warning(`Scraped ${successfulResults.length} links successfully, but ${failedResults.length} failed. You can select more to scrape.`)
+      } else {
+        showToast.error(`Failed to scrape all ${failedResults.length} links`)
+      }
       
-      console.log(`✅ Created research summary from ${selectedWebResults.length} selected articles`)
+      console.log(`✅ Scraping completed: ${successfulResults.length} successful, ${failedResults.length} failed`)
       
     } catch (error) {
-      console.error('Summarization error:', error)
+      console.error('Scraping error:', error)
+      showToast.error(`Failed to scrape links: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
-      setIsSummarizing(false)
+      dispatch(setIsSummarizing(false))
     }
   }
 
   const toggleArticleSelection = (index: number) => {
-    const newSelected = new Set(selectedArticles)
-    if (newSelected.has(index)) {
-      newSelected.delete(index)
-    } else {
-      newSelected.add(index)
+    const newSelected = selectedArticles.includes(index)
+      ? selectedArticles.filter(i => i !== index)
+      : [...selectedArticles, index]
+    dispatch(setSelectedArticles(newSelected))
+  }
+
+  // Handle direct URL scraping
+  const handleDirectUrlScraping = async () => {
+    if (!directUrl.trim()) {
+      showToast.error('Please enter a valid URL')
+      return
     }
-    setSelectedArticles(newSelected)
+
+    // Validate URL format
+    try {
+      new URL(directUrl.trim())
+    } catch (error) {
+      showToast.error('Please enter a valid URL format (e.g., https://example.com)')
+      return
+    }
+
+    setScrapingDirectUrl(true)
+    try {
+      const response = await fetch('/api/research/scrape-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          url: directUrl.trim(), 
+          title: new URL(directUrl.trim()).hostname,
+          extractionPrompt: extractionPrompt.trim() || undefined
+        })
+      })
+      
+      const data = await response.json()
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to scrape URL')
+    }
+
+      // Add successful research result to current research
+      dispatch(addGoogleResearchSummary(data.research))
+      
+      showToast.success(`Successfully scraped and analyzed: ${new URL(directUrl.trim()).hostname}`)
+      setDirectUrl('') // Clear the input after successful scraping
+      
+    } catch (error) {
+      console.error('Direct URL scraping error:', error)
+      showToast.error(`Failed to scrape URL: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setScrapingDirectUrl(false)
+    }
   }
 
   const selectAllArticles = () => {
-    setSelectedArticles(new Set(pendingWebResults.map((_: any, index: number) => index)))
+    dispatch(setSelectedArticles(pendingWebResults.map((_, index) => index)))
   }
 
   const deselectAllArticles = () => {
-    setSelectedArticles(new Set())
+    dispatch(setSelectedArticles([]))
   }
 
   const toggleResultExpansion = (resultId: string) => {
@@ -147,7 +275,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
     setExpandedResults(newExpanded)
   }
 
-  // Get Google research summaries sorted by timestamp
+  // Get Perplexity research summaries sorted by timestamp
   const googleResearchResults = researchSummaries.googleResearchSummaries
     .slice()
     .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -158,7 +286,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
         <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
           <Globe className="h-6 w-6" />
-          Google Research Assistant
+          Perplexity AI Research Assistant
         </h3>
         
         <div className="space-y-4">
@@ -208,13 +336,76 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
         </div>
       </div>
 
-      {/* Pending Web Results for Selection */}
+      {/* Direct URL Scraping Section */}
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
+        <h3 className="text-xl font-bold text-green-900 mb-4 flex items-center gap-2">
+          <FileSearch className="h-6 w-6" />
+          Direct URL Analysis
+        </h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-green-800 mb-2">
+              Website URL
+            </label>
+            <input
+              type="url"
+              value={directUrl}
+              onChange={(e) => setDirectUrl(e.target.value)}
+              placeholder="Enter any website URL to scrape and analyze (e.g., https://example.com/article)"
+              className="w-full px-4 py-3 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !scrapingDirectUrl && directUrl.trim()) {
+                  handleDirectUrlScraping()
+                }
+              }}
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-green-800 mb-2">
+              Extraction Focus (Optional)
+            </label>
+            <textarea
+              value={extractionPrompt}
+              onChange={(e) => setExtractionPrompt(e.target.value)}
+              placeholder="Tell the AI what to focus on when analyzing this content (e.g., 'Extract all statistics and data points', 'Focus on the timeline of events', 'Look for quotes from specific people', etc.)"
+              rows={3}
+              className="w-full px-4 py-3 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-vertical"
+            />
+          </div>
+          
+          <button
+            onClick={handleDirectUrlScraping}
+            disabled={!directUrl.trim() || scrapingDirectUrl}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
+          >
+            {scrapingDirectUrl ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Analyzing URL...
+              </>
+            ) : (
+              <>
+                <Brain className="h-5 w-5" />
+                Scrape & Analyze URL
+              </>
+            )}
+          </button>
+          
+          <p className="text-sm text-green-700">
+            💡 Paste any article, blog post, news story, or web page URL to extract and analyze its content using AI. Use the focus field to direct the AI's attention to specific types of information.
+          </p>
+        </div>
+      </div>
+
+      {/* Perplexity Search Results for Link Scraping */}
       {pendingWebResults.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-bold text-yellow-900 flex items-center gap-2">
               <Globe className="h-6 w-6" />
-              Found Articles ({pendingWebResults.length}) - Select to Summarize
+              Perplexity Search Results ({pendingWebResults.length}) - Select to Scrape
             </h3>
             <div className="flex items-center gap-3">
               <button
@@ -230,14 +421,14 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
                 Deselect All
               </button>
               <span className="text-sm text-gray-600">
-                {selectedArticles.size} of {pendingWebResults.length} selected
+                {selectedArticles.length} of {pendingWebResults.length} selected
               </span>
             </div>
           </div>
 
           <div className="space-y-3 max-h-96 overflow-y-auto mb-4">
             {pendingWebResults.map((article: any, index: number) => {
-              const isSelected = selectedArticles.has(index)
+              const isSelected = selectedArticles.includes(index)
               
               return (
                 <div
@@ -259,7 +450,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
                     <div className="flex-1">
                       <h4 className="font-medium text-blue-600 hover:text-blue-800 mb-1">
                         <a 
-                          href={article.link} 
+                          href={article.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="hover:underline"
@@ -268,16 +459,15 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
                           {article.title}
                         </a>
                       </h4>
-                      <p className="text-sm text-gray-700 line-clamp-2 mb-2">
-                        {article.description}
+                      <p className="text-sm text-gray-700 mb-2">
+                        {article.url}
                       </p>
-                      <div className="text-xs text-gray-500">
-                        {article.source && (
-                          <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded mr-2">
-                            {article.source}
+                      <div className="text-xs text-gray-500 flex gap-3">
+                        <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                          {new URL(article.url).hostname}
                           </span>
-                        )}
-                        <span>{new URL(article.link).hostname}</span>
+                        {article.date && <span>📅 {article.date}</span>}
+                        {article.last_updated && <span>🔄 Updated: {article.last_updated}</span>}
                       </div>
                     </div>
                   </div>
@@ -288,34 +478,33 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
 
           <div className="flex justify-between items-center">
             <p className="text-sm text-yellow-700">
-              💡 Review and deselect any articles that seem unrelated or low-quality before summarizing.
+              🔥 Select links to scrape full content using Firecrawl. Each link will become a detailed research item.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setPendingWebResults([])
-                  setSelectedArticles(new Set())
-                  setLastSearchQuery('')
-                  setLastSearchContext('')
+                  dispatch(clearResearchState())
+                  setResearchQuery('')
+                  setResearchContext('')
                 }}
                 className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSummarizeSelected}
-                disabled={selectedArticles.size === 0 || isSummarizing}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2"
+                onClick={handleScrapeSelected}
+                disabled={selectedArticles.length === 0 || isSummarizing}
+                className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2"
               >
                 {isSummarizing ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Summarizing {selectedArticles.size} articles...
+                    Scraping {selectedArticles.length} links...
                   </>
                 ) : (
                   <>
-                    <Brain className="h-5 w-5" />
-                    Summarize Selected ({selectedArticles.size})
+                    <Globe className="h-5 w-5" />
+                    Scrape Selected ({selectedArticles.length})
                   </>
                 )}
               </button>
@@ -353,7 +542,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
                     <div className="flex items-center gap-3">
                       <Globe className="h-5 w-5 text-blue-600" />
                       <h5 className="font-semibold text-gray-900">
-                        Google Research: {result.query}
+                        Perplexity Research: {result.query}
                       </h5>
                       
                       {result.usingMock && (
@@ -367,6 +556,19 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
                       <span className="text-xs text-gray-500">
                         {new Date(result.timestamp).toLocaleString()}
                       </span>
+                      
+                      <button
+                        onClick={() => saveToResearchHistory(result)}
+                        disabled={savingToHistory.includes(result.id)}
+                        className="text-green-500 hover:text-green-700 disabled:text-green-300 transition-colors"
+                        title="Save to Research History"
+                      >
+                        {savingToHistory.includes(result.id) ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                      </button>
                       
                       <button
                         onClick={() => toggleResultExpansion(result.id)}
@@ -490,7 +692,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
       {/* Empty State */}
       {googleResearchResults.length === 0 && (
         <div className="text-center text-gray-600">
-          <p>No research results yet. Start a Google research query above to see results here.</p>
+                        <p>No research results yet. Start a Perplexity AI research query above to see results here.</p>
         </div>
       )}
     </div>

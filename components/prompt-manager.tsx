@@ -184,7 +184,14 @@ export default function PromptManager({ onSelectPrompt, selectedPromptId, showSe
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
                     <CardTitle className="text-base truncate">{prompt.title}</CardTitle>
+                      {prompt.tag === 'original' && (
+                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                          Original Prompt
+                        </Badge>
+                      )}
+                    </div>
                     <CardDescription className="text-sm">
                       Created {new Date(prompt.created_at).toLocaleDateString()}
                     </CardDescription>

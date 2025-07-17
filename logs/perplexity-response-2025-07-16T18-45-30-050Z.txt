@@ -1,0 +1,65 @@
+{
+  "id": "223a75e6-4058-45bb-ad40-3c53cea89557",
+  "model": "sonar-pro",
+  "created": 1752691529,
+  "usage": {
+    "prompt_tokens": 47,
+    "completion_tokens": 498,
+    "total_tokens": 545,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://en.wikipedia.org/wiki/List_of_serial_rapists",
+    "https://www.ice.gov/news/releases/255-child-predators-arrested-61-victims-identified-during-operation-iguardian",
+    "https://www.security.org/blog/u-s-cities-ranked-by-the-frequency-of-registered-sex-offenders/",
+    "https://www.ussc.gov/sites/default/files/pdf/research-and-publications/quick-facts/Sexual_Abuse_FY21.pdf",
+    "https://www.usmarshals.gov/what-we-do/fugitive-investigations/most-wanted-international-sex-offenders"
+  ],
+  "search_results": [
+    {
+      "title": "List of serial rapists - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/List_of_serial_rapists",
+      "date": "2019-10-18",
+      "last_updated": "2025-07-01"
+    },
+    {
+      "title": "255 child predators arrested, 61 victims identified during Operation ...",
+      "url": "https://www.ice.gov/news/releases/255-child-predators-arrested-61-victims-identified-during-operation-iguardian",
+      "date": "2025-05-01",
+      "last_updated": "2025-05-09"
+    },
+    {
+      "title": "United States Cities Ranked by the Frequency of Registered Sex ...",
+      "url": "https://www.security.org/blog/u-s-cities-ranked-by-the-frequency-of-registered-sex-offenders/",
+      "date": "2024-01-25",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "[PDF] Quick Facts on Sexual Abuse Offenses",
+      "url": "https://www.ussc.gov/sites/default/files/pdf/research-and-publications/quick-facts/Sexual_Abuse_FY21.pdf",
+      "date": null,
+      "last_updated": "2025-01-29"
+    },
+    {
+      "title": "Most Wanted International Sex Offenders | U.S. Marshals Service",
+      "url": "https://www.usmarshals.gov/what-we-do/fugitive-investigations/most-wanted-international-sex-offenders",
+      "date": null,
+      "last_updated": "2025-07-16"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Several individuals have become infamous for their roles as serial child molesters, with their cases drawing widespread attention due to the scale and severity of their crimes. Here are some of the most notorious cases, based on documented convictions and investigations:\n\n- **William Vahey**: An American teacher who worked at international schools across several countries, Vahey molested at least 90 boys over decades. He began abusing children as a Boy Scout and continued throughout his teaching career, often drugging his victims with sleeping medication hidden in cookies. Despite being convicted early in life, he evaded detection by failing to register as a sex offender, allowing him to continue teaching and abusing children worldwide. Vahey committed suicide in 2014 after his crimes came to light, and dozens of victims and their families later filed lawsuits against the institutions that employed him[1].\n\n- **Nathaniel Bar-Jonah (born David Paul Brown)**: A violent child predator in the United States, Bar-Jonah's crimes included kidnappings, rapes, assaults, and suspected murders. He was linked to the disappearance and suspected murder of Zach Ramsey and was even suspected of cannibalizing his victims. His criminal activities spanned decades, and he was considered one of the most dangerous child predators in American history[1].\n\n- **Recent Arrests and Ongoing Investigations**: In 2025, a major operation led to the arrest of 255 child predators and the identification of 61 victims. Notable cases include:\n  - **Jimmy Caraballo-Colon**, a former cheerleading coach, who was found to have blackmailed and exploited multiple underage girls online, with investigators believing there may be over 80 unidentified victims.\n  - **John David Boyle**, a former middle school teacher, was arrested for attempting to engage in sexual activity with minors and for distributing child pornography. He was caught during an undercover sting and is believed to have additional victims[2].\n\nThese cases represent only a fraction of the broader issue of child sexual abuse, which remains a significant concern globally. The U.S. Sentencing Commission reports that the vast majority of sexual abuse offenders are men, with a significant portion being repeat offenders[4]. The prevalence of registered sex offenders also varies by city, with some U.S. cities having notably high concentrations of offenders relative to their populations[3].\n\nThe stories of these offenders underscore the importance of vigilance, robust background checks, and international cooperation in preventing child sexual abuse and bringing perpetrators to justice."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

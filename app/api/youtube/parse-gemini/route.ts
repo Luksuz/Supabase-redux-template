@@ -92,39 +92,74 @@ Your task is to extract and organize the following information from the Gemini r
 - storyIdeas: Array of creative story concepts inspired by the content
 - creativePrompt: A creative writing prompt based on the video content
 
-SPECIAL ATTENTION TO NEW TIMESTAMP FORMAT:
-Look for timestamp ranges in these formats:
-- (MM:SS - MM:SS): [Speaker] "Quote"
-- (HH:MM:SS - HH:MM:SS): [Speaker Name] "Exact quote"
-- Any time range patterns like (X:XX - X:XX)
+SPECIAL ATTENTION TO ENHANCED NOTATION FORMATS:
+Look for both standard timestamps and enhanced video element formats:
 
-For timestamps, extract:
-- startTime: The start time (e.g., "00:01:54")
-- endTime: The end time (e.g., "00:01:57") 
+1. **Standard Timestamps**:
+- (00m15 - 00m18): [Speaker] "Quote"
+- (01m23 - 01m45): [Speaker Name] "Exact quote"
+
+2. **Enhanced Video Elements**:
+- [[BACKGROUND FOOTAGE: 00m30 - 01m15 | Description]]
+- [[CRIME SCENE FOOTAGE: 02m45 - 03m20 | Description]]
+- [[THE MOMENT [EVENT]: 04m10 - 04m35 | Description]]
+- [[SECURITY CAMERA: 05m22 - 05m40 | Description]]
+- [[NEWS FOOTAGE: 06m15 - 06m45 | Description]]
+- [[COURT FOOTAGE: 07m30 - 08m10 | Description]]
+- [[DRAMATIC MOMENT: 09m20 - 09m50 | Description]]
+- [[EVIDENCE FOOTAGE: 10m05 - 10m35 | Description]]
+
+For standard timestamps, extract:
+- startTime: Convert from 00m00 format to "00:00:00" (e.g., "00m15" → "00:00:15")
+- endTime: Convert from 00m00 format to "00:00:00" (e.g., "00m18" → "00:00:18")
 - speaker: Speaker name from [brackets] or "Unknown Speaker"
 - quote: Exact quote from "quotation marks" (optional if not available)
 - extraInfo: Context from "Extra info:" or surrounding context about who was speaking to whom
 - description: What happens during this time range
 - significance: Why this moment is important
 
+For enhanced video elements, create timestamp objects with:
+- startTime: Convert from 00m00 format to "00:00:00"
+- endTime: Convert from 00m00 format to "00:00:00"
+- speaker: Use the element type (e.g., "Background Footage", "Crime Scene", "Security Camera")
+- quote: Use the description after the | symbol
+- extraInfo: Use the element type and context
+- description: Use the full description after the |
+- significance: Infer from the element type and content
+
 For keyQuotes, create objects with:
-- startTime: Start time of the quote
-- endTime: End time of the quote  
+- startTime: Convert from 00m00 format to "00:00:00"
+- endTime: Convert from 00m00 format to "00:00:00"
 - speaker: Who said the quote
 - quote: The exact quote text
 - context: Full context about the situation and who they were speaking to
 
-PARSING EXAMPLES:
-If you see: "(00:01:54 - 00:01:57): [News Reporter] '4 people were shot and so were 2 cars.' Extra info: Reporter speaking to camera during live broadcast..."
+TIMESTAMP CONVERSION EXAMPLES:
+- "00m15" → "00:00:15"
+- "01m23" → "00:01:23" 
+- "15m30" → "00:15:30"
+- "01h05m30" → "01:05:30"
 
+PARSING EXAMPLES:
+Standard format: "(00m15 - 00m18): [News Reporter] '4 people were shot and so were 2 cars.' Extra info: Reporter speaking to camera..."
 Extract as:
-- startTime: "00:01:54"
-- endTime: "00:01:57"
+- startTime: "00:00:15"
+- endTime: "00:00:18"
 - speaker: "News Reporter"
 - quote: "4 people were shot and so were 2 cars."
-- extraInfo: "Reporter speaking to camera during live broadcast, appears to be breaking news situation"
+- extraInfo: "Reporter speaking to camera during live broadcast"
 - description: "News reporter announces shooting incident"
 - significance: "Sets grim tone and emphasizes severity of incident"
+
+Enhanced format: "[[CRIME SCENE FOOTAGE: 02m30 - 03m15 | Police cordoning off the area where the shooting occurred]]"
+Extract as:
+- startTime: "00:02:30"
+- endTime: "00:03:15"
+- speaker: "Crime Scene Footage"
+- quote: "Police cordoning off the area where the shooting occurred"
+- extraInfo: "Crime scene footage showing police investigation"
+- description: "Police cordoning off the area where the shooting occurred"
+- significance: "Visual evidence of crime scene investigation"
 
 Be very careful to parse the exact format and extract all available context information. If the new format isn't found, try to extract any timestamp information available and convert it to the required structure.
 

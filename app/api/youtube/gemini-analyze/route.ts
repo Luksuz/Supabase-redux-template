@@ -66,33 +66,83 @@ Please provide your analysis in a detailed format covering:
 - Story ideas inspired by the content
 - A creative writing prompt based on the video
 
-CRITICAL TIMESTAMP FORMAT REQUIREMENTS:
-Throughout your analysis, you MUST use this exact format for timestamps:
+CRITICAL ENHANCED NOTATION FORMATS:
+Throughout your analysis, identify different types of video elements and use these enhanced formats:
 
-(START_TIME - END_TIME): [Speaker Name if identifiable] "Exact quote if available"
-
-Extra context: Who was speaking, who they were speaking to, situation details, etc.
-
+1. **Standard Timestamps** (for quotes and regular moments):
+   (00m15 - 00m18): [Speaker Name] "Exact quote if available"
+   Extra info: Context about who was speaking to whom and situation details.
 Description and significance of this moment.
 
-Examples of the required format:
-- (00:01:54 - 00:01:57): [News Reporter] "4 people were shot and so were 2 cars."
+2. **Enhanced Video Element Formats** (choose the appropriate type):
+   - [[BACKGROUND FOOTAGE: 00m30 - 01m15 | Description of background footage or B-roll]]
+   - [[CRIME SCENE FOOTAGE: 02m45 - 03m20 | Police investigation at the scene]]
+   - [[THE MOMENT [EVENT]: 04m10 - 04m35 | Critical dramatic moment description]]
+   - [[SECURITY CAMERA: 05m22 - 05m40 | CCTV footage showing the incident]]
+   - [[NEWS FOOTAGE: 06m15 - 06m45 | News report about the event]]
+   - [[COURT FOOTAGE: 07m30 - 08m10 | Defendant's reaction in courtroom]]
+   - [[DRAMATIC MOMENT: 09m20 - 09m50 | Emotional breakdown or confrontation]]
+   - [[EVIDENCE FOOTAGE: 10m05 - 10m35 | Presentation of key evidence]]
+
+SPEAKER SEPARATION AND DIALOGUE PRECISION REQUIREMENTS:
+When analyzing conversations, dialogues, or multiple speakers discussing the same topic:
+
+1. **NEVER COMBINE DIFFERENT SPEAKERS** into a single timestamp entry
+2. **CREATE SEPARATE TIMESTAMP ENTRIES** for each speaker, even if they're discussing the same topic
+3. **BE PRECISE WITH INDIVIDUAL SPEAKER TIMESTAMPS** - each speaker gets their own specific time range
+4. **IDENTIFY CONVERSATION PARTICIPANTS** clearly (e.g., [Interviewer], [Celebrity Name], [Expert], [Witness])
+5. **SEPARATE SEQUENTIAL SPEAKERS** even if the topic continues - treat each speaker's contribution as an individual moment
+
+DIALOGUE SEPARATION EXAMPLES:
+❌ WRONG - Combining speakers:
+(06m19 - 06m51): [Rihanna and Kim Kardashian] "Both advocate for Brown's release"
+
+✅ CORRECT - Separate speakers:
+(06m19 - 06m33): [Rihanna] "Specific quote about Brown's release"
+Extra info: Rihanna speaking directly to interviewer about her position on the case.
+Description and significance of her specific stance.
+
+(06m48 - 06m51): [Kim Kardashian] "Different quote about Brown's release"  
+Extra info: Kim Kardashian giving her separate statement to the reporter.
+Description and significance of her distinct perspective.
+
+CONVERSATION FLOW ANALYSIS:
+- When speakers are having a back-and-forth conversation, create separate entries for each exchange
+- When someone responds to another person, note the response relationship in "Extra info"
+- When multiple people discuss the same event, treat each person's contribution individually
+- Pay attention to cuts between different interviews or settings
+
+TIMESTAMP FORMAT REQUIREMENTS:
+1. **ALWAYS use minutes:seconds format**: 00m00 - 00m00 (NOT seconds like "180-240")
+2. **Examples of CORRECT format**: 01m23 - 01m45, 00m05 - 00m12, 15m30 - 16m45
+3. **NEVER use seconds format**: Avoid formats like "180-240" or "1:23-1:45"
+4. **For times under 1 minute**: Use 00m00 format (e.g., 00m05 - 00m18)
+5. **For times over 1 minute**: Use appropriate minutes (e.g., 01m15 - 01m32)
+
+Examples of the required enhanced formats:
+- (00m15 - 00m18): [News Reporter] "4 people were shot and so were 2 cars."
   Extra info: Reporter speaking to camera during live broadcast, appears to be breaking news situation.
   This stark announcement sets a grim tone, emphasizing the severity of the incident.
 
-- (00:05:23 - 00:05:31): [Interview Subject] "I never thought this would happen in our neighborhood."
-  Extra info: Elderly resident speaking to news crew, visibly shaken, other neighbors gathering nearby.
-  Shows the community impact and emotional response to the events.
+- [[CRIME SCENE FOOTAGE: 02m30 - 03m15 | Police cordoning off the area where the shooting occurred]]
+
+- [[THE MOMENT RAPPER GOT KILLED: 05m22 - 05m40 | Security footage capturing the fatal shooting]]
+
+- (08m45 - 09m12): [Witness] "I heard the shots and immediately called 911."
+  Extra info: Eyewitness speaking to police detective, hands visibly shaking during interview.
+  Provides crucial timeline evidence for the investigation.
+
+- [[COURT FOOTAGE: 12m10 - 12m45 | Defendant's emotional breakdown during sentencing]]
 
 FORMATTING RULES:
-1. ALWAYS use timestamp ranges: (MM:SS - MM:SS) or (HH:MM:SS - HH:MM:SS)
-2. Include speaker identification in [brackets] when possible, or [Unknown Speaker] if unclear
-3. Put exact quotes in "quotation marks" when available
-4. Follow with "Extra info:" line providing context about who was speaking to whom and situation
-5. Then provide analysis of significance
+1. Use the enhanced notation [[TYPE: timestamp | description]] for visual elements, footage, and dramatic moments
+2. Use standard (timestamp): [Speaker] format for quotes and dialogue
+3. ALWAYS use 00m00 - 00m00 timestamp format - never seconds
+4. Include speaker identification when possible
+5. Provide rich context about visual elements, locations, and dramatic significance
 
 Include at least 20-25 timestamp ranges throughout your analysis, marking:
-- Important quotes and statements
+- Important quotes and statements (SEPARATE ENTRY FOR EACH SPEAKER)
 - Topic changes and transitions
 - Key moments and revelations
 - Dramatic or emotional moments
@@ -100,14 +150,32 @@ Include at least 20-25 timestamp ranges throughout your analysis, marking:
 - Character introductions or interactions
 - Conflict moments or resolutions
 
+CRITICAL QUOTE AND TRANSCRIPT ACCURACY RULES:
+1. **NEVER quote from transcripts** - only quote what you actually see/hear in the video
+2. **ONLY use direct video quotes** - what speakers actually say on camera
+3. **AVOID transcript assumptions** - if you can't clearly hear/see it in the video, don't quote it
+4. **SEPARATE ALL SPEAKERS** - even if they discuss the same topic, create individual timestamp entries
+5. **PRECISE TIMESTAMP BOUNDARIES** - each speaker gets their exact speaking time, not combined ranges
+6. **VERIFY SPEAKER IDENTITY** - only identify speakers you can clearly see/hear, otherwise use [Unknown Speaker]
+
+ENHANCED SPEAKER IDENTIFICATION PROTOCOL:
 Be extremely thorough with speaker identification and contextual information. Pay attention to:
-- Who is speaking (name, role, relationship to topic)
+- Who is speaking (name, role, relationship to topic) - ONLY if clearly identifiable in video
 - Who they are addressing (interviewer, audience, other person)
 - The setting and situation during the quote
 - Body language or emotional state if visible
 - Background context that adds meaning
+- Whether this is a separate interview/setting from previous speaker
+- If speaker is responding to or building on previous speaker's point
 
-Focus on elements that would be valuable for content creators, writers, or researchers who need detailed, time-stamped information with full context.`
+DIALOGUE SEPARATION ENFORCEMENT:
+- Each speaker = One timestamp entry
+- No combining speakers even for same topic
+- Precise individual speaking times
+- Clear speaker identification
+- Separate context for each speaker's contribution
+
+Focus on elements that would be valuable for content creators, writers, or researchers who need detailed, time-stamped information with full context and precise speaker attribution.`
 
     console.log('Sending request to Gemini AI...')
     

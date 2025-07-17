@@ -71,9 +71,9 @@ export function TerminologyInfo({ isOpen, onClose }: TerminologyInfoProps) {
       icon: Brain,
       terms: [
         {
-          term: "Google Research",
+          term: "Perplexity Research",
           icon: Globe,
-          definition: "Web search using SerpAPI to gather up to 30 relevant articles and sources, then AI analysis to generate insights and recommendations."
+                      definition: "Advanced AI research using Perplexity AI to gather current information and sources, then generate comprehensive insights and recommendations."
         },
         {
           term: "Research Summaries",

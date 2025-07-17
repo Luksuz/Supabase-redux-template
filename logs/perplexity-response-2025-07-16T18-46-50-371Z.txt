@@ -1,0 +1,65 @@
+{
+  "id": "994a7c1f-91b7-4c3c-8773-88d53537904f",
+  "model": "sonar-pro",
+  "created": 1752691610,
+  "usage": {
+    "prompt_tokens": 44,
+    "completion_tokens": 386,
+    "total_tokens": 430,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://dictionary.cambridge.org/us/dictionary/english/test",
+    "https://www.dictionary.com/browse/test",
+    "https://en.wikipedia.org/wiki/Test",
+    "https://fairtest.org",
+    "https://implicit.harvard.edu/implicit/takeatest.html"
+  ],
+  "search_results": [
+    {
+      "title": "TEST | definition in the Cambridge English Dictionary",
+      "url": "https://dictionary.cambridge.org/us/dictionary/english/test",
+      "date": "2025-01-01",
+      "last_updated": "2025-07-01"
+    },
+    {
+      "title": "TEST Definition & Meaning",
+      "url": "https://www.dictionary.com/browse/test",
+      "date": "2025-07-14",
+      "last_updated": null
+    },
+    {
+      "title": "Test",
+      "url": "https://en.wikipedia.org/wiki/Test",
+      "date": "2002-02-15",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "FairTest Home - Fairtest",
+      "url": "https://fairtest.org",
+      "date": "2025-06-24",
+      "last_updated": "2025-07-07"
+    },
+    {
+      "title": "Take a Test",
+      "url": "https://implicit.harvard.edu/implicit/takeatest.html",
+      "date": null,
+      "last_updated": "2025-07-02"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "The word **test** has a wide range of meanings and applications across different fields:\n\n- In general usage, a **test** is a way of discovering what someone knows or can do, often through questions or practical activities. For example, students take tests in school to measure their knowledge, and medical tests are used to assess health conditions[1][2].\n- In education, a test is an **assessment** designed to measure a person's knowledge, skills, or abilities. Examples include written exams, quizzes, and standardized tests[1][3].\n- In science and technology, a test can refer to an **experiment** or procedure carried out to verify a hypothesis, check the quality of a product, or ensure the safety and reliability of equipment. This includes product testing, stress testing, and system testing[3].\n- In computing, **software testing** involves evaluating programs to ensure they function correctly, while the Unix command `test` is used to evaluate conditional expressions[3].\n- In biology, the term **test** can also refer to the shell of sea urchins and certain microorganisms[3].\n- In arts and entertainment, \"Test\" is the title of various films, music albums, and even the name of a jazz group[3].\n- In the context of social science, there are specialized assessments like the **Implicit Association Test (IAT)**, which measures attitudes and beliefs that people may be unwilling or unable to report[5].\n\nAdditionally, the concept of **test-optional** or **test-free** college admissions has become prominent, with many universities no longer requiring standardized test scores for admission, reflecting ongoing debates about the fairness and effectiveness of such assessments[4].\n\nIn summary, a **test** is fundamentally a method or process for evaluating knowledge, ability, quality, or performance, but its specific meaning and application can vary widely depending on the context[1][2][3]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

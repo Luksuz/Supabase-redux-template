@@ -4,6 +4,15 @@ export async function POST(request: NextRequest) {
   try {
     const { language = 'en-US' } = await request.json()
 
+    if (!process.env.VOICEMAKER_API_KEY) {
+      return NextResponse.json({
+        success: false,
+        error: 'VoiceMaker API key not configured'
+      }, { status: 500 })
+    }
+
+    console.log(`🎤 Fetching VoiceMaker voices for language: ${language}`)
+
     // VoiceMaker API endpoint for listing voices
     const response = await fetch('https://developer.voicemaker.in/voice/list', {
       method: 'POST',
@@ -23,6 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (data.success && data.data && data.data.voices_list) {
+      console.log(`✅ Successfully fetched ${data.data.voices_list.length} VoiceMaker voices`)
       return NextResponse.json({
         success: true,
         voices: data.data.voices_list

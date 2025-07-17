@@ -1,0 +1,65 @@
+{
+  "id": "093ca830-f363-402c-834b-9d5e9702070d",
+  "model": "sonar-pro",
+  "created": 1752691809,
+  "usage": {
+    "prompt_tokens": 45,
+    "completion_tokens": 539,
+    "total_tokens": 584,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://www.youtube.com/watch?v=n5JKTTEuPuY",
+    "https://www.clickondetroit.com/news/local/2025/05/23/suspect-allegedly-fired-over-20-rounds-at-detroit-rapper-skilla-babys-car-in-drive-by-shooting/",
+    "https://www.youtube.com/watch?v=EsJHVmq6Rqk",
+    "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians",
+    "https://www.11alive.com/article/news/local/atlanta-police-arrest-lil-woody-june-street-takeover/85-fdf9fffc-b644-44c2-93e7-c660a9047943"
+  ],
+  "search_results": [
+    {
+      "title": "Rapper Young Scooter reportedly dead in Atlanta - YouTube",
+      "url": "https://www.youtube.com/watch?v=n5JKTTEuPuY",
+      "date": "2025-03-28",
+      "last_updated": "2025-03-29"
+    },
+    {
+      "title": "Suspect allegedly fired over 20 rounds at Detroit rapper Skilla Baby ...",
+      "url": "https://www.clickondetroit.com/news/local/2025/05/23/suspect-allegedly-fired-over-20-rounds-at-detroit-rapper-skilla-babys-car-in-drive-by-shooting/",
+      "date": "2025-05-23",
+      "last_updated": "2025-05-23"
+    },
+    {
+      "title": "New video shows rapper Chocolate MC alleged armed kidnapping ...",
+      "url": "https://www.youtube.com/watch?v=EsJHVmq6Rqk",
+      "date": "2025-07-01",
+      "last_updated": null
+    },
+    {
+      "title": "List of murdered hip-hop musicians - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians",
+      "date": "2013-10-20",
+      "last_updated": "2025-07-15"
+    },
+    {
+      "title": "Atlanta Police arrest rapper Lil Woody for street takeover incident",
+      "url": "https://www.11alive.com/article/news/local/atlanta-police-arrest-lil-woody-june-street-takeover/85-fdf9fffc-b644-44c2-93e7-c660a9047943",
+      "date": "2025-07-11",
+      "last_updated": null
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Recent incidents involving rappers have highlighted the ongoing risks and controversies within the hip-hop community, ranging from violent attacks to legal troubles and tragic deaths.\n\n- **Young Scooter's Death (Atlanta, 2025):** Rapper Young Scooter, born Kenneth Bailey, died at age 39 after a chaotic incident in Atlanta. Police responded to a weapons dispute at a home, where shots were reportedly fired. Young Scooter fled the scene, jumped two fences, and suffered a fatal injury—initial reports suggest a fractured femur. He died at the hospital. Atlanta police emphasized that their officers did not fire any weapons, and the Georgia Bureau of Investigation is conducting an independent review. The incident has caused confusion and grief in the music community, especially as it occurred on his birthday[1].\n\n- **Skilla Baby Drive-By Shooting (Detroit, 2025):** Detroit rapper Skilla Baby (Trevon Gardner) was injured in a drive-by shooting in Redford Township. Over 20 rounds were fired at his car from a dark SUV, and he was struck three times before crashing his vehicle. He was hospitalized and is recovering. Police believe he may have been targeted, and the investigation is ongoing[2].\n\n- **Chocolate MC Kidnapping Allegation (Cuba, 2025):** Cuban reggaeton artist Chocolate MC was allegedly involved in the armed kidnapping of a fan who had asked for a photo. Newly released video footage reportedly shows the incident as it unfolded, raising serious legal and ethical questions about the artist's conduct[3].\n\n- **Lil Woody Arrested for Street Takeover (Atlanta, 2025):** Atlanta rapper Lil Woody (Kenneth Copeland) was arrested and charged with reckless driving after participating in a street takeover involving street racing and stunts. Video evidence led to his arrest, highlighting the intersection of hip-hop culture and street racing in Atlanta[5].\n\n- **Broader Context of Violence in Hip-Hop:** The hip-hop industry has long struggled with violence. Studies from the mid-2010s found that murder accounted for half of all hip-hop musician deaths, with homicide rates far exceeding those in other music genres. Many high-profile rapper murders, such as those of Tupac Shakur and The Notorious B.I.G., remain unsolved. Factors contributing to this violence include artists' backgrounds, gang activity, drug use, and lack of support from record labels[4].\n\nThese incidents underscore the persistent dangers faced by rappers, both from external threats and within the culture itself. The combination of fame, street credibility, and unresolved social issues continues to make hip-hop one of the most perilous music genres."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

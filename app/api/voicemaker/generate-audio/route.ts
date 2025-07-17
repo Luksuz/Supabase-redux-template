@@ -60,20 +60,24 @@ export async function POST(request: NextRequest) {
       throw new Error(data.error || `VoiceMaker API error: ${response.status}`)
     }
 
-    if (data.success && data.data && data.data.audio_url) {
+    if (data.success && data.path) {
       console.log(`✅ VoiceMaker audio generated successfully for section: ${sectionId}`)
+      console.log(`📊 Used characters: ${data.usedChars}, Remaining: ${data.remainChars}`)
       
       return NextResponse.json({
         success: true,
-        audioUrl: data.data.audio_url,
+        audioUrl: data.path,
         result: {
           success: true,
-          audioUrl: data.data.audio_url,
-          audioSize: data.data.audio_size || 0,
+          audioUrl: data.path,
+          audioSize: 0, // VoiceMaker doesn't provide size in response
           chunksGenerated: 1,
           totalChunks: 1,
           modelId: `${engine}-${voiceId}`,
-          provider: 'voicemaker'
+          provider: 'voicemaker',
+          usedChars: data.usedChars,
+          remainChars: data.remainChars,
+          remainKeyChars: data.remainKeyChars
         }
       })
     } else {

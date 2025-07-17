@@ -1,0 +1,65 @@
+{
+  "id": "85935af4-7680-42dc-9d9b-983186cdd224",
+  "model": "sonar-pro",
+  "created": 1752691883,
+  "usage": {
+    "prompt_tokens": 44,
+    "completion_tokens": 276,
+    "total_tokens": 320,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://dictionary.cambridge.org/us/dictionary/english/test",
+    "https://www.dictionary.com/browse/test",
+    "https://en.wikipedia.org/wiki/Test",
+    "https://fast.com",
+    "https://implicit.harvard.edu/implicit/takeatest.html"
+  ],
+  "search_results": [
+    {
+      "title": "TEST | definition in the Cambridge English Dictionary",
+      "url": "https://dictionary.cambridge.org/us/dictionary/english/test",
+      "date": "2025-01-01",
+      "last_updated": "2025-07-01"
+    },
+    {
+      "title": "TEST Definition & Meaning - Dictionary.com",
+      "url": "https://www.dictionary.com/browse/test",
+      "date": "2025-07-14",
+      "last_updated": null
+    },
+    {
+      "title": "Test - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Test",
+      "date": "2002-02-15",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "Fast.com: Internet Speed Test",
+      "url": "https://fast.com",
+      "date": "2005-10-01",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "Take a Test",
+      "url": "https://implicit.harvard.edu/implicit/takeatest.html",
+      "date": null,
+      "last_updated": "2025-07-02"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "The word **\"test\"** has multiple meanings and uses across different fields:\n\n- In general English, a **test** is a way of discovering what someone knows or can do, often through questions or practical activities. It can also refer to medical examinations or scientific procedures to measure specific abilities or conditions[1][2].\n- In education, a test is an **assessment** designed to measure knowledge, skills, or abilities, such as a spelling test or a driving test[1][2][3].\n- In science and technology, a test can refer to an **experiment** to validate a hypothesis, or to various forms of product, mechanical, or stress testing[3].\n- In computing, \"test\" can mean software testing, a Unix command, or even a reserved top-level domain (.test)[3].\n- In entertainment, \"Test\" is the title of several films, albums, and even the name of a jazz group[3].\n- There are also specialized uses, such as the **Implicit Association Test (IAT)**, which measures attitudes and beliefs that people may be unwilling or unable to report[5].\n- Online, \"test\" can refer to tools like internet speed tests, which measure your connection speed[4].\n\nThe term is highly versatile, adapting its meaning to context—from academic exams to scientific experiments, from computer commands to psychological assessments."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

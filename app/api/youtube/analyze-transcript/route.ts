@@ -9,14 +9,15 @@ const TranscriptAnalysisSchema = z.object({
   summary: z.string().describe("Comprehensive summary of the video content"),
   keyPoints: z.array(z.string()).describe("Main points and insights from the video (5-8 points)"),
   timestamps: z.array(z.object({
-    startTime: z.string().describe("Start timestamp in format MM:SS or HH:MM:SS"),
-    endTime: z.string().describe("End timestamp in format MM:SS or HH:MM:SS"),
-    speaker: z.string().describe("Speaker name or [Unknown Speaker] if unclear"),
-    quote: z.string().optional().describe("Exact quote if available"),
-    extraInfo: z.string().describe("Context about who was speaking to whom and situation details"),
-    description: z.string().describe("What happens during this time range"),
-    significance: z.string().describe("Why this moment is important")
-  })).describe("Key timestamp ranges and moments in the video with speaker information"),
+    startTime: z.string().describe("Start timestamp in format 00:00:00"),
+    endTime: z.string().describe("End timestamp in format 00:00:00"),
+    speaker: z.string().describe("Speaker name, video element type, or [Unknown Speaker] if unclear"),
+    quote: z.string().optional().describe("Exact quote if available, or description for video elements"),
+    extraInfo: z.string().describe("Context about who was speaking to whom, situation details, or video element context"),
+    description: z.string().describe("What happens during this time range or video element description"),
+    significance: z.string().describe("Why this moment is important or significant for storytelling"),
+    elementType: z.string().optional().describe("Type of video element: 'quote', 'background_footage', 'crime_scene', 'dramatic_moment', 'security_camera', 'news_footage', 'court_footage', 'evidence', etc.")
+  })).describe("Key timestamp ranges including both quotes/dialogue and video elements like footage, dramatic moments, etc."),
   topics: z.array(z.string()).describe("Main topics and themes discussed"),
   emotionalTone: z.string().describe("Overall emotional tone and mood"),
   keyQuotes: z.array(z.object({
@@ -157,13 +158,14 @@ Your task is to analyze the SRT transcript and create a comprehensive structured
 
 1. **Summary**: A comprehensive overall summary of the video content
 2. **Key Points**: 5-8 main points and insights from the video
-3. **Timestamps**: Multiple timestamp ranges (aim for 15-25) with detailed information including:
-   - startTime and endTime in MM:SS or HH:MM:SS format
+3. **Timestamps**: Multiple timestamp ranges (aim for 15-25) with detailed information including both dialogue and video elements:
+   - startTime and endTime in 00:00:00 format (convert from SRT timestamps)
    - speaker identification (extract from context or use "Unknown Speaker")
-   - exact quotes when available
-   - contextual information about who was speaking to whom
+   - exact quotes when available for dialogue
+   - elementType: Identify type of content ("quote", "background_footage", "crime_scene", "dramatic_moment", "security_camera", "news_footage", "court_footage", "evidence", etc.)
+   - contextual information about who was speaking to whom or video element context
    - description of what happens during this time range
-   - significance of why this moment is important
+   - significance of why this moment is important for storytelling
 4. **Topics**: Main topics and themes discussed
 5. **Emotional Tone**: Overall emotional tone and mood
 6. **Key Quotes**: Important quotes with full context (speaker, timing, situation)
@@ -173,13 +175,25 @@ Your task is to analyze the SRT transcript and create a comprehensive structured
 10. **Story Ideas**: Potential story concepts inspired by the content
 11. **Creative Prompt**: A creative writing prompt based on the video content
 
-TIMESTAMP EXTRACTION GUIDELINES:
+ENHANCED TIMESTAMP EXTRACTION GUIDELINES:
 - Look for natural conversation breaks, topic changes, important statements
 - Extract speaker information from context clues in the transcript
 - Identify dramatic moments, revelations, key explanations
 - Focus on content that matches the user's query: "${query}"
 - Create timestamp ranges that are meaningful (30 seconds to 3 minutes each)
 - Ensure timestamps don't overlap and cover the most important parts
+- Classify each timestamp with appropriate elementType:
+  * "quote" - For dialogue and spoken content
+  * "background_footage" - For B-roll or supplementary visual content
+  * "crime_scene" - For footage of crime scenes or investigations
+  * "dramatic_moment" - For emotional breakdowns, confrontations, revelations
+  * "security_camera" - For CCTV or surveillance footage
+  * "news_footage" - For news reports or broadcasts
+  * "court_footage" - For courtroom scenes and legal proceedings
+  * "evidence" - For presentation of evidence or documentation
+  * "the_moment" - For critical turning points or specific events
+- Convert SRT timestamps (00:01:23,456) to clean format (00:01:23)
+- Focus on moments that would be valuable for content creation and storytelling
 
 ANALYSIS FOCUS:
 Pay special attention to content related to: "${query}"

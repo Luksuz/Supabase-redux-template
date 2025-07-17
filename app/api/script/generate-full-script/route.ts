@@ -156,6 +156,17 @@ YOUTUBE CLIP INTEGRATION:
 - Only use timestamps that exist within the actual video length
 - Extract timestamps from the research data provided
 
+CRITICAL CLIP PLACEMENT RULES - "SHOW, DON'T TELL":
+- NEVER quote what someone says in a clip before showing the clip
+- NEVER reveal the content of a clip in your narration
+- Let clips speak for themselves - don't spoil the impact by telling what's said
+- Build anticipation or context BEFORE clips, but don't quote the actual content
+- Example of WRONG approach: "Brown said 'What I did was horrible' [[CLIP: shows Brown saying this]]"
+- Example of CORRECT approach: "His next words would shock everyone [[CLIP: shows Brown's statement]]"
+- Use clips to reveal information, not to repeat information you've already stated
+- Build narrative tension by letting clips provide the revelations
+- Connect clips with context about WHY they matter, not WHAT they contain
+
 GENERAL PRINCIPLES:
 - Remain unbiased, especially on sensitive topics
 - Use adverbs to sensationalize main events, but don't overdo it
@@ -188,7 +199,8 @@ REQUIREMENTS:
 - Use natural, conversational language appropriate for voiceover
 - Include proper pacing and flow
 - Do not include stage directions or formatting - just the pure script content
-- Focus on QUALITY over quantity - no artificial word count padding`
+- Focus on QUALITY over quantity - no artificial word count padding
+- Dont output content in JSON format, it should be in natural language`
 
       // Add research data if provided
       if (additionalResearch) {
@@ -203,7 +215,13 @@ CLIP PLACEMENT INSTRUCTIONS:
 - Use the format: [[CLIP: video_url | actual_timestamp_from_research | description]]
 - Ensure timestamps are within the actual video length (check research data)
 - Don't place all clips at the beginning - distribute them throughout the script
-- Let the narrative flow guide clip placement, not arbitrary rules`
+- Let the narrative flow guide clip placement, not arbitrary rules
+
+CRITICAL: APPLY "SHOW, DON'T TELL" PRINCIPLE:
+- DO NOT quote or reveal what's said in clips before showing them
+- Build anticipation and context, but let clips provide the actual revelations
+- Use phrases like "What happened next..." "His response was..." "The moment that changed everything..."
+- Never spoil clip content with your narration - let clips be the source of quotes and key moments`
       }
 
       // Handle legacy YouTube links format
@@ -226,7 +244,7 @@ NOTE: Use these links but verify timestamps against the research data above for 
         messages: [
           {
             role: "system",
-            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. When research data includes YouTube clips with timestamps and descriptions, integrate them throughout the script where they naturally enhance the narrative - not just at the beginning. Use the format [[CLIP: url | timestamp | description]] and ensure timestamps are accurate based on the research data provided. Focus on quality content that uses clips effectively to tell a compelling story."
+            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. When research data includes YouTube clips with timestamps and descriptions, integrate them throughout the script where they naturally enhance the narrative - not just at the beginning. Use the format [[CLIP: url | timestamp | description]] and ensure timestamps are accurate based on the research data provided. CRITICAL: Follow the 'SHOW, DON'T TELL' principle - NEVER quote what someone says in a clip before showing the clip. Let clips reveal information rather than repeating it in your narration. Build anticipation and context, but let clips provide the actual quotes and revelations. Focus on quality content that uses clips effectively to tell a compelling story."
           },
           {
             role: "user",
@@ -328,9 +346,13 @@ function generateMockScript(
 
 Welcome to this engaging content about hip-hop culture and street dynamics${toneInfo ? `, presented${toneInfo}` : ''}. 
 
+The moment that started everything was captured on camera.
+
 [[CLIP: mock_youtube_url | 0:15-0:45 | dramatic_opening_moment]]
 
-What you just saw sets the stage for everything that's about to unfold. The streets don't play games, and neither do the artists who represent them.
+What you just witnessed sets the stage for everything that's about to unfold. The streets don't play games, and neither do the artists who represent them.
+
+But things were about to escalate beyond anyone's expectations.
 
 [[CLIP: mock_youtube_url | 1:20-2:10 | main_incident_footage]]
 
@@ -338,17 +360,23 @@ That escalation happened faster than anyone expected. This is exactly what we're
 
 The connection between social media and street credibility has created a dangerous new reality for artists trying to balance authenticity with safety.
 
+The aftermath would speak volumes about the state of the culture.
+
 [[CLIP: mock_youtube_url | 3:05-3:35 | aftermath_reaction]]
 
 And that's how quickly everything can change in this game.`
   } else if (projectTheme === 'crime') {
     script = `This is the ${sectionTitle} section${contextInfo}${audienceInfo}. ${writingInstructions}
 
+The tension that had been building for weeks was about to reach its breaking point.
+
 [[CLIP: mock_youtube_url | 0:00-0:30 | courtroom_incident_begins]]
 
-What you just witnessed was the moment everything changed in that courtroom. The tension that had been building for weeks finally erupted${toneInfo ? `, and the ${tone} reality` : ', and the reality'} of what happened next would shock everyone present.
+What you just witnessed was the moment everything changed in that courtroom. The tension finally erupted${toneInfo ? `, and the ${tone} reality` : ', and the reality'} of what happened next would shock everyone present.
 
 Legal experts had been watching this case closely, but nobody anticipated the dramatic turn it would take. The defendant's reaction revealed the depth of emotion that had been simmering beneath the surface throughout the proceedings.
+
+Security had to act fast to regain control.
 
 [[CLIP: mock_youtube_url | 2:15-3:00 | security_response]]
 
@@ -360,11 +388,15 @@ The implications of what happened that day continue to influence how similar cas
 
 Welcome to this engaging exploration${contextInfo}${toneInfo ? `, presented${toneInfo}` : ''}. 
 
+Let me show you exactly what we're talking about.
+
 [[CLIP: mock_youtube_url | 0:30-1:15 | key_demonstration]]
 
 As you can see from that example, the concepts we're discussing have real-world applications that directly impact our understanding of the subject.
 
 This section provides insights that are both informative and accessible, ensuring that complex ideas are broken down into digestible, actionable information.
+
+The evidence for this becomes even clearer when you see it in action.
 
 [[CLIP: mock_youtube_url | 2:45-3:20 | supporting_evidence]]
 

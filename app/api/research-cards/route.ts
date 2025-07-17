@@ -6,7 +6,7 @@ interface ResearchCard {
   user_id: string
   title: string
   query: string
-  type: 'google' | 'youtube'
+  type: 'google' | 'youtube' | 'firecrawl' | 'custom' | 'perplexity' | 'research'
   content: Record<string, any>
   tags?: string[]
   category?: string | null
@@ -16,6 +16,11 @@ interface ResearchCard {
   updated_at: string
   source: string
   source_metadata?: Record<string, any>
+  url?: string | null
+  scraped_content?: string | null
+  research_method?: string | null
+  confidence_score?: number | null
+  word_count?: number | null
 }
 
 // GET - Fetch all research cards for the authenticated user
@@ -95,40 +100,71 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, query, type, content, tags, category, source = 'custom', source_metadata = {} } = body
+    const { 
+      title, 
+      query, 
+      type, 
+      content, 
+      tags, 
+      category, 
+      source = 'custom', 
+      source_metadata = {},
+      url,
+      scraped_content,
+      research_method,
+      confidence_score,
+      word_count
+    } = body
 
-    // Validate required fields
-    if (!title || !query || !type || !content) {
+    // More flexible validation - only type and content are truly required
+    if (!type || !content) {
       return NextResponse.json({
         success: false,
-        error: 'Missing required fields: title, query, type, content'
+        error: 'Missing required fields: type, content'
       }, { status: 400 })
     }
 
-    if (!['google', 'youtube'].includes(type)) {
+    // Generate defaults for missing required DB fields
+    const finalTitle = title || query || 'Research Item'
+    const finalQuery = query || title || 'No query available'
+
+    const validTypes = ['google', 'youtube', 'firecrawl', 'custom', 'perplexity', 'research']
+    if (!validTypes.includes(type)) {
       return NextResponse.json({
         success: false,
-        error: 'Type must be either "google" or "youtube"'
+        error: `Type must be one of: ${validTypes.join(', ')}`
       }, { status: 400 })
     }
 
-    // Insert into database
-    const { data: newCard, error } = await supabase
-      .from('research_cards')
-      .insert([
-        {
+    // Calculate word count if content is provided
+    const calculatedWordCount = word_count || (
+      typeof content === 'object' && content.originalData?.scrapedContent 
+        ? content.originalData.scrapedContent.split(/\s+/).length 
+        : null
+    )
+
+    // Insert into database with new flexible fields
+    const insertData = {
           user_id: user.id,
-          title,
-          query,
+      title: finalTitle,
+      query: finalQuery,
           type,
           content,
           tags: tags || [],
           category: category || null,
           source,
           source_metadata,
-          applied_to_script: false
-        }
-      ])
+      applied_to_script: false,
+      ...(url && { url }),
+      ...(scraped_content && { scraped_content }),
+      ...(research_method && { research_method }),
+      ...(confidence_score !== undefined && { confidence_score }),
+      ...(calculatedWordCount && { word_count: calculatedWordCount })
+    }
+
+    const { data: newCard, error } = await supabase
+      .from('research_cards')
+      .insert([insertData])
       .select()
       .single()
 

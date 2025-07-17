@@ -1,0 +1,58 @@
+{
+  "id": "574020a6-df2f-417b-be55-e7093295e2a8",
+  "model": "sonar-pro",
+  "created": 1752696174,
+  "usage": {
+    "prompt_tokens": 46,
+    "completion_tokens": 416,
+    "total_tokens": 462,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://www.youtube.com/watch?v=G4S66nI5kLg",
+    "https://www.youtube.com/watch?v=NPz-9fvPyxE",
+    "https://www.instagram.com/hotnewhiphop/p/DDIRUpKTEet/",
+    "https://www.youtube.com/watch?v=s-YAQtZiUuI"
+  ],
+  "search_results": [
+    {
+      "title": "Billboard's Top 50 Greatest Rappers of All Time Reaction - YouTube",
+      "url": "https://www.youtube.com/watch?v=G4S66nI5kLg",
+      "date": "2023-02-22",
+      "last_updated": "2025-07-05"
+    },
+    {
+      "title": "Our Top 25 Favorite Rappers of All Time - YouTube",
+      "url": "https://www.youtube.com/watch?v=NPz-9fvPyxE",
+      "date": "2025-04-21",
+      "last_updated": "2025-06-30"
+    },
+    {
+      "title": "Forbes' list of the \"50 Top Rappers Of All Time\" has been going viral ...",
+      "url": "https://www.instagram.com/hotnewhiphop/p/DDIRUpKTEet/",
+      "date": "2024-12-03",
+      "last_updated": null
+    },
+    {
+      "title": "TOP 10 RAPPERS OF 2024 - YouTube",
+      "url": "https://www.youtube.com/watch?v=s-YAQtZiUuI",
+      "date": "2024-12-30",
+      "last_updated": "2024-12-31"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "The landscape of **top rappers** is shaped by both critical acclaim and cultural impact, with recent lists and discussions highlighting a mix of established legends and contemporary stars.\n\n**Billboard's 50 Greatest Rappers of All Time** features a blend of veterans and modern icons. Notably, **Kendrick Lamar** and **Drake** are recognized in the top 10, reflecting their influence and consistent output in the last decade. **Nicki Minaj** is also mentioned among the top ranks, underscoring her significance as a leading female rapper. The list emphasizes not just lyrical skill but also impact and longevity, with artists like Lauryn Hill being celebrated for their outsized influence despite a smaller body of work[1].\n\nRecent chart performance also highlights the dominance of certain artists. In late 2024, **Kendrick Lamar** (alongside SZA) held the number one spot for seven consecutive weeks with \"Luther,\" while **Drake** continued to see chart success with tracks like \"NOKIA\"[3].\n\nFan and critic-generated lists for 2024 and 2025 often include the following names among the **top rappers**:\n- **Kendrick Lamar**\n- **Drake**\n- **Nicki Minaj**\n- **Travis Scott**\n- **Future**\n- **Denzel Curry**\n- **Schoolboy Q**\n- **Andre 3000**\n- **Isaiah Rashad**\n- **JID**[2][4]\n\nThese lists reflect both personal taste and broader industry trends, with artists like **Future** and **Travis Scott** praised for their versatility and cultural resonance[2]. Meanwhile, the continued presence of veterans such as **Andre 3000** demonstrates the enduring respect for foundational figures in hip-hop.\n\nIn summary, the current consensus places **Kendrick Lamar**, **Drake**, and **Nicki Minaj** at the forefront of rap, with a supporting cast of both new and established names shaping the genre's direction[1][3][4]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

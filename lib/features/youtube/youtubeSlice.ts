@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
+import { extendTimestampRange, createTimestampRange } from '../../../utils/youtube-utils'
 
 // YouTube Video interface
 export interface Video {
@@ -133,14 +134,48 @@ export interface WebSearchResult {
   source?: string
 }
 
+// Enhanced Article Summary interface (similar to VideoSummary but for web articles)
+export interface ArticleSummary {
+  articleId: string
+  title: string
+  url: string
+  source: string
+  keyPoints: string[]
+  mainTopic: string
+  keyQuotes: string[]
+  narrativeElements: string[]
+  emotionalTone: string
+  dramaticElements: string[]
+  contextualInfo: string
+  overallTheme: string
+  date?: string
+}
+
+// Enhanced Research Summary interface (similar to VideosSummary but for web research)
+export interface ResearchSummary {
+  overallTheme: string
+  keyInsights: string[]
+  articleSummaries: ArticleSummary[]
+  commonPatterns: string[]
+  actionableItems: string[]
+  narrativeThemes: string[]
+  characterInsights: string[]
+  conflictElements: string[]
+  storyIdeas: string[]
+  creativePrompt: string
+  visualAudioCues: string[] // NEW: Visual/Audio cues for content creation
+  audienceQuestions: string[] // NEW: Questions/hooks for audience engagement
+}
+
 export interface GoogleResearchSummary {
   id: string
   query: string
   context?: string
-  webResults: WebSearchResult[]
-  insights: string
-  keyFindings: string[]
-  recommendations: string[]
+  webResults: WebSearchResult[] // Keep for backward compatibility
+  researchSummary: ResearchSummary // NEW: Rich structured research data
+  insights: string // Keep for backward compatibility
+  keyFindings: string[] // Keep for backward compatibility
+  recommendations: string[] // Keep for backward compatibility
   sources: string[]
   timestamp: string
   usingMock?: boolean
@@ -321,6 +356,19 @@ interface YouTubeState {
   googleResearchSummaries: GoogleResearchSummary[]
   youtubeResearchSummaries: YouTubeResearchSummary[]
   
+  // Research loading states
+  isResearching: boolean
+  isSummarizing: boolean
+  savingToHistory: string[] // IDs of items being saved
+  pendingWebResults: any[]
+  selectedArticles: number[]
+  lastSearchQuery: string
+  lastSearchContext: string
+  
+  // Link scraping state
+  scrapingLinks: string[] // URLs being scraped
+  availableLinks: Array<{ url: string, title: string, source: string }> // Links available for scraping from last Perplexity search
+  
   // Available clips for script attachment
   availableClips: AvailableClip[]
   
@@ -364,6 +412,19 @@ const initialState: YouTubeState = {
   // Research summaries
   googleResearchSummaries: [],
   youtubeResearchSummaries: [],
+  
+  // Research loading states
+  isResearching: false,
+  isSummarizing: false,
+  savingToHistory: [],
+  pendingWebResults: [],
+  selectedArticles: [],
+  lastSearchQuery: '',
+  lastSearchContext: '',
+  
+  // Link scraping state
+  scrapingLinks: [],
+  availableLinks: [],
   
   // Available clips for script attachment
   availableClips: [],
@@ -682,6 +743,27 @@ export const analyzeTranscript = createAsyncThunk(
   }
 )
 
+// Async thunk for scraping individual links
+export const scrapeLink = createAsyncThunk(
+  'youtube/scrapeLink',
+  async ({ url, title }: { url: string; title?: string }) => {
+    console.log(`🔥 Scraping individual link: ${url}`)
+
+    const response = await fetch('/api/research/scrape-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, title })
+    })
+    
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to scrape link')
+    }
+
+    return data.research
+  }
+)
+
 // Async thunk for Google research
 export const performGoogleResearch = createAsyncThunk(
   'youtube/performGoogleResearch',
@@ -725,6 +807,20 @@ export const performGoogleResearch = createAsyncThunk(
       query,
       context,
       webResults: webData.results,
+      researchSummary: webData.researchSummary || {
+        overallTheme: summaryData.insights || 'Research findings',
+        keyInsights: summaryData.keyFindings || [],
+        articleSummaries: [],
+        commonPatterns: [],
+        actionableItems: summaryData.recommendations || [],
+        narrativeThemes: [],
+        characterInsights: [],
+        conflictElements: [],
+        storyIdeas: [],
+        creativePrompt: '',
+        visualAudioCues: [],
+        audienceQuestions: []
+      },
       insights: summaryData.insights,
       keyFindings: summaryData.keyFindings,
       recommendations: summaryData.recommendations,
@@ -839,6 +935,12 @@ export const youtubeSlice = createSlice({
     
     deselectAllVideos: (state) => {
       state.selectedVideos = []
+    },
+    
+    clearAllVideos: (state) => {
+      state.videos = []
+      state.selectedVideos = []
+      state.searchInfo = null
     },
     
     // Subtitle actions
@@ -983,6 +1085,77 @@ export const youtubeSlice = createSlice({
       state.error = action.payload
     },
     
+    // Research loading state actions
+    setIsResearching: (state, action: PayloadAction<boolean>) => {
+      state.isResearching = action.payload
+    },
+    
+    setIsSummarizing: (state, action: PayloadAction<boolean>) => {
+      state.isSummarizing = action.payload
+    },
+    
+    setSavingToHistory: (state, action: PayloadAction<string[]>) => {
+      state.savingToHistory = action.payload
+    },
+    
+    addSavingToHistory: (state, action: PayloadAction<string>) => {
+      if (!state.savingToHistory.includes(action.payload)) {
+        state.savingToHistory.push(action.payload)
+      }
+    },
+    
+    removeSavingToHistory: (state, action: PayloadAction<string>) => {
+      state.savingToHistory = state.savingToHistory.filter(id => id !== action.payload)
+    },
+    
+    setPendingWebResults: (state, action: PayloadAction<any[]>) => {
+      state.pendingWebResults = action.payload
+    },
+    
+    setSelectedArticles: (state, action: PayloadAction<number[]>) => {
+      state.selectedArticles = action.payload
+    },
+    
+    setLastSearchQuery: (state, action: PayloadAction<string>) => {
+      state.lastSearchQuery = action.payload
+    },
+    
+    setLastSearchContext: (state, action: PayloadAction<string>) => {
+      state.lastSearchContext = action.payload
+    },
+    
+    clearResearchState: (state) => {
+      state.isResearching = false
+      state.isSummarizing = false
+      state.pendingWebResults = []
+      state.selectedArticles = []
+      state.lastSearchQuery = ''
+      state.lastSearchContext = ''
+    },
+    
+    // Link scraping actions
+    setAvailableLinks: (state, action: PayloadAction<Array<{ url: string, title: string, source: string }>>) => {
+      state.availableLinks = action.payload
+    },
+    
+    addScrapingLink: (state, action: PayloadAction<string>) => {
+      if (!state.scrapingLinks.includes(action.payload)) {
+        state.scrapingLinks.push(action.payload)
+      }
+    },
+    
+    removeScrapingLink: (state, action: PayloadAction<string>) => {
+      state.scrapingLinks = state.scrapingLinks.filter(url => url !== action.payload)
+    },
+    
+    clearScrapingLinks: (state) => {
+      state.scrapingLinks = []
+    },
+    
+    clearAvailableLinks: (state) => {
+      state.availableLinks = []
+    },
+    
     // Reset actions
     resetSearchResults: (state) => {
       state.videos = []
@@ -1082,13 +1255,17 @@ export const youtubeSlice = createSlice({
         
         result.analysis.forEach((analysis, index) => {
           const clipId = `analysis-${result.videoId}-${index}-${Date.now()}`
+          
+          // Extend timestamp by 3 seconds before and after for more context
+          const extendedTimestamp = createTimestampRange(analysis.timestamp, 3)
+          
           newClips.push({
             id: clipId,
             videoId: result.videoId,
             videoTitle,
             youtubeUrl: analysis.youtubeUrl || `https://youtube.com/watch?v=${result.videoId}`,
-            startTime: analysis.timestamp,
-            endTime: analysis.timestamp, // Use same timestamp as end if not provided
+            startTime: extendedTimestamp.startTime,
+            endTime: extendedTimestamp.endTime,
             description: analysis.summary,
             quote: analysis.keyQuotes?.[0] || analysis.relevantContent,
             significance: analysis.contextualInfo,
@@ -1104,13 +1281,17 @@ export const youtubeSlice = createSlice({
           // Add clips from detailed timestamps
           videoSummary.timestamps?.forEach((timestamp, index) => {
             const clipId = `research-${videoSummary.videoId}-${index}-${Date.now()}`
+            
+            // Extend timestamp range by 3 seconds before and after for more context
+            const extendedTimestamp = extendTimestampRange(timestamp.startTime, timestamp.endTime, 3)
+            
             newClips.push({
               id: clipId,
               videoId: videoSummary.videoId,
               videoTitle: videoSummary.title,
               youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
-              startTime: timestamp.startTime,
-              endTime: timestamp.endTime,
+              startTime: extendedTimestamp.startTime,
+              endTime: extendedTimestamp.endTime,
               description: timestamp.description,
               quote: timestamp.quote,
               speaker: timestamp.speaker,
@@ -1122,13 +1303,17 @@ export const youtubeSlice = createSlice({
           // Add clips from key quotes
           videoSummary.keyQuotes?.forEach((quote, index) => {
             const clipId = `quote-${videoSummary.videoId}-${index}-${Date.now()}`
+            
+            // Extend timestamp range by 3 seconds before and after for more context
+            const extendedTimestamp = extendTimestampRange(quote.startTime, quote.endTime, 3)
+            
             newClips.push({
               id: clipId,
               videoId: videoSummary.videoId,
               videoTitle: videoSummary.title,
               youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
-              startTime: quote.startTime,
-              endTime: quote.endTime,
+              startTime: extendedTimestamp.startTime,
+              endTime: extendedTimestamp.endTime,
               description: quote.context,
               quote: quote.quote,
               speaker: quote.speaker,
@@ -1153,12 +1338,17 @@ export const youtubeSlice = createSlice({
       .addCase(searchVideos.pending, (state) => {
         state.searchLoading = true
         state.error = null
-        state.videos = []
+        // Don't clear videos for persistent search - only clear selections
         state.selectedVideos = []
       })
       .addCase(searchVideos.fulfilled, (state, action) => {
         state.searchLoading = false
-        state.videos = action.payload.videos
+        
+        // Append new videos to existing ones (persistent search)
+        const existingVideoIds = new Set(state.videos.map(v => v.id.videoId))
+        const newVideos = action.payload.videos.filter((v: any) => !existingVideoIds.has(v.id.videoId))
+        state.videos = [...state.videos, ...newVideos]
+        
         state.searchInfo = action.payload.searchInfo
         state.error = null
       })
@@ -1230,13 +1420,17 @@ export const youtubeSlice = createSlice({
         
         action.payload.analysis.forEach((analysis: any, index: number) => {
           const clipId = `analysis-${videoId}-${index}-${Date.now()}`
+          
+          // Extend timestamp by 3 seconds before and after for more context
+          const extendedTimestamp = createTimestampRange(analysis.timestamp, 3)
+          
           const newClip: AvailableClip = {
             id: clipId,
             videoId,
             videoTitle,
             youtubeUrl: analysis.youtubeUrl || `https://youtube.com/watch?v=${videoId}`,
-            startTime: analysis.timestamp,
-            endTime: analysis.timestamp,
+            startTime: extendedTimestamp.startTime,
+            endTime: extendedTimestamp.endTime,
             description: analysis.summary,
             quote: analysis.keyQuotes?.[0] || analysis.relevantContent,
             significance: analysis.contextualInfo,
@@ -1277,13 +1471,17 @@ export const youtubeSlice = createSlice({
           // Add clips from detailed timestamps
           videoSummary.timestamps?.forEach((timestamp: any, index: number) => {
             const clipId = `research-${videoSummary.videoId}-${index}-${Date.now()}`
+            
+            // Extend timestamp range by 3 seconds before and after for more context
+            const extendedTimestamp = extendTimestampRange(timestamp.startTime, timestamp.endTime, 3)
+            
             const newClip: AvailableClip = {
               id: clipId,
               videoId: videoSummary.videoId,
               videoTitle: videoSummary.title,
               youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
-              startTime: timestamp.startTime,
-              endTime: timestamp.endTime,
+              startTime: extendedTimestamp.startTime,
+              endTime: extendedTimestamp.endTime,
               description: timestamp.description,
               quote: timestamp.quote,
               speaker: timestamp.speaker,
@@ -1301,13 +1499,17 @@ export const youtubeSlice = createSlice({
           // Add clips from key quotes
           videoSummary.keyQuotes?.forEach((quote: any, index: number) => {
             const clipId = `quote-${videoSummary.videoId}-${index}-${Date.now()}`
+            
+            // Extend timestamp range by 3 seconds before and after for more context
+            const extendedTimestamp = extendTimestampRange(quote.startTime, quote.endTime, 3)
+            
             const newClip: AvailableClip = {
               id: clipId,
               videoId: videoSummary.videoId,
               videoTitle: videoSummary.title,
               youtubeUrl: `https://youtube.com/watch?v=${videoSummary.videoId}`,
-              startTime: quote.startTime,
-              endTime: quote.endTime,
+              startTime: extendedTimestamp.startTime,
+              endTime: extendedTimestamp.endTime,
               description: quote.context,
               quote: quote.quote,
               speaker: quote.speaker,
@@ -1341,6 +1543,27 @@ export const youtubeSlice = createSlice({
       .addCase(performGoogleResearch.rejected, (state, action) => {
         state.error = action.error.message || 'Network error occurred while performing Google research'
       })
+    
+    // Link scraping
+    builder
+      .addCase(scrapeLink.pending, (state, action) => {
+        const url = action.meta.arg.url
+        if (!state.scrapingLinks.includes(url)) {
+          state.scrapingLinks.push(url)
+        }
+        state.error = null
+      })
+      .addCase(scrapeLink.fulfilled, (state, action) => {
+        const url = action.meta.arg.url
+        state.scrapingLinks = state.scrapingLinks.filter(scrapingUrl => scrapingUrl !== url)
+        state.googleResearchSummaries.push(action.payload)
+        state.error = null
+      })
+      .addCase(scrapeLink.rejected, (state, action) => {
+        const url = action.meta.arg.url
+        state.scrapingLinks = state.scrapingLinks.filter(scrapingUrl => scrapingUrl !== url)
+        state.error = action.error.message || 'Network error occurred while scraping link'
+      })
   },
 })
 
@@ -1353,6 +1576,7 @@ export const {
   toggleVideoSelection,
   selectAllVideos,
   deselectAllVideos,
+  clearAllVideos,
   updateSubtitleStatus,
   updateSubtitleGenerationStatus,
   addSubtitleFile,
@@ -1384,6 +1608,21 @@ export const {
   removeAvailableClip,
   clearAvailableClips,
   populateClipsFromAnalysis,
+  setIsResearching,
+  setIsSummarizing,
+  setSavingToHistory,
+  addSavingToHistory,
+  removeSavingToHistory,
+  setPendingWebResults,
+  setSelectedArticles,
+  setLastSearchQuery,
+  setLastSearchContext,
+  clearResearchState,
+  setAvailableLinks,
+  addScrapingLink,
+  removeScrapingLink,
+  clearScrapingLinks,
+  clearAvailableLinks,
 } = youtubeSlice.actions
 
 // Export reducer
@@ -1432,6 +1671,16 @@ export const selectVideoSummarization = (state: { youtube: YouTubeState }) => ({
 export const selectResearchSummaries = (state: { youtube: YouTubeState }) => ({
   googleResearchSummaries: state.youtube.googleResearchSummaries,
   youtubeResearchSummaries: state.youtube.youtubeResearchSummaries,
+})
+
+export const selectResearchLoadingStates = (state: { youtube: YouTubeState }) => ({
+  isResearching: state.youtube.isResearching,
+  isSummarizing: state.youtube.isSummarizing,
+  savingToHistory: state.youtube.savingToHistory,
+  pendingWebResults: state.youtube.pendingWebResults,
+  selectedArticles: state.youtube.selectedArticles,
+  lastSearchQuery: state.youtube.lastSearchQuery,
+  lastSearchContext: state.youtube.lastSearchContext,
 })
 
 export const selectAvailableClips = (state: { youtube: YouTubeState }) => state.youtube.availableClips 

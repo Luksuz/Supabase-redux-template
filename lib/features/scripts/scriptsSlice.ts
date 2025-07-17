@@ -763,8 +763,9 @@ export const generateAudioThunk = (params: {
   voiceId: string
   modelId: string
   provider?: string
+  voiceSettings?: any
 }) => async (dispatch: any) => {
-  const { sectionId, text, voiceId, modelId, provider = 'elevenlabs' } = params
+  const { sectionId, text, voiceId, modelId, provider = 'elevenlabs', voiceSettings } = params
   
   dispatch(startAudioGeneration(sectionId))
   
@@ -774,7 +775,8 @@ export const generateAudioThunk = (params: {
       text,
       voiceId,
       modelId,
-      sectionId
+      sectionId,
+      ...(voiceSettings && { voiceSettings })
     }
 
     // Choose API endpoint based on provider
@@ -792,6 +794,14 @@ export const generateAudioThunk = (params: {
         text,
         voiceId,
         engine: 'neural',
+        sectionId
+      }
+    } else if (provider === 'minimax') {
+      apiEndpoint = '/api/minimax/generate-audio'
+      requestBody = {
+        text,
+        voiceId,
+        modelId,
         sectionId
       }
     }
@@ -812,8 +822,8 @@ export const generateAudioThunk = (params: {
       // Handle different response formats
       let audioUrl = null
       
-      if (provider === 'elevenlabs' && result.audioData) {
-        // ElevenLabs returns base64 data that needs to be converted to blob
+      if ((provider === 'elevenlabs' || provider === 'minimax') && result.audioData) {
+        // ElevenLabs and Minimax return base64 data that needs to be converted to blob
         try {
           const binaryString = atob(result.audioData)
           const bytes = new Uint8Array(binaryString.length)

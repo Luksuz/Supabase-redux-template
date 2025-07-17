@@ -1,0 +1,65 @@
+{
+  "id": "019220fe-3a4e-4f5e-8535-df40b3d2295d",
+  "model": "sonar-pro",
+  "created": 1752694043,
+  "usage": {
+    "prompt_tokens": 60,
+    "completion_tokens": 943,
+    "total_tokens": 1003,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://music.apple.com/it/playlist/top-rap-italiano-2025/pl.5aea78b8248f4fd3a9c4d5f0f5b2bd11",
+    "https://en.wikipedia.org/wiki/Kanye_West",
+    "https://blog.ticketmaster.it/musica/concerti-rapper-italiani-emergenti-famosi-1807/",
+    "https://www.imdb.com/list/ls054622896/",
+    "https://www.instagram.com/p/DGfyc4hNJ2f/"
+  ],
+  "search_results": [
+    {
+      "title": "TOP RAP ITALIANO 2025 🔥 di Topsify",
+      "url": "https://music.apple.com/it/playlist/top-rap-italiano-2025/pl.5aea78b8248f4fd3a9c4d5f0f5b2bd11",
+      "date": "2025-07-11",
+      "last_updated": "2025-07-15"
+    },
+    {
+      "title": "Kanye West - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Kanye_West",
+      "date": "2004-03-13",
+      "last_updated": "2025-07-16"
+    },
+    {
+      "title": "Rapper italiani: concerti rap di cantanti emergenti e famosi",
+      "url": "https://blog.ticketmaster.it/musica/concerti-rapper-italiani-emergenti-famosi-1807/",
+      "date": "2025-03-11",
+      "last_updated": "2025-07-15"
+    },
+    {
+      "title": "50 best male Rappers of all time - IMDb",
+      "url": "https://www.imdb.com/list/ls054622896/",
+      "date": "2013-12-11",
+      "last_updated": "2025-07-08"
+    },
+    {
+      "title": "I 10 rapper italiani che sono stati in vetta alla classifica ...",
+      "url": "https://www.instagram.com/p/DGfyc4hNJ2f/",
+      "date": "2025-03-18",
+      "last_updated": null
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Ecco una selezione dei migliori articoli e risorse in italiano che trattano i principali **incidenti, controversie e fatti drammatici legati ai rapper**, sia italiani che internazionali. La lista include fonti che raccontano episodi famosi, faide, arresti, e momenti chiave che hanno segnato la storia del rap. Alcuni articoli sono playlist o raccolte che includono riferimenti a questi eventi, mentre altri sono approfondimenti o cronache di fatti specifici.\n\n1. **Playlist \"Top Rap Italiano 2025\" di Topsify**  \n   Una raccolta aggiornata dei principali artisti rap italiani, molti dei quali sono stati protagonisti di controversie, faide e incidenti mediatici negli ultimi anni. La playlist offre uno spaccato della scena attuale, spesso segnata da episodi di cronaca e rivalità tra rapper[1].\n\n2. **Ticketmaster Blog – \"Rapper italiani: concerti rap di cantanti emergenti e famosi\"**  \n   Oltre a segnalare i concerti più attesi, il blog spesso racconta aneddoti e retroscena sugli artisti, inclusi episodi controversi e incidenti che hanno coinvolto rapper come Bresh e altri nomi noti della scena italiana[3].\n\n3. **Wikipedia – \"Kanye West\" (sezione Legal Issues)**  \n   Anche se in inglese, questa pagina offre una panoramica dettagliata sulle controversie legali e gli incidenti che hanno coinvolto uno dei rapper più discussi al mondo, tra cui cause legali, scontri con paparazzi e problemi giudiziari[2].\n\n4. **IMDb – \"50 best male Rappers of all time\"**  \n   La scheda di Tupac Shakur e Notorious B.I.G. racconta i due incidenti più drammatici della storia del rap: gli omicidi irrisolti dei due artisti, simbolo delle faide tra East Coast e West Coast negli anni '90[4].\n\n5. **Articoli di cronaca su Baby Gang, Simba La Rue e Rondo**  \n   Questi rapper italiani sono spesso al centro di notizie per arresti, faide tra crew e scontri con la polizia, eventi ampiamente trattati dai principali quotidiani italiani e siti di musica urbana[1].\n\n6. **Speciali su Faide e Diss Track nel Rap Italiano**  \n   Diversi portali musicali italiani pubblicano regolarmente approfondimenti sulle faide tra rapper, con focus su episodi come il diss tra Salmo e Luchè, o le tensioni tra Capo Plaza e altri artisti della scena[1].\n\n7. **Raccolte di video e articoli su incidenti ai concerti rap**  \n   Alcuni blog e canali YouTube italiani documentano risse, arresti e incidenti avvenuti durante live e festival rap, spesso con testimonianze dirette e video esclusivi[3].\n\n8. **Approfondimenti su rapper internazionali arrestati o coinvolti in scandali**  \n   Oltre a Kanye West, anche altri artisti come XXXTentacion, Tekashi 6ix9ine e Travis Scott sono spesso oggetto di articoli che raccontano arresti, processi e controversie legali[2].\n\n9. **Podcast e interviste su Radio 105 e Radio Deejay**  \n   Queste emittenti italiane dedicano spesso puntate speciali agli incidenti più clamorosi del rap, con ospiti e testimonianze dal mondo della musica urbana.\n\n10. **Dossier su \"La criminalità nel rap italiano\"**  \n    Alcuni magazine online italiani hanno pubblicato inchieste sulle connessioni tra rap, criminalità e vita di strada, analizzando casi reali che hanno coinvolto artisti come Baby Gang e Simba La Rue[1].\n\nQueste fonti rappresentano i principali punti di riferimento per chi vuole approfondire i fatti più discussi e drammatici legati al mondo del rap, sia in Italia che all’estero."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

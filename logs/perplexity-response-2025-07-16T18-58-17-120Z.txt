@@ -1,0 +1,65 @@
+{
+  "id": "4c58afc3-cca1-4aa6-8cc7-e64cef55a1b9",
+  "model": "sonar-pro",
+  "created": 1752692297,
+  "usage": {
+    "prompt_tokens": 46,
+    "completion_tokens": 687,
+    "total_tokens": 733,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+    "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+    "https://www.youtube.com/watch?v=A_ok71kkYGw",
+    "https://www.hotnewhiphop.com/928798-uk-rapper-ratlin-top5-police-bwoy-stabbing-hip-hop-news",
+    "https://www.ranker.com/list/rappers-who-have-been-shot/ranker-hip-hop"
+  ],
+  "search_results": [
+    {
+      "title": "Rap On Trial: Hip Hop's Most Notorious Criminal Cases - HipHopDX",
+      "url": "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+      "date": "2025-03-04",
+      "last_updated": "2025-07-15"
+    },
+    {
+      "title": "All the major controversies involving rappers in 2024 - Prestige Online",
+      "url": "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+      "date": "2024-12-10",
+      "last_updated": "2025-05-21"
+    },
+    {
+      "title": "Every Rapper Murder Explained In 42 Minutes - YouTube",
+      "url": "https://www.youtube.com/watch?v=A_ok71kkYGw",
+      "date": "2025-06-29",
+      "last_updated": "2025-06-29"
+    },
+    {
+      "title": "UK Rapper Ratlin Calls Top5 A \"Police Bwoy\" After Top's Stabbing",
+      "url": "https://www.hotnewhiphop.com/928798-uk-rapper-ratlin-top5-police-bwoy-stabbing-hip-hop-news",
+      "date": "2025-07-14",
+      "last_updated": "2025-07-14"
+    },
+    {
+      "title": "33 Famous Rappers Who Have Been Shot - Ranker",
+      "url": "https://www.ranker.com/list/rappers-who-have-been-shot/ranker-hip-hop",
+      "date": "2024-02-06",
+      "last_updated": "2025-07-14"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Several high-profile incidents involving rappers have dramatically shaped the hip-hop landscape, ranging from violent crimes and shocking murders to major legal scandals and public controversies.\n\n**1. Diddy’s Arrest and Scandal (2024)**\n- In 2024, **Diddy** (Sean Combs) was arrested in New York amid a wave of civil suits alleging sexual assault and physical violence, with accusations spanning back to the 1990s. Nearly two dozen lawsuits accused him of using his industry influence to drug and assault people. Prosecutors described Diddy as having “created a criminal enterprise” to abuse, threaten, and coerce women and others for his own benefit. His arrest led to raids on his properties, where authorities found firearms, ammunition, and over 1,000 bottles of lubricant. Diddy pleaded not guilty to three felony counts and was denied bail multiple times, remaining in custody as the case unfolded. The scandal also drew scrutiny to his celebrity associates, including Jay-Z, Beyoncé, and Ashton Kutcher, fueling widespread speculation and media frenzy[2].\n\n**2. 6ix9ine’s RICO Case and Cooperation (2018–2019)**\n- **6ix9ine** (Daniel Hernandez) became infamous not just for his music but for his involvement in a federal RICO case against the Nine Trey Gangsters. After being arrested following a series of violent incidents, 6ix9ine turned government witness, providing detailed testimony about the gang’s operations. His cooperation was unprecedented for a rapper of his stature and led to significant convictions, but also made him a controversial figure in hip-hop, with many labeling him a “snitch”[1].\n\n**3. Rapper Murders and Shocking Deaths**\n- The hip-hop world has been rocked by the violent deaths of several prominent rappers:\n  - **Pop Smoke** was killed during a home invasion, reportedly after his address was revealed on social media.\n  - **XXXTentacion** was murdered in broad daylight during a robbery.\n  - **King Von** died in a shootout outside an Atlanta nightclub.\n  - **Goonu**, a DMV rapper, was killed during a robbery; his family later held a controversial funeral where his embalmed body was displayed on stage, drawing global attention for its unusual nature[3].\n  - **Archie Eversol** was found shot in the face at a gas station and died a week later, with the case drawing renewed attention to violence in the rap community[3].\n  - The murders of **Tupac Shakur** and **Notorious B.I.G.** remain among the most infamous unsolved cases in music history, symbolizing the deadly East Coast–West Coast rivalry[5].\n\n**4. Recent Violent Incidents**\n- In July 2025, Canadian rapper **Top5** was reportedly stabbed in London. The incident sparked online taunts from UK rapper Ratlin, who mocked Top5 for allegedly calling emergency services after the attack. Details remain unclear, but the event highlights ongoing tensions and violence within the global rap scene[4].\n\nThese incidents underscore the persistent intersection of hip-hop culture with violence, legal battles, and public controversy, often blurring the lines between art, personal life, and criminality. The dramatic nature of these events continues to fuel public fascination and debate about the role of rap in society."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

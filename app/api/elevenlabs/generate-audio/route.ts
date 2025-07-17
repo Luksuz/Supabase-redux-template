@@ -176,7 +176,8 @@ async function generateSingleAudioChunk(
   textChunk: string,
   voiceId: string,
   modelId: string,
-  chunkIndex: number
+  chunkIndex: number,
+  voiceSettings?: any
 ): Promise<Buffer> {
   console.log(`🔊 Generating chunk ${chunkIndex} with ElevenLabs, length: ${textChunk.length}`);
   
@@ -188,7 +189,8 @@ async function generateSingleAudioChunk(
     const audioStream = await elevenlabs.textToSpeech.convert(voiceId, {
       text: textChunk,
       modelId: modelId,
-      outputFormat: 'mp3_44100_128'
+      outputFormat: 'mp3_44100_128',
+      ...(voiceSettings && { voice_settings: voiceSettings })
     });
 
     const streamChunks: Uint8Array[] = [];
@@ -230,7 +232,8 @@ export async function POST(request: Request) {
       text, 
       voiceId, 
       modelId = "eleven_multilingual_v2",
-      sectionId
+      sectionId,
+      voiceSettings
     } = requestBody;
 
     console.log(`📥 Received audio generation request for section ${sectionId}`);
@@ -296,7 +299,7 @@ export async function POST(request: Request) {
       // Generate audio for each chunk in parallel
       console.log(`🚀 Starting parallel generation of ${textChunks.length} chunks...`);
       const chunkPromises = textChunks.map((chunk, index) => 
-        generateSingleAudioChunk(chunk, voiceId, modelId, index + 1)
+        generateSingleAudioChunk(chunk, voiceId, modelId, index + 1, voiceSettings)
       );
       
       // Wait for all chunks to complete (or fail)

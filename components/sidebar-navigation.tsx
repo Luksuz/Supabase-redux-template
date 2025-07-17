@@ -147,7 +147,7 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
               {currentJob ? (
                 <>
                   <div className="flex justify-between">
-                    <span>Current project:</span>
+                    <span>Title:</span>
                     <span className="font-medium text-blue-600 truncate ml-2" title={currentJob.theme}>
                       {currentJob.theme}
                     </span>

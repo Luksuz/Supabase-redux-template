@@ -1,0 +1,65 @@
+{
+  "id": "0a46cee0-1b81-4903-836c-ec438e954f5c",
+  "model": "sonar-pro",
+  "created": 1752696263,
+  "usage": {
+    "prompt_tokens": 66,
+    "completion_tokens": 383,
+    "total_tokens": 449,
+    "search_context_size": "low"
+  },
+  "citations": [
+    "https://www.youtube.com/watch?v=r6Fn3LuX2Fc",
+    "https://en.wikipedia.org/wiki/Drake_(musician)",
+    "https://dailynews.co.za/entertainment/celebrity-news/2025-05-26-diddy-drama-young-thug-brands-kid-cudi-a-rat-after-testifying-in-court/",
+    "https://www.youtube.com/watch?v=9y2yaWjlH-8",
+    "https://www.youtube.com/watch?v=OUMbvsRyU_o"
+  ],
+  "search_results": [
+    {
+      "title": "Rappers Most HEATED Courtroom Moments",
+      "url": "https://www.youtube.com/watch?v=r6Fn3LuX2Fc",
+      "date": "2025-02-16",
+      "last_updated": "2025-03-05"
+    },
+    {
+      "title": "Drake (musician) - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Drake_(musician)",
+      "date": "2005-04-01",
+      "last_updated": "2025-07-16"
+    },
+    {
+      "title": "Diddy drama: Young Thug brands Kid Cudi a 'rat' after ...",
+      "url": "https://dailynews.co.za/entertainment/celebrity-news/2025-05-26-diddy-drama-young-thug-brands-kid-cudi-a-rat-after-testifying-in-court/",
+      "date": "2025-05-26",
+      "last_updated": "2025-05-30"
+    },
+    {
+      "title": "The Viral Tiktok Rapper Who Became a Murderer (Superstar Pride)",
+      "url": "https://www.youtube.com/watch?v=9y2yaWjlH-8",
+      "date": "2025-01-23",
+      "last_updated": "2025-07-08"
+    },
+    {
+      "title": "Moula 1st Crashes JOEAZY Court Room! Exclusive Call",
+      "url": "https://www.youtube.com/watch?v=OUMbvsRyU_o",
+      "date": "2025-07-09",
+      "last_updated": "2025-07-16"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Several rappers have had courtroom moments or legal incidents that went viral, often capturing public attention due to their dramatic or emotional nature. Here are some notable examples based on recent events:\n\n- **TK (rapper)**: TK was involved in a home invasion case in Texas where a man was killed. While on house arrest awaiting trial, he cut off his ankle monitor and went on the run, robbing people during that time. His courtroom reaction went viral when he was sentenced to 55 years in prison; the footage cut away just before his emotional reaction, but when the camera returned, he was seen wiping his face, indicating the reality of his sentence had hit him[1].\n\n- **Young Thug**: Young Thug has been involved in high-profile legal cases, including racketeering charges. His courtroom appearances have drawn significant media attention. Additionally, he publicly branded fellow rapper Kid Cudi a \"rat\" after Cudi testified in Sean \"Diddy\" Combs' sex trafficking and racketeering trial, which stirred controversy among fans and the hip-hop community[3].\n\n- **Superstar Pride**: Known as a viral TikTok rapper, Superstar Pride's promising career took a dramatic turn when he became involved in a murder case. His fall from rising star to being incarcerated was widely discussed and went viral, highlighting the rapid and tragic shift in his life and career[4].\n\n- **Drake**: While not known for courtroom outbursts, Drake has been involved in several lawsuits, including assault allegations and copyright infringement cases. These legal matters attracted media coverage but did not feature viral courtroom moments in the same way as others[2].\n\nThese incidents often go viral due to the combination of celebrity status, emotional courtroom reactions, and the dramatic nature of the charges or events involved. The viral moments typically include emotional displays, confrontations, or unexpected behavior during court proceedings[1][3][4]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

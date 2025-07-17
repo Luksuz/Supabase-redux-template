@@ -1,9 +1,10 @@
 'use client'
 
 import React from 'react'
-import { BookOpen, PenTool, ChevronDown, ChevronRight, Globe, FileText, Plus, Save, X, Edit, Download } from 'lucide-react'
-import { clearAllResearchSummaries, markMultipleResearchAsApplied, removeGoogleResearchSummary, removeYouTubeResearchSummary, addGoogleResearchSummary, addYouTubeResearchSummary, updateGoogleResearchSummary, updateYouTubeResearchSummary } from '@/lib/features/youtube/youtubeSlice'
-import { AppDispatch } from '@/lib/store'
+import { BookOpen, PenTool, ChevronDown, ChevronRight, Globe, FileText, Plus, Save, X, Edit, Download, Loader2 } from 'lucide-react'
+import { clearAllResearchSummaries, markMultipleResearchAsApplied, removeGoogleResearchSummary, removeYouTubeResearchSummary, addGoogleResearchSummary, addYouTubeResearchSummary, updateGoogleResearchSummary, updateYouTubeResearchSummary, addSavingToHistory, removeSavingToHistory, selectResearchLoadingStates } from '@/lib/features/youtube/youtubeSlice'
+import { AppDispatch, RootState } from '@/lib/store'
+import { useSelector } from 'react-redux'
 import { showToast } from '@/lib/utils/toast'
 
 interface CurrentResearchTabProps {
@@ -47,6 +48,10 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
   const [researchHistory, setResearchHistory] = React.useState<any[]>([])
   const [selectedHistoryItems, setSelectedHistoryItems] = React.useState<Set<string>>(new Set())
   const [isExporting, setIsExporting] = React.useState(false)
+  const [historySearchQuery, setHistorySearchQuery] = React.useState('')
+  // Get saving to history state from Redux
+  const { savingToHistory } = useSelector((state: RootState) => selectResearchLoadingStates(state))
+  
   const [customResearch, setCustomResearch] = React.useState<CustomResearchData>({
     type: 'google',
     query: '',
@@ -171,6 +176,20 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
           const googleResearch = {
             ...researchData,
             type: 'google',
+            researchSummary: item.content.researchSummary || {
+              overallTheme: item.content.insights || '',
+              keyInsights: item.content.keyFindings || [],
+              articleSummaries: [],
+              commonPatterns: [],
+              actionableItems: item.content.recommendations || [],
+              narrativeThemes: [],
+              characterInsights: [],
+              conflictElements: [],
+              storyIdeas: [],
+              creativePrompt: '',
+              visualAudioCues: [],
+              audienceQuestions: []
+            },
             insights: item.content.insights || '',
             keyFindings: item.content.keyFindings || [],
             recommendations: item.content.recommendations || [],
@@ -343,7 +362,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
     dispatch(markMultipleResearchAsApplied({ googleIds, youtubeIds }))
     
     // Show success message with guidance
-    const summaryTypes = selectedSummaries.map(s => s.type === 'google' ? 'Google Research' : 'YouTube Analysis').join(', ')
+    const summaryTypes = selectedSummaries.map(s => s.type === 'google' ? 'Perplexity Research' : 'YouTube Analysis').join(', ')
     
     // For now, we'll show a success message and log the data
     // In a real implementation, this would integrate with the script generator
@@ -468,6 +487,20 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
         const googleResearch = {
           ...researchData,
           type: 'google',
+          researchSummary: {
+            overallTheme: customResearch.insights || 'Custom research findings',
+            keyInsights: customResearch.keyFindings.filter(f => f.trim()),
+            articleSummaries: [],
+            commonPatterns: [],
+            actionableItems: customResearch.recommendations.filter(r => r.trim()),
+            narrativeThemes: [],
+            characterInsights: [],
+            conflictElements: [],
+            storyIdeas: [],
+            creativePrompt: '',
+            visualAudioCues: [],
+            audienceQuestions: []
+          },
           insights: customResearch.insights || '',
           keyFindings: customResearch.keyFindings.filter(f => f.trim()),
           recommendations: customResearch.recommendations.filter(r => r.trim()),
@@ -748,7 +781,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
     // Create a Map to ensure uniqueness by ID
     const summaryMap = new Map()
     
-    // Add Google research summaries
+    // Add Perplexity research summaries
     researchSummaries.googleResearchSummaries.forEach((s: any) => {
       summaryMap.set(s.id, { ...s, type: 'google' })
     })
@@ -833,6 +866,151 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
     return totalSeconds
   }
 
+  // Save research to history function
+  const saveToResearchHistory = async (summary: any) => {
+    const summaryId = summary.id
+    dispatch(addSavingToHistory(summaryId))
+    
+    try {
+      // Standardize research format - make all fields more flexible
+      const standardizedData = {
+        title: summary.query || summary.title || 'Research Item',
+        query: summary.query || summary.title || 'No query available',
+        type: summary.type || 'google', // Default to google if type missing
+        content: {
+          // Always include full original data
+          originalData: summary,
+          // Standardized common fields (only include if they exist)
+          ...(summary.researchSummary && { researchSummary: summary.researchSummary }),
+          ...(summary.insights && { insights: summary.insights }),
+          ...(summary.keyFindings && { keyFindings: summary.keyFindings }),
+          ...(summary.recommendations && { recommendations: summary.recommendations }),
+          ...(summary.webResults && { webResults: summary.webResults }),
+          ...(summary.sources && { sources: summary.sources }),
+          ...(summary.videosSummary && { videosSummary: summary.videosSummary }),
+          // Additional metadata
+          timestamp: summary.timestamp || new Date().toISOString(),
+          usingMock: summary.usingMock || false
+        },
+        tags: summary.tags || [],
+        category: summary.category || (summary.type === 'youtube' ? 'YouTube Analysis' : 'Perplexity Research'),
+        source: summary.source || (summary.type === 'youtube' ? 'gemini_analysis' : 'perplexity_api')
+      }
+
+      const response = await fetch('/api/research-cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(standardizedData),
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save research to history')
+      }
+
+      showToast.success(`Research "${summary.query}" saved to history successfully!`)
+      
+    } catch (error) {
+      console.error('Error saving research to history:', error)
+      showToast.error(`Failed to save to history: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      dispatch(removeSavingToHistory(summaryId))
+    }
+  }
+
+  // Save all research to history function
+  const saveAllToResearchHistory = async () => {
+    const allItems = [...researchSummaries.googleResearchSummaries, ...researchSummaries.youtubeResearchSummaries]
+    
+    if (allItems.length === 0) {
+      showToast.info('No research items to save')
+      return
+    }
+
+    // Mark all items as saving
+    allItems.forEach(item => dispatch(addSavingToHistory(item.id)))
+    
+    try {
+      let successCount = 0
+      let failureCount = 0
+      
+      // Process all items in parallel
+      const savePromises = allItems.map(async (summary) => {
+        try {
+          // Use same standardized format as saveToResearchHistory
+          const standardizedData = {
+            title: summary.query || summary.title || 'Research Item',
+            query: summary.query || summary.title || 'No query available',
+            type: summary.type || 'google',
+            content: {
+              // Always include full original data
+              originalData: summary,
+              // Standardized common fields (only include if they exist)
+              ...(summary.researchSummary && { researchSummary: summary.researchSummary }),
+              ...(summary.insights && { insights: summary.insights }),
+              ...(summary.keyFindings && { keyFindings: summary.keyFindings }),
+              ...(summary.recommendations && { recommendations: summary.recommendations }),
+              ...(summary.webResults && { webResults: summary.webResults }),
+              ...(summary.sources && { sources: summary.sources }),
+              ...(summary.videosSummary && { videosSummary: summary.videosSummary }),
+              // Additional metadata
+              timestamp: summary.timestamp || new Date().toISOString(),
+              usingMock: summary.usingMock || false
+            },
+            tags: summary.tags || [],
+            category: summary.category || (summary.type === 'youtube' ? 'YouTube Analysis' : 'Perplexity Research'),
+            source: summary.source || (summary.type === 'youtube' ? 'gemini_analysis' : 'perplexity_api')
+          }
+
+          const response = await fetch('/api/research-cards', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(standardizedData),
+          })
+
+          const result = await response.json()
+
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to save research to history')
+          }
+
+          successCount++
+          return { success: true, summary }
+        } catch (error) {
+          console.error(`Error saving research "${summary.query}" to history:`, error)
+          failureCount++
+          return { success: false, summary, error }
+        }
+      })
+
+      await Promise.all(savePromises)
+
+      // Show summary toast
+      if (successCount > 0 && failureCount === 0) {
+        showToast.success(`Successfully saved all ${successCount} research items to history!`)
+      } else if (successCount > 0 && failureCount > 0) {
+        showToast.warning(`Saved ${successCount} items successfully, but ${failureCount} failed`)
+      } else {
+        showToast.error(`Failed to save all ${failureCount} research items`)
+      }
+      
+    } catch (error) {
+      console.error('Error in batch save operation:', error)
+      showToast.error('Batch save operation failed')
+    } finally {
+      // Remove all items from saving state
+      allItems.forEach(item => dispatch(removeSavingToHistory(item.id)))
+    }
+  }
+
+  // Link scraping handler functions
+
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -867,7 +1045,19 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
             Research History
           </button>
           
+
+          
           {allSummaries.length > 0 && (
+            <>
+              <button
+                onClick={saveAllToResearchHistory}
+                disabled={savingToHistory.length > 0}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {savingToHistory.length > 0 ? `Saving ${savingToHistory.length}...` : 'Save All to History'}
+              </button>
+              
             <button
               onClick={handleExportResearch}
               disabled={isExporting}
@@ -876,6 +1066,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
               <Download className="h-4 w-4" />
               {isExporting ? 'Exporting...' : 'Export Research'}
             </button>
+            </>
           )}
           
           {selectedForScript.size > 0 && (
@@ -898,6 +1089,8 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
           )}
         </div>
       </div>
+
+
 
       {/* Custom Research Modal */}
       {showCustomModal && (
@@ -930,7 +1123,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <Globe className="h-4 w-4" />
-                      <span className="font-medium">Google Research</span>
+                      <span className="font-medium">Perplexity Research</span>
                     </div>
                     <p className="text-xs">General research with insights and findings</p>
                   </button>
@@ -1175,6 +1368,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                 onClick={() => {
                   setShowResearchHistory(false)
                   setSelectedHistoryItems(new Set())
+                  setHistorySearchQuery('')
                 }}
                 className="text-gray-400 hover:text-gray-600 text-2xl"
               >
@@ -1196,9 +1390,45 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                 </div>
               ) : (
                 <>
+                  {/* Search Input */}
+                  <div className="mb-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search research history by title, query, or content..."
+                        value={historySearchQuery}
+                        onChange={(e) => setHistorySearchQuery(e.target.value)}
+                        className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                      {historySearchQuery && (
+                        <button
+                          onClick={() => setHistorySearchQuery('')}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex justify-between items-center mb-4">
                     <p className="text-gray-600">
-                      Found {researchHistory.length} research items. Select items to add to Current Research.
+                      Found {
+                        historySearchQuery 
+                          ? researchHistory.filter(item => 
+                              item.title?.toLowerCase().includes(historySearchQuery.toLowerCase()) ||
+                              item.query?.toLowerCase().includes(historySearchQuery.toLowerCase()) ||
+                              JSON.stringify(item.content || {}).toLowerCase().includes(historySearchQuery.toLowerCase())
+                            ).length
+                          : researchHistory.length
+                      } research items{historySearchQuery ? ` matching "${historySearchQuery}"` : ''}. Select items to add to Current Research.
                     </p>
                     {selectedHistoryItems.size > 0 && (
                       <button
@@ -1212,7 +1442,17 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                   </div>
                   
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {researchHistory.map((item) => {
+                    {researchHistory
+                      .filter(item => {
+                        if (!historySearchQuery) return true
+                        const searchLower = historySearchQuery.toLowerCase()
+                        return (
+                          item.title?.toLowerCase().includes(searchLower) ||
+                          item.query?.toLowerCase().includes(searchLower) ||
+                          JSON.stringify(item.content || {}).toLowerCase().includes(searchLower)
+                        )
+                      })
+                      .map((item) => {
                       const isSelected = selectedHistoryItems.has(item.id)
                       const isAlreadyInCurrent = 
                         researchSummaries.googleResearchSummaries.find((s: any) => s.id === item.id) ||
@@ -1246,7 +1486,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                   <FileText className="h-4 w-4 text-red-600" />
                                 )}
                                 <span className="font-medium text-gray-900">
-                                  {item.type === 'google' ? 'Google Research' : 'YouTube Analysis'}
+                                  {item.type === 'google' ? 'Perplexity Research' : 'YouTube Analysis'}
                                 </span>
                                 {isAlreadyInCurrent && (
                                   <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
@@ -1300,7 +1540,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
               <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h4 className="text-lg font-medium text-gray-600 mb-2">No Current Research</h4>
               <p className="text-gray-500 mb-4">
-                Add research by performing Google research, analyzing YouTube videos, creating custom research, or browsing your saved research history.
+                Add research by performing Perplexity AI research, analyzing YouTube videos, creating custom research, or browsing your saved research history.
               </p>
               <div className="flex justify-center gap-3">
                 <button
@@ -1358,7 +1598,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                         )}
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900">
-                            {summary.type === 'google' ? 'Google Research' : 'YouTube Analysis'}:
+                            {summary.type === 'google' ? 'Perplexity Research' : 'YouTube Analysis'}:
                           </span>
                           {renderEditableField(`${summary.id}.query`, summary.query, summary.id, summary, 'Research query...')}
                         </div>
@@ -1381,6 +1621,19 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                       <span className="text-xs text-gray-500">
                         {new Date(summary.timestamp).toLocaleString()}
                       </span>
+                      
+                      <button
+                        onClick={() => saveToResearchHistory(summary)}
+                        disabled={savingToHistory.includes(summary.id)}
+                        className="text-green-500 hover:text-green-700 disabled:text-green-300 transition-colors"
+                        title="Save to Research History"
+                      >
+                        {savingToHistory.includes(summary.id) ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                      </button>
                       
                       <button
                         onClick={() => toggleSummaryExpansion(summary.id)}
@@ -1416,6 +1669,174 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                     <div className="mt-4 space-y-4 border-t pt-4">
                       {summary.type === 'google' ? (
                         <>
+                          {/* Research Summary Data */}
+                          {summary.researchSummary && (
+                            <>
+                              <div>
+                                <h5 className="font-semibold text-gray-800 mb-2">Overall Theme</h5>
+                                <div className="text-gray-700 bg-gray-50 p-3 rounded">
+                                  {renderEditableField(`${summary.id}.researchSummary.overallTheme`, summary.researchSummary.overallTheme || '', summary.id, summary, 'Overall theme...')}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <h5 className="font-semibold text-gray-800 mb-2">Key Insights</h5>
+                                {renderEditableArray(`${summary.id}.researchSummary.keyInsights`, summary.researchSummary.keyInsights || [], summary.id, summary)}
+                              </div>
+                              
+                              {/* Visual/Audio Cues */}
+                              {summary.researchSummary.visualAudioCues && summary.researchSummary.visualAudioCues.length > 0 && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Visual/Audio Cues</h5>
+                                  <ul className="space-y-1">
+                                    {summary.researchSummary.visualAudioCues.map((cue: string, index: number) => (
+                                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                        <span className="bg-purple-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                          🎬
+                                        </span>
+                                        {renderEditableField(`${summary.id}.researchSummary.visualAudioCues.${index}`, cue, summary.id, summary)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {/* Audience Questions */}
+                              {summary.researchSummary.audienceQuestions && summary.researchSummary.audienceQuestions.length > 0 && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Audience Questions/Hooks</h5>
+                                  <ul className="space-y-1">
+                                    {summary.researchSummary.audienceQuestions.map((question: string, index: number) => (
+                                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                        <span className="bg-green-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                          ❓
+                                        </span>
+                                        {renderEditableField(`${summary.id}.researchSummary.audienceQuestions.${index}`, question, summary.id, summary)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {/* Character Insights */}
+                              {summary.researchSummary.characterInsights && summary.researchSummary.characterInsights.length > 0 && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Character Insights</h5>
+                                  <ul className="space-y-1">
+                                    {summary.researchSummary.characterInsights.map((insight: string, index: number) => (
+                                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                        <span className="bg-indigo-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                          👤
+                                        </span>
+                                        {renderEditableField(`${summary.id}.researchSummary.characterInsights.${index}`, insight, summary.id, summary)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {/* Dramatic Elements */}
+                              {summary.researchSummary.conflictElements && summary.researchSummary.conflictElements.length > 0 && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Dramatic Elements</h5>
+                                  <ul className="space-y-1">
+                                    {summary.researchSummary.conflictElements.map((element: string, index: number) => (
+                                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                        <span className="bg-red-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                          ⚡
+                                        </span>
+                                        {renderEditableField(`${summary.id}.researchSummary.conflictElements.${index}`, element, summary.id, summary)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {/* Story Ideas */}
+                              {summary.researchSummary.storyIdeas && summary.researchSummary.storyIdeas.length > 0 && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Story Ideas</h5>
+                                  <ul className="space-y-1">
+                                    {summary.researchSummary.storyIdeas.map((idea: string, index: number) => (
+                                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                                        <span className="bg-yellow-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                          💡
+                                        </span>
+                                        {renderEditableField(`${summary.id}.researchSummary.storyIdeas.${index}`, idea, summary.id, summary)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {/* Creative Prompt */}
+                              {summary.researchSummary.creativePrompt && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Creative Prompt</h5>
+                                  <div className="text-gray-700 bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded border-l-4 border-purple-500">
+                                    {renderEditableField(`${summary.id}.researchSummary.creativePrompt`, summary.researchSummary.creativePrompt, summary.id, summary, 'Creative prompt...')}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Article Summaries */}
+                              {summary.researchSummary.articleSummaries && summary.researchSummary.articleSummaries.length > 0 && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Article Summaries ({summary.researchSummary.articleSummaries.length})</h5>
+                                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                                    {summary.researchSummary.articleSummaries.map((article: any, index: number) => (
+                                      <div key={index} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                        <div className="flex items-start gap-2 mb-2">
+                                          <span className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
+                                            {index + 1}
+                                          </span>
+                                          <div className="flex-1 min-w-0">
+                                            <h6 className="font-medium text-gray-800 text-sm mb-1">
+                                              {article.title}
+                                              {article.url && (
+                                                <a 
+                                                  href={article.url} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer"
+                                                  className="ml-2 text-blue-600 hover:text-blue-800 text-xs"
+                                                >
+                                                  🔗
+                                                </a>
+                                              )}
+                                            </h6>
+                                            <p className="text-xs text-gray-600 mb-2">{article.source} {article.date && `• ${article.date}`}</p>
+                                            <p className="text-sm text-gray-700">{article.contextualInfo}</p>
+                                            {article.keyPoints && article.keyPoints.length > 0 && (
+                                              <div className="mt-2">
+                                                <span className="text-xs font-medium text-gray-600">Key Points:</span>
+                                                <ul className="text-xs text-gray-600 mt-1 ml-2">
+                                                  {article.keyPoints.slice(0, 3).map((point: string, pointIndex: number) => (
+                                                    <li key={pointIndex}>• {point}</li>
+                                                  ))}
+                                                </ul>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Actionable Items */}
+                              {summary.researchSummary.actionableItems && summary.researchSummary.actionableItems.length > 0 && (
+                                <div>
+                                  <h5 className="font-semibold text-gray-800 mb-2">Actionable Items</h5>
+                                  {renderEditableArray(`${summary.id}.researchSummary.actionableItems`, summary.researchSummary.actionableItems, summary.id, summary)}
+                                </div>
+                              )}
+                            </>
+                          )}
+                          
+                          {/* Fallback to legacy fields if researchSummary doesn't exist */}
+                          {!summary.researchSummary && (
+                        <>
                           <div>
                             <h5 className="font-semibold text-gray-800 mb-2">Insights</h5>
                             <div className="text-gray-700 bg-gray-50 p-3 rounded">
@@ -1434,6 +1855,8 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                               {renderEditableArray(`${summary.id}.recommendations`, summary.recommendations || [], summary.id, summary)}
                             </div>
                           </div>
+                            </>
+                          )}
                         </>
                       ) : (
                         <>
@@ -1588,7 +2011,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                             Add Timestamp
                                           </button>
                                         </div>
-                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                        <div className="space-y-2 max-h-96 overflow-y-auto">
                                           {videoSummary.timestamps.map((timestamp: any, timestampIndex: number) => (
                                             <div key={timestampIndex} className="bg-white p-2 rounded border text-xs">
                                               <div className="flex items-center gap-2 mb-1">
@@ -1640,7 +2063,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
 
                                     {/* Add timestamps button when no timestamps exist */}
                                     {(!videoSummary.timestamps || videoSummary.timestamps.length === 0) && (
-                                      <div className="mb-3">
+                                      <div className="mb-6">
                                         <button
                                           onClick={() => addNewTimestamp(summary.id, index, summary)}
                                           className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1 border border-blue-200 rounded px-2 py-1"
