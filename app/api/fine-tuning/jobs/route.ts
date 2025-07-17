@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json()
     console.log('Request body:', requestBody)
     
-    const { name, description, theme } = requestBody
+    const { name, description, theme, model = 'gpt-4o-mini' } = requestBody
 
     if (!name || !theme) {
       console.log('Validation failed: missing name or theme')
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Creating job for user:', user.id)
-    console.log('Job data:', { name, description, theme, user_id: user.id })
+    console.log('Job data:', { name, description, theme, model, user_id: user.id })
 
     // Create new job
     const { data: job, error } = await supabase
@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         name,
         description,
-        theme
+        theme,
+        model_name: model
       })
       .select()
       .single()

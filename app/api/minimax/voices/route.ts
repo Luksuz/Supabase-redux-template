@@ -93,34 +93,91 @@ export async function GET(request: NextRequest) {
       const data = await response.json()
       console.log('🔍 Raw Minimax API response:', JSON.stringify(data, null, 2))
       
-      // Handle the actual response format with direct voices array
+      // Handle the actual response format with multiple voice arrays
       let voices = []
       
-      if (data.voices && Array.isArray(data.voices)) {
-        // Handle direct voices array format
-        voices = data.voices.map((voice: any) => ({
-          id: voice.id,
-          name: voice.name,
-          description: voice.description || `${voice.category} voice`,
-          language: "en",
-          category: voice.category || "premade",
-          preview_url: voice.preview_url
-        }))
-      } else if (data.system_voice && Array.isArray(data.system_voice)) {
-        // Handle system_voice array format (fallback)
-        voices = data.system_voice.map((voice: any) => ({
-          id: voice.voice_id,
-          name: voice.voice_name || voice.voice_id,
-          description: Array.isArray(voice.description) ? voice.description.join(', ') : voice.description || 'System voice',
-          language: "en",
-          category: "system"
-        }))
-      } else {
-        console.warn('⚠️ Unexpected Minimax API response format, using fallback voices')
+      // Process voice_slots
+      if (data.voice_slots && Array.isArray(data.voice_slots)) {
+        const voiceSlots = data.voice_slots
+          .filter((voice: any) => voice.voice_id && voice.voice_name) // Filter out empty slots
+          .map((voice: any) => ({
+            id: voice.voice_id,
+            name: voice.voice_name,
+            description: Array.isArray(voice.description) ? voice.description.join(', ') : voice.description || 'Voice slot',
+            language: "en",
+            category: "voice_slot"
+          }))
+        voices.push(...voiceSlots)
+      }
+      
+      // Process system_voice
+      if (data.system_voice && Array.isArray(data.system_voice)) {
+        const systemVoices = data.system_voice
+          .filter((voice: any) => voice.voice_id && voice.voice_name) // Filter out empty entries
+          .map((voice: any) => ({
+            id: voice.voice_id,
+            name: voice.voice_name,
+            description: Array.isArray(voice.description) ? voice.description.join(', ') : voice.description || 'System voice',
+            language: "en",
+            category: "system"
+          }))
+        voices.push(...systemVoices)
+      }
+      
+      // Process voice_cloning
+      if (data.voice_cloning && Array.isArray(data.voice_cloning)) {
+        const clonedVoices = data.voice_cloning
+          .filter((voice: any) => voice.voice_id) // Filter out empty entries
+          .map((voice: any) => ({
+            id: voice.voice_id,
+            name: voice.voice_id, // Use voice_id as name if voice_name is not available
+            description: Array.isArray(voice.description) ? voice.description.join(', ') : voice.description || 'Cloned voice',
+            language: "en",
+            category: "cloned",
+            created_time: voice.created_time
+          }))
+        voices.push(...clonedVoices)
+      }
+      
+      // Process voice_generation
+      if (data.voice_generation && Array.isArray(data.voice_generation)) {
+        const generatedVoices = data.voice_generation
+          .filter((voice: any) => voice.voice_id) // Filter out empty entries
+          .map((voice: any) => ({
+            id: voice.voice_id,
+            name: voice.voice_id, // Use voice_id as name if voice_name is not available
+            description: Array.isArray(voice.description) ? voice.description.join(', ') : voice.description || 'Generated voice',
+            language: "en",
+            category: "generated",
+            created_time: voice.created_time
+          }))
+        voices.push(...generatedVoices)
+      }
+      
+      // Process music_generation (if needed for audio generation)
+      if (data.music_generation && Array.isArray(data.music_generation)) {
+        const musicVoices = data.music_generation
+          .filter((voice: any) => voice.voice_id) // Filter out empty entries
+          .map((voice: any) => ({
+            id: voice.voice_id,
+            name: voice.voice_id, // Use voice_id as name
+            description: 'Music generation voice',
+            language: "en",
+            category: "music",
+            instrumental_id: voice.instrumental_id,
+            created_time: voice.created_time
+          }))
+        voices.push(...musicVoices)
+      }
+      
+      // If no voices found, use fallback
+      if (voices.length === 0) {
+        console.warn('⚠️ No voices found in Minimax API response, using fallback voices')
         voices = FALLBACK_VOICES
       }
 
       console.log(`✅ Fetched ${voices.length} voices from Minimax API`)
+      console.log(`🔍 Voice categories: ${voices.map(v => v.category).join(', ')}`)
 
       return NextResponse.json({
         success: true,

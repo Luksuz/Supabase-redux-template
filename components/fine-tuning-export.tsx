@@ -618,7 +618,7 @@ export function FineTuningExport() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {docxProcessing.docxTrainingData.slice(0, 3).map((item, index) => (
+                  {docxProcessing.docxTrainingData.map((item, index) => (
                     <div key={index} className="border rounded-lg p-4 bg-blue-50">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="secondary">Example {index + 1}</Badge>
@@ -627,37 +627,88 @@ export function FineTuningExport() {
                         </Badge>
                       </div>
                       
-                      <div className="space-y-2 text-sm">
+                      <div className="space-y-3">
                         <div>
-                          <strong className="text-blue-600">System:</strong>
-                          <div className="bg-white p-2 rounded border mt-1 max-h-20 overflow-y-auto">
-                            {item.messages[0].content.substring(0, 200)}...
-                          </div>
+                          <Label className="text-blue-600 font-semibold">System Prompt:</Label>
+                          <Textarea
+                            value={item.messages[0].content}
+                            onChange={(e) => {
+                              const updatedData = docxProcessing.docxTrainingData.map((dataItem, dataIndex) => {
+                                if (dataIndex === index) {
+                                  return {
+                                    ...dataItem,
+                                    messages: dataItem.messages.map((message, messageIndex) => {
+                                      if (messageIndex === 0) {
+                                        return { ...message, content: e.target.value }
+                                      }
+                                      return { ...message }
+                                    })
+                                  }
+                                }
+                                return { ...dataItem }
+                              })
+                              dispatch(setDocxTrainingData(updatedData))
+                            }}
+                            className="bg-white mt-1 min-h-[80px] text-sm"
+                            placeholder="System prompt content..."
+                          />
                         </div>
                         
                         <div>
-                          <strong className="text-green-600">User:</strong>
-                          <div className="bg-white p-2 rounded border mt-1 max-h-20 overflow-y-auto">
-                            {item.messages[1].content.substring(0, 200)}...
-                          </div>
+                          <Label className="text-green-600 font-semibold">User Input:</Label>
+                          <Textarea
+                            value={item.messages[1].content}
+                            onChange={(e) => {
+                              const updatedData = docxProcessing.docxTrainingData.map((dataItem, dataIndex) => {
+                                if (dataIndex === index) {
+                                  return {
+                                    ...dataItem,
+                                    messages: dataItem.messages.map((message, messageIndex) => {
+                                      if (messageIndex === 1) {
+                                        return { ...message, content: e.target.value }
+                                      }
+                                      return { ...message }
+                                    })
+                                  }
+                                }
+                                return { ...dataItem }
+                              })
+                              dispatch(setDocxTrainingData(updatedData))
+                            }}
+                            className="bg-white mt-1 min-h-[80px] text-sm"
+                            placeholder="User input content..."
+                          />
                         </div>
                         
                         <div>
-                          <strong className="text-purple-600">Assistant:</strong>
-                          <div className="bg-white p-2 rounded border mt-1 max-h-20 overflow-y-auto">
-                            {item.messages[2].content.substring(0, 200)}...
-                          </div>
+                          <Label className="text-purple-600 font-semibold">Assistant Response:</Label>
+                          <Textarea
+                            value={item.messages[2].content}
+                            onChange={(e) => {
+                              const updatedData = docxProcessing.docxTrainingData.map((dataItem, dataIndex) => {
+                                if (dataIndex === index) {
+                                  return {
+                                    ...dataItem,
+                                    messages: dataItem.messages.map((message, messageIndex) => {
+                                      if (messageIndex === 2) {
+                                        return { ...message, content: e.target.value }
+                                      }
+                                      return { ...message }
+                                    })
+                                  }
+                                }
+                                return { ...dataItem }
+                              })
+                              dispatch(setDocxTrainingData(updatedData))
+                            }}
+                            className="bg-white mt-1 min-h-[120px] text-sm"
+                            placeholder="Assistant response content..."
+                          />
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-
-                {docxProcessing.docxTrainingData.length > 3 && (
-                  <div className="text-center text-sm text-gray-600">
-                    ... and {docxProcessing.docxTrainingData.length - 3} more training examples
-                  </div>
-                )}
 
                 {/* Model Selection and Fine-Tuning */}
                 <div className="border-t pt-4 space-y-4">

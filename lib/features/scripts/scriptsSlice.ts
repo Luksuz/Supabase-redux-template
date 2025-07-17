@@ -198,8 +198,8 @@ export const scriptsSlice = createSlice({
       state.isLoading = false
     },
     
-    createNewJob: (state, action: PayloadAction<{ name: string; description?: string; theme: string }>) => {
-      const { name, description, theme } = action.payload
+    createNewJob: (state, action: PayloadAction<{ name: string; description?: string; theme: string; model?: string }>) => {
+      const { name, description, theme, model = 'gpt-4o-mini' } = action.payload
       const jobId = Date.now().toString()
       
       const newJob: FineTuningJob = {
@@ -207,7 +207,7 @@ export const scriptsSlice = createSlice({
         name,
         description,
         theme,
-        model_name: 'gpt-4o-mini',
+        model_name: model,
         total_sections: 0,
         completed_sections: 0,
         total_training_examples: 0,

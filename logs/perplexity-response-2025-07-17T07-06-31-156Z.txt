@@ -1,0 +1,79 @@
+{
+  "id": "79825f66-7e9a-4f35-8c45-f6fc08b858c3",
+  "model": "sonar-pro",
+  "created": 1752735991,
+  "usage": {
+    "prompt_tokens": 46,
+    "completion_tokens": 868,
+    "total_tokens": 914,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+    "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+    "https://www.youtube.com/watch?v=A_ok71kkYGw",
+    "https://www.revolt.tv/article/13-rappers-who-nearly-died-and-came-back-stronger",
+    "https://www.youtube.com/watch?v=CojYVNxhUXk",
+    "https://www.liveabout.com/rappers-who-have-actually-killed-people-2857357",
+    "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians"
+  ],
+  "search_results": [
+    {
+      "title": "Rap On Trial: Hip Hop's Most Notorious Criminal Cases - HipHopDX",
+      "url": "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+      "date": "2025-03-04",
+      "last_updated": "2025-07-17"
+    },
+    {
+      "title": "All the major controversies involving rappers in 2024 - Prestige Online",
+      "url": "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+      "date": "2024-12-10",
+      "last_updated": "2025-05-21"
+    },
+    {
+      "title": "Every Rapper Murder Explained In 42 Minutes - YouTube",
+      "url": "https://www.youtube.com/watch?v=A_ok71kkYGw",
+      "date": "2025-06-29",
+      "last_updated": "2025-06-29"
+    },
+    {
+      "title": "13 rappers who nearly died and came back stronger - Revolt TV",
+      "url": "https://www.revolt.tv/article/13-rappers-who-nearly-died-and-came-back-stronger",
+      "date": "2024-07-20",
+      "last_updated": "2025-04-27"
+    },
+    {
+      "title": "Rappers Who Killed Their Fans - YouTube",
+      "url": "https://www.youtube.com/watch?v=CojYVNxhUXk",
+      "date": "2025-07-04",
+      "last_updated": "2025-07-13"
+    },
+    {
+      "title": "10 Rappers Who Have Actually Killed People - LiveAbout",
+      "url": "https://www.liveabout.com/rappers-who-have-actually-killed-people-2857357",
+      "date": "2024-08-25",
+      "last_updated": null
+    },
+    {
+      "title": "List of murdered hip-hop musicians - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians",
+      "date": "2013-10-20",
+      "last_updated": "2025-07-15"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "The world of hip-hop has been shaped by a series of dramatic, often tragic, incidents involving its biggest stars. These events range from violent crimes and shocking deaths to high-profile scandals and legal battles, each leaving a lasting impact on the culture and public perception of rap.\n\n**1. Murders and Violent Deaths**\n- The murders of **Tupac Shakur (1996)** and **The Notorious B.I.G. (1997)** remain two of the most infamous unsolved cases in music history, symbolizing the deadly East Coast–West Coast rivalry of the 1990s. These killings, along with the 1999 murder of Big L, are among more than 40 unsolved rapper deaths out of 77 examined by XXL in 2020[7].\n- More recent tragedies include the deaths of **Pop Smoke**, who was killed during a home invasion after posting his address on social media, and **XXXTentacion**, who was shot in broad daylight during a robbery[3]. **King Von** died in a shootout outside an Atlanta nightclub, and **Chinx** was gunned down in a drive-by shooting[3].\n- The genre’s homicide rate is alarmingly high—up to 32 times higher than other music genres—often attributed to artists’ backgrounds, gang affiliations, and the pressures of fame[7].\n\n**2. Rappers Surviving Near-Death Experiences**\n- **50 Cent** survived being shot nine times in 2000, an ordeal that became central to his persona and debut album, *Get Rich or Die Tryin’*[4].\n- **Lil Tjay** was critically injured in a 2022 shooting but made a comeback with the single \"Beat the Odds\"[4].\n- **Kanye West**’s 2002 car crash, which left his jaw wired shut, inspired his breakthrough song \"Through the Wire\"[4].\n\n**3. Criminal Cases and Legal Scandals**\n- **Gucci Mane** was charged with murder in 2005 after shooting a man during a confrontation but was acquitted on self-defense grounds[1].\n- **T.I.** faced federal gun charges in 2008, resulting in a prison sentence that derailed his career at its peak[1].\n- **6ix9ine** was arrested in 2018 as part of a RICO case against the Nine Trey Gangsters and became a government witness, testifying against his former associates in a landmark case for hip-hop[1].\n\n**4. Major Controversies and Scandals**\n- **Sean “Diddy” Combs** was arrested in 2024 on sex trafficking and racketeering charges, with nearly two dozen lawsuits alleging sexual assault and violence dating back decades. The scandal has implicated other celebrities and led to intense media scrutiny, especially after raids on his properties uncovered firearms and other evidence[2].\n- **Kanye West** faced a lawsuit in 2024 for alleged assault during a music video shoot, adding to his long list of public controversies[2].\n- The ongoing **Drake vs. Kendrick Lamar** beef in 2024 generated massive attention, with diss tracks and public feuds dominating headlines and social media[2].\n\n**5. Incidents Involving Fans**\n- **Travis Scott’s Astroworld Festival** in 2021 ended in tragedy when a crowd surge killed 10 people and injured dozens more, sparking debates about concert safety and artist responsibility[5].\n- In 1991, a celebrity basketball game co-promoted by **Diddy** resulted in a deadly crowd crush, setting a precedent for future concert tragedies[5].\n\n**6. Rappers Who Have Killed or Been Accused of Killing**\n- Several rappers, including **C-Murder**, **Ra Diggs**, and **G-Dep**, have been convicted or accused of homicide, further fueling the genre’s association with real-life violence[6].\n\nThese incidents underscore the volatility and high stakes of the rap world, where fame, street credibility, and personal history often collide with tragic consequences. The stories of survival, legal drama, and loss continue to shape hip-hop’s narrative, making it one of the most compelling—and at times, dangerous—genres in music."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

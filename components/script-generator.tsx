@@ -570,7 +570,12 @@ export function ScriptGenerator() {
       const response = await fetch('/api/fine-tuning/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), description: description.trim(), theme: theme.trim() })
+        body: JSON.stringify({ 
+          name: name.trim(), 
+          description: description.trim(), 
+          theme: theme.trim(),
+          model: selectedModel
+        })
       })
       
       const data = await response.json()
