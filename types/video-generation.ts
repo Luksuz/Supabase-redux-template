@@ -15,6 +15,7 @@ export interface CreateVideoRequestBody {
   musicVolume?: number
   muteStockVideo?: boolean
   brightness?: number // -50 to +50, 0 = normal
+  voiceVolume?: number // 0.0 to 1.0, 1.0 = full volume
   // Subtitle styling options
   fontFamily?: string
   fontSize?: number

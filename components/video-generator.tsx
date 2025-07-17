@@ -102,6 +102,9 @@ export function VideoGenerator() {
 
   // Video brightness/darkness state
   const [videoBrightness, setVideoBrightness] = useState(0) // -50 to +50, 0 = normal
+  
+  // Voice track volume state
+  const [voiceVolume, setVoiceVolume] = useState(1.0) // 0.0 to 1.0, 1.0 = full volume
 
   // Font family options
   const fontFamilyOptions = [
@@ -393,6 +396,7 @@ export function VideoGenerator() {
         musicVolume: settings.includeMusic ? settings.musicVolume : undefined,
         muteStockVideo: settings.muteStockVideo,
         brightness: videoBrightness, // Add brightness adjustment
+        voiceVolume: voiceVolume, // Add voice volume control
         // Include subtitle styling settings when subtitles are enabled
         ...(settings.includeSubtitles && audioGeneration.subtitlesUrl && {
           fontFamily: subtitleSettings.fontFamily,
@@ -425,6 +429,12 @@ export function VideoGenerator() {
         value: videoBrightness,
         effect: brightnessEffect,
         chroma_based: true
+      })
+      
+      // Debug voice volume being sent
+      console.log('🔊 Frontend voice volume setting:', {
+        value: voiceVolume,
+        percentage: `${Math.round(voiceVolume * 100)}%`
       })
       
       const musicInfo = settings.includeMusic ? ` with ${musicSource}` : ''
@@ -935,6 +945,29 @@ export function VideoGenerator() {
                 <span>Darker (-50)</span>
                 <span>Normal (0)</span>
                 <span>Brighter (+50)</span>
+              </div>
+            </div>
+
+            {/* Voice Volume Control */}
+            <div className="space-y-3">
+              <Label className="text-sm flex items-center gap-2">
+                <Volume2 className="h-4 w-4" />
+                Voice Volume: {Math.round(voiceVolume * 100)}%
+              </Label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={voiceVolume}
+                onChange={(e) => setVoiceVolume(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                disabled={!hasPrerequisites || !audioGeneration?.audioUrl}
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Mute (0%)</span>
+                <span>Half (50%)</span>
+                <span>Full (100%)</span>
               </div>
             </div>
 

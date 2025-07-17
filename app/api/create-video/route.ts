@@ -192,6 +192,7 @@ export async function POST(request: NextRequest) {
       musicVolume, 
       muteStockVideo,
       brightness,
+      voiceVolume,
       // Subtitle styling properties
       fontFamily,
       fontSize,
@@ -215,6 +216,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔊 Music Volume: ${musicVolume}`);
     console.log(`🔇 Mute Stock Video: ${muteStockVideo}`);
     console.log(`🌞 Brightness: ${brightness || 0}`);
+    console.log(`🔊 Voice Volume: ${voiceVolume !== undefined ? `${Math.round(voiceVolume * 100)}%` : '100%'}`);
     console.log(`📋 Text Transform: ${textTransform}`);
     console.log(`🎨 Font Color: ${fontColor || '#ffffff'}`);
     console.log(`📝 Font Family: ${fontFamily || 'Montserrat ExtraBold'}`);
@@ -453,12 +455,15 @@ export async function POST(request: NextRequest) {
 
     // Track for main audio (if audioUrl is present)
     if (audioUrl) {
+        const resolvedVoiceVolume = voiceVolume !== undefined ? voiceVolume : 1.0;
+        console.log(`🎤 Setting voice track volume to: ${Math.round(resolvedVoiceVolume * 100)}%`);
+        
         const audioTrack = {
             clips: [{
                 asset: {
                     type: "audio",
                     src: audioUrl,
-                    volume: 1 // Ensure audio is audible
+                    volume: resolvedVoiceVolume // Apply user-controlled voice volume
                 },
                 start: 0,
                 length: totalDuration // Audio plays for the whole duration
@@ -577,6 +582,7 @@ export async function POST(request: NextRequest) {
     console.log(`- Total tracks: ${tracks.length}`);
     console.log(`- Media assets: ${imageUrls.length}`);
     console.log(`- Audio: ${audioUrl ? 'YES' : 'NO'}`);
+    console.log(`- Voice Volume: ${voiceVolume !== undefined ? `${Math.round(voiceVolume * 100)}%` : '100%'}`);
     console.log(`- Background Music: ${musicUrl ? 'YES' : 'NO'}`);
     console.log(`- Music Volume: ${musicUrl && musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}`);
     console.log(`- Mute Stock Video: ${muteStockVideo ? 'YES' : 'NO'}`);
