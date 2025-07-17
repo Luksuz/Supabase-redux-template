@@ -1,0 +1,53 @@
+{
+  "metadata": {
+    "videoId": "e098b90d-b616-4a7a-bc35-b8ba0382e55a",
+    "timestamp": "2025-07-17T08:31:36.931Z",
+    "videoType": "Traditional",
+    "totalDuration": 0.768707,
+    "imageCount": 1,
+    "hasAudio": true,
+    "hasSubtitles": false,
+    "hasMusic": false,
+    "musicVolume": "N/A",
+    "muteStockVideo": true
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1752741075963-9u1inecl5-chunk-1-1752741085067.png"
+              },
+              "start": 0,
+              "length": 0.768707,
+              "fit": "cover"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1752741073711.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 0.768707
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}
