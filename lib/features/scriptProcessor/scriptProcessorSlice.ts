@@ -65,7 +65,7 @@ const initialState: ScriptProcessorState = {
   
   chunks: [],
   selectedSceneCount: 50,
-  maxScenes: 50,
+  maxScenes: 200,
   
   prompts: [],
   hasGeneratedPrompts: false,

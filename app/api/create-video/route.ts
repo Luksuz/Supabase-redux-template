@@ -191,6 +191,7 @@ export async function POST(request: NextRequest) {
       musicUrl, 
       musicVolume, 
       muteStockVideo,
+      brightness,
       // Subtitle styling properties
       fontFamily,
       fontSize,
@@ -213,7 +214,11 @@ export async function POST(request: NextRequest) {
     console.log(`🎶 Music URL: ${musicUrl}`);
     console.log(`🔊 Music Volume: ${musicVolume}`);
     console.log(`🔇 Mute Stock Video: ${muteStockVideo}`);
+    console.log(`🌞 Brightness: ${brightness || 0}`);
     console.log(`📋 Text Transform: ${textTransform}`);
+    console.log(`🎨 Font Color: ${fontColor || '#ffffff'}`);
+    console.log(`📝 Font Family: ${fontFamily || 'Montserrat ExtraBold'}`);
+    console.log(`📏 Font Size: ${fontSize || 24}px`);
 
     
     console.log(`📋 Video creation request:
@@ -291,6 +296,9 @@ export async function POST(request: NextRequest) {
     if (subtitlesUrl) {
       console.log(`Adding subtitles to video: ${subtitlesUrl}`);
       const transformedSubtitlesUrl = await processSubtitleFile(subtitlesUrl, textTransform || 'uppercase');
+      const resolvedFontColor = fontColor || '#ffffff';
+      console.log(`🎨 Resolved font color for Shotstack: ${resolvedFontColor}`);
+      
       const captionTrack = {
         clips: [
           {
@@ -300,7 +308,7 @@ export async function POST(request: NextRequest) {
               font: {
                 family: getShotstackFontFamily(fontFamily || 'Montserrat ExtraBold'),
                 size: fontSize || 24,
-                color: fontColor || '#ffffff',
+                color: resolvedFontColor,
                 weight: fontWeight || '700',
                 stroke: "#000000",
                 strokeWidth: strokeWidth || 2
@@ -339,7 +347,31 @@ export async function POST(request: NextRequest) {
         if (assetType === 'video' && muteStockVideo) {
           console.log(`   🔇 Muting stock video audio for segment ${index + 1}`);
         }
+        if (brightness !== undefined && brightness !== 0) {
+          const effectType = brightness > 0 ? 'lighten' : 'darken';
+          const opacityValue = brightness > 0 ? Math.min(1, 1 + (brightness / 100)) : Math.max(0.2, 1 + (brightness / 100));
+          console.log(`   🌞 Applying chroma-based brightness effect: ${brightness} (${effectType}, opacity: ${opacityValue.toFixed(2)}) for segment ${index + 1}`);
+        }
         
+        // Create brightness effect using chroma key approach
+        const getBrightnessEffect = (brightnessValue: number) => {
+          if (brightnessValue === 0) return {}
+          
+          if (brightnessValue > 0) {
+            // For brighter effect, use opacity and overlay technique
+            return {
+              opacity: Math.min(1, 1 + (brightnessValue / 100)),
+              filter: "lighten"
+            }
+          } else {
+            // For darker effect, use chroma-like overlay with dark color
+            return {
+              opacity: Math.max(0.2, 1 + (brightnessValue / 100)),
+              filter: "darken"
+            }
+          }
+        }
+
         const clip = {
           asset: {
             type: assetType,
@@ -349,7 +381,9 @@ export async function POST(request: NextRequest) {
           },
           start: startTime,
           length: duration,
-          fit: "cover"
+          fit: "cover",
+          // Apply brightness effect using chroma key approach
+          ...(brightness !== undefined && brightness !== 0 && getBrightnessEffect(brightness))
         };
         
         currentTime += duration;
@@ -371,7 +405,31 @@ export async function POST(request: NextRequest) {
         if (assetType === 'video' && muteStockVideo) {
           console.log(`   🔇 Muting stock video audio for asset ${index + 1}`);
         }
+        if (brightness !== undefined && brightness !== 0) {
+          const effectType = brightness > 0 ? 'lighten' : 'darken';
+          const opacityValue = brightness > 0 ? Math.min(1, 1 + (brightness / 100)) : Math.max(0.2, 1 + (brightness / 100));
+          console.log(`   🌞 Applying chroma-based brightness effect: ${brightness} (${effectType}, opacity: ${opacityValue.toFixed(2)}) for asset ${index + 1}`);
+        }
         
+        // Create brightness effect using chroma key approach for traditional video
+        const getBrightnessEffectTraditional = (brightnessValue: number) => {
+          if (brightnessValue === 0) return {}
+          
+          if (brightnessValue > 0) {
+            // For brighter effect, use opacity and overlay technique
+            return {
+              opacity: Math.min(1, 1 + (brightnessValue / 100)),
+              filter: "lighten"
+            }
+          } else {
+            // For darker effect, use chroma-like overlay with dark color
+            return {
+              opacity: Math.max(0.2, 1 + (brightnessValue / 100)),
+              filter: "darken"
+            }
+          }
+        }
+
         return {
           asset: {
             type: assetType,
@@ -381,7 +439,9 @@ export async function POST(request: NextRequest) {
           },
           start: startTime,
           length: imageDuration,
-          fit: "cover"
+          fit: "cover",
+          // Apply brightness effect using chroma key approach
+          ...(brightness !== undefined && brightness !== 0 && getBrightnessEffectTraditional(brightness))
         };
       });
 
@@ -520,7 +580,9 @@ export async function POST(request: NextRequest) {
     console.log(`- Background Music: ${musicUrl ? 'YES' : 'NO'}`);
     console.log(`- Music Volume: ${musicUrl && musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}`);
     console.log(`- Mute Stock Video: ${muteStockVideo ? 'YES' : 'NO'}`);
+    console.log(`- Brightness: ${brightness !== undefined && brightness !== 0 ? `${brightness > 0 ? '+' : ''}${brightness} (chroma-based ${brightness > 0 ? 'lighten' : 'darken'})` : 'Normal (0)'}`);
     console.log(`- Subtitles: ${subtitlesUrl ? 'YES' : 'NO'}`);
+    console.log(`- Font Color: ${fontColor || '#ffffff'}`);
     console.log(`- Total duration: ${totalDuration.toFixed(2)}s`);
     
     // Make Shotstack API call BEFORE creating database record

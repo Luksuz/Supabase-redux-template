@@ -67,7 +67,8 @@ import {
   Video,
   FileImage,
   RotateCcw,
-  Crop
+  Crop,
+  FolderDown
 } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -284,6 +285,96 @@ export function BatchImageGenerator() {
     } catch (error) {
       console.warn('Failed to convert URL to dataUrl:', error)
       return url // Fallback to original URL
+    }
+  }
+
+  // Helper function to download a single image
+  const downloadImage = async (imageUrl: string, fileName: string) => {
+    try {
+      showMessage(`Downloading ${fileName}...`, 'info')
+      const response = await fetch(imageUrl)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      showMessage(`${fileName} downloaded successfully!`, 'success')
+    } catch (error) {
+      console.error('Download failed:', error)
+      showMessage(`Failed to download ${fileName}: ${(error as Error).message}`, 'error')
+    }
+  }
+
+  // Helper function to download all selected images as a zip
+  const downloadSelectedImages = async () => {
+    const selectedCards = mediaCards.filter((card: any) => card.isSelected && card.selectedImageUrl)
+    
+    if (selectedCards.length === 0) {
+      showMessage('No images selected for download', 'error')
+      return
+    }
+
+    try {
+      // Import JSZip dynamically to avoid bundling it if not used
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      
+      showMessage(`Preparing ${selectedCards.length} images for download...`, 'info')
+      
+      // Sort by selection order to maintain user's intended sequence
+      selectedCards.sort((a: any, b: any) => (a.selectionOrder || 0) - (b.selectionOrder || 0))
+      
+      const downloadPromises = selectedCards.map(async (card: any, index: number) => {
+        try {
+          const response = await fetch(card.selectedImageUrl)
+          const blob = await response.blob()
+          
+          // Generate filename based on selection order
+          const fileExtension = card.selectedImageType === 'video' ? 'mp4' : 'jpg'
+          const fileName = `scene-${card.selectionOrder || index + 1}-${card.sceneNumber}.${fileExtension}`
+          
+          zip.file(fileName, blob)
+          return { success: true, fileName }
+        } catch (error) {
+          console.error(`Failed to download image for scene ${card.sceneNumber}:`, error)
+          return { success: false, fileName: `scene-${card.sceneNumber}`, error }
+        }
+      })
+      
+      const results = await Promise.all(downloadPromises)
+      const successCount = results.filter(r => r.success).length
+      
+      if (successCount === 0) {
+        showMessage('Failed to download any images', 'error')
+        return
+      }
+      
+      if (successCount < selectedCards.length) {
+        showMessage(`${successCount}/${selectedCards.length} images added to zip. Proceeding with available images.`, 'info')
+      }
+      
+      // Generate and download the zip file
+      showMessage('Creating zip file...', 'info')
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const zipUrl = window.URL.createObjectURL(zipBlob)
+      
+      const link = document.createElement('a')
+      link.href = zipUrl
+      link.download = `generated-images-${new Date().toISOString().split('T')[0]}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(zipUrl)
+      
+      showMessage(`Successfully downloaded ${successCount} images as a zip file!`, 'success')
+      
+    } catch (error) {
+      console.error('Zip download failed:', error)
+      showMessage(`Failed to create zip download: ${(error as Error).message}`, 'error')
     }
   }
 
@@ -1104,8 +1195,8 @@ export function BatchImageGenerator() {
           </CardTitle>
           <CardDescription>
             {mode === 'generate' 
-              ? `Generate up to ${imagesToGenerate} images from ${prompts.length} available prompts using AI in batches of 5 per minute`
-              : `Search stock media for up to ${imagesToGenerate} scenes from ${prompts.length} available prompts`
+              ? `Generate up to ${imagesToGenerate} images from ${prompts.length} available prompts using AI in batches of 5 per minute. Download individual images or bulk download as ZIP.`
+              : `Search stock media for up to ${imagesToGenerate} scenes from ${prompts.length} available prompts. Download individual media or bulk download as ZIP.`
             }
           </CardDescription>
         </CardHeader>
@@ -1164,7 +1255,7 @@ export function BatchImageGenerator() {
                     }
                   }}
                   min={1}
-                  max={50}
+                  max={200}
                 />
                 <p className="text-xs text-gray-500">
                   {imagesToGenerate < prompts.length 
@@ -1301,23 +1392,34 @@ export function BatchImageGenerator() {
                 </Button>
 
                 {selectedCount > 0 && (
-                  <Button
-                    onClick={handleSaveSelected}
-                    disabled={isSaving}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving... {saveProgress}%
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Selected ({selectedCount})
-                      </>
-                    )}
-                  </Button>
+                  <>
+                    <Button
+                      onClick={handleSaveSelected}
+                      disabled={isSaving}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving... {saveProgress}%
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Selected ({selectedCount})
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button
+                      onClick={downloadSelectedImages}
+                      variant="outline"
+                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                    >
+                      <FolderDown className="h-4 w-4 mr-2" />
+                      Download Selected ({selectedCount})
+                    </Button>
+                  </>
                 )}
               </>
             )}
@@ -1588,6 +1690,22 @@ export function BatchImageGenerator() {
                             )}
                           </Button>
                         )}
+                        
+                        {/* Download button */}
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const fileExtension = card.selectedImageType === 'video' ? 'mp4' : 'jpg'
+                            const fileName = `scene-${card.sceneNumber}.${fileExtension}`
+                            downloadImage(card.selectedImageUrl, fileName)
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download {card.selectedImageType === 'video' ? 'Video' : 'Image'}
+                        </Button>
                       </div>
                     </CardFooter>
                   )}
@@ -1656,6 +1774,24 @@ export function BatchImageGenerator() {
                                 Resize to Portrait
                               </>
                             )}
+                          </Button>
+                        )}
+                        
+                        {/* Download button - only show for completed images */}
+                        {card.selectedImageUrl && card.status === 'completed' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const fileExtension = card.selectedImageType === 'video' ? 'mp4' : 'jpg'
+                              const fileName = `scene-${card.sceneNumber}.${fileExtension}`
+                              downloadImage(card.selectedImageUrl, fileName)
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download {card.selectedImageType === 'video' ? 'Video' : 'Image'}
                           </Button>
                         )}
                       </div>

@@ -100,6 +100,9 @@ export function VideoGenerator() {
     position: 'bottom' as 'top' | 'center' | 'bottom'
   })
 
+  // Video brightness/darkness state
+  const [videoBrightness, setVideoBrightness] = useState(0) // -50 to +50, 0 = normal
+
   // Font family options
   const fontFamilyOptions = [
     { value: 'Arapey Regular', label: 'Arapey Regular' },
@@ -389,6 +392,7 @@ export function VideoGenerator() {
         musicUrl: settings.includeMusic ? getAvailableMusicUrl() || undefined : undefined,
         musicVolume: settings.includeMusic ? settings.musicVolume : undefined,
         muteStockVideo: settings.muteStockVideo,
+        brightness: videoBrightness, // Add brightness adjustment
         // Include subtitle styling settings when subtitles are enabled
         ...(settings.includeSubtitles && audioGeneration.subtitlesUrl && {
           fontFamily: subtitleSettings.fontFamily,
@@ -404,6 +408,25 @@ export function VideoGenerator() {
       }
 
       console.log('🎬 Starting video generation with:', requestBody)
+      
+      // Debug subtitle color being sent
+      if (settings.includeSubtitles && audioGeneration.subtitlesUrl) {
+        console.log('🎨 Frontend subtitle settings being sent:', {
+          fontFamily: subtitleSettings.fontFamily,
+          fontSize: subtitleSettings.fontSize,
+          fontColor: subtitleSettings.fontColor,
+          fontWeight: subtitleSettings.fontWeight
+        })
+      }
+      
+      // Debug brightness being sent
+      const brightnessEffect = videoBrightness !== 0 ? (videoBrightness > 0 ? 'lighten' : 'darken') : 'none';
+      console.log('🌞 Frontend brightness setting:', {
+        value: videoBrightness,
+        effect: brightnessEffect,
+        chroma_based: true
+      })
+      
       const musicInfo = settings.includeMusic ? ` with ${musicSource}` : ''
       showMessage(`Starting ${videoType} video generation${musicInfo}...`, 'info')
 
@@ -862,7 +885,9 @@ export function VideoGenerator() {
                 {/* Live Preview */}
                 <div className="p-4 bg-gray-200 rounded-lg">
                   <div className="text-center">
-                    <p className="text-xs text-gray-400 mb-2">Subtitle Preview:</p>
+                    <p className="text-xs text-gray-400 mb-2">
+                      Subtitle Preview (Color: {subtitleSettings.fontColor}):
+                    </p>
                     <div 
                       style={{
                         fontFamily: getFontFamily(subtitleSettings.fontFamily),
@@ -884,6 +909,34 @@ export function VideoGenerator() {
                 </div>
               </div>
             )}
+
+            {/* Video Brightness Control */}
+            <div className="space-y-3">
+              <Label className="text-sm flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Video Brightness: {videoBrightness > 0 ? `+${videoBrightness}` : videoBrightness} 
+                {videoBrightness !== 0 && (
+                  <span className="text-xs text-gray-500">
+                    ({videoBrightness > 0 ? 'lighten' : 'darken'} effect)
+                  </span>
+                )}
+              </Label>
+              <input
+                type="range"
+                min="-50"
+                max="50"
+                step="1"
+                value={videoBrightness}
+                onChange={(e) => setVideoBrightness(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                disabled={!hasPrerequisites}
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Darker (-50)</span>
+                <span>Normal (0)</span>
+                <span>Brighter (+50)</span>
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label className="text-sm">Background Music</Label>

@@ -45,7 +45,7 @@ interface BatchImageGeneratorState {
   extractionType: 'video' | 'image' // For video/image extraction
   
   // Image generation configuration
-  imagesToGenerate: number // Number of images to generate each time (1-50)
+  imagesToGenerate: number // Number of images to generate each time (1-200)
   
   // Media cards (simplified single source of truth)
   mediaCards: MediaCard[]
@@ -126,7 +126,7 @@ export const batchImageGeneratorSlice = createSlice({
     },
     
     setImagesToGenerate: (state, action: PayloadAction<number>) => {
-      state.imagesToGenerate = Math.min(Math.max(action.payload, 1), 50) // Clamp between 1 and 50
+      state.imagesToGenerate = Math.min(Math.max(action.payload, 1), 200) // Clamp between 1 and 200
     },
     
     // Initialize media cards from prompts
