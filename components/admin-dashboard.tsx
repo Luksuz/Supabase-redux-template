@@ -514,7 +514,7 @@ export function AdminDashboard() {
               </Button>
             </CardTitle>
             <CardDescription>
-              Manage AI voices for Murf.ai, ElevenLabs, and Speechify providers
+              Manage AI voices for Murf.ai, Minimax, PlayAI, ElevenLabs, and Speechify providers
             </CardDescription>
           </CardHeader>
           <CardContent>
