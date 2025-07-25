@@ -1,0 +1,93 @@
+{
+  "id": "73934caa-bcc5-47c0-a11f-7eb7d24c30dc",
+  "model": "sonar-pro",
+  "created": 1753451478,
+  "usage": {
+    "prompt_tokens": 59,
+    "completion_tokens": 668,
+    "total_tokens": 727,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://en.wikipedia.org/wiki/Raymond_Cruz",
+    "https://www.imdb.com/name/nm0190441/",
+    "https://www.pinterest.com/ideas/tuco-salamanca/919437769330/",
+    "https://screenrant.com/better-call-saul-not-happen-tuco-salamanca-leave-breaking-bad-factoid/",
+    "https://www.youtube.com/watch?v=V7mpsgPc49I",
+    "https://www.youtube.com/watch?v=UHWoJFwRPf0",
+    "https://www.youtube.com/watch?v=3l3u0JBBHkk",
+    "https://breakingbad.fandom.com/wiki/Tuco_Salamanca",
+    "https://villains.fandom.com/wiki/Tuco_Salamanca_(Breaking_Bad)"
+  ],
+  "search_results": [
+    {
+      "title": "Raymond Cruz - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Raymond_Cruz",
+      "date": "2025-03-21",
+      "last_updated": "2025-03-22"
+    },
+    {
+      "title": "Raymond Cruz - IMDb",
+      "url": "https://www.imdb.com/name/nm0190441/",
+      "date": "2000-07-17",
+      "last_updated": "2025-07-22"
+    },
+    {
+      "title": "Tuco Salamanca - Pinterest",
+      "url": "https://www.pinterest.com/ideas/tuco-salamanca/919437769330/",
+      "date": null,
+      "last_updated": null
+    },
+    {
+      "title": "Better Call Saul Never Would've Happened If This Early Breaking ...",
+      "url": "https://screenrant.com/better-call-saul-not-happen-tuco-salamanca-leave-breaking-bad-factoid/",
+      "date": "2025-05-07",
+      "last_updated": "2025-05-07"
+    },
+    {
+      "title": "Breaking Bad - Tuco Tries Walt's Blue Meth… Then Snaps - YouTube",
+      "url": "https://www.youtube.com/watch?v=V7mpsgPc49I",
+      "date": "2025-02-19",
+      "last_updated": "2025-07-20"
+    },
+    {
+      "title": "Breaking Bad & Better Call Saul - YouTube",
+      "url": "https://www.youtube.com/watch?v=UHWoJFwRPf0",
+      "date": "2025-04-11",
+      "last_updated": "2025-04-22"
+    },
+    {
+      "title": "The Demise of Tuco Salamanca | Grilled | Breaking Bad - YouTube",
+      "url": "https://www.youtube.com/watch?v=3l3u0JBBHkk",
+      "date": "2023-05-19",
+      "last_updated": "2025-05-24"
+    },
+    {
+      "title": "Tuco Salamanca - Breaking Bad Wiki - Fandom",
+      "url": "https://breakingbad.fandom.com/wiki/Tuco_Salamanca",
+      "date": "2025-03-10",
+      "last_updated": "2025-07-07"
+    },
+    {
+      "title": "Tuco Salamanca - Villains Wiki - Fandom",
+      "url": "https://villains.fandom.com/wiki/Tuco_Salamanca_(Breaking_Bad)",
+      "date": "2014-01-01",
+      "last_updated": "2025-05-10"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "**Tuco Salamanca** is a fictional character from the television series *Breaking Bad* and its prequel *Better Call Saul*, portrayed by actor **Raymond Cruz**[1][2][8]. Tuco is a **Mexican-American drug kingpin** and a high-level distributor for the Juárez Cartel, operating in the American Southwest[8][9]. He is infamous for his **volatile, unpredictable, and violent personality**, making him one of the most memorable antagonists in both series[6][9].\n\n### Character Overview\n\n- **Role in Breaking Bad:** Tuco is introduced as the first major drug distributor that Walter White and Jesse Pinkman work with. His erratic behavior and brutal enforcement of loyalty—such as beating his own henchman for a perceived slight—make him a dangerous partner[5][6]. His partnership with Walt and Jesse is short-lived due to his instability and violence.\n- **Demise:** Tuco's story arc in *Breaking Bad* ends when he kidnaps Walt and Jesse, intending to take them to Mexico. He is ultimately killed in a shootout with DEA agent Hank Schrader[7][8].\n- **Role in Better Call Saul:** The prequel series explores Tuco's earlier criminal activities and his family connections, particularly with his uncle Hector Salamanca and cousin Lalo Salamanca[8][9].\n\n### Behind the Scenes\n\n- **Portrayal:** Raymond Cruz's performance as Tuco is widely acclaimed for its intensity and authenticity. Cruz drew on his own experiences growing up in East Los Angeles, witnessing gang violence, to inform his portrayal of Tuco's manic energy and unpredictability[1][2].\n- **Impact on the Series:** Tuco was originally intended to be a longer-running antagonist in *Breaking Bad*, but Cruz's commitments to another series (*The Closer*) forced the writers to kill off the character earlier than planned. This narrative shift led to the introduction of other major characters, including Saul Goodman and Gus Fring, fundamentally changing the direction of the series[4].\n\n### Key Traits\n\n- **Violent and Unstable:** Tuco is known for sudden outbursts of extreme violence, even against his own men, and for his paranoia and suspicion[5][6][9].\n- **Family Ties:** He is a member of the Salamanca crime family, which plays a central role in both *Breaking Bad* and *Better Call Saul*[8][9].\n- **Cultural Impact:** Tuco has become an iconic villain in television, often cited for his memorable catchphrases and explosive scenes[6][9].\n\n### Additional Information\n\n- **Actor:** Raymond Cruz (born September 10, 1964)[1][2].\n- **First Appearance:** *Breaking Bad* Season 1, Episode 6 (\"Crazy Handful of Nothin'\")[8].\n- **Last Appearance:** *Better Call Saul* Season 2 (chronologically earlier than his death in *Breaking Bad*)[8].\n\nTuco Salamanca's combination of charisma, menace, and unpredictability has made him a standout character in the *Breaking Bad* universe, with a legacy that influenced the development of both series and their most iconic storylines[4][6][9]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

@@ -77,8 +77,8 @@ const ResearchExtractionSchema = z.object({
 })
 
 // Get raw research from Perplexity
-async function getPerplexityResearch(query: string): Promise<PerplexityResponse> {
-  console.log(`🔍 Getting raw research from Perplexity for: "${query}"`)
+async function getPerplexityResearch(query: string, region: string = 'us', language: string = 'en'): Promise<PerplexityResponse> {
+  console.log(`🔍 Getting raw research from Perplexity for: "${query}" (region: ${region}, language: ${language})`)
   
   const response = await fetch('https://api.perplexity.ai/chat/completions', {
     method: 'POST',
@@ -91,7 +91,7 @@ async function getPerplexityResearch(query: string): Promise<PerplexityResponse>
       messages: [
         {
           role: 'system',
-          content: 'You are a comprehensive research assistant. Provide detailed, well-sourced research with specific facts, data, quotes, and citations. Include current information, multiple perspectives, dramatic elements, and compelling storytelling angles on the topic.'
+          content: 'You are a comprehensive research assistant. Provide detailed, well-sourced research with specific facts, data, quotes, and citations. Include current information, multiple perspectives, dramatic elements, and compelling storytelling angles on the topic. Always prioritize English-language sources and provide responses in English. Avoid youtube, instagram, tiktok, and other social media platforms.'
         },
         {
           role: 'user',
@@ -109,7 +109,11 @@ async function getPerplexityResearch(query: string): Promise<PerplexityResponse>
       presence_penalty: 0,
       frequency_penalty: 0,
       web_search_options: {
-        search_context_size: 'high'
+        search_context_size: 'high',
+        search_recency_filter: 'month',
+        search_domain_filter: 'all',
+        region: region,
+        language: language
       }
     })
   })
@@ -276,7 +280,7 @@ export async function POST(request: NextRequest) {
   console.log('=== POST /api/research/web-search (Perplexity + Rich LLM Extraction) ===')
   
   try {
-    const { query, context, maxResults = 10 } = await request.json()
+    const { query, context, maxResults = 10, region = 'us', language = 'en' } = await request.json()
     
     if (!query || !query.trim()) {
       return NextResponse.json(
@@ -298,7 +302,7 @@ export async function POST(request: NextRequest) {
     const enhancedQuery = context ? `${query}\n\nContext: ${context}` : query
     
     // Step 1: Get comprehensive research from Perplexity
-    const perplexityData = await getPerplexityResearch(enhancedQuery)
+    const perplexityData = await getPerplexityResearch(enhancedQuery, region, language)
     console.log(`📊 Perplexity provided ${perplexityData.search_results?.length || 0} source results`)
     
     console.log(`✅ Perplexity search completed with ${perplexityData.search_results?.length || 0} search results`)

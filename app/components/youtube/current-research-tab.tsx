@@ -6,6 +6,7 @@ import { clearAllResearchSummaries, markMultipleResearchAsApplied, removeGoogleR
 import { AppDispatch, RootState } from '@/lib/store'
 import { useSelector } from 'react-redux'
 import { showToast } from '@/lib/utils/toast'
+import ReactMarkdown from 'react-markdown'
 
 interface CurrentResearchTabProps {
   researchSummaries: any
@@ -857,6 +858,67 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
     )
   }
 
+  // Special textarea version for large content like articles
+  const renderEditableTextArea = (fieldId: string, value: string, summaryId: string, summary: any, placeholder?: string) => {
+    const isEditing = editingFields.has(fieldId)
+    
+    if (isEditing) {
+      return (
+        <div className="space-y-2">
+          <textarea
+            value={editedData[fieldId] || value}
+            onChange={(e) => setEditedData(prev => ({ ...prev, [fieldId]: e.target.value }))}
+            className="w-full h-96 px-3 py-2 border border-gray-300 rounded text-sm font-mono resize-vertical"
+            placeholder={placeholder}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => saveEdit(fieldId, summaryId, summary)}
+              className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+            >
+              <Save className="h-4 w-4" />
+              Save
+            </button>
+            <button
+              onClick={() => cancelEdit(fieldId)}
+              className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </button>
+          </div>
+        </div>
+      )
+    }
+    
+    return (
+      <div className="space-y-2">
+        <ReactMarkdown>{value}</ReactMarkdown>
+        <button
+          onClick={() => startEditing(fieldId, value)}
+          className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+        >
+          <Edit className="h-4 w-4" />
+          Edit Article
+        </button>
+      </div>
+    )
+  }
+
+  // Helper functions for determining research category and source
+  const getResearchCategory = (summary: any) => {
+    if (summary.category === 'Article Content') return 'Article Content'
+    if (summary.research_method === 'firecrawl_scraping') return 'Article Content'
+    if (summary.type === 'youtube') return 'YouTube Analysis'
+    return 'Perplexity Research'
+  }
+
+  const getResearchSource = (summary: any) => {
+    if (summary.research_method === 'firecrawl_scraping') return 'firecrawl_api'
+    if (summary.type === 'youtube') return 'gemini_analysis'
+    return 'perplexity_api'
+  }
+
   const convertTimestampToSeconds = (timestamp: string) => {
     const parts = timestamp.split(':')
     let totalSeconds = 0
@@ -893,8 +955,8 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
           usingMock: summary.usingMock || false
         },
         tags: summary.tags || [],
-        category: summary.category || (summary.type === 'youtube' ? 'YouTube Analysis' : 'Perplexity Research'),
-        source: summary.source || (summary.type === 'youtube' ? 'gemini_analysis' : 'perplexity_api')
+        category: summary.category || getResearchCategory(summary),
+        source: summary.source || getResearchSource(summary)
       }
 
       const response = await fetch('/api/research-cards', {
@@ -961,8 +1023,8 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
               usingMock: summary.usingMock || false
             },
             tags: summary.tags || [],
-            category: summary.category || (summary.type === 'youtube' ? 'YouTube Analysis' : 'Perplexity Research'),
-            source: summary.source || (summary.type === 'youtube' ? 'gemini_analysis' : 'perplexity_api')
+                    category: summary.category || getResearchCategory(summary),
+        source: summary.source || getResearchSource(summary)
           }
 
           const response = await fetch('/api/research-cards', {
@@ -1838,9 +1900,18 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                           {!summary.researchSummary && (
                         <>
                           <div>
-                            <h5 className="font-semibold text-gray-800 mb-2">Insights</h5>
-                            <div className="text-gray-700 bg-gray-50 p-3 rounded">
-                              {renderEditableField(`${summary.id}.insights`, summary.insights || '', summary.id, summary, 'Research insights...')}
+                            <h5 className="font-semibold text-gray-800 mb-2">
+                              {summary.category === 'Article Content' ? 'Article Content' : 'Research Content'}
+                            </h5>
+                            <div className="text-gray-700 bg-gray-50 p-3 rounded prose prose-sm max-w-none">
+                              {summary.category === 'Article Content' ? (
+                                // For scraped articles, make the content editable as markdown
+                                renderEditableTextArea(`${summary.id}.insights`, summary.insights || '', summary.id, summary, 'Article content...')
+                              ) : summary.scraped_content ? (
+                                <ReactMarkdown>{summary.scraped_content}</ReactMarkdown>
+                              ) : (
+                                renderEditableField(`${summary.id}.insights`, summary.insights || '', summary.id, summary, 'Research insights...')
+                              )}
                             </div>
                           </div>
                           

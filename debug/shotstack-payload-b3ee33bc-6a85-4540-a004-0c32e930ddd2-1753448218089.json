@@ -1,0 +1,83 @@
+{
+  "metadata": {
+    "videoId": "b3ee33bc-6a85-4540-a004-0c32e930ddd2",
+    "timestamp": "2025-07-25T12:56:58.089Z",
+    "videoType": "Traditional",
+    "totalDuration": 3.708,
+    "imageCount": 1,
+    "hasAudio": true,
+    "hasSubtitles": true,
+    "hasMusic": false,
+    "musicVolume": "N/A",
+    "muteStockVideo": true
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "caption",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio//storage/v1/object/public/audio/subtitles/subtitles_1753448156180.srt",
+                "font": {
+                  "family": "Montserrat",
+                  "size": 30,
+                  "color": "#1fcae0",
+                  "weight": "1000",
+                  "stroke": "#000000",
+                  "strokeWidth": 2
+                },
+                "background": {
+                  "color": "#ffffff",
+                  "opacity": 0,
+                  "padding": 12
+                },
+                "margin": {
+                  "top": 0.75,
+                  "left": 0.05,
+                  "right": 0.05
+                }
+              },
+              "start": 0,
+              "length": 3.708
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1753448149732-h7kt9lg2v-chunk-1-1753448186781.png"
+              },
+              "start": 0,
+              "length": 3.708,
+              "fit": "cover"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1753448153677.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 3.708
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}

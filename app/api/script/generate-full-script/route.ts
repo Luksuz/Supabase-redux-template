@@ -204,7 +204,14 @@ REQUIREMENTS:
 
       // Add research data if provided
       if (additionalResearch) {
-        prompt += `\n\nRESEARCH DATA AND CLIP INFORMATION:
+        // Check if research data contains actual YouTube links/timestamps
+        const hasYouTubeClips = additionalResearch.includes('youtube.com') || 
+                               additionalResearch.includes('youtu.be') || 
+                               additionalResearch.includes('videoId:') ||
+                               additionalResearch.includes('timestamps:')
+
+        if (hasYouTubeClips) {
+          prompt += `\n\nRESEARCH DATA AND CLIP INFORMATION:
 Use the following research data to ground your script in real facts, quotes, and insights. Pay special attention to YouTube clips with their timestamps and descriptions:
 
 ${additionalResearch}
@@ -222,6 +229,14 @@ CRITICAL: APPLY "SHOW, DON'T TELL" PRINCIPLE:
 - Build anticipation and context, but let clips provide the actual revelations
 - Use phrases like "What happened next..." "His response was..." "The moment that changed everything..."
 - Never spoil clip content with your narration - let clips be the source of quotes and key moments`
+        } else {
+          prompt += `\n\nRESEARCH DATA (ARTICLE CONTENT):
+Use the following research data to ground your script in real facts, quotes, and insights from articles and web content:
+
+${additionalResearch}
+
+IMPORTANT: This research data contains ARTICLE CONTENT only - do not create or reference any YouTube clips, timestamps, or video content. Focus on using the facts, quotes, and insights from the written content to enhance your script.`
+        }
       }
 
       // Handle legacy YouTube links format
@@ -244,7 +259,7 @@ NOTE: Use these links but verify timestamps against the research data above for 
         messages: [
           {
             role: "system",
-            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. When research data includes YouTube clips with timestamps and descriptions, integrate them throughout the script where they naturally enhance the narrative - not just at the beginning. Use the format [[CLIP: url | timestamp | description]] and ensure timestamps are accurate based on the research data provided. CRITICAL: Follow the 'SHOW, DON'T TELL' principle - NEVER quote what someone says in a clip before showing the clip. Let clips reveal information rather than repeating it in your narration. Build anticipation and context, but let clips provide the actual quotes and revelations. Focus on quality content that uses clips effectively to tell a compelling story."
+            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. IMPORTANT: Only include YouTube clips ([[CLIP: url | timestamp | description]]) if the research data explicitly contains actual YouTube links and timestamps. If the research data is just article content or text without video links, do not create any fake YouTube clips or timestamps. Focus on creating compelling narrative using the provided information without making up video content that doesn't exist."
           },
           {
             role: "user",

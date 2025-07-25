@@ -6,6 +6,7 @@ import { performGoogleResearch, removeGoogleResearchSummary, clearAllResearchSum
 import { AppDispatch, RootState } from '@/lib/store'
 import { useSelector } from 'react-redux'
 import { showToast } from '@/lib/utils/toast'
+import ReactMarkdown from 'react-markdown'
 
 interface ResearchTabProps {
   researchSummaries: any
@@ -22,6 +23,8 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
   const [directUrl, setDirectUrl] = React.useState('')
   const [scrapingDirectUrl, setScrapingDirectUrl] = React.useState(false)
   const [extractionPrompt, setExtractionPrompt] = React.useState('')
+  const [selectedRegion, setSelectedRegion] = React.useState('us')
+  const [selectedLanguage, setSelectedLanguage] = React.useState('en')
   
   // Get research loading states from Redux
   const {
@@ -63,8 +66,8 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
           sources: research.sources || []
         },
         tags: [],
-        category: 'Perplexity Research',
-        source: 'perplexity_api'
+        category: research.category === 'Article Content' ? 'Article Content' : 'Perplexity Research',
+        source: research.research_method === 'firecrawl_scraping' ? 'firecrawl_api' : 'perplexity_api'
       }
 
       const response = await fetch('/api/research-cards', {
@@ -106,7 +109,9 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
         body: JSON.stringify({ 
           query: researchQuery,
           context: researchContext,
-          maxResults: 30 
+          maxResults: 30,
+          region: selectedRegion,
+          language: selectedLanguage
         })
       })
       
@@ -314,6 +319,67 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
               rows={3}
               className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-blue-800 mb-2">
+                Search Region
+              </label>
+              <select
+                value={selectedRegion}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="us">United States</option>
+                <option value="uk">United Kingdom</option>
+                <option value="ca">Canada</option>
+                <option value="au">Australia</option>
+                <option value="de">Germany</option>
+                <option value="fr">France</option>
+                <option value="es">Spain</option>
+                <option value="it">Italy</option>
+                <option value="jp">Japan</option>
+                <option value="kr">South Korea</option>
+                <option value="cn">China</option>
+                <option value="in">India</option>
+                <option value="br">Brazil</option>
+                <option value="mx">Mexico</option>
+                <option value="all">Global (All Regions)</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-blue-800 mb-2">
+                Search Language
+              </label>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+                <option value="ru">Russian</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="zh">Chinese</option>
+                <option value="ar">Arabic</option>
+                <option value="hi">Hindi</option>
+                <option value="nl">Dutch</option>
+                <option value="sv">Swedish</option>
+                <option value="da">Danish</option>
+                <option value="no">Norwegian</option>
+                <option value="fi">Finnish</option>
+                <option value="pl">Polish</option>
+                <option value="tr">Turkish</option>
+                <option value="he">Hebrew</option>
+              </select>
+            </div>
           </div>
           
           <button
@@ -600,7 +666,13 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
                     <div className="mt-4 space-y-4 border-t pt-4">
                       <div>
                         <h6 className="font-semibold text-gray-800 mb-2">Full Insights</h6>
-                        <p className="text-gray-700 bg-gray-50 p-3 rounded">{result.insights}</p>
+                        <div className="text-gray-700 bg-gray-50 p-3 rounded prose prose-sm max-w-none">
+                          {result.scraped_content ? (
+                            <ReactMarkdown>{result.scraped_content}</ReactMarkdown>
+                          ) : (
+                            <p>{result.insights}</p>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="grid md:grid-cols-2 gap-4">

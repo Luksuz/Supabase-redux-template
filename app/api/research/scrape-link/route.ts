@@ -47,8 +47,7 @@ async function scrapeWithFirecrawl(url: string): Promise<{ content: string, titl
     const scrapeResult = await app.scrapeUrl(url, {
       formats: ["markdown"],
       onlyMainContent: true,
-      parsePDF: true,
-      maxAge: 14400000 // 4 hours cache
+      proxy: "stealth",
     })
     
     // Check if scraping was successful and has data
@@ -221,27 +220,24 @@ export async function POST(request: NextRequest) {
     const { content, title } = await scrapeWithFirecrawl(url)
     const finalTitle = providedTitle || title
 
-    // Step 2: Extract structured research data
-    const researchSummary = await extractResearchFromContent(content, url, finalTitle, extractionPrompt)
-
-    // Step 3: Format response with standardized research format
+    // Step 2: Format response with plain article content (no LLM processing)
     const wordCount = content.split(/\s+/).length
     const response = {
       id: `scraped-${Date.now()}`,
       title: finalTitle,
-      query: `Scraped from: ${finalTitle}`,
-      type: 'firecrawl', // Use new research type
-      context: `Content scraped from ${url}`,
+      query: `Article: ${finalTitle}`,
+      type: 'google', // Use google type for compatibility with existing UI
+      context: `Article scraped from ${url}`,
       webResults: [{
         title: finalTitle,
         link: url,
         description: content.substring(0, 300) + '...',
         source: new URL(url).hostname
       }],
-      researchSummary,
-      insights: researchSummary.overallTheme,
-      keyFindings: researchSummary.keyInsights,
-      recommendations: researchSummary.actionableItems,
+      // Plain article content - no structured processing
+      insights: `# ${finalTitle}\n\n${content}`,
+      keyFindings: [],
+      recommendations: [],
       sources: [url],
       timestamp: new Date().toISOString(),
       usingMock: false,
@@ -249,10 +245,11 @@ export async function POST(request: NextRequest) {
       // New standardized fields
       url,
       scraped_content: content,
+      article_title: finalTitle,
       research_method: 'firecrawl_scraping',
       word_count: wordCount,
       source: 'firecrawl_api',
-      category: 'Scraped Content'
+      category: 'Article Content'
     }
 
     console.log(`✅ Successfully completed link scraping for: ${url}`)

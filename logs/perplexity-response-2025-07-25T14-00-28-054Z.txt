@@ -1,0 +1,93 @@
+{
+  "id": "4dc41fb7-6431-4aae-ab27-967e8f631c4e",
+  "model": "sonar-pro",
+  "created": 1753452027,
+  "usage": {
+    "prompt_tokens": 71,
+    "completion_tokens": 872,
+    "total_tokens": 943,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://www.youtube.com/watch?v=e-jFr0t1v70",
+    "https://www.americanbar.org/groups/public_education/programs/constitution_day/landmark-cases/",
+    "https://www.youtube.com/watch?v=rab4NLfRH7Q",
+    "https://www.dougbeam.com/blog-posts/3-famous-courtroom-trials",
+    "https://www.imdb.com/list/ls027747060/",
+    "https://www.robertreeveslaw.com/blog/23-must-watch-courtroom-moments-tv-movies/",
+    "https://content.time.com/time/specials/packages/completelist/0,29569,2036448,00.html",
+    "https://www.uscourts.gov/about-federal-courts/educational-resources/supreme-court-landmarks",
+    "https://money.howstuffworks.com/10-supreme-court-cases-journalists.htm"
+  ],
+  "search_results": [
+    {
+      "title": "Top 7 Heated Court Moments Between Lawyers and Judges | Sidebar",
+      "url": "https://www.youtube.com/watch?v=e-jFr0t1v70",
+      "date": "2024-12-23",
+      "last_updated": "2025-07-10"
+    },
+    {
+      "title": "Landmark United States Supreme Court Cases",
+      "url": "https://www.americanbar.org/groups/public_education/programs/constitution_day/landmark-cases/",
+      "date": "2003-01-01",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "Top 7 Heated Court Moments Between Lawyers and Judges",
+      "url": "https://www.youtube.com/watch?v=rab4NLfRH7Q",
+      "date": "2023-09-21",
+      "last_updated": "2025-07-15"
+    },
+    {
+      "title": "3 Famous Courtroom Trials That Captivated America",
+      "url": "https://www.dougbeam.com/blog-posts/3-famous-courtroom-trials",
+      "date": "2025-07-16",
+      "last_updated": "2025-07-20"
+    },
+    {
+      "title": "COURTROOM DRAMAS - IMDb",
+      "url": "https://www.imdb.com/list/ls027747060/",
+      "date": "2017-11-29",
+      "last_updated": "2025-07-20"
+    },
+    {
+      "title": "23 Must-Watch Courtroom Moments from TV & Movies [Videos]",
+      "url": "https://www.robertreeveslaw.com/blog/23-must-watch-courtroom-moments-tv-movies/",
+      "date": null,
+      "last_updated": "2025-07-24"
+    },
+    {
+      "title": "Complete List - Top 10 Controversial Supreme Court Cases - TIME",
+      "url": "https://content.time.com/time/specials/packages/completelist/0,29569,2036448,00.html",
+      "date": "2014-01-01",
+      "last_updated": "2025-06-27"
+    },
+    {
+      "title": "Supreme Court Landmarks - United States Courts",
+      "url": "https://www.uscourts.gov/about-federal-courts/educational-resources/supreme-court-landmarks",
+      "date": null,
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "10 Most Important U.S. Supreme Court Cases for Journalists",
+      "url": "https://money.howstuffworks.com/10-supreme-court-cases-journalists.htm",
+      "date": null,
+      "last_updated": "2025-07-24"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "The most debated courtroom moments span both **real-life landmark trials** and **fictionalized drama**, reflecting intense legal, social, and ethical conflicts. These debates have shaped public opinion, legal precedent, and even national policy.\n\n**Landmark Real-Life Courtroom Debates**\n\n- **Brown v. Board of Education (1954):** This Supreme Court case debated whether racially segregated public schools violated the Equal Protection Clause. The Court unanimously decided that \"separate educational facilities are inherently unequal,\" overturning *Plessy v. Ferguson* and fueling the civil rights movement[2][7][8].\n- **Scopes Monkey Trial (1925):** John Scopes was tried for teaching evolution in Tennessee, challenging the Butler Act that banned teaching any theory contradicting the biblical creation story. The trial became a national spectacle, pitting science against religion and igniting debates about academic freedom and the role of religion in public life[4][5].\n- **O.J. Simpson Trial (1995):** Dubbed the \"trial of the century,\" this case involved the murder charges against NFL star O.J. Simpson. The televised proceedings featured dramatic cross-examinations, racial tensions, and debates over police conduct, captivating millions and sparking ongoing debate about race and justice in America[4].\n- **Miranda v. Arizona (1966):** The Supreme Court debated whether police must inform suspects of their rights. The resulting \"Miranda warnings\" are now a staple of American law enforcement, with the Court ruling that statements made without such warnings are inadmissible in court[2][7].\n- **Bush v. Gore (2000):** This Supreme Court case decided the outcome of the 2000 presidential election, with heated arguments over ballot recounts and the role of the judiciary in electoral disputes[7].\n\n**Heated Modern Courtroom Moments**\n\n- **Parkland School Shooter Penalty Trial:** Recent high-profile trials have seen explosive confrontations between judges and attorneys. In the Parkland case, the judge's conduct was so controversial that it led to a public reprimand and her resignation, highlighting the intense emotions and scrutiny in cases involving mass violence[1][3].\n- **Kyle Rittenhouse Trial (2021):** The trial of Kyle Rittenhouse for shootings during civil unrest in Wisconsin featured fierce debates over self-defense, gun rights, and the boundaries of lawful protest. The defendant's testimony and the judge's rulings were widely debated in the media and public forums[1].\n\n**Fictionalized Courtroom Debates in Popular Culture**\n\n- **12 Angry Men:** This classic film dramatizes a jury's deliberations in a murder trial, showcasing intense debate, prejudice, and the search for reasonable doubt. The film is lauded for its portrayal of the justice system and the power of a single dissenting voice[5][6].\n- **A Few Good Men:** The climactic courtroom confrontation—\"You can't handle the truth!\"—is one of cinema's most famous, exploring military ethics and the limits of obedience[6].\n- **Kramer vs. Kramer:** This film's custody battle scenes highlight shifting societal views on parental rights and gender roles, with emotionally charged courtroom arguments[6].\n\n**Key Themes in Top Courtroom Debates**\n\n- **Civil Rights and Equality:** Cases like *Brown v. Board* and *Miranda v. Arizona* fundamentally changed American society by expanding rights and protections[2][7].\n- **Science vs. Religion:** The Scopes Trial remains a touchstone for debates over educational content and the separation of church and state[4][5].\n- **Media and Public Opinion:** Trials like O.J. Simpson's and Bush v. Gore illustrate how courtroom debates can become national spectacles, influencing and reflecting broader societal divisions[4][7].\n- **Judicial Conduct and Decorum:** Modern trials often feature heated exchanges between judges and lawyers, sometimes leading to disciplinary action and public debate about courtroom professionalism[1][3].\n\n**Limitations:**  \nWhile these examples capture some of the most debated moments in courtroom history, the list is not exhaustive. Many other cases—both in the U.S. and internationally—have featured similarly intense legal and social debates. Additionally, fictional portrayals, while influential, may dramatize or simplify real legal complexities."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

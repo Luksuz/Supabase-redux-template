@@ -1,0 +1,93 @@
+{
+  "id": "84ce9940-02f2-4d3e-a698-01237e3a384a",
+  "model": "sonar-pro",
+  "created": 1753452886,
+  "usage": {
+    "prompt_tokens": 72,
+    "completion_tokens": 667,
+    "total_tokens": 739,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://en.wikipedia.org/wiki/Teletubbies",
+    "https://www.youtube.com/watch?v=mnei3HUCvS8",
+    "https://www.imdb.com/title/tt0142055/",
+    "https://www.teletubbies.com/about",
+    "https://www.youtube.com/watch?v=Or0r7cLOolk",
+    "https://www.teletubbies.com",
+    "https://www.youtube.com/watch?v=zXfzzxH1q8o",
+    "https://www.instagram.com/teletubbieshq/?hl=en",
+    "https://www.youtube.com/@teletubbies"
+  ],
+  "search_results": [
+    {
+      "title": "Teletubbies",
+      "url": "https://en.wikipedia.org/wiki/Teletubbies",
+      "date": null,
+      "last_updated": null
+    },
+    {
+      "title": "Laa Laa & Po Bounce On a Trampoline ❤️💛 Let's Play | ...",
+      "url": "https://www.youtube.com/watch?v=mnei3HUCvS8",
+      "date": "2025-07-20",
+      "last_updated": "2025-07-20"
+    },
+    {
+      "title": "Teletubbies (TV Series 1997–2001)",
+      "url": "https://www.imdb.com/title/tt0142055/",
+      "date": "1998-04-06",
+      "last_updated": "2025-07-22"
+    },
+    {
+      "title": "Time for Teletubbies!",
+      "url": "https://www.teletubbies.com/about",
+      "date": "2024-09-13",
+      "last_updated": "2025-01-30"
+    },
+    {
+      "title": "Run, Teletubbies, Run! Full Episode | Kids Movies",
+      "url": "https://www.youtube.com/watch?v=Or0r7cLOolk",
+      "date": "2025-07-22",
+      "last_updated": "2025-07-24"
+    },
+    {
+      "title": "Teletubbies | Children's TV classic",
+      "url": "https://www.teletubbies.com",
+      "date": "2024-08-15",
+      "last_updated": "2025-07-24"
+    },
+    {
+      "title": "Teletubbies: 2 HOUR Compilation | Season 16, Episodes ...",
+      "url": "https://www.youtube.com/watch?v=zXfzzxH1q8o",
+      "date": "2021-09-23",
+      "last_updated": "2025-07-01"
+    },
+    {
+      "title": "Teletubbies (@teletubbieshq) • Instagram photos and videos",
+      "url": "https://www.instagram.com/teletubbieshq/?hl=en",
+      "date": null,
+      "last_updated": null
+    },
+    {
+      "title": "Teletubbies - WildBrain",
+      "url": "https://www.youtube.com/@teletubbies",
+      "date": "2025-03-25",
+      "last_updated": "2025-03-27"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "**Teletubbies** is a British children's television series created by Anne Wood and Andrew Davenport for the BBC, first airing in 1997[1][4]. The show centers on four colorful characters—**Tinky Winky**, **Dipsy**, **Laa-Laa**, and **Po**—who live in the whimsical world of Teletubbyland, engaging in playful adventures designed to foster early childhood development[1][4][6].\n\nThe Teletubbies are known for their distinctive appearance: each has a unique color, a television screen on their belly, and a different shaped antenna on their head. Their language is simple and repetitive, intended to appeal to very young children and support language acquisition[4][6]. The show features recurring motifs such as the **baby-faced sun**, the **Tubby Custard machine**, and the **Noo-Noo** vacuum cleaner, all set in a landscape of rolling green hills and oversized flowers[1][4][6].\n\n**Educational Philosophy and Impact**\n- The series was created by child development experts with the goal of supporting skills like communication, gross motor development, and emotional intelligence through joyful exploration and visual anticipation[4].\n- Episodes typically involve the Teletubbies engaging in activities like running races, bouncing on trampolines, or playing games, often mirroring real-life experiences of young children[5][2].\n- The show is designed to celebrate individuality and belonging, encouraging children to be themselves and learn through play—even if things get a little messy[4].\n\n**Cultural Influence and Reception**\n- Teletubbies became a global phenomenon, recognized for its surreal, colorful style and unique approach to preschool programming[1].\n- The show has inspired merchandise, live shows, and even fashion collaborations, maintaining its popularity with both new audiences and nostalgic adults[6].\n- While beloved by many, the show has also attracted criticism and controversy, sometimes being interpreted in ways far removed from its intended purpose. For example, some adult viewers have offered satirical or critical takes, reading deeper meanings into the show’s symbolism, but these are not supported by the creators or mainstream scholarship[3].\n\n**Key Characters**\n- **Tinky Winky**: Tallest, purple, triangular antenna.\n- **Dipsy**: Green, straight antenna.\n- **Laa-Laa**: Yellow, curly antenna.\n- **Po**: Smallest, red, circular antenna[1][4][6].\n\n**Modern Presence**\n- Teletubbies continues to reach new generations through streaming platforms, official websites, and social media, with new episodes and compilations regularly released[6][9].\n- The franchise remains committed to its original mission of joyful, inclusive learning for preschoolers, with interactive content and community engagement[4][6].\n\n**Caveats**\n- Some online descriptions and reviews, especially those aimed at adults, may present the show in a satirical or critical light that does not reflect its educational intent or the experience of its primary audience—preschool children[3].\n\nIn summary, Teletubbies is a pioneering, visually distinctive children’s series designed to support early learning through play, imagination, and a sense of belonging, with a lasting impact on children’s media worldwide[1][4][6]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

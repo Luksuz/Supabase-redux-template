@@ -1,0 +1,100 @@
+{
+  "id": "536aa0c3-3389-4b39-ab48-4cfb1e0f5ffa",
+  "model": "sonar-pro",
+  "created": 1753451546,
+  "usage": {
+    "prompt_tokens": 68,
+    "completion_tokens": 892,
+    "total_tokens": 960,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://es.wikipedia.org/wiki/Tuco_Salamanca",
+    "https://responsejournal.net/issue/2023-11/article/latinx-margins-american",
+    "https://www.instagram.com/p/DFC0o_EqKXc/?hl=en",
+    "https://screenrant.com/breaking-bad-twins-no-talking/",
+    "https://www.youtube.com/watch?v=a3MPjlFoM68",
+    "https://www.passionweiss.com/2020/06/24/apply-yourself-a-definitive-ranking-of-all-the-schemes-scams-and-ops-in-the-vince-gilligan-extended-universe/",
+    "https://www.tiktok.com/@breakingbadparadise/video/7224963282459708698",
+    "https://en.wikipedia.org/wiki/Raymond_Cruz",
+    "https://www.youtube.com/shorts/Innn2lwkm5o",
+    "https://en.wikipedia.org/wiki/Walter_White_(Breaking_Bad)"
+  ],
+  "search_results": [
+    {
+      "title": "Tuco Salamanca - Wikipedia, la enciclopedia libre",
+      "url": "https://es.wikipedia.org/wiki/Tuco_Salamanca",
+      "date": "2018-08-26",
+      "last_updated": "2025-05-18"
+    },
+    {
+      "title": "Latinx On the Margins of American Television: Breaking Bad",
+      "url": "https://responsejournal.net/issue/2023-11/article/latinx-margins-american",
+      "date": "2023-11-01",
+      "last_updated": "2025-07-23"
+    },
+    {
+      "title": "\"\"Tuco Salamanca\" fue uno de los primeros villanos de ... - Instagram",
+      "url": "https://www.instagram.com/p/DFC0o_EqKXc/?hl=en",
+      "date": null,
+      "last_updated": null
+    },
+    {
+      "title": "Why Breaking Bad's Twins Barely Talk (And Why It Doesn't Work)",
+      "url": "https://screenrant.com/breaking-bad-twins-no-talking/",
+      "date": "2023-07-28",
+      "last_updated": "2024-09-15"
+    },
+    {
+      "title": "La Verdad No Contada Sobre El Actor Que Hizo De Tuco ... - YouTube",
+      "url": "https://www.youtube.com/watch?v=a3MPjlFoM68",
+      "date": "2021-05-21",
+      "last_updated": "2023-12-29"
+    },
+    {
+      "title": "Apply Yourself: A Definitive Ranking of All the Schemes, Scams and ...",
+      "url": "https://www.passionweiss.com/2020/06/24/apply-yourself-a-definitive-ranking-of-all-the-schemes-scams-and-ops-in-the-vince-gilligan-extended-universe/",
+      "date": "2020-06-24",
+      "last_updated": "2025-07-16"
+    },
+    {
+      "title": "Muerte de Tuco en Breaking Bad: Análisis y Opiniones ❤ - TikTok",
+      "url": "https://www.tiktok.com/@breakingbadparadise/video/7224963282459708698",
+      "date": "2023-04-22",
+      "last_updated": null
+    },
+    {
+      "title": "Raymond Cruz - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Raymond_Cruz",
+      "date": "2025-03-21",
+      "last_updated": "2025-03-22"
+    },
+    {
+      "title": "TUCO SALAMANCA SIENDO EL MEJOR PERSONAJE ... - YouTube",
+      "url": "https://www.youtube.com/shorts/Innn2lwkm5o",
+      "date": "2024-05-06",
+      "last_updated": null
+    },
+    {
+      "title": "Walter White (Breaking Bad) - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Walter_White_(Breaking_Bad)",
+      "date": "2009-04-23",
+      "last_updated": "2025-06-27"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "**Tuco Salamanca** is a major fictional character in the American TV series *Breaking Bad* and its prequel *Better Call Saul*, portrayed by Raymond Cruz[1][8]. He is depicted as a **Mexican methamphetamine dealer** based in Albuquerque, New Mexico, and is one of the most violent and unpredictable antagonists in the early seasons of both series[1][2].\n\n### Character Overview\n\n- **Role:** Tuco is introduced as a high-ranking distributor for the Juárez Cartel, known for his **compulsive, aggressive behavior** and **addiction to methamphetamine**[1][2]. His volatility and brutality make him a feared figure in the criminal underworld.\n- **First Appearance:** He is first encountered by Jesse Pinkman and Walter White when they seek a distributor for their meth. Tuco's introduction is marked by his **irrational violence**—he severely beats Jesse with a pillowcase full of cash during their first deal[2].\n- **Notable Actions:** Tuco is infamous for killing his own henchman, No Doze, for a perceived slight, demonstrating his **paranoia and need for respect**[1][6]. His unpredictable rages and violent outbursts are central to his characterization.\n\n### Cultural and Narrative Significance\n\n- **Representation:** Tuco is often cited as a representation of the \"historical Latino criminal image,\" embodying stereotypes of machismo and uncontrollable rage[2]. His actions are driven by a mix of **desire for authority, wealth, and a pathological devotion to family**, a recurring theme in the Salamanca crime family[2].\n- **Family Ties:** Tuco is the nephew of Hector Salamanca and cousin to the Salamanca twins, Marco and Leonel. The family's code of vengeance and loyalty is a key narrative driver, especially after Tuco's death, which motivates his cousins to seek revenge[2][4].\n\n### Behind the Scenes\n\n- **Portrayal:** Raymond Cruz, who plays Tuco, drew on his experiences growing up in East Los Angeles and witnessing real-life violence and drug abuse to inform his performance[8]. Despite his intense on-screen persona, Cruz is described as quiet and introverted in real life[5].\n- **Character Fate:** Tuco's time on *Breaking Bad* is relatively brief but impactful. He is ultimately killed by DEA agent Hank Schrader in a shootout after kidnapping Walt and Jesse and planning to force them to cook meth for the cartel[7][10]. Cruz reportedly requested the character be killed off due to the demanding filming schedule and personal reasons, including his wife's dislike of the character[5].\n\n### Legacy and Influence\n\n- **Villain Status:** Tuco is widely regarded as one of the most memorable early villains in *Breaking Bad*, setting the tone for the show's depiction of criminal violence and unpredictability[3][7].\n- **Inspiration:** The character's name is a tribute to \"Tuco Ramírez,\" the bandit played by Eli Wallach in the classic film *The Good, the Bad and the Ugly* (1966)[3].\n\n### Spanish-Language Adaptation\n\n- In the Colombian adaptation of *Breaking Bad*, titled *Metástasis*, Tuco Salamanca also appears as a key antagonist, with notable scenes adapted for a Spanish-speaking audience[9].\n\n### Key Dramatic Moments\n\n- **Violence and Paranoia:** Tuco's murder of No Doze and his brutal treatment of Jesse are among the show's most shocking early scenes[1][2][6].\n- **Death:** His sudden death at the hands of Hank Schrader is a pivotal moment, triggering a cycle of revenge within the Salamanca family[7][10].\n\n### Limitations\n\n- Most available articles and analyses focus on Tuco's role as a character and his cultural significance within *Breaking Bad* and *Better Call Saul*. There is limited scholarly discussion in Spanish-language sources specifically, but the character is widely discussed in fan communities and critical essays[1][2][3][7].\n\n**In summary:** Tuco Salamanca is a central, violent figure in the *Breaking Bad* universe, whose actions and personality have left a lasting impact on the series' narrative and its portrayal of Latino criminal archetypes[1][2][3][8]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}
