@@ -230,15 +230,24 @@ export function AudioGenerator() {
 
       // Fetch custom admin voices for the selected provider
       try {
+        console.log('🎤 Fetching custom voices for provider:', selectedProvider)
         const response = await fetch('/api/admin/ai-voices');
         const data = await response.json();
+        console.log('Custom voices API response:', data)
         if (data.success) {
           // Map provider names for custom voice filtering
           const providerForCustomVoices = selectedProvider === 'fal-playai' ? 'playai' : 
                                          selectedProvider === 'fal-minimax' ? 'minimax' : 
                                          selectedProvider;
-          const providerCustomVoices = data.voices.filter((voice: CustomVoice) => voice.provider === providerForCustomVoices);
+          console.log('Filtering for provider:', providerForCustomVoices)
+          const providerCustomVoices = data.voices.filter((voice: CustomVoice) => {
+            console.log('Checking voice:', voice, 'against provider:', providerForCustomVoices)
+            return voice.provider === providerForCustomVoices
+          });
+          console.log('Filtered custom voices:', providerCustomVoices)
           setCustomVoices(providerCustomVoices);
+        } else {
+          console.warn('Custom voices API returned error:', data.error)
         }
       } catch (error) {
         console.warn('Failed to fetch custom voices:', error);
@@ -250,20 +259,83 @@ export function AudioGenerator() {
 
   // Auto-select first voice when voices are loaded for all providers
   useEffect(() => {
-    if (selectedProvider === 'fal-playai' && playaiVoices.length > 0) {
-      // If current voice is not in the fetched voices, select the first available
-      const currentVoiceExists = playaiVoices.some(voice => voice.id === selectedVoice);
-      if (!currentVoiceExists) {
-        dispatch(setSelectedVoice(playaiVoices[0].id));
+    console.log('🎤 Auto-selection effect triggered:', {
+      selectedProvider,
+      selectedVoice,
+      murfVoicesLength: murfVoices.length,
+      elevenlabsVoicesLength: elevenlabsVoices.length,
+      speechifyVoicesLength: speechifyVoices.length,
+      playaiVoicesLength: playaiVoices.length,
+      minimaxVoicesLength: minimaxVoices.length,
+      customVoicesLength: customVoices.length
+    });
+    
+    // Function to check if current voice is valid for any voice source
+    const isCurrentVoiceValid = () => {
+      const currentVoiceInCustomVoices = customVoices.some(voice => voice.voice_id === selectedVoice);
+      
+      if (selectedProvider === 'murf') {
+        const currentVoiceInApiVoices = murfVoices.some(voice => voice.voiceId === selectedVoice);
+        return currentVoiceInApiVoices || currentVoiceInCustomVoices;
+      } else if (selectedProvider === 'elevenlabs') {
+        const currentVoiceInApiVoices = elevenlabsVoices.some(voice => voice.voice_id === selectedVoice);
+        return currentVoiceInApiVoices || currentVoiceInCustomVoices;
+      } else if (selectedProvider === 'speechify') {
+        const currentVoiceInApiVoices = speechifyVoices.some(voice => voice.id === selectedVoice);
+        return currentVoiceInApiVoices || currentVoiceInCustomVoices;
+      } else if (selectedProvider === 'fal-playai') {
+        const currentVoiceInApiVoices = playaiVoices.some(voice => voice.id === selectedVoice);
+        return currentVoiceInApiVoices || currentVoiceInCustomVoices;
+      } else if (selectedProvider === 'fal-minimax') {
+        const currentVoiceInApiVoices = minimaxVoices.some(voice => voice.id === selectedVoice);
+        return currentVoiceInApiVoices || currentVoiceInCustomVoices;
       }
-    } else if (selectedProvider === 'fal-minimax' && minimaxVoices.length > 0) {
-      // If current voice is not in the fetched voices, select the first available
-      const currentVoiceExists = minimaxVoices.some(voice => voice.id === selectedVoice);
-      if (!currentVoiceExists) {
-        dispatch(setSelectedVoice(minimaxVoices[0].id));
+      return false;
+    };
+    
+    // Auto-select appropriate default if current voice is not valid
+    if (!isCurrentVoiceValid()) {
+      console.log('🎤 Current voice not valid, selecting default for provider:', selectedProvider);
+      
+      if (selectedProvider === 'murf' && murfVoices.length > 0) {
+        const defaultVoice = murfVoices[0].voiceId;
+        console.log('🎤 Auto-selecting first Murf voice:', defaultVoice);
+        dispatch(setSelectedVoice(defaultVoice));
+      } else if (selectedProvider === 'elevenlabs' && elevenlabsVoices.length > 0) {
+        const defaultVoice = elevenlabsVoices[0].voice_id;
+        console.log('🎤 Auto-selecting first ElevenLabs voice:', defaultVoice);
+        dispatch(setSelectedVoice(defaultVoice));
+      } else if (selectedProvider === 'speechify' && speechifyVoices.length > 0) {
+        const defaultVoice = speechifyVoices[0].id;
+        console.log('🎤 Auto-selecting first Speechify voice:', defaultVoice);
+        dispatch(setSelectedVoice(defaultVoice));
+      } else if (selectedProvider === 'fal-playai' && playaiVoices.length > 0) {
+        const defaultVoice = playaiVoices[0].id;
+        console.log('🎤 Auto-selecting first PlayAI voice:', defaultVoice);
+        dispatch(setSelectedVoice(defaultVoice));
+      } else if (selectedProvider === 'fal-minimax' && minimaxVoices.length > 0) {
+        const defaultVoice = minimaxVoices[0].id;
+        console.log('🎤 Auto-selecting first Minimax voice:', defaultVoice);
+        dispatch(setSelectedVoice(defaultVoice));
+      } else {
+        // Fallback to provider defaults if no API voices available
+        const fallbackDefaults = {
+          'murf': 'en-US-ken',
+          'elevenlabs': '21m00Tcm4TlvDq8ikWAM',
+          'speechify': 'henry',
+          'fal-playai': 'Jennifer (English (US)/American)',
+          'fal-minimax': 'female_narrator'
+        };
+        const fallbackVoice = fallbackDefaults[selectedProvider];
+        if (fallbackVoice) {
+          console.log('🎤 Using fallback voice for', selectedProvider, ':', fallbackVoice);
+          dispatch(setSelectedVoice(fallbackVoice));
+        }
       }
+    } else {
+      console.log('🎤 Current voice is valid, keeping:', selectedVoice);
     }
-  }, [selectedProvider, playaiVoices, minimaxVoices, selectedVoice, dispatch]);
+  }, [selectedProvider, murfVoices, elevenlabsVoices, speechifyVoices, playaiVoices, minimaxVoices, customVoices, selectedVoice, dispatch]);
 
   // Initialize editable script
   useEffect(() => {
@@ -615,11 +687,18 @@ export function AudioGenerator() {
   const audioProgressPercentage = audioProgress.total > 0 ? Math.round((audioProgress.completed / audioProgress.total) * 100) : 0
 
   const renderVoiceSelector = () => {
+    console.log('🎤 Rendering voice selector for provider:', selectedProvider)
+    console.log('🎤 Current selected voice:', selectedVoice)
+    console.log('🎤 Available custom voices:', customVoices)
+    
     if (selectedProvider === 'murf') {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+          onValueChange={(value: string) => {
+            console.log('🎤 Voice selection changed to:', value)
+            dispatch(setSelectedVoice(value))
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -659,7 +738,10 @@ export function AudioGenerator() {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+          onValueChange={(value: string) => {
+            console.log('🎤 ElevenLabs voice selection changed to:', value)
+            dispatch(setSelectedVoice(value))
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -669,11 +751,11 @@ export function AudioGenerator() {
                 <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
                   API Voices
                 </div>
-            {elevenlabsVoices.map((voice) => (
-              <SelectItem key={voice.voice_id} value={voice.voice_id}>
-                {voice.name} ({voice.labels.accent}, {voice.category})
-              </SelectItem>
-            ))}
+                {elevenlabsVoices.map((voice) => (
+                  <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                    {voice.name} ({voice.labels?.accent || 'Unknown'}, {voice.category || 'Unknown'})
+                  </SelectItem>
+                ))}
               </>
             )}
             

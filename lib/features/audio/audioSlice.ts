@@ -103,21 +103,17 @@ export const audioSlice = createSlice({
   reducers: {
     setSelectedProvider: (state, action: PayloadAction<AudioProvider>) => {
       state.selectedProvider = action.payload
-      // Reset voice selection when switching providers
+      // Only set default voices/models, but preserve selectedVoice
+      // Let the component handle voice validation and auto-selection
       if (action.payload === 'murf') {
-        state.selectedVoice = 'en-US-ken' // Default Murf voice
         state.selectedModel = 'standard'
       } else if (action.payload === 'elevenlabs') {
-        state.selectedVoice = '21m00Tcm4TlvDq8ikWAM' // Default ElevenLabs voice (Rachel)
         state.selectedModel = 'eleven_multilingual_v2'
       } else if (action.payload === 'speechify') {
-        state.selectedVoice = 'henry' // Default Speechify voice
         state.selectedModel = 'simba-base'
       } else if (action.payload === 'fal-playai') {
-        state.selectedVoice = 'Jennifer (English (US)/American)' // Default PlayAI voice (fallback compatible)
         state.selectedModel = 'playai-tts-v3'
       } else if (action.payload === 'fal-minimax') {
-        state.selectedVoice = 'female_narrator' // Default Minimax voice (fallback compatible)
         state.selectedModel = 'minimax-speech-02-turbo'
       }
     },
