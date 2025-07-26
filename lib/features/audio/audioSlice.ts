@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TextChunk } from '../../text-chunking'
 
-export type AudioProvider = 'murf' | 'elevenlabs' | 'speechify' | 'fal-playai' | 'fal-minimax'
+export type AudioProvider = 'murf' | 'elevenlabs' | 'speechify' | 'fal-playai' | 'playai' | 'minimax'
 
 export interface MusicTrack {
   id: number;
@@ -113,8 +113,8 @@ export const audioSlice = createSlice({
         state.selectedModel = 'simba-base'
       } else if (action.payload === 'fal-playai') {
         state.selectedModel = 'playai-tts-v3'
-      } else if (action.payload === 'fal-minimax') {
-        state.selectedModel = 'minimax-speech-02-turbo'
+      } else if (action.payload === 'minimax') {
+        state.selectedModel = 'speech-02-hd'
       }
     },
     

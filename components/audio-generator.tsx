@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   setSelectedProvider,
@@ -92,6 +92,7 @@ export function AudioGenerator() {
   const [activeAudioPreview, setActiveAudioPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const manualSelectionRef = useRef<boolean>(false);
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -169,25 +170,7 @@ export function AudioGenerator() {
           showMessage('Error fetching Play.ai voices for FAL', 'error');
           setPlayaiVoices([]);
         }
-      } else if (selectedProvider === 'fal-minimax') {
-        try {
-          const response = await fetch('/api/minimax-voices');
-          const data = await response.json();
-          
-          if (data.success) {
-            console.log('Minimax voices response for FAL:', data.voices);
-            console.log('Valid Minimax voices loaded for FAL:', data.voices.length);
-            setMinimaxVoices(data.voices);
-          } else {
-            console.error('Minimax API error for FAL:', data.error);
-            showMessage('Failed to load Minimax voices for FAL: ' + (data.error || 'Unknown error'), 'error');
-            setMinimaxVoices([]);
-          }
-        } catch (error) {
-          console.error('Error fetching Minimax voices for FAL:', error);
-          showMessage('Error fetching Minimax voices for FAL', 'error');
-          setMinimaxVoices([]);
-        }
+
       } else if (selectedProvider === 'playai') {
         try {
           const response = await fetch('/api/playai-voices');
@@ -237,7 +220,6 @@ export function AudioGenerator() {
         if (data.success) {
           // Map provider names for custom voice filtering
           const providerForCustomVoices = selectedProvider === 'fal-playai' ? 'playai' : 
-                                         selectedProvider === 'fal-minimax' ? 'minimax' : 
                                          selectedProvider;
           console.log('Filtering for provider:', providerForCustomVoices)
           const providerCustomVoices = data.voices.filter((voice: CustomVoice) => {
@@ -286,7 +268,7 @@ export function AudioGenerator() {
       } else if (selectedProvider === 'fal-playai') {
         const currentVoiceInApiVoices = playaiVoices.some(voice => voice.id === selectedVoice);
         return currentVoiceInApiVoices || currentVoiceInCustomVoices;
-      } else if (selectedProvider === 'fal-minimax') {
+      } else if (selectedProvider === 'minimax') {
         const currentVoiceInApiVoices = minimaxVoices.some(voice => voice.id === selectedVoice);
         return currentVoiceInApiVoices || currentVoiceInCustomVoices;
       }
@@ -294,7 +276,8 @@ export function AudioGenerator() {
     };
     
     // Auto-select appropriate default if current voice is not valid
-    if (!isCurrentVoiceValid()) {
+    // But don't override manual selections
+    if (!isCurrentVoiceValid() && !manualSelectionRef.current) {
       console.log('🎤 Current voice not valid, selecting default for provider:', selectedProvider);
       
       if (selectedProvider === 'murf' && murfVoices.length > 0) {
@@ -313,7 +296,7 @@ export function AudioGenerator() {
         const defaultVoice = playaiVoices[0].id;
         console.log('🎤 Auto-selecting first PlayAI voice:', defaultVoice);
         dispatch(setSelectedVoice(defaultVoice));
-      } else if (selectedProvider === 'fal-minimax' && minimaxVoices.length > 0) {
+      } else if (selectedProvider === 'minimax' && minimaxVoices.length > 0) {
         const defaultVoice = minimaxVoices[0].id;
         console.log('🎤 Auto-selecting first Minimax voice:', defaultVoice);
         dispatch(setSelectedVoice(defaultVoice));
@@ -324,7 +307,8 @@ export function AudioGenerator() {
           'elevenlabs': '21m00Tcm4TlvDq8ikWAM',
           'speechify': 'henry',
           'fal-playai': 'Jennifer (English (US)/American)',
-          'fal-minimax': 'female_narrator'
+          'playai': 'Jennifer (English (US)/American)',
+          'minimax': 'female_narrator'
         };
         const fallbackVoice = fallbackDefaults[selectedProvider];
         if (fallbackVoice) {
@@ -332,6 +316,8 @@ export function AudioGenerator() {
           dispatch(setSelectedVoice(fallbackVoice));
         }
       }
+    } else if (manualSelectionRef.current) {
+      console.log('🎤 Manual selection in progress, skipping auto-selection');
     } else {
       console.log('🎤 Current voice is valid, keeping:', selectedVoice);
     }
@@ -480,7 +466,7 @@ export function AudioGenerator() {
           ? '/api/generate-elevenlabs-audio'
           : selectedProvider === 'speechify'
             ? '/api/generate-speechify-audio'
-            : selectedProvider === 'fal-playai' || selectedProvider === 'fal-minimax'
+            : selectedProvider === 'fal-playai'
               ? '/api/generate-fal-audio'
               : selectedProvider === 'playai'
                 ? '/api/generate-playai-audio'
@@ -503,9 +489,11 @@ export function AudioGenerator() {
           dispatch(updateChunkProgress({ chunkIndex: chunk.chunkIndex, status: 'processing' }));
           
           try {
+            // Use correct parameter name based on provider
+            const voiceParam = (selectedProvider === 'minimax' || selectedProvider === 'fal-playai') ? 'voice' : 'voiceId';
             const requestBody = {
               text: chunk.text,
-              voiceId: selectedVoice,
+              [voiceParam]: selectedVoice,
               model: selectedModel,
               chunkIndex: chunk.chunkIndex,
               sessionId: sessionId,
@@ -697,7 +685,12 @@ export function AudioGenerator() {
           value={selectedVoice} 
           onValueChange={(value: string) => {
             console.log('🎤 Voice selection changed to:', value)
+            manualSelectionRef.current = true;
             dispatch(setSelectedVoice(value))
+            // Reset manual selection flag after a short delay
+            setTimeout(() => {
+              manualSelectionRef.current = false;
+            }, 100);
           }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -738,10 +731,14 @@ export function AudioGenerator() {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => {
-            console.log('🎤 ElevenLabs voice selection changed to:', value)
-            dispatch(setSelectedVoice(value))
-          }}
+                     onValueChange={(value: string) => {
+             console.log('🎤 ElevenLabs voice selection changed to:', value)
+             manualSelectionRef.current = true;
+             dispatch(setSelectedVoice(value))
+             setTimeout(() => {
+               manualSelectionRef.current = false;
+             }, 100);
+           }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -781,7 +778,14 @@ export function AudioGenerator() {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+          onValueChange={(value: string) => {
+            console.log('🎤 Speechify voice selection changed to:', value)
+            manualSelectionRef.current = true;
+            dispatch(setSelectedVoice(value))
+            setTimeout(() => {
+              manualSelectionRef.current = false;
+            }, 100);
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -831,7 +835,14 @@ export function AudioGenerator() {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+          onValueChange={(value: string) => {
+            console.log('🎤 PlayAI voice selection changed to:', value)
+            manualSelectionRef.current = true;
+            dispatch(setSelectedVoice(value))
+            setTimeout(() => {
+              manualSelectionRef.current = false;
+            }, 100);
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -907,11 +918,18 @@ export function AudioGenerator() {
       );
     }
     
-    if (selectedProvider === 'fal-minimax') {
+    if (selectedProvider === 'minimax') {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+          onValueChange={(value: string) => {
+            console.log('🎤 Minimax Direct voice selection changed to:', value)
+            manualSelectionRef.current = true;
+            dispatch(setSelectedVoice(value))
+            setTimeout(() => {
+              manualSelectionRef.current = false;
+            }, 100);
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -919,7 +937,7 @@ export function AudioGenerator() {
             {minimaxVoices.length > 0 && (
               <>
                 <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
-                  Minimax Voices (via FAL)
+                  Minimax Voices
                 </div>
                 {minimaxVoices.map((voice) => (
                   <SelectItem key={voice.id} value={voice.id}>
@@ -986,7 +1004,14 @@ export function AudioGenerator() {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+          onValueChange={(value: string) => {
+            console.log('🎤 PlayAI (fallback) voice selection changed to:', value)
+            manualSelectionRef.current = true;
+            dispatch(setSelectedVoice(value))
+            setTimeout(() => {
+              manualSelectionRef.current = false;
+            }, 100);
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -1036,7 +1061,14 @@ export function AudioGenerator() {
       return (
         <Select 
           value={selectedVoice} 
-          onValueChange={(value: string) => dispatch(setSelectedVoice(value))}
+          onValueChange={(value: string) => {
+            console.log('🎤 Minimax (fallback) voice selection changed to:', value)
+            manualSelectionRef.current = true;
+            dispatch(setSelectedVoice(value))
+            setTimeout(() => {
+              manualSelectionRef.current = false;
+            }, 100);
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -1143,7 +1175,7 @@ export function AudioGenerator() {
       ];
       return playaiVoicesFallback.find(v => v.value === voiceId)?.label || voiceId;
     }
-    if (provider === 'fal-minimax') {
+    if (provider === 'minimax') {
       // First check fetched Minimax voices
       const minimaxVoice = minimaxVoices.find(v => v.id === voiceId);
       if (minimaxVoice) {
@@ -1246,8 +1278,8 @@ export function AudioGenerator() {
                   <Label htmlFor="fal-playai">FAL PlayAI</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="fal-minimax" id="fal-minimax" />
-                  <Label htmlFor="fal-minimax">FAL Minimax</Label>
+                  <RadioGroupItem value="minimax" id="minimax" />
+                  <Label htmlFor="minimax">Minimax</Label>
                 </div>
               </RadioGroup>
               </div>

@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'minimax-speech-02-turbo':
+        console.log('🎤 FAL Minimax - Received voice parameter:', voice);
+        console.log('🎤 FAL Minimax - Will use voice:', voice || "male_narrator");
+        
         result = await fal.subscribe("fal-ai/minimax/speech-02-turbo", {
           input: {
             text: text,
@@ -73,6 +76,8 @@ export async function POST(request: NextRequest) {
             }
           },
         });
+        
+        console.log('🎤 FAL Minimax result:', result);
         
         // Extract audio URL from Minimax response
         if ((result.data as any)?.audio?.url) {
