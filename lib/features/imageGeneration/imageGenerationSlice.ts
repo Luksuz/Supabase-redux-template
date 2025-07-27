@@ -88,6 +88,17 @@ export const imageGenerationSlice = createSlice({
       state.sceneExtractionError = null
     },
 
+    updateScenePrompt: (state, action: PayloadAction<{ index: number, newPrompt: string }>) => {
+      const { index, newPrompt } = action.payload
+      if (state.extractedScenes[index]) {
+        state.extractedScenes[index].imagePrompt = newPrompt
+      }
+    },
+
+    addCustomScene: (state, action: PayloadAction<ExtractedScene>) => {
+      state.extractedScenes.push(action.payload)
+    },
+
     // Generation lifecycle
     startGeneration: (state, action: PayloadAction<{ 
       id: string
@@ -192,6 +203,8 @@ export const {
   completeSceneExtraction,
   failSceneExtraction,
   clearExtractedScenes,
+  updateScenePrompt,
+  addCustomScene,
   startGeneration,
   updateGenerationInfo,
   completeGeneration,

@@ -8,6 +8,8 @@ interface ScriptSection {
   title: string;
   writingInstructions: string;
   image_generation_prompt: string;
+  narrativeRole?: string;
+  storyArc?: string;
 }
 
 // Simple function to remove markdown formatting
@@ -30,7 +32,8 @@ export async function POST(request: Request) {
       title, 
       theme, 
       sections, 
-      additionalPrompt, 
+      additionalPrompt,
+      scriptPrompt = "", // New separate prompt for script generation
       researchContext, 
       forbiddenWords, 
       modelName = "gpt-4o-mini",
@@ -47,6 +50,7 @@ export async function POST(request: Request) {
     console.log("- Audience:", audience || "Not specified");
     console.log("- Sections:", Array.isArray(sections) ? `${sections.length} sections` : "None");
     console.log("- Additional Prompt:", additionalPrompt ? "Provided" : "None");
+    console.log("- Script Prompt:", scriptPrompt ? "Provided" : "None");
     console.log("- Research Context:", researchContext ? "Provided" : "None");
     console.log("- Forbidden Words:", forbiddenWords ? "Provided" : "None");
     console.log("- Model Name:", modelName);
@@ -93,9 +97,18 @@ Use this research to inform the content, themes, and narrative direction of your
 `;
     }
     
+    // Add script-specific prompt if provided
+    if (scriptPrompt && scriptPrompt.trim()) {
+      additionalInstructions += `
+SCRIPT GENERATION INSTRUCTIONS:
+${scriptPrompt.trim()}
+`;
+    }
+    
+    // Add general additional prompt if provided
     if (additionalPrompt && additionalPrompt.trim()) {
       additionalInstructions += `
-ADDITIONAL INSTRUCTIONS:
+ADDITIONAL GENERAL INSTRUCTIONS:
 ${additionalPrompt.trim()}
 `;
     }
@@ -105,8 +118,9 @@ ${additionalPrompt.trim()}
       const wordsList = forbiddenWords.split(',').map((word: string) => word.trim()).filter(Boolean);
       if (wordsList.length > 0) {
         additionalInstructions += `
-FORBIDDEN WORDS:
-The following words should be completely avoided in your script: ${wordsList.join(', ')}.
+FORBIDDEN WORDS AND PHRASES:
+The following words and phrases should be completely avoided in your script: ${wordsList.join(', ')}.
+Also avoid: "Would you like me to continue", "Let me continue", "Shall I proceed", "Do you want more", and similar interactive prompts.
 `;
       }
     }
@@ -119,62 +133,113 @@ Your script must be about "${title}" and the theme "${theme || 'provided'}".
 If any inspirational content was used during outline creation, it was ONLY for style reference.
 DO NOT include content, topics, or subject matter from any reference material.
 Focus exclusively on creating a story about "${title}".
+
+CONSISTENCY REQUIREMENTS:
+- Use the same character names throughout (if any characters are introduced)
+- Use the same location names throughout (if any locations are mentioned)
+- Use the same factual details throughout (dates, statistics, etc.)
+- Maintain the same tone and style across all sections
+- Ensure each section builds naturally on the previous ones without repetition
 `;
+
+    // Create character and setting consistency tracker
+    const consistencyContext = {
+      characters: new Set<string>(),
+      locations: new Set<string>(),
+      keyFacts: new Set<string>()
+    };
 
     // Create an async function to process a single section
     const processSection = async (section: ScriptSection, index: number) => {
       try {
         console.log(`Started processing section ${index + 1}: ${section.title}`);
         
+        // Build context from previous sections for consistency
+        let contextInformation = "";
+        if (index > 0) {
+          contextInformation = `
+PREVIOUS SECTION CONTEXT FOR CONSISTENCY:
+This is section ${index + 1} of ${sections.length}. Maintain consistency with the story established in previous sections.
+`;
+        }
+
+        // Special handling for different section roles
+        let roleSpecificInstructions = "";
+        if (index === 0) {
+          roleSpecificInstructions = `
+OPENING SECTION REQUIREMENTS:
+- Establish the story foundation without spoiling later developments
+- Create an engaging opening that naturally leads into the story
+- Set up key elements that will be developed in later sections
+- DO NOT summarize the entire story in this opening section
+`;
+        } else if (index === sections.length - 1) {
+          roleSpecificInstructions = `
+FINAL SECTION REQUIREMENTS:
+- Provide a satisfying conclusion to the story established in previous sections
+- Address any questions or conflicts introduced earlier
+- Bring the narrative to a meaningful close
+- DO NOT leave the story incomplete or with major loose ends
+- This must be a proper ending, not a cliffhanger or continuation prompt
+`;
+        } else {
+          roleSpecificInstructions = `
+MIDDLE SECTION REQUIREMENTS:
+- Continue developing the story from previous sections
+- Advance the narrative meaningfully toward the conclusion
+- Build on what was established without repeating introductory material
+- Prepare for the resolution that will come in the final section
+`;
+        }
+        
         // Create a prompt for this section
         const sectionPrompt = `
-You are a professional writer creating a section of a script based on the following outline:
+You are a professional scriptwriter creating section ${index + 1} of ${sections.length} of a complete narrative script.
 
+SCRIPT OVERVIEW:
 TITLE: ${title}
 THEME: ${theme || "No specific theme provided"}
 POV: Write in ${povSelection} perspective
 FORMAT: This is a ${scriptFormat} format script
 ${audience ? `TARGET AUDIENCE: ${audience}` : ""}
+
+CURRENT SECTION DETAILS:
 SECTION ${index + 1} TITLE: ${section.title}
+SECTION ROLE: ${section.narrativeRole || 'Story progression'}
+STORY ARC CONTRIBUTION: ${section.storyArc || 'Advances the narrative'}
 WRITING INSTRUCTIONS: ${section.writingInstructions}
+
+${contextInformation}
+${roleSpecificInstructions}
 ${additionalInstructions}
 
-CRITICAL: Your script must be about "${title}" - create content that directly relates to this title.
-If any reference material was mentioned in the writing instructions, use it ONLY for style inspiration, not content.
+CRITICAL FORMATTING AND CONTENT RULES:
+1. Generate ONLY the spoken narrative content for this section
+2. Do NOT include any titles, headers, section names, or meta-commentary
+3. Do NOT begin with greetings, introductions, or announcements
+4. Start directly with the narrative content
+5. Write in ${povSelection} perspective throughout
+6. Follow ${scriptFormat} format conventions
+7. Do NOT use interactive phrases like "Would you like me to continue", "Let me continue", etc.
+8. Do NOT repeat content from other sections - each section should advance the story
+9. Maintain consistency in names, places, and facts throughout the script
+10. Focus on quality storytelling rather than reaching arbitrary length targets
 
-Based on the WRITING INSTRUCTIONS, generate ONLY the text that is to be spoken aloud by a narrator for this section of the script.
-Your response must exclusively contain the narrative and dialogue that will be voiced.
-
-IMPORTANT FORMATTING RULES:
-1. Do NOT begin your script with the title, section name, or any form of header/title text.
-2. Do NOT include any greetings like "Hi!", "Hello", or similar phrases at the beginning.
-3. Start directly with the narrative content - for example, begin with a description of a scene or action.
-4. Do NOT repeat the title or section name within the content.
-5. Write in ${povSelection} perspective throughout the script.
-6. Follow the ${scriptFormat} format conventions while maintaining spoken narrative style.
-${audience ? `7. Tailor the language and tone for the target audience: ${audience}.` : ""}
-
-MARKDOWN FORMATTING FOR SPECIAL ELEMENTS:
-- When including any Call-to-Action (CTA) text specified in the writing instructions, wrap it in **bold markdown** (e.g., **Subscribe to our channel for more amazing content!**)
-- When including any Hook text specified in the writing instructions, wrap it in **bold markdown** (e.g., **What if I told you everything you know is wrong?**)
+MARKDOWN FORMATTING:
+- Use **bold** for Call-to-Action (CTA) text when specified in writing instructions
+- Use **bold** for Hook text when specified in writing instructions  
 - Use *italics* for emphasis on important narrative points
-- This formatting helps distinguish interactive elements from regular narrative content
+- Keep formatting minimal and focused on narrative flow
 
-CONTENT TO EXCLUDE:
-- Any form of title, header, or section name
-- Greetings or introductory phrases that aren't part of the narrative
-- Scene headings (e.g., "INT. CAFE - DAY")
-- Character names before dialogue (unless the narrator is quoting someone like "John said: 'Hello'")
-- Parentheticals or action descriptions (e.g., "(smiles)", "[He walks to the window]")
-- Any visual descriptions or camera directions
-- Any form of commentary or notes about the script itself
+CONTENT GUIDELINES:
+- Create engaging, original content that directly relates to "${title}"
+- Each section should feel like a natural part of a complete story
+- Build narrative tension and resolution appropriate to this section's role
+- Use specific, consistent details throughout
+- Write conversational, engaging prose suitable for narration
+- Ensure this section contributes meaningfully to the complete story arc
 
-The WRITING INSTRUCTIONS already contain guidance on plot, character interactions, thematic elements, and specific Call to Actions (CTAs) that the narrator must say. Your task is to transform these instructions into a polished, narratable script.
-
-Format the spoken text using Markdown where appropriate for emphasis or stylistic representation of speech (e.g., **bold** for emphasis, *italics* for thoughts if narrated).
-Maintain a word count of at least 1000 words for this section, consisting purely of speakable text.
-Keep sentences short for clarity and impact.
-`;
+Generate the spoken narrative content for this section, ensuring it flows naturally as part of the complete ${sections.length}-part story about "${title}".`;
 
         // Generate content for this section
         const response = await model.invoke(sectionPrompt);
@@ -200,76 +265,58 @@ Keep sentences short for clarity and impact.
           sectionContent = `[Content for "${section.title}" could not be generated.]`;
         }
 
-        console.log(`✓ Section ${index + 1} processed successfully: ${sectionContent.length} characters`);
-        
-        // Return the processed section
-        return {
-          index,
-          title: section.title,
-          content: sectionContent,
-          success: true
-        };
-        
-      } catch (sectionError) {
-        console.error(`Error processing section ${index + 1}:`, sectionError);
-        
-        // Return a placeholder for the failed section
-        return {
-          index,
-          title: section.title,
-          content: `[An error occurred while generating content for "${section.title}". Please try again.]`,
-          success: false
-        };
+        // Clean up any unwanted patterns
+        sectionContent = sectionContent
+          .replace(/^(Title:|Section \d+:|Chapter \d+:).*$/gim, '') // Remove any title/section headers
+          .replace(/^#{1,6}\s+.*$/gm, '') // Remove markdown headers
+          .replace(/Would you like me to continue.*$/gim, '') // Remove continuation prompts
+          .replace(/Let me continue.*$/gim, '') // Remove continuation prompts
+          .replace(/Shall I proceed.*$/gim, '') // Remove continuation prompts
+          .trim();
+
+        console.log(`Completed section ${index + 1}: ${sectionContent.length} characters generated`);
+        return sectionContent;
+
+      } catch (error) {
+        console.error(`Error processing section ${index + 1}:`, error);
+        return `[Error generating content for section ${index + 1}: ${section.title}]`;
       }
     };
 
-    // Process all sections concurrently
-    console.log(`Starting parallel processing of ${sections.length} sections...`);
-    const sectionPromises = sections.map((section, index) => processSection(section, index));
-    const results = await Promise.allSettled(sectionPromises);
+    // Process all sections sequentially to maintain consistency
+    console.log("Starting sequential section processing...");
+    const scriptSegments: string[] = [];
     
-    // Extract results, preserving order and handling any rejected promises
-    const processedSections = results.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return result.value;
-      } else {
-        console.error(`Promise rejected for section ${index + 1}:`, result.reason);
-        return {
-          index,
-          title: sections[index].title,
-          content: `[Failed to generate content for this section. Please try again.]`,
-          success: false
-        };
-      }
-    });
-    
-    // Sort sections by index to ensure correct order
-    processedSections.sort((a, b) => a.index - b.index);
-    
-    // Log success/failure stats
-    const successCount = processedSections.filter(s => s.success).length;
-    console.log(`Processing complete: ${successCount}/${sections.length} sections successful`);
-    
-    // Combine all sections into the full script with markdown headings
-    const fullScriptWithMarkdown = processedSections
-      .map(section => `## ${section.title}\n\n${section.content}\n\n`)
-      .join('');
+    for (let i = 0; i < sections.length; i++) {
+      const segment = await processSection(sections[i], i);
+      scriptSegments.push(segment);
+    }
 
-    const scriptCleaned = removeMarkdown(fullScriptWithMarkdown);
+    // Combine all segments into the final script
+    const fullScript = scriptSegments.join('\n\n');
     
-    // Calculate word count
-    const wordCount = scriptCleaned.split(/\s+/).filter(Boolean).length;
-    console.log(`Full script generated successfully with ${wordCount} words`);
+    // Create cleaned version for audio (remove all markdown)
+    const scriptCleaned = removeMarkdown(fullScript);
 
-    return NextResponse.json({ 
-      scriptWithMarkdown: fullScriptWithMarkdown, 
+    console.log("Script generation completed successfully");
+    console.log(`Total script length: ${fullScript.length} characters`);
+    console.log(`Cleaned script length: ${scriptCleaned.length} characters`);
+    
+    return NextResponse.json({
+      scriptWithMarkdown: fullScript,
       scriptCleaned: scriptCleaned,
-      wordCount
+      segments: scriptSegments,
+      success: true,
+      message: `Generated complete ${sections.length}-section script for "${title}"`
     });
+    
   } catch (error) {
-    console.error("Error generating full script:", error);
+    console.error("Error in generate-full-script:", error);
     return NextResponse.json(
-      { error: "Failed to generate full script", details: error instanceof Error ? error.message : "Unknown error" },
+      { 
+        error: "Failed to generate script", 
+        details: (error as Error).message 
+      },
       { status: 500 }
     );
   }

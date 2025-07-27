@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { 
   setSelectedVoice, 
@@ -78,6 +78,45 @@ const TTS_PROVIDERS: Record<string, TTSProvider> = {
       { code: "ja", name: "Japanese" },
       { code: "hu", name: "Hungarian" },
       { code: "ko", name: "Korean" }
+    ]
+  },
+  fishaudio: {
+    name: "Fish Audio",
+    voices: [
+      // Voices will be loaded from API
+    ],
+    models: [
+      { id: "speech-1.5", name: "Speech-1.5 - $15.00 / million UTF-8 bytes" },
+      { id: "speech-1.6", name: "Speech-1.6 - $15.00 / million UTF-8 bytes" },
+      { id: "s1", name: "S1" }
+    ],
+    languages: [
+      { code: "en", name: "English" },
+      { code: "zh", name: "Chinese" },
+      { code: "ja", name: "Japanese" },
+      { code: "es", name: "Spanish" },
+      { code: "fr", name: "French" },
+      { code: "de", name: "German" }
+    ]
+  },
+  voicemaker: {
+    name: "VoiceMaker",
+    voices: [
+      // Voices will be loaded from API
+    ],
+    models: [
+      { id: "neural", name: "Neural Engine (Premium)" },
+      { id: "standard", name: "Standard Engine" }
+    ],
+    languages: [
+      { code: "en-US", name: "English (US)" },
+      { code: "en-GB", name: "English (UK)" },
+      { code: "en-AU", name: "English (AU)" },
+      { code: "es-ES", name: "Spanish (Spain)" },
+      { code: "fr-FR", name: "French (France)" },
+      { code: "de-DE", name: "German (Germany)" },
+      { code: "it-IT", name: "Italian (Italy)" },
+      { code: "pt-BR", name: "Portuguese (Brazil)" }
     ]
   }
 }
@@ -175,12 +214,54 @@ export function AudioGenerator() {
     }
   }
 
-  // Load API voices on component mount if using ElevenLabs or MiniMax
-  useEffect(() => {
-    if (selectedProvider === 'elevenlabs' || selectedProvider === 'minimax') {
-      fetchApiVoices(selectedProvider)
+  // Fetch API voices for providers that support it - memoized to prevent infinite loops
+  const fetchApiVoices = useCallback(async (provider: string) => {
+    console.log(`🔍 Fetching API voices for provider: ${provider}`)
+    setIsLoadingApiVoices(true)
+    try {
+      let apiUrl = '';
+      let requestConfig: RequestInit = { method: 'GET' }
+      
+      if (provider === 'elevenlabs') {
+        apiUrl = '/api/list-elevenlabs-voices';
+      } else if (provider === 'minimax') {
+        apiUrl = '/api/list-minimax-voices';
+      } else if (provider === 'fishaudio') {
+        apiUrl = '/api/list-fishaudio-voices';
+      } else if (provider === 'voicemaker') {
+        apiUrl = '/api/get-voicemaker-voices';
+        requestConfig = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language: languageCode || 'en-US' })
+        }
+      } else {
+        console.warn(`No API voice fetching available for provider: ${provider}`);
+        setIsLoadingApiVoices(false);
+        return;
+      }
+      
+      console.log(`📡 Making API call to: ${apiUrl}`)
+      const response = await fetch(apiUrl, requestConfig)
+      console.log(`📥 API response status: ${response.status}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`📊 API response data:`, data)
+        setApiVoices(data.voices || [])
+        console.log(`✅ Loaded ${data.voices?.length || 0} voices for ${provider}`)
+      } else {
+        const errorText = await response.text()
+        console.error(`❌ Failed to fetch ${provider} voices: ${response.status} - ${errorText}`)
+        setApiVoices([])
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching ${provider} voices:`, error)
+      setApiVoices([])
+    } finally {
+      setIsLoadingApiVoices(false)
     }
-  }, []) // Only run on mount
+  }, [])
 
   // Load custom voices on component mount
   useEffect(() => {
@@ -195,9 +276,10 @@ export function AudioGenerator() {
     }
   }, [hasFullScript, fullScript, inputText])
 
-  // Fetch voices when provider changes to ElevenLabs or MiniMax
+  // Fetch voices when provider changes to supported providers
   useEffect(() => {
-    if (selectedProvider === 'elevenlabs' || selectedProvider === 'minimax') {
+    const apiProviders = ['elevenlabs', 'minimax', 'fishaudio', 'voicemaker']
+    if (apiProviders.includes(selectedProvider)) {
       console.log(`🔄 Provider changed to ${selectedProvider}, fetching voices...`)
       fetchApiVoices(selectedProvider)
     } else {
@@ -207,7 +289,7 @@ export function AudioGenerator() {
     
     // Reset voice selection when provider changes
     setProviderVoice("")
-  }, [selectedProvider])
+  }, [selectedProvider, fetchApiVoices])
 
   // Initialize language code properly for each provider
   useEffect(() => {
@@ -222,45 +304,6 @@ export function AudioGenerator() {
     showMessage(`Selected custom voice: ${voiceName}`, 'success')
   }
 
-  // Fetch API voices for providers that support it
-  const fetchApiVoices = async (provider: string) => {
-    console.log(`🔍 Fetching API voices for provider: ${provider}`)
-    setIsLoadingApiVoices(true)
-    try {
-      let apiUrl = '';
-      
-      if (provider === 'elevenlabs') {
-        apiUrl = '/api/list-elevenlabs-voices';
-      } else if (provider === 'minimax') {
-        apiUrl = '/api/list-minimax-voices';
-      } else {
-        console.warn(`No API voice fetching available for provider: ${provider}`);
-        setIsLoadingApiVoices(false);
-        return;
-      }
-      
-      console.log(`📡 Making API call to: ${apiUrl}`)
-      const response = await fetch(apiUrl)
-      console.log(`📥 API response status: ${response.status}`)
-      
-      if (response.ok) {
-        const data = await response.json()
-        console.log(`📊 API response data:`, data)
-        setApiVoices(data.voices || [])
-        console.log(`✅ Loaded ${data.voices?.length || 0} voices for ${provider}`, data.voices)
-      } else {
-        const errorText = await response.text()
-        console.error(`❌ Failed to fetch ${provider} voices: ${response.status} - ${errorText}`)
-        setApiVoices([])
-      }
-    } catch (error) {
-      console.error(`❌ Error fetching ${provider} voices:`, error)
-      setApiVoices([])
-    } finally {
-      setIsLoadingApiVoices(false)
-    }
-  }
-  
   // Get current provider config
   const currentProvider = TTS_PROVIDERS[selectedProvider]
 
@@ -273,10 +316,7 @@ export function AudioGenerator() {
     setProviderVoice(provider.voices?.[0]?.id || "");
     setProviderModel(provider.models?.[0]?.id || "");
     
-    // Fetch API voices if needed
-    if (newProvider === 'elevenlabs' || newProvider === 'minimax') {
-      fetchApiVoices(newProvider);
-    }
+    // Note: API voices will be fetched by useEffect when selectedProvider changes
   };
 
   // Text chunking functions
@@ -434,6 +474,25 @@ export function AudioGenerator() {
             elevenLabsModelId: providerModel, 
             languageCode: languageCode
           };
+
+          // Add provider-specific parameters
+          if (selectedProvider === 'fishaudio') {
+            requestBody.fishAudioVoiceId = providerVoice;
+            requestBody.fishAudioModel = providerModel || 'speech-1.5';
+            console.log(`🐠 FishAudio request for chunk ${chunkIndex}:`, {
+              fishAudioVoiceId: requestBody.fishAudioVoiceId,
+              fishAudioModel: requestBody.fishAudioModel,
+              textLength: chunk.length
+            });
+          } else if (selectedProvider === 'voicemaker') {
+            // VoiceMaker uses the voice parameter directly
+            requestBody.voice = providerVoice;
+            console.log(`🎵 VoiceMaker request for chunk ${chunkIndex}:`, {
+              voice: requestBody.voice,
+              model: requestBody.model,
+              textLength: chunk.length
+            });
+          }
 
           const response = await fetch('/api/generate-audio-comprehensive', {
                 method: 'POST',
@@ -649,8 +708,8 @@ export function AudioGenerator() {
     document.body.removeChild(link)
   }
 
-  // Voice display functions - modified to separate custom and standard voices
-  const getVoicesWithSeparator = () => {
+  // Voice display functions - memoized to prevent infinite loops
+  const getVoicesWithSeparator = useMemo(() => {
     console.log(`🎤 Getting display voices for provider: ${selectedProvider}`)
     console.log(`📦 Static voices:`, currentProvider?.voices || [])
     console.log(`📡 API voices:`, apiVoices)
@@ -670,7 +729,8 @@ export function AudioGenerator() {
     
     let standardVoices: any[] = []
     
-    if (selectedProvider === 'elevenlabs' || selectedProvider === 'minimax') {
+    const apiProviders = ['elevenlabs', 'minimax', 'fishaudio', 'voicemaker']
+    if (apiProviders.includes(selectedProvider)) {
       // For API-based providers, combine static and API voices as standard
       const dynamicVoices = apiVoices || []
       
@@ -688,8 +748,28 @@ export function AudioGenerator() {
       
       // Add API voices (these will override static ones with same ID)
       dynamicVoices.forEach(voice => {
-        if (voice.id) {
-          voiceMap.set(voice.id, { ...voice, isCustom: false })
+        if (selectedProvider === 'voicemaker') {
+          // VoiceMaker format: use VoiceId as id and VoiceWebname as display name
+          const voiceId = voice.VoiceId || voice.id
+          const voiceName = voice.VoiceWebname || voice.name || voiceId
+          const gender = voice.VoiceGender ? ` (${voice.VoiceGender})` : ''
+          const engine = voice.Engine ? ` - ${voice.Engine}` : ''
+          
+          if (voiceId) {
+            voiceMap.set(voiceId, {
+              id: voiceId,
+              name: `${voiceName}${gender}${engine}`,
+              isCustom: false,
+              gender: voice.VoiceGender,
+              engine: voice.Engine,
+              language: voice.Language
+            })
+          }
+        } else {
+          // Standard format for other providers
+          if (voice.id) {
+            voiceMap.set(voice.id, { ...voice, isCustom: false })
+          }
         }
       })
       
@@ -708,11 +788,11 @@ export function AudioGenerator() {
       standardVoices,
       customVoices: customVoicesForProvider
     }
-  }
+  }, [selectedProvider, currentProvider, apiVoices, dbVoices, isLoadingApiVoices])
 
   // Legacy function for compatibility - combines all voices
   const getDisplayVoices = () => {
-    const { standardVoices, customVoices } = getVoicesWithSeparator()
+    const { standardVoices, customVoices } = getVoicesWithSeparator
     return [...standardVoices, ...customVoices]
   }
 
@@ -816,11 +896,11 @@ export function AudioGenerator() {
                       </SelectTrigger>
                       <SelectContent>
                         {(() => {
-                          const { standardVoices, customVoices } = getVoicesWithSeparator()
+                          const { standardVoices, customVoices } = getVoicesWithSeparator
                           const elements = []
                           
                           // Add standard voices
-                          standardVoices.forEach((voice, index) => {
+                          standardVoices.forEach((voice: any, index: number) => {
                             elements.push(
                               <SelectItem key={voice.id || `voice-${index}`} value={voice.id || `voice-${index}`}>
                                 {voice.name}
@@ -843,7 +923,7 @@ export function AudioGenerator() {
                           }
                           
                           // Add custom voices
-                          customVoices.forEach((voice, index) => {
+                          customVoices.forEach((voice: any, index: number) => {
                             elements.push(
                               <SelectItem key={voice.id || `custom-voice-${index}`} value={voice.id || `custom-voice-${index}`}>
                                 {voice.name}

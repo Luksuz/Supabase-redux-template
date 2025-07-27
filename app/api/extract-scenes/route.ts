@@ -57,47 +57,63 @@ export async function POST(request: NextRequest) {
       try {
         const chunkText = chunk.pageContent;
         
-        // Generate image prompt for this chunk
+        // Generate detailed image prompt for this chunk
         const promptResponse = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
             {
               role: "system",
-              content: "You are a visual scene designer converting story text into concise image prompts for AI generation. Keep prompts under 100 words and focus on key visual elements."
+              content: `You are an expert visual scene designer creating detailed image prompts for AI generation. Your prompts must be HIGHLY SPECIFIC and include precise character details to prevent AI defaults (like generating males instead of females).
+
+CRITICAL REQUIREMENTS:
+- Always specify character's gender, age, and physical description
+- Include specific clothing, posture, and facial expressions
+- Describe exact setting details, lighting, and atmosphere
+- Mention camera angle and composition
+- Keep under 200 words but be as descriptive as possible
+- Focus on visual accuracy over brevity`
             },
             {
               role: "user",
               content: `
-Convert this story chunk into a SHORT, concise image prompt (max 100 words).
-Focus only on: main subject, setting, key action, and mood.
-Be specific but brief. No explanations or extra text.
+Convert this story chunk into a DETAILED, specific image prompt (max 200 words).
+
+MANDATORY DETAILS TO INCLUDE:
+1. Character specifics: age, gender, physical appearance, clothing, posture
+2. Setting: specific location, time of day, weather, objects
+3. Action: exact body position, facial expression, what they're doing
+4. Atmosphere: lighting type, mood, shadows, colors
+5. Camera: angle, distance, focus point
+6. Style: realistic, cinematic, photographic
 
 Story chunk:
 ${chunkText}
 
-Example format: "A [subject] [action] in [setting], [mood/lighting], [style]"
+Example format: "A [specific age] year old [gender] with [hair/features] wearing [specific clothing], [specific posture/action] in [detailed setting], [specific lighting], [camera angle], [artistic style]"
+
+Be extremely specific about gender, age, and physical details to ensure accurate AI generation.
               `
             }
           ],
-          temperature: 0.7,
-          max_tokens: 150, // Reduced from 300 to ensure shorter prompts
+          temperature: 0.3, // Lower temperature for more consistent, detailed output
+          max_tokens: 300, // Increased for more detailed prompts
         });
 
         let promptText = promptResponse.choices[0]?.message.content?.trim() || 
-          `A scene depicting: ${chunkText.substring(0, 50)}...`;
+          `A detailed scene depicting: ${chunkText.substring(0, 100)}...`;
 
-        // Ensure prompt is under 100 words and 500 characters for safety
+        // Ensure prompt is under 200 words and 1000 characters for detailed descriptions
         const words = promptText.split(' ');
-        if (words.length > 100) {
-          promptText = words.slice(0, 100).join(' ');
+        if (words.length > 200) {
+          promptText = words.slice(0, 200).join(' ');
         }
         
-        // Hard limit to 500 characters to ensure MiniMax compatibility
-        if (promptText.length > 500) {
-          promptText = promptText.substring(0, 500).trim();
+        // Hard limit to 1000 characters for detailed prompts (most models support this)
+        if (promptText.length > 1000) {
+          promptText = promptText.substring(0, 1000).trim();
           // Ensure we don't cut off mid-word
           const lastSpace = promptText.lastIndexOf(' ');
-          if (lastSpace > 400) {
+          if (lastSpace > 900) {
             promptText = promptText.substring(0, lastSpace);
           }
         }

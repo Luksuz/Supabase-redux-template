@@ -112,16 +112,6 @@ export function VideoSelectionConfirmation({
           </Button>
           
           <Button
-            onClick={onConfirmSelection}
-            className="bg-green-600 hover:bg-green-700 text-white"
-            size="sm"
-          >
-            <Video className="h-4 w-4 mr-2" />
-            Go to Video Generator
-            <ArrowRight className="h-4 w-4 ml-2" />
-          </Button>
-          
-          <Button
             onClick={onClearSelection}
             variant="outline"
             size="sm"

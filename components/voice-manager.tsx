@@ -56,7 +56,8 @@ interface ProviderVoice {
 const PROVIDER_OPTIONS = [
   { id: 'openai', name: 'OpenAI TTS' },
   { id: 'minimax', name: 'MiniMax' },
-  { id: 'fish-audio', name: 'Fish Audio' },
+  { id: 'fishaudio', name: 'Fish Audio' },
+  { id: 'voicemaker', name: 'VoiceMaker' },
   { id: 'elevenlabs', name: 'ElevenLabs' },
   { id: 'google-tts', name: 'Google Cloud TTS' }
 ]
@@ -83,12 +84,12 @@ export function VoiceManager({ selectedProvider, onVoiceSelect }: VoiceManagerPr
     loadVoices()
   }, [selectedProvider])
 
-  // Load provider voices when provider changes and provider voices section is shown
+  // Load provider voices when provider changes
   useEffect(() => {
-    if (showProviderVoices && selectedProvider && (selectedProvider === 'elevenlabs' || selectedProvider === 'google-tts')) {
+    if (selectedProvider && ['elevenlabs', 'google-tts', 'fishaudio', 'voicemaker'].includes(selectedProvider)) {
       loadProviderVoices()
     }
-  }, [showProviderVoices, selectedProvider])
+  }, [selectedProvider])
 
   const loadVoices = async () => {
     try {
@@ -115,8 +116,8 @@ export function VoiceManager({ selectedProvider, onVoiceSelect }: VoiceManagerPr
     }
   }
 
-  const loadProviderVoices = async () => {
-    if (!selectedProvider || (selectedProvider !== 'elevenlabs' && selectedProvider !== 'google-tts')) {
+    const loadProviderVoices = async () => {
+    if (!selectedProvider || !['elevenlabs', 'google-tts', 'fishaudio', 'voicemaker'].includes(selectedProvider)) {
       return
     }
 
@@ -124,11 +125,32 @@ export function VoiceManager({ selectedProvider, onVoiceSelect }: VoiceManagerPr
       setIsLoadingProviderVoices(true)
       dispatch(clearVoiceManagementError())
 
-      const endpoint = selectedProvider === 'elevenlabs' 
-        ? '/api/list-elevenlabs-voices'
-        : '/api/list-google-voices'
+      let endpoint: string
+      let requestConfig: RequestInit = { method: 'GET' }
 
-      const response = await fetch(endpoint)
+      switch (selectedProvider) {
+        case 'elevenlabs':
+          endpoint = '/api/list-elevenlabs-voices'
+          break
+        case 'google-tts':
+          endpoint = '/api/list-google-voices'
+          break
+        case 'fishaudio':
+          endpoint = '/api/list-fishaudio-voices'
+          break
+        case 'voicemaker':
+          endpoint = '/api/get-voicemaker-voices'
+          requestConfig = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ language: 'en-US' }) // Default to en-US, can be made configurable later
+          }
+          break
+        default:
+          return
+      }
+
+      const response = await fetch(endpoint, requestConfig)
       const data = await response.json()
 
       if (!response.ok) {

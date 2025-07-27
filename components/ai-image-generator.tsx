@@ -10,6 +10,8 @@ import {
   startSceneExtraction,
   completeSceneExtraction,
   failSceneExtraction,
+  updateScenePrompt,
+  addCustomScene,
   startGeneration,
   updateGenerationInfo,
   completeGeneration,
@@ -143,6 +145,20 @@ export function AIImageGenerator() {
         error instanceof Error ? error.message : 'Failed to extract scenes'
       ))
     }
+  }
+
+  const handleUpdateScenePrompt = (index: number, newPrompt: string) => {
+    dispatch(updateScenePrompt({ index, newPrompt }))
+  }
+
+  const handleAddCustomScene = (prompt: string, title: string) => {
+    const customScene = {
+      chunkIndex: extractedScenes.length,
+      originalText: `Custom scene: ${title}`,
+      imagePrompt: prompt,
+      summary: title,
+    }
+    dispatch(addCustomScene(customScene))
   }
 
   // Helper function to apply image style to prompt
@@ -708,6 +724,8 @@ export function AIImageGenerator() {
             onToggleSceneSelection={toggleSceneSelection}
             onExtractScenes={handleExtractScenes}
             onClearError={handleClearError}
+            onUpdateScenePrompt={handleUpdateScenePrompt}
+            onAddCustomScene={handleAddCustomScene}
             scriptSourceInfo={scriptSourceInfo}
           />
 

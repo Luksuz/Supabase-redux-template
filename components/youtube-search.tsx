@@ -28,8 +28,6 @@ import {
   clearAnalysisResults,
   clearGeminiAnalysisResults,
   clearAllGeminiAnalysisResults,
-  performGoogleResearch,
-  removeGoogleResearchSummary,
   removeYouTubeResearchSummary,
   clearAllResearchSummaries,
   markMultipleResearchAsApplied,
@@ -48,7 +46,6 @@ import {
   type GeminiAnalysisResult,
   type VideosSummary,
   type TranscriptAnalysis,
-  type GoogleResearchSummary,
   type YouTubeResearchSummary,
   addYouTubeResearchSummary,
   setMinDuration,
@@ -72,7 +69,7 @@ interface ResearchSummary {
   timestamp: string
 }
 
-// Research Tab Component (Google-only)
+// Enhanced Research Tab Component (Google + Perplexity + Firecrawl)
 const ResearchTab = ({ 
   researchSummaries,
   dispatch
@@ -85,26 +82,150 @@ const ResearchTab = ({
   const [isResearching, setIsResearching] = React.useState(false)
   const [expandedResults, setExpandedResults] = React.useState<Set<string>>(new Set())
 
-  const handleResearch = async () => {
+  const [filteringStats, setFilteringStats] = React.useState<any>(null)
+  const [availableLinks, setAvailableLinks] = React.useState<any[]>([])
+  const [scrapingLinks, setScrapingLinks] = React.useState<Set<string>>(new Set())
+
+
+
+
+  const handlePerplexityResearch = async () => {
     if (!researchQuery.trim()) return
 
     setIsResearching(true)
+    setFilteringStats(null)
+    setAvailableLinks([])
+    
     try {
-      await dispatch(performGoogleResearch({
-        query: researchQuery,
-        context: researchContext,
-        maxResults: 30
-      })).unwrap()
+      console.log('🔍 Starting Perplexity research...')
       
+      const response = await fetch('/api/research/web-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: researchQuery,
+          context: researchContext,
+          maxResults: 20,
+          region: 'us',
+          language: 'en'
+        })
+      })
+
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to perform Perplexity research')
+      }
+
+      console.log('✅ Perplexity research completed')
+
+      // Store filtering stats and available links
+      if (data.filteringStats) {
+        setFilteringStats(data.filteringStats)
+      }
+      if (data.availableLinks) {
+        setAvailableLinks(data.availableLinks)
+      }
+
+            // Show success notification - Perplexity only provides links, no research card created
+      alert(`✅ Perplexity research completed! Found ${data.availableLinks?.length || 0} scrapeable links. Click "Scrape Content" on any link to create research cards.`)
+
       // Clear form after successful research
       setResearchQuery('')
       setResearchContext('')
+      
     } catch (error) {
-      console.error('Research error:', error)
+      console.error('Perplexity research error:', error)
+      alert(`Research failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsResearching(false)
     }
   }
+
+  const handleScrapeLink = async (url: string) => {
+    if (scrapingLinks.has(url)) return
+
+    setScrapingLinks(prev => new Set([...prev, url]))
+    
+    try {
+      console.log(`🔥 Starting Firecrawl scraping for: ${url}`)
+      
+      const response = await fetch('/api/research/scrape-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      })
+
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to scrape link')
+      }
+
+      console.log('✅ Firecrawl scraping completed')
+
+      // Create scraped content summary
+      const scrapedResearch = {
+        id: `scraped-${Date.now()}`,
+        query: `Article: ${data.title}`,
+        videosSummary: {
+          overallTheme: `Article content: ${data.title}`,
+          keyInsights: ['Article content extracted and processed via Firecrawl'],
+          videoSummaries: [{
+            videoId: `scraped-single`,
+            title: data.title,
+            summary: data.content ? data.content.substring(0, 500) + '...' : 'Article content scraped',
+            keyPoints: data.content ? data.content.split('\n').filter((line: string) => line.trim()).slice(0, 5) : ['Article content'],
+            thumbnailUrl: '',
+            link: url,
+            insights: data.content || 'Full article content scraped'
+          }],
+          commonPatterns: ['Individual article scraping'],
+          actionableItems: ['Review the extracted content for insights'],
+          narrativeThemes: ['Article-based content themes'],
+          characterInsights: ['Key figures from article'],
+          conflictElements: ['Issues identified in article'],
+          storyIdeas: ['Content ideas from article'],
+          creativePrompt: `Create content based on article: ${data.title}`
+        },
+        timestamp: new Date().toISOString(),
+        usingMock: false,
+        appliedToScript: false,
+        analysisType: 'firecrawl-scraping' as any,
+        rawContent: data.content || '' // Raw markdown content from Firecrawl
+      }
+
+      // Add to research summaries
+      dispatch({
+        type: 'youtube/addYouTubeResearchSummary',
+        payload: scrapedResearch
+      })
+
+      // Show success notification
+      alert(`✅ Article scraped successfully! "${data.title}" saved to Current Research tab.`)
+
+      // Remove the link from available links
+      setAvailableLinks(prev => prev.filter(link => link.url !== url))
+      
+    } catch (error) {
+      console.error('Link scraping error:', error)
+      alert(`Scraping failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setScrapingLinks(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(url)
+        return newSet
+      })
+    }
+  }
+
+  
+
+  const handleResearch = () => {
+    handlePerplexityResearch()
+  }
+
+
 
   const toggleResultExpansion = (resultId: string) => {
     const newExpanded = new Set(expandedResults)
@@ -116,10 +237,7 @@ const ResearchTab = ({
     setExpandedResults(newExpanded)
   }
 
-  // Get Google research summaries sorted by timestamp
-  const googleResearchResults = researchSummaries.googleResearchSummaries
-    .slice()
-    .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
 
   return (
     <div className="space-y-6">
@@ -127,10 +245,21 @@ const ResearchTab = ({
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
         <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
           <Globe className="h-6 w-6" />
-          Google Research Assistant
+          AI Research Assistant
         </h3>
         
         <div className="space-y-4">
+          {/* Research Method */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <Brain className="h-4 w-4 text-purple-600" />
+              <div>
+                <div className="font-medium text-purple-800">Perplexity AI Research</div>
+                <div className="text-xs text-purple-600">Intelligent web search with automatic link scraping</div>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-blue-800 mb-2">
               Research Query
@@ -160,192 +289,111 @@ const ResearchTab = ({
           <button
             onClick={handleResearch}
             disabled={!researchQuery.trim() || isResearching}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
+            className="w-full font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white"
           >
             {isResearching ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                Researching...
+                Researching with Perplexity AI...
               </>
             ) : (
               <>
-                <FileSearch className="h-5 w-5" />
-                Start Google Research
+                <Brain className="h-5 w-5" />
+                Start Perplexity AI Research
               </>
             )}
           </button>
+
+
+
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <Brain className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-purple-800">
+                <p className="font-medium">Perplexity AI Research</p>
+                <p className="mt-1">
+                  Uses advanced AI to search the web, filter out social media links, and provide scraping capabilities for deep content analysis.
+                </p>
+              </div>
+            </div>
+          </div>
+
+
         </div>
       </div>
 
-      {/* Research Results */}
-      {googleResearchResults.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Lightbulb className="h-5 w-5" />
-              Research Results ({googleResearchResults.length})
-            </h4>
-            
-            {googleResearchResults.length > 0 && (
-              <button
-                onClick={() => dispatch(clearAllResearchSummaries())}
-                className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-              >
-                Clear All
-              </button>
-            )}
+      {/* Filtering Stats Notice */}
+      {filteringStats && filteringStats.filteredOut > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-start gap-2">
+            <Zap className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-amber-800">
+              <p className="font-medium">Links Filtered for Scraping</p>
+              <p className="mt-1">
+                Found {filteringStats.totalFound} links, {filteringStats.availableForScraping} available for scraping. 
+                Filtered out {filteringStats.filteredOut} social media links ({filteringStats.filteredDomains.join(', ')}) 
+                - {filteringStats.reason}
+              </p>
+            </div>
           </div>
+        </div>
+      )}
 
-          {googleResearchResults.map((result: any) => {
-            const isExpanded = expandedResults.has(result.id)
-            
-            return (
-              <div key={result.id} className="border border-gray-200 bg-white rounded-lg">
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <Globe className="h-5 w-5 text-blue-600" />
-                      <h5 className="font-semibold text-gray-900">
-                        Google Research: {result.query}
-                      </h5>
-                      
-                      {result.usingMock && (
-                        <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-xs">
-                          Mock
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">
-                        {new Date(result.timestamp).toLocaleString()}
-                      </span>
-                      
-                      <button
-                        onClick={() => toggleResultExpansion(result.id)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="h-5 w-5" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5" />
-                        )}
-                      </button>
-                      
-                      <button
-                        onClick={() => dispatch(removeGoogleResearchSummary(result.id))}
-                        className="text-red-400 hover:text-red-600"
-                      >
-                        ×
-                      </button>
-                    </div>
+      {/* Available Links for Scraping */}
+      {availableLinks.length > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h4 className="text-lg font-bold text-green-900 mb-3 flex items-center gap-2">
+            <ExternalLink className="h-5 w-5" />
+            Available Links for Deep Analysis ({availableLinks.length})
+          </h4>
+          <p className="text-sm text-green-700 mb-4">
+            These links can be scraped for detailed content analysis. Click "Scrape Content" to extract full article text.
+          </p>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {availableLinks.map((link: any, index: number) => (
+              <div key={index} className="bg-white border border-green-200 rounded p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h5 className="font-medium text-green-900 truncate">
+                      {link.title}
+                    </h5>
+                    <p className="text-xs text-green-600 truncate">
+                      {link.source} • {link.date}
+                    </p>
+                    <a 
+                      href={link.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 underline truncate block mt-1"
+                    >
+                      {link.url}
+                    </a>
                   </div>
-                  
-                  {/* Quick Preview */}
-                  <div className="text-sm text-gray-600 mb-2">
-                    <p>{result.insights.slice(0, 200)}...</p>
-                  </div>
-                  
-                  {/* Expanded Content */}
-                  {isExpanded && (
-                    <div className="mt-4 space-y-4 border-t pt-4">
-                      <div>
-                        <h6 className="font-semibold text-gray-800 mb-2">Full Insights</h6>
-                        <p className="text-gray-700 bg-gray-50 p-3 rounded">{result.insights}</p>
-                      </div>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <h6 className="font-semibold text-gray-800 mb-2">Key Findings</h6>
-                          <ul className="space-y-1">
-                            {result.keyFindings.map((finding: string, index: number) => (
-                              <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                <span className="bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                  {index + 1}
-                                </span>
-                                {finding}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        
-                        <div>
-                          <h6 className="font-semibold text-gray-800 mb-2">Recommendations</h6>
-                          <ul className="space-y-1">
-                            {result.recommendations.map((rec: string, index: number) => (
-                              <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                <span className="bg-green-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                  →
-                                </span>
-                                {rec}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-
-                      {/* Web Search Results */}
-                      {result.webResults && result.webResults.length > 0 && (
-                        <div>
-                          <h6 className="font-semibold text-gray-800 mb-2">
-                            Source Articles ({result.webResults.length})
-                          </h6>
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {result.webResults.slice(0, 10).map((webResult: any, index: number) => (
-                              <div key={index} className="bg-gray-50 p-3 rounded border">
-                                <div className="font-medium text-blue-600 text-sm">
-                                  <a 
-                                    href={webResult.link} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="hover:text-blue-800 underline"
-                                  >
-                                    {webResult.title}
-                                  </a>
-                                </div>
-                                <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                                  {webResult.description}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Sources */}
-                      {result.sources && result.sources.length > 0 && (
-                        <div>
-                          <h6 className="font-semibold text-gray-800 mb-2">Key Sources</h6>
-                          <div className="flex flex-wrap gap-2">
-                            {result.sources.slice(0, 5).map((source: string, index: number) => (
-                              <a
-                                key={index}
-                                href={source}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
-                              >
-                                Source {index + 1}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <button
+                    onClick={() => handleScrapeLink(link.url)}
+                    disabled={scrapingLinks.has(link.url)}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-medium py-2 px-3 rounded transition-colors flex items-center gap-1 flex-shrink-0"
+                  >
+                    {scrapingLinks.has(link.url) ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Scraping...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-3 w-3" />
+                        Scrape Content
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Empty State */}
-      {googleResearchResults.length === 0 && (
-        <div className="text-center text-gray-600">
-          <p>No research results yet. Start a Google research query above to see results here.</p>
-        </div>
-      )}
+
     </div>
   )
 }
@@ -353,13 +401,16 @@ const ResearchTab = ({
 // Current Research Tab Component
 const CurrentResearchTab = ({ 
   researchSummaries,
-  dispatch
+  dispatch,
+  onSaveToHistory
 }: {
   researchSummaries: any
   dispatch: any
+  onSaveToHistory: (item: any) => void
 }) => {
   const [expandedSummaries, setExpandedSummaries] = React.useState<Set<string>>(new Set())
   const [selectedForScript, setSelectedForScript] = React.useState<Set<string>>(new Set())
+  const [editingRawContent, setEditingRawContent] = React.useState<{[key: string]: string}>({})
 
   const toggleSummaryExpansion = (summaryId: string) => {
     const newExpanded = new Set(expandedSummaries)
@@ -386,15 +437,19 @@ const CurrentResearchTab = ({
     
     if (selectedSummaries.length === 0) return
     
-    // Separate Google and YouTube research IDs
-    const googleIds = selectedSummaries.filter(s => s.type === 'google').map(s => s.id)
-    const youtubeIds = selectedSummaries.filter(s => s.type === 'youtube').map(s => s.id)
+    // Get research IDs for all types
+    const youtubeIds = selectedSummaries.map(s => s.id)
     
     // Mark selected summaries as applied in Redux state
-    dispatch(markMultipleResearchAsApplied({ googleIds, youtubeIds }))
+    dispatch(markMultipleResearchAsApplied({ youtubeIds }))
     
     // Show success message with guidance
-    const summaryTypes = selectedSummaries.map(s => s.type === 'google' ? 'Google Research' : 'YouTube Analysis').join(', ')
+    const summaryTypes = selectedSummaries.map(s => {
+      if (s.type === 'perplexity-ai') return 'Perplexity AI Research'
+      if (s.type === 'firecrawl-scraping') return 'Article Scraping'
+      if (s.type === 'web-research') return 'Web Research'
+      return 'YouTube Analysis'
+    }).join(', ')
     
     // For now, we'll show a success message and log the data
     // In a real implementation, this would integrate with the script generator
@@ -408,8 +463,10 @@ const CurrentResearchTab = ({
   }
 
   const allSummaries = [
-    ...researchSummaries.googleResearchSummaries.map((s: GoogleResearchSummary) => ({ ...s, type: 'google' })),
-    ...researchSummaries.youtubeResearchSummaries.map((s: YouTubeResearchSummary) => ({ ...s, type: 'youtube' }))
+    ...researchSummaries.youtubeResearchSummaries.map((s: YouTubeResearchSummary) => ({
+      ...s,
+      type: (s as any).analysisType || 'youtube' // Use analysisType if available, fallback to youtube
+    }))
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
   // Count applied summaries
@@ -487,17 +544,30 @@ const CurrentResearchTab = ({
                       />
                       
                       <div className="flex items-center gap-2">
-                        {summary.type === 'google' ? (
-                          <Globe className="h-5 w-5 text-blue-600" />
+                        {summary.type === 'perplexity-ai' ? (
+                          <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                        ) : summary.type === 'firecrawl-scraping' ? (
+                          <svg className="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        ) : summary.type === 'web-research' ? (
+                          <svg className="h-5 w-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9m0 9c-5 0-9-4-9-9s4-9 9-9" />
+                          </svg>
                         ) : (
                           <FileText className="h-5 w-5 text-red-600" />
                         )}
                         <h4 className="font-semibold text-gray-900">
-                          {summary.type === 'google' ? 'Google Research' : 'YouTube Analysis'}: {summary.query}
+                          {summary.type === 'perplexity-ai' ? 'Perplexity AI Research' : 
+                           summary.type === 'firecrawl-scraping' ? 'Article Scraping' : 
+                           summary.type === 'web-research' ? 'Web Research' : 
+                           'YouTube Analysis'}: {summary.query}
                         </h4>
                         
                         {/* Analysis type badges for YouTube research */}
-                        {summary.type === 'youtube' && summary.analysisType && (
+                        {(summary.type === 'youtube' || summary.type === 'openai' || summary.type === 'gemini' || summary.type === 'gemini+gpt') && summary.analysisType && (
                           <span className={`text-xs px-2 py-1 rounded font-medium ${
                             summary.analysisType === 'openai' 
                               ? 'bg-purple-100 text-purple-700'
@@ -534,6 +604,16 @@ const CurrentResearchTab = ({
                       </span>
                       
                       <button
+                        onClick={() => onSaveToHistory(summary)}
+                        className="text-purple-600 hover:text-purple-800 p-1"
+                        title="Save to History"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                      </button>
+                      
+                      <button
                         onClick={() => toggleSummaryExpansion(summary.id)}
                         className="text-gray-400 hover:text-gray-600"
                       >
@@ -546,13 +626,10 @@ const CurrentResearchTab = ({
                       
                       <button
                         onClick={() => {
-                          if (summary.type === 'google') {
-                            dispatch(removeGoogleResearchSummary(summary.id))
-                          } else {
-                            dispatch(removeYouTubeResearchSummary(summary.id))
-                          }
+                          dispatch(removeYouTubeResearchSummary(summary.id))
                         }}
                         className="text-red-400 hover:text-red-600"
+                        title="Remove from Current Research"
                       >
                         ×
                       </button>
@@ -561,55 +638,13 @@ const CurrentResearchTab = ({
                   
                   {/* Quick Preview */}
                   <div className="text-sm text-gray-600 mb-2">
-                    {summary.type === 'google' ? (
-                      <p>{summary.insights.slice(0, 150)}...</p>
-                    ) : (
-                      <p>{summary.videosSummary.overallTheme.slice(0, 150)}...</p>
-                    )}
+                    <p>{summary.videosSummary.overallTheme.slice(0, 150)}...</p>
                   </div>
                   
                   {/* Expanded Content */}
                   {isExpanded && (
                     <div className="mt-4 space-y-4 border-t pt-4">
-                      {summary.type === 'google' ? (
-                        <>
-                          <div>
-                            <h5 className="font-semibold text-gray-800 mb-2">Insights</h5>
-                            <p className="text-gray-700 bg-gray-50 p-3 rounded">{summary.insights}</p>
-                          </div>
-                          
-                          <div className="grid md:grid-cols-2 gap-4">
-                            <div>
-                              <h5 className="font-semibold text-gray-800 mb-2">Key Findings</h5>
-                              <ul className="space-y-1">
-                                {summary.keyFindings.map((finding: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                      {index + 1}
-                                    </span>
-                                    {finding}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                            
-                            <div>
-                              <h5 className="font-semibold text-gray-800 mb-2">Recommendations</h5>
-                              <ul className="space-y-1">
-                                {summary.recommendations.map((rec: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="bg-green-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                      →
-                                    </span>
-                                    {rec}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
+                      {/* All research now uses videosSummary structure */}
                           <div>
                             <h5 className="font-semibold text-gray-800 mb-2">Overall Theme</h5>
                             <p className="text-gray-700 bg-gray-50 p-3 rounded">{summary.videosSummary.overallTheme}</p>
@@ -682,22 +717,7 @@ const CurrentResearchTab = ({
                             </div>
                           )}
                           
-                          {/* Story Ideas */}
-                          {summary.videosSummary.storyIdeas && summary.videosSummary.storyIdeas.length > 0 && (
-                            <div>
-                              <h5 className="font-semibold text-gray-800 mb-2">Story Ideas</h5>
-                              <ul className="space-y-1">
-                                {summary.videosSummary.storyIdeas.map((idea: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="bg-green-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                      💡
-                                    </span>
-                                    {idea}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+
                           
                           {/* Common Patterns */}
                           {summary.videosSummary.commonPatterns && summary.videosSummary.commonPatterns.length > 0 && (
@@ -716,13 +736,92 @@ const CurrentResearchTab = ({
                             </div>
                           )}
                           
-                          <div>
-                            <h5 className="font-semibold text-gray-800 mb-2">Creative Prompt</h5>
-                            <p className="text-gray-700 bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded border border-purple-200">
-                              {summary.videosSummary.creativePrompt}
-                            </p>
+
+                        
+                      {/* End of all research content */}
+
+                      {/* Raw Content Section - Only for AI Research (Firecrawl) */}
+                      {(summary as any).rawContent && (
+                        <div className="border-t pt-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-semibold text-gray-800 flex items-center gap-2">
+                              <svg className="h-4 w-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Raw Content
+                            </h5>
+                            {editingRawContent[summary.id] !== undefined ? (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    // Save the edited content
+                                    const updatedSummary = {
+                                      ...summary,
+                                      rawContent: editingRawContent[summary.id]
+                                    }
+                                    // Update in Redux
+                                    dispatch({
+                                      type: 'youtube/removeYouTubeResearchSummary',
+                                      payload: summary.id
+                                    })
+                                    dispatch({
+                                      type: 'youtube/addYouTubeResearchSummary',
+                                      payload: updatedSummary
+                                    })
+                                    // Clear editing state
+                                    const newEditing = { ...editingRawContent }
+                                    delete newEditing[summary.id]
+                                    setEditingRawContent(newEditing)
+                                    alert('✅ Raw content saved!')
+                                  }}
+                                  className="text-green-600 hover:text-green-800 text-sm font-medium"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const newEditing = { ...editingRawContent }
+                                    delete newEditing[summary.id]
+                                    setEditingRawContent(newEditing)
+                                  }}
+                                  className="text-gray-600 hover:text-gray-800 text-sm font-medium"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setEditingRawContent({
+                                    ...editingRawContent,
+                                    [summary.id]: (summary as any).rawContent
+                                  })
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              >
+                                Edit
+                              </button>
+                            )}
                           </div>
-                        </>
+                          
+                          {editingRawContent[summary.id] !== undefined ? (
+                            <textarea
+                              value={editingRawContent[summary.id]}
+                              onChange={(e) => setEditingRawContent({
+                                ...editingRawContent,
+                                [summary.id]: e.target.value
+                              })}
+                              className="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm resize-vertical"
+                              placeholder="Raw markdown content..."
+                            />
+                          ) : (
+                            <div className="bg-gray-50 p-3 rounded-lg border">
+                              <pre className="text-sm text-gray-700 whitespace-pre-wrap overflow-x-auto">
+                                {(summary as any).rawContent || 'No raw content available'}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -736,476 +835,410 @@ const CurrentResearchTab = ({
   )
 }
 
-// Move AnalysisSection outside of the main component
-const AnalysisSection = ({ 
-  videoId, 
-  subtitleFile, 
-  video,
-  localQueries,
-  setLocalQueries,
-  transcriptAnalysis,
-  geminiAnalysis,
-  expandedAnalysis,
-  toggleAnalysisExpansion,
-  handleAnalyzeTranscript,
-  handleAnalyzeVideoTranscript,
-  handleAnalyzeVideoWithGemini,
-  formatTimestamp
-}: { 
-  videoId: string; 
-  subtitleFile?: SubtitleFile; 
-  video?: Video;
-  localQueries: Record<string, string>;
-  setLocalQueries: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  transcriptAnalysis: any;
-  geminiAnalysis: any;
-  expandedAnalysis: Set<string>;
-  toggleAnalysisExpansion: (resultId: string) => void;
-  handleAnalyzeTranscript: (videoId: string, subtitleFile: SubtitleFile) => void;
-  handleAnalyzeVideoTranscript: (video: Video) => void;
-  handleAnalyzeVideoWithGemini: (video: Video) => void;
-  formatTimestamp: (timestamp: string) => string;
+// Research History Tab Component
+const ResearchHistoryTab = ({ 
+  researchHistory, 
+  editingResearch, 
+  onStartEditing, 
+  onSaveEdit, 
+  onCancelEdit, 
+  onUpdateEdit, 
+  onDeleteFromHistory, 
+  onClearHistory, 
+  onRestoreFromHistory 
+}: {
+  researchHistory: any[]
+  editingResearch: {id: string, field: string, value: string} | null
+  onStartEditing: (id: string, field: string, value: string) => void
+  onSaveEdit: () => void
+  onCancelEdit: () => void
+  onUpdateEdit: (value: string) => void
+  onDeleteFromHistory: (id: string) => void
+  onClearHistory: () => void
+  onRestoreFromHistory: (item: any) => void
 }) => {
-  const [analysisMode, setAnalysisMode] = React.useState<'openai' | 'gemini'>('openai')
-  
-  const isAnalyzing = transcriptAnalysis.analyzingTranscripts[videoId] || false
-  const isAnalyzingGemini = geminiAnalysis.analyzingWithGemini[videoId] || false
-  const currentQuery = localQueries[videoId] || ''
-  const analysisResults = transcriptAnalysis.analysisResults.filter((result: AnalysisResult) => result.videoId === videoId)
-  const geminiResults = geminiAnalysis.geminiAnalysisResults.filter((result: GeminiAnalysisResult) => result.videoId === videoId)
-  const canAnalyze = subtitleFile?.status === 'completed'
+  const [searchFilter, setSearchFilter] = React.useState('')
+  const [typeFilter, setTypeFilter] = React.useState<'all' | 'google' | 'perplexity' | 'youtube'>('all')
+  const [sortBy, setSortBy] = React.useState<'date' | 'type' | 'query'>('date')
+
+  const filteredHistory = researchHistory
+    .filter(item => {
+      const matchesSearch = !searchFilter || 
+        item.query?.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        item.insights?.toLowerCase().includes(searchFilter.toLowerCase())
+      
+      const matchesType = typeFilter === 'all' || 
+        (typeFilter === 'google' && !item.researchMethod) ||
+        (typeFilter === 'perplexity' && item.researchMethod === 'perplexity_ai') ||
+        (typeFilter === 'youtube' && item.analysisType)
+      
+      return matchesSearch && matchesType
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'date':
+          return new Date(b.savedAt || b.timestamp).getTime() - new Date(a.savedAt || a.timestamp).getTime()
+        case 'type':
+          const getType = (item: any) => item.researchMethod || item.analysisType || 'google'
+          return getType(a).localeCompare(getType(b))
+        case 'query':
+          return (a.query || '').localeCompare(b.query || '')
+        default:
+          return 0
+      }
+    })
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString()
+  }
+
+  const getResearchIcon = (item: any) => {
+    if (item.analysisType) return <Spark className="h-4 w-4 text-blue-600" />
+    if (item.researchMethod === 'perplexity_ai') return <Brain className="h-4 w-4 text-purple-600" />
+    if (item.researchMethod === 'firecrawl_scraping') return <Download className="h-4 w-4 text-green-600" />
+    if (item.researchMethod === 'web_research_perplexity_firecrawl') return <ExternalLink className="h-4 w-4 text-emerald-600" />
+    return <Globe className="h-4 w-4 text-blue-600" />
+  }
+
+  const getResearchType = (item: any) => {
+    if (item.analysisType) return 'YouTube Analysis'
+    if (item.researchMethod === 'perplexity_ai') return 'Perplexity AI'
+    if (item.researchMethod === 'firecrawl_scraping') return 'Scraped Article'
+    if (item.researchMethod === 'web_research_perplexity_firecrawl') return 'Web Research'
+    return 'Google Research'
+  }
 
   return (
-    <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
-      <h4 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
-        <BarChart3 className="h-4 w-4" />
-        AI Video Analysis
-      </h4>
-
-      {/* Analysis Mode Tabs */}
-      <div className="flex mb-4 bg-white rounded-lg p-1 border border-purple-200">
-        <button
-          onClick={() => setAnalysisMode('openai')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            analysisMode === 'openai'
-              ? 'bg-purple-600 text-white shadow-sm'
-              : 'text-purple-600 hover:bg-purple-50'
-          }`}
-        >
-          <div className="flex items-center justify-center gap-2">
-            <Search className="h-4 w-4" />
-            OpenAI Analysis
-          </div>
-        </button>
-        <button
-          onClick={() => setAnalysisMode('gemini')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            analysisMode === 'gemini'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'text-blue-600 hover:bg-blue-50'
-          }`}
-        >
-          <div className="flex items-center justify-center gap-2">
-            <Spark className="h-4 w-4" />
-            Gemini AI Analysis
-          </div>
-        </button>
-      </div>
-
-      {/* Query Input */}
-      <div className="flex gap-2 mb-3">
-        <input
-          type="text"
-          placeholder={analysisMode === 'openai' ? "Enter phrase or topic to analyze..." : "Enter analysis focus or leave empty for comprehensive analysis..."}
-          value={currentQuery}
-          onChange={(e) => setLocalQueries(prev => ({ ...prev, [videoId]: e.target.value }))}
-          className="flex-1 px-3 py-2 border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
-          disabled={analysisMode === 'openai' ? !canAnalyze : false}
-        />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Clock className="h-6 w-6 text-purple-600" />
+            Research History
+          </h2>
+          <p className="text-gray-600 mt-1">
+            View, edit, and manage your past research sessions
+          </p>
+        </div>
         
-        {analysisMode === 'openai' ? (
+        {researchHistory.length > 0 && (
           <button
-            onClick={() => {
-              if (subtitleFile) {
-                handleAnalyzeTranscript(videoId, subtitleFile)
-              } else if (video) {
-                handleAnalyzeVideoTranscript(video)
-              }
-            }}
-            disabled={!canAnalyze || !currentQuery.trim() || isAnalyzing}
-            className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm"
+            onClick={onClearHistory}
+            className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
           >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Search className="h-4 w-4" />
-                Analyze Transcript
-              </>
-            )}
-          </button>
-        ) : (
-          <button
-            onClick={() => {
-              if (video) {
-                handleAnalyzeVideoWithGemini(video)
-              }
-            }}
-            disabled={!currentQuery.trim() || isAnalyzingGemini}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm"
-          >
-            {isAnalyzingGemini ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Spark className="h-4 w-4" />
-                Analyze with Gemini
-              </>
-            )}
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Clear All History
           </button>
         )}
       </div>
 
-      {/* Mode-specific information */}
-      {analysisMode === 'openai' && !canAnalyze && (
-        <p className="text-sm text-purple-600 mb-2">
-          Generate subtitles first to enable OpenAI transcript analysis.
-        </p>
-      )}
+      {/* Filters and Search */}
+      <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <input
+              type="text"
+              placeholder="Search research content..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Type</label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as any)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+            >
+              <option value="all">All Types</option>
+              <option value="google">Google Research</option>
+              <option value="perplexity">Perplexity AI</option>
+              <option value="youtube">YouTube Analysis</option>
+              
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Sort by</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+            >
+              <option value="date">Date (Newest First)</option>
+              <option value="type">Research Type</option>
+              <option value="query">Query Name</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="text-sm text-gray-600">
+          Showing {filteredHistory.length} of {researchHistory.length} research sessions
+        </div>
+      </div>
 
-      {analysisMode === 'gemini' && (
-        <p className="text-sm text-blue-600 mb-2">
-          Gemini AI analyzes videos directly without requiring subtitles. Provides comprehensive insights including timestamps, quotes, and story elements.
-        </p>
-      )}
-
-      {/* Analysis Results */}
-      {analysisMode === 'openai' && analysisResults.length > 0 && (
-        <div className="space-y-2">
-          <h5 className="text-sm font-medium text-purple-700">OpenAI Analysis Results:</h5>
-          {analysisResults.map((result: AnalysisResult, resultIndex: number) => {
-            const resultId = `${result.videoId}-${resultIndex}`
-            const isExpanded = expandedAnalysis.has(resultId)
-            
-            return (
-              <div key={resultId} className="space-y-2">
-                <div className="text-xs font-medium text-purple-600 flex items-center gap-2">
-                  Query: "{result.query}"
-                  {result.usingMock && (
-                    <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded">
-                      Mock
-                    </span>
-                  )}
-                  <span className="text-gray-500">
-                    ({result.analysis.length} result{result.analysis.length !== 1 ? 's' : ''})
-                  </span>
+      {/* Research History Items */}
+      {filteredHistory.length === 0 ? (
+        <div className="text-center py-12">
+          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            {researchHistory.length === 0 ? 'No Research History' : 'No Matching Results'}
+          </h3>
+          <p className="text-gray-600">
+            {researchHistory.length === 0 
+              ? 'Your research sessions will appear here automatically' 
+              : 'Try adjusting your filters to find specific research'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredHistory.map((item) => (
+            <div key={item.historyId} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  {getResearchIcon(item)}
+                  <div>
+                    {editingResearch?.id === item.historyId && editingResearch?.field === 'query' ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editingResearch.value}
+                          onChange={(e) => onUpdateEdit(e.target.value)}
+                          className="text-lg font-semibold text-gray-900 border border-purple-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          autoFocus
+                        />
+                        <button
+                          onClick={onSaveEdit}
+                          className="text-green-600 hover:text-green-800 p-1"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={onCancelEdit}
+                          className="text-red-600 hover:text-red-800 p-1"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <h3 
+                        className="text-lg font-semibold text-gray-900 cursor-pointer hover:text-purple-600 transition-colors"
+                        onClick={() => onStartEditing(item.historyId, 'query', item.query || '')}
+                      >
+                        {item.query || 'Untitled Research'}
+                      </h3>
+                    )}
+                    
+                    <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+                      <span className="flex items-center gap-1">
+                        {getResearchIcon(item)}
+                        {getResearchType(item)}
+                      </span>
+                      <span>Saved: {formatDate(item.savedAt || item.timestamp)}</span>
+                      {item.lastModified && (
+                        <span>Modified: {formatDate(item.lastModified)}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 
-                {result.analysis.map((analysis: TranscriptAnalysis, analysisIndex: number) => {
-                  const resultId = `${result.videoId}-${resultIndex}-${analysisIndex}`
-                  const isExpanded = expandedAnalysis.has(resultId)
-                  
-                  return (
-                    <div key={resultId} className="border border-purple-200 rounded-md bg-white ml-4">
+                                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => toggleAnalysisExpansion(resultId)}
-                        className="w-full px-3 py-2 text-left flex items-center justify-between hover:bg-purple-50 transition-colors"
+                        onClick={() => onRestoreFromHistory(item)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded transition-colors flex items-center gap-1"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-purple-700">
-                            Result #{analysisIndex + 1}
-                          </span>
-                          <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded">
-                            {Math.round(analysis.confidence * 100)}% confidence
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-purple-600 flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatTimestamp(analysis.timestamp)}
-                          </span>
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4 text-purple-600" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-purple-600" />
-                          )}
-                        </div>
+                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Restore
                       </button>
-                      
-                      {isExpanded && (
-                        <div className="px-3 pb-3 space-y-3 border-t border-purple-100">
-                          <div>
-                            <h6 className="text-xs font-semibold text-purple-700 mb-1">Summary:</h6>
-                            <p className="text-sm text-gray-700">{analysis.summary}</p>
-                          </div>
-                          
-                          {analysis.keyQuotes && analysis.keyQuotes.length > 0 && (
-                            <div>
-                              <h6 className="text-xs font-semibold text-purple-700 mb-1">Key Quotes:</h6>
-                              <div className="space-y-1">
-                                {analysis.keyQuotes.map((quote: string, quoteIndex: number) => (
-                                  <div key={quoteIndex} className="text-sm text-gray-700 bg-yellow-50 p-2 rounded border-l-2 border-yellow-400">
-                                    <span className="text-yellow-700 font-medium">"</span>
-                                    {quote}
-                                    <span className="text-yellow-700 font-medium">"</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {analysis.dramaticElements && analysis.dramaticElements.length > 0 && (
-                            <div>
-                              <h6 className="text-xs font-semibold text-purple-700 mb-1">Dramatic Elements:</h6>
-                              <div className="flex flex-wrap gap-1">
-                                {analysis.dramaticElements.map((element: string, elemIndex: number) => (
-                                  <span key={elemIndex} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
-                                    {element}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          <div>
-                            <h6 className="text-xs font-semibold text-purple-700 mb-1">Relevant Content:</h6>
-                            <p className="text-sm text-gray-600 italic bg-gray-50 p-2 rounded">
-                              {analysis.relevantContent}
-                            </p>
-                          </div>
-                          
-                          {analysis.contextualInfo && (
-                            <div>
-                              <h6 className="text-xs font-semibold text-purple-700 mb-1">Context & Significance:</h6>
-                              <p className="text-sm text-blue-700 bg-blue-50 p-2 rounded">
-                                {analysis.contextualInfo}
-                              </p>
-                            </div>
-                          )}
-                          
-                          <div className="flex justify-between items-center text-xs text-purple-600">
-                            <span>Confidence: {Math.round(analysis.confidence * 100)}%</span>
-                            <div className="flex items-center gap-2">
-                              {analysis.youtubeUrl && (
-                                <a
-                                  href={analysis.youtubeUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors"
-                                >
-                                  <ExternalLink className="h-3 w-3" />
-                                  Watch at {formatTimestamp(analysis.timestamp)}
-                                </a>
-                              )}
-                              <span>Analyzed: {new Date(result.timestamp).toLocaleString()}</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      <button
+                        onClick={() => onDeleteFromHistory(item.historyId)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                        title="Delete from history"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
-                  )
-                })}
               </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Gemini Analysis Results */}
-      {analysisMode === 'gemini' && geminiResults.length > 0 && (
-        <div className="space-y-4">
-          <h5 className="text-sm font-medium text-blue-700">Gemini AI Analysis Results:</h5>
-          {geminiResults.map((result: GeminiAnalysisResult, resultIndex: number) => {
-            const resultId = `gemini-${result.videoId}-${resultIndex}`
-            const isExpanded = expandedAnalysis.has(resultId)
-            
-            return (
-              <div key={resultId} className="border border-blue-200 rounded-lg bg-white">
-                <button
-                  onClick={() => toggleAnalysisExpansion(resultId)}
-                  className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-blue-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Spark className="h-5 w-5 text-blue-600" />
-                    <span className="font-medium text-blue-800">
-                      {result.query ? `Focused Analysis: "${result.query}"` : 'Comprehensive Analysis'}
-                    </span>
-                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                      Gemini AI
-                    </span>
-                    {result.parsedWithGPT && (
-                      <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
-                        + GPT-4o-mini
-                      </span>
+              
+              {/* Research Content */}
+              <div className="space-y-3">
+                {item.insights && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Key Insights</h4>
+                    {editingResearch?.id === item.historyId && editingResearch?.field === 'insights' ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editingResearch.value}
+                          onChange={(e) => onUpdateEdit(e.target.value)}
+                          className="w-full p-2 border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                          rows={4}
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={onSaveEdit}
+                            className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 rounded transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={onCancelEdit}
+                            className="bg-gray-500 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p 
+                        className="text-sm text-gray-700 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors"
+                        onClick={() => onStartEditing(item.historyId, 'insights', item.insights)}
+                      >
+                        {item.insights}
+                      </p>
                     )}
                   </div>
-                  {isExpanded ? (
-                    <ChevronDown className="h-5 w-5 text-blue-600" />
-                  ) : (
-                    <ChevronRight className="h-5 w-5 text-blue-600" />
-                  )}
-                </button>
+                )}
                 
-                {isExpanded && (
-                  <div className="px-4 pb-4 space-y-4 border-t border-blue-100">
-                    {/* Summary */}
-                    <div>
-                      <h6 className="text-sm font-semibold text-blue-800 mb-2">Summary</h6>
-                      <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded">{result.analysis.summary}</p>
-                    </div>
-
-                    {/* Key Points */}
-                    <div>
-                      <h6 className="text-sm font-semibold text-blue-800 mb-2">Key Points</h6>
-                      <ul className="space-y-1">
-                        {result.analysis.keyPoints.map((point: string, index: number) => (
-                          <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                            <span className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                              {index + 1}
-                            </span>
-                            {point}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Timestamps */}
-                    {result.analysis.timestamps.length > 0 && (
-                      <div>
-                        <h6 className="text-sm font-semibold text-blue-800 mb-2">Key Timestamps</h6>
-                        <div className="space-y-2">
-                          {result.analysis.timestamps.map((timestamp: any, index: number) => (
-                            <div key={index} className="bg-gray-50 p-2 rounded border-l-2 border-blue-400">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Clock className="h-4 w-4 text-blue-600" />
-                                <span className="font-medium text-blue-700">{timestamp.time}</span>
-                              </div>
-                              <p className="text-sm text-gray-700">{timestamp.description}</p>
-                              <p className="text-xs text-blue-600 mt-1">{timestamp.significance}</p>
-                            </div>
-                          ))}
+                {item.keyFindings && item.keyFindings.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-sm font-medium text-gray-700">Key Findings</h4>
+                      {editingResearch?.id === item.historyId && editingResearch?.field === 'keyFindings' ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={onSaveEdit}
+                            className="text-green-600 hover:text-green-800 text-xs"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={onCancelEdit}
+                            className="text-gray-600 hover:text-gray-800 text-xs"
+                          >
+                            Cancel
+                          </button>
                         </div>
+                      ) : (
+                        <button
+                          onClick={() => onStartEditing(item.historyId, 'keyFindings', JSON.stringify(item.keyFindings))}
+                          className="text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                    
+                    {editingResearch?.id === item.historyId && editingResearch?.field === 'keyFindings' ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editingResearch.value}
+                          onChange={(e) => onUpdateEdit(e.target.value)}
+                          placeholder="Enter key findings, one per line"
+                          className="w-full p-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          rows={4}
+                        />
+                        <p className="text-xs text-gray-500">Enter each finding on a new line</p>
                       </div>
-                    )}
-
-                    {/* Key Quotes */}
-                    {result.analysis.keyQuotes.length > 0 && (
-                      <div>
-                        <h6 className="text-sm font-semibold text-blue-800 mb-2">Key Quotes</h6>
-                        <div className="space-y-1">
-                          {result.analysis.keyQuotes.map((quote: string, index: number) => (
-                            <div key={index} className="text-sm text-gray-700 bg-yellow-50 p-2 rounded border-l-2 border-yellow-400">
-                              <span className="text-yellow-700 font-medium">"</span>
-                              {quote}
-                              <span className="text-yellow-700 font-medium">"</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Topics and Emotional Tone */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {result.analysis.topics.length > 0 && (
-                        <div>
-                          <h6 className="text-sm font-semibold text-blue-800 mb-2">Topics</h6>
-                          <div className="flex flex-wrap gap-1">
-                            {result.analysis.topics.map((topic: string, index: number) => (
-                              <span key={index} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                                {topic}
-                              </span>
-                            ))}
+                    ) : (
+                      <div className="space-y-1">
+                        {item.keyFindings.slice(0, 3).map((finding: string, index: number) => (
+                          <div key={index} className="flex items-start gap-2">
+                            <span className="text-blue-600 mt-1">•</span>
+                            <span className="text-sm text-gray-700">{finding}</span>
                           </div>
-                        </div>
-                      )}
-                      
-                      <div>
-                        <h6 className="text-sm font-semibold text-blue-800 mb-2">Emotional Tone</h6>
-                        <p className="text-sm text-gray-700 bg-blue-50 p-2 rounded">{result.analysis.emotionalTone}</p>
-                      </div>
-                    </div>
-
-                    {/* Story Elements */}
-                    {(result.analysis.characterInsights.length > 0 || result.analysis.conflictElements.length > 0 || result.analysis.storyIdeas.length > 0) && (
-                      <div>
-                        <h6 className="text-sm font-semibold text-blue-800 mb-2">Story Elements</h6>
-                        <div className="space-y-3">
-                          {result.analysis.characterInsights.length > 0 && (
-                            <div>
-                              <p className="text-xs font-medium text-gray-600 mb-1">Character Insights:</p>
-                              <ul className="space-y-1">
-                                {result.analysis.characterInsights.map((insight: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="text-green-600 mt-1">👤</span>
-                                    {insight}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {result.analysis.conflictElements.length > 0 && (
-                            <div>
-                              <p className="text-xs font-medium text-gray-600 mb-1">Conflicts & Tensions:</p>
-                              <ul className="space-y-1">
-                                {result.analysis.conflictElements.map((conflict: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="text-red-600 mt-1">⚡</span>
-                                    {conflict}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {result.analysis.storyIdeas.length > 0 && (
-                            <div>
-                              <p className="text-xs font-medium text-gray-600 mb-1">Story Ideas:</p>
-                              <ul className="space-y-1">
-                                {result.analysis.storyIdeas.map((idea: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="text-yellow-600 mt-1">💡</span>
-                                    {idea}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
+                        ))}
+                        {item.keyFindings.length > 3 && (
+                          <div className="text-xs text-gray-500 ml-3">
+                            +{item.keyFindings.length - 3} more findings
+                          </div>
+                        )}
                       </div>
                     )}
-
-                    {/* Creative Prompt */}
-                    <div>
-                      <h6 className="text-sm font-semibold text-blue-800 mb-2">Creative Writing Prompt</h6>
-                      <p className="text-sm text-gray-700 bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded border border-blue-200">
-                        {result.analysis.creativePrompt}
-                      </p>
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="text-xs text-gray-500 pt-2 border-t border-blue-100">
-                      <span>Analyzed: {new Date(result.timestamp).toLocaleString()}</span>
-                      {result.rawResponse && (
-                        <span className="ml-4">• Full response available</span>
+                  </div>
+                )}
+                
+                {item.scrapedArticles && item.scrapedArticles.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-sm font-medium text-gray-700">
+                        Scraped Articles ({item.scrapedArticles.length})
+                      </h4>
+                      {editingResearch?.id === item.historyId && editingResearch?.field === 'scrapedArticles' ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={onSaveEdit}
+                            className="text-green-600 hover:text-green-800 text-xs"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={onCancelEdit}
+                            className="text-gray-600 hover:text-gray-800 text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onStartEditing(item.historyId, 'scrapedArticles', JSON.stringify(item.scrapedArticles))}
+                          className="text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          Edit
+                        </button>
                       )}
                     </div>
+                    
+                    {editingResearch?.id === item.historyId && editingResearch?.field === 'scrapedArticles' ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editingResearch.value}
+                          onChange={(e) => onUpdateEdit(e.target.value)}
+                          placeholder="Edit scraped articles data (JSON format)"
+                          className="w-full p-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                          rows={6}
+                        />
+                        <p className="text-xs text-gray-500">Edit the JSON data for scraped articles</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {item.scrapedArticles.slice(0, 3).map((article: any, index: number) => (
+                          <span key={index} className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded">
+                            {article.title.substring(0, 30)}...
+                          </span>
+                        ))}
+                        {item.scrapedArticles.length > 3 && (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                            +{item.scrapedArticles.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
 }
+
+// AnalysisSection component removed - analysis now handled at the top level
 
 export default function YouTubeSearch() {
   const { data: session, status } = useSession()
@@ -1226,10 +1259,124 @@ export default function YouTubeSearch() {
   // Local state for accordion visibility and input values
   const [expandedAnalysis, setExpandedAnalysis] = React.useState<Set<string>>(new Set())
   const [localQueries, setLocalQueries] = React.useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = React.useState<'youtube' | 'research' | 'current-research'>('youtube')
+  const [activeTab, setActiveTab] = React.useState<'youtube' | 'research' | 'current-research' | 'history'>('youtube')
+  const [researchHistory, setResearchHistory] = React.useState<any[]>([])
+  const [editingResearch, setEditingResearch] = React.useState<{id: string, field: string, value: string} | null>(null)
   const [analysisMode, setAnalysisMode] = React.useState<'openai' | 'gemini'>('openai')
   const [isAnalyzingBatch, setIsAnalyzingBatch] = React.useState(false)
   const [batchAnalysisProgress, setBatchAnalysisProgress] = React.useState({ completed: 0, total: 0 })
+
+  // Research History Management Functions
+  const deleteFromHistory = (historyId: string) => {
+    try {
+      const history = researchHistory.filter(item => item.historyId !== historyId)
+      setResearchHistory(history)
+      localStorage.setItem('research-history', JSON.stringify(history))
+      console.log('✅ Research deleted from history')
+      alert('🗑️ Research item deleted from history!')
+    } catch (error) {
+      console.error('Failed to delete from history:', error)
+    }
+  }
+
+  const clearHistory = () => {
+    setResearchHistory([])
+    localStorage.removeItem('research-history')
+    console.log('✅ Research history cleared')
+    alert('🧹 All research history cleared!')
+  }
+
+  const saveToHistory = (researchItem: any) => {
+    try {
+      const history = [...researchHistory]
+      const historyItem = {
+        ...researchItem,
+        savedAt: new Date().toISOString(),
+        historyId: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      }
+      history.unshift(historyItem) // Add to beginning
+      
+      // Keep only last 50 items
+      if (history.length > 50) {
+        history.splice(50)
+      }
+      
+      setResearchHistory(history)
+      localStorage.setItem('research-history', JSON.stringify(history))
+      console.log('✅ Research saved to history')
+      alert('📚 Research saved to history!')
+    } catch (error) {
+      console.error('Failed to save to history:', error)
+    }
+  }
+
+  const updateHistoryItem = (historyId: string, updates: any) => {
+    try {
+      const history = researchHistory.map(item => 
+        item.historyId === historyId 
+          ? { ...item, ...updates, lastModified: new Date().toISOString() }
+          : item
+      )
+      setResearchHistory(history)
+      localStorage.setItem('research-history', JSON.stringify(history))
+      console.log('✅ Research history updated')
+      alert('📝 Research history updated!')
+    } catch (error) {
+      console.error('Failed to update history:', error)
+    }
+  }
+
+  const restoreFromHistory = (historyItem: any) => {
+    // Add the historical research back to current research
+    const restoredItem = {
+      ...historyItem,
+      id: `restored-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      appliedToScript: false,
+      isRestoredFromHistory: true // Flag to prevent auto-save
+    }
+    
+    dispatch({
+      type: 'youtube/addYouTubeResearchSummary',
+      payload: restoredItem
+    })
+    
+    console.log('✅ Research restored from history')
+    alert('↩️ Research restored from history to Current Research!')
+  }
+
+  // Load history on component mount
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('research-history')
+      if (stored) {
+        const history = JSON.parse(stored)
+        setResearchHistory(history)
+      }
+    } catch (error) {
+      console.error('Failed to load research history:', error)
+    }
+  }, [])
+
+  // Track which items have been saved to prevent re-saving deleted items
+  const [savedItemIds, setSavedItemIds] = React.useState<Set<string>>(new Set())
+
+  // Auto-save current research to history when research summaries change
+  React.useEffect(() => {
+    const currentResearch = [
+      ...researchSummaries.youtubeResearchSummaries
+    ]
+    
+    // Save new research to history automatically (but not restored items or already saved items)
+    currentResearch.forEach(item => {
+      if (!(item as any).isRestoredFromHistory && 
+          !researchHistory.find(h => h.id === item.id) && 
+          !savedItemIds.has(item.id)) {
+        saveToHistory(item)
+        setSavedItemIds(prev => new Set(prev).add(item.id))
+      }
+    })
+  }, [researchSummaries.youtubeResearchSummaries, researchHistory])
 
   const handleSearch = () => {
     if (!searchForm.searchQuery.trim() && !searchForm.channelUrl.trim()) {
@@ -1528,8 +1675,8 @@ export default function YouTubeSearch() {
                   narrativeThemes: result.analysis.flatMap((a: any) => a.dramaticElements || []).slice(0, 5),
                   characterInsights: [],
                   conflictElements: result.analysis.flatMap((a: any) => a.dramaticElements || []).slice(0, 5),
-                  storyIdeas: [],
-                  creativePrompt: `Based on the OpenAI analysis of "${video.snippet.title}", create content that incorporates the key insights and themes discovered.`
+                  storyIdeas: [], // Empty for YouTube analysis
+                  creativePrompt: '' // Empty for YouTube analysis
                 },
                 timestamp: new Date().toISOString(),
                 usingMock: false,
@@ -1573,8 +1720,8 @@ export default function YouTubeSearch() {
                 narrativeThemes: result.analysis.topics.slice(0, 5),
                 characterInsights: result.analysis.characterInsights,
                 conflictElements: result.analysis.conflictElements,
-                storyIdeas: result.analysis.storyIdeas,
-                creativePrompt: result.analysis.creativePrompt
+                storyIdeas: [], // Empty for YouTube analysis
+                creativePrompt: '' // Empty for YouTube analysis
               },
               timestamp: new Date().toISOString(),
               usingMock: false,
@@ -1739,6 +1886,19 @@ export default function YouTubeSearch() {
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   Current Research
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'history'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Research History
                 </div>
               </button>
             </nav>
@@ -1913,58 +2073,117 @@ export default function YouTubeSearch() {
                     </div>
                   </div>
                   
-                  <div className="flex gap-2 flex-wrap">
-                    {/* Analysis Type Dropdown and Analyze Button */}
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={analysisMode}
-                        onChange={(e) => setAnalysisMode(e.target.value as 'openai' | 'gemini')}
-                        className="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  {/* Enhanced Analysis Mode Selection */}
+                  <div className="mb-4">
+                    <h5 className="text-sm font-medium text-blue-800 mb-3">Choose Analysis Approach for Selected Videos</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                      <button
+                        onClick={() => setAnalysisMode('openai')}
+                        className={`p-4 rounded-lg border-2 transition-colors ${
+                          analysisMode === 'openai'
+                            ? 'border-purple-500 bg-purple-50 text-purple-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-purple-300'
+                        }`}
                       >
-                        <option value="openai">Transcript Analysis</option>
-                        <option value="gemini">Full Analysis</option>
-                      </select>
-                      
+                        <div className="flex flex-col items-center gap-3">
+                          <Search className="h-6 w-6" />
+                          <div className="text-center">
+                            <div className="font-medium">Transcript Analysis</div>
+                            <div className="text-xs opacity-75 mt-1">OpenAI analyzes generated subtitles</div>
+                            <div className="text-xs mt-1 text-amber-600">
+                              ⚠ Requires subtitle generation first
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setAnalysisMode('gemini')}
+                        className={`p-4 rounded-lg border-2 transition-colors ${
+                          analysisMode === 'gemini'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center gap-3">
+                          <Spark className="h-6 w-6" />
+                          <div className="text-center">
+                            <div className="font-medium">Video Analysis</div>
+                            <div className="text-xs opacity-75 mt-1">Gemini AI analyzes videos directly</div>
+                            <div className="text-xs mt-1 text-green-600">
+                              ✓ No subtitles required
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={handleAnalyzeSelectedVideos}
                         disabled={searchResults.selectedVideos.length === 0 || isAnalyzingBatch}
-                        className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors flex items-center gap-2"
+                        className={`flex-1 sm:flex-none font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                          analysisMode === 'openai'
+                            ? 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white'
+                            : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white'
+                        }`}
                       >
                         {isAnalyzingBatch ? (
                           <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Analyzing...
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            {analysisMode === 'openai' ? 'Analyzing Transcripts...' : 'Analyzing Videos...'}
+                            <span className="ml-1">({batchAnalysisProgress.completed}/{batchAnalysisProgress.total})</span>
                           </>
                         ) : (
                           <>
-                            {analysisMode === 'gemini' ? <Spark className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-                            Analyze Selected ({searchResults.selectedVideos.length})
+                            {analysisMode === 'gemini' ? <Spark className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+                            {analysisMode === 'openai' ? 'Analyze Transcripts' : 'Analyze Videos'} ({searchResults.selectedVideos.length})
+                          </>
+                        )}
+                      </button>
+                      
+                      {/* Other bulk actions */}
+                      <button
+                        onClick={handleGenerateSubtitles}
+                        disabled={searchResults.selectedVideos.length === 0 || subtitleGeneration.generatingSubtitles}
+                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-6 rounded-md transition-colors flex items-center gap-2"
+                      >
+                        {subtitleGeneration.generatingSubtitles ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4" />
+                            Generate Subtitles ({searchResults.selectedVideos.length})
                           </>
                         )}
                       </button>
                     </div>
                   </div>
                   
-                  {/* Mode-specific information */}
-                  <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
-                    {analysisMode === 'openai' ? (
-                      <div className="flex items-start gap-2">
-                        <Search className="h-4 w-4 text-purple-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-purple-800">Transcript Analysis</p>
-                          <p className="text-xs text-purple-600">Automatically generates subtitles and analyzes transcripts for detailed insights.</p>
+                  {/* Progress information for batch analysis */}
+                  {isAnalyzingBatch && (
+                    <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                        <span className="text-sm font-medium text-purple-800">
+                          {analysisMode === 'openai' ? 'Analyzing Transcripts' : 'Analyzing Videos'} with AI
+                        </span>
                         </div>
+                      <div className="text-xs text-purple-600">
+                        Progress: {batchAnalysisProgress.completed} of {batchAnalysisProgress.total} videos completed
                       </div>
-                    ) : (
-                      <div className="flex items-start gap-2">
-                        <Spark className="h-4 w-4 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-blue-800">Full Analysis (Gemini AI)</p>
-                          <p className="text-xs text-blue-600">Analyzes videos directly without subtitles. Provides comprehensive insights with GPT-4o-mini parsing.</p>
+                      <div className="w-full bg-purple-200 rounded-full h-2 mt-2">
+                        <div 
+                          className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                          style={{ 
+                            width: `${batchAnalysisProgress.total > 0 ? (batchAnalysisProgress.completed / batchAnalysisProgress.total) * 100 : 0}%` 
+                          }}
+                        ></div>
                         </div>
                       </div>
                     )}
-                  </div>
 
                   {searchResults.selectedVideos.length === 0 && (
                     <p className="text-sm text-blue-600 mt-2">
@@ -2155,22 +2374,7 @@ export default function YouTubeSearch() {
                           </div>
                         )}
                         
-                        {/* Analysis Section for Videos */}
-                        <AnalysisSection 
-                          videoId={videoId} 
-                          video={video} 
-                          subtitleFile={subtitleFile}
-                          localQueries={localQueries}
-                          setLocalQueries={setLocalQueries}
-                          transcriptAnalysis={transcriptAnalysis}
-                          geminiAnalysis={geminiAnalysis}
-                          expandedAnalysis={expandedAnalysis}
-                          toggleAnalysisExpansion={toggleAnalysisExpansion}
-                          handleAnalyzeTranscript={handleAnalyzeTranscript}
-                          handleAnalyzeVideoTranscript={handleAnalyzeVideoTranscript}
-                          handleAnalyzeVideoWithGemini={handleAnalyzeVideoWithGemini}
-                          formatTimestamp={formatTimestamp}
-                        />
+                        {/* Individual analysis removed - now handled at the top level */}
                       </div>
                     </div>
                   </div>
@@ -2262,21 +2466,7 @@ export default function YouTubeSearch() {
                           </div>
                         )}
                         
-                        {/* Analysis Section for Subtitle Files */}
-                        <AnalysisSection 
-                          videoId={subtitleFile.videoId} 
-                          subtitleFile={subtitleFile}
-                          localQueries={localQueries}
-                          setLocalQueries={setLocalQueries}
-                          transcriptAnalysis={transcriptAnalysis}
-                          geminiAnalysis={geminiAnalysis}
-                          expandedAnalysis={expandedAnalysis}
-                          toggleAnalysisExpansion={toggleAnalysisExpansion}
-                          handleAnalyzeTranscript={handleAnalyzeTranscript}
-                          handleAnalyzeVideoTranscript={handleAnalyzeVideoTranscript}
-                          handleAnalyzeVideoWithGemini={handleAnalyzeVideoWithGemini}
-                          formatTimestamp={formatTimestamp}
-                        />
+
                       </div>
                     )
                   })}
@@ -2463,55 +2653,6 @@ export default function YouTubeSearch() {
                     </div>
                   </div>
 
-                  {/* Story Ideas */}
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-purple-800 mb-3 flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5" />
-                      Story & Script Concepts
-                    </h3>
-                    <div className="bg-white p-4 rounded-lg border border-purple-100">
-                      <div className="grid gap-4">
-                        {videoSummarization.videosSummary.storyIdeas.map((idea, index) => (
-                          <div key={index} className="bg-gradient-to-r from-yellow-50 to-orange-50 p-3 rounded-lg border border-yellow-200">
-                            <div className="flex items-start gap-3">
-                              <span className="bg-yellow-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                                💡
-                              </span>
-                              <p className="text-gray-800 font-medium">{idea}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Creative Writing Prompt */}
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-purple-800 mb-3 flex items-center gap-2">
-                      <PenTool className="h-5 w-5" />
-                      Your Creative Writing Prompt
-                    </h3>
-                    <div className="bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 p-6 rounded-lg border-2 border-purple-300">
-                      <div className="flex items-start gap-4">
-                        <div className="bg-purple-600 text-white rounded-full w-12 h-12 flex items-center justify-center flex-shrink-0">
-                          <PenTool className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-bold text-purple-900 mb-3">Story Inspiration</h4>
-                          <p className="text-gray-800 leading-relaxed text-base">
-                            {videoSummarization.videosSummary.creativePrompt}
-                          </p>
-                          <div className="mt-4 p-3 bg-white/70 rounded-lg">
-                            <p className="text-sm text-purple-700 font-medium">
-                              💡 Use this prompt as a starting point for your story, script, or creative project. 
-                              Consider the themes, characters, and conflicts identified above to build a compelling narrative.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Common Patterns */}
                   <div className="mb-6">
                     <h3 className="text-lg font-semibold text-purple-800 mb-3">Common Patterns</h3>
@@ -2587,6 +2728,53 @@ export default function YouTubeSearch() {
           <CurrentResearchTab 
             researchSummaries={researchSummaries}
             dispatch={dispatch}
+            onSaveToHistory={saveToHistory}
+          />
+        )}
+
+        {activeTab === 'history' && (
+          <ResearchHistoryTab 
+            researchHistory={researchHistory}
+            editingResearch={editingResearch}
+            onStartEditing={(id: string, field: string, value: string) => setEditingResearch({ id, field, value })}
+            onSaveEdit={() => {
+              if (editingResearch) {
+                let updatedValue: any = editingResearch.value
+                
+                // Handle special fields that need JSON parsing
+                if (editingResearch.field === 'keyFindings') {
+                  try {
+                    // If it's already a JSON string, parse it
+                    if (editingResearch.value.startsWith('[')) {
+                      updatedValue = JSON.parse(editingResearch.value)
+                    } else {
+                      // If it's plain text, split by lines
+                      updatedValue = editingResearch.value.split('\n').filter(line => line.trim()).map(line => line.trim())
+                    }
+                  } catch (e) {
+                    // Fallback to splitting by lines
+                    updatedValue = editingResearch.value.split('\n').filter(line => line.trim()).map(line => line.trim())
+                  }
+                } else if (editingResearch.field === 'scrapedArticles') {
+                  try {
+                    updatedValue = JSON.parse(editingResearch.value)
+                  } catch (e) {
+                    alert('Invalid JSON format for scraped articles')
+                    return
+                  }
+                }
+                
+                updateHistoryItem(editingResearch.id, {
+                  [editingResearch.field]: updatedValue
+                })
+                setEditingResearch(null)
+              }
+            }}
+            onCancelEdit={() => setEditingResearch(null)}
+            onUpdateEdit={(value) => setEditingResearch(editingResearch ? {...editingResearch, value} : null)}
+            onDeleteFromHistory={deleteFromHistory}
+            onClearHistory={clearHistory}
+            onRestoreFromHistory={restoreFromHistory}
           />
         )}
       </div>

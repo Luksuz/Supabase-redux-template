@@ -95,19 +95,7 @@ export interface WebSearchResult {
   source?: string
 }
 
-export interface GoogleResearchSummary {
-  id: string
-  query: string
-  context?: string
-  webResults: WebSearchResult[]
-  insights: string
-  keyFindings: string[]
-  recommendations: string[]
-  sources: string[]
-  timestamp: string
-  usingMock?: boolean
-  appliedToScript?: boolean
-}
+
 
 export interface YouTubeResearchSummary {
   id: string
@@ -318,7 +306,6 @@ interface YouTubeState {
   summarizingVideos: boolean
   
   // Research summaries
-  googleResearchSummaries: GoogleResearchSummary[]
   youtubeResearchSummaries: YouTubeResearchSummary[]
   
   // Loading and error states
@@ -364,7 +351,6 @@ const initialState: YouTubeState = {
   summarizingVideos: false,
   
   // Research summaries
-  googleResearchSummaries: [],
   youtubeResearchSummaries: [],
   
   // Loading and error states
@@ -610,59 +596,7 @@ export const analyzeVideoWithGemini = createAsyncThunk(
   }
 )
 
-// Async thunk for Google research
-export const performGoogleResearch = createAsyncThunk(
-  'youtube/performGoogleResearch',
-  async ({ query, context, maxResults = 30 }: { query: string; context?: string; maxResults?: number }) => {
-    console.log(`🔍 Performing Google research for: "${query}"`)
 
-    // Step 1: Search the web
-    const webResponse = await fetch('/api/research/web-search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        query,
-        context,
-        maxResults 
-      })
-    })
-    
-    const webData = await webResponse.json()
-    if (!webData.success) {
-      throw new Error(webData.error || 'Failed to search web')
-    }
-
-    // Step 2: Generate Google-only research summary
-    const summaryResponse = await fetch('/api/research/generate-google-summary', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query,
-        context,
-        webResults: webData.results
-      })
-    })
-
-    const summaryData = await summaryResponse.json()
-    if (!summaryData.success) {
-      throw new Error(summaryData.error || 'Failed to generate research summary')
-    }
-
-    return {
-      id: `google-${Date.now()}`,
-      query,
-      context,
-      webResults: webData.results,
-      insights: summaryData.insights,
-      keyFindings: summaryData.keyFindings,
-      recommendations: summaryData.recommendations,
-      sources: summaryData.sources || [],
-      timestamp: new Date().toISOString(),
-      usingMock: summaryData.usingMock,
-      appliedToScript: false
-    }
-  }
-)
 
 // Async thunk for summarizing videos
 export const summarizeVideos = createAsyncThunk(
@@ -829,18 +763,8 @@ export const youtubeSlice = createSlice({
     },
     
     // Research summary actions
-    addGoogleResearchSummary: (state, action: PayloadAction<GoogleResearchSummary>) => {
-      state.googleResearchSummaries.push(action.payload)
-    },
-    
     addYouTubeResearchSummary: (state, action: PayloadAction<YouTubeResearchSummary>) => {
       state.youtubeResearchSummaries.push(action.payload)
-    },
-    
-    removeGoogleResearchSummary: (state, action: PayloadAction<string>) => {
-      state.googleResearchSummaries = state.googleResearchSummaries.filter(
-        summary => summary.id !== action.payload
-      )
     },
     
     removeYouTubeResearchSummary: (state, action: PayloadAction<string>) => {
@@ -850,18 +774,10 @@ export const youtubeSlice = createSlice({
     },
     
     clearAllResearchSummaries: (state) => {
-      state.googleResearchSummaries = []
       state.youtubeResearchSummaries = []
     },
     
-    // Mark research summaries as applied to script
-    markGoogleResearchAsApplied: (state, action: PayloadAction<string>) => {
-      const summary = state.googleResearchSummaries.find(s => s.id === action.payload)
-      if (summary) {
-        summary.appliedToScript = true
-      }
-    },
-    
+    // Mark research summaries as applied to script    
     markYouTubeResearchAsApplied: (state, action: PayloadAction<string>) => {
       const summary = state.youtubeResearchSummaries.find(s => s.id === action.payload)
       if (summary) {
@@ -869,14 +785,7 @@ export const youtubeSlice = createSlice({
       }
     },
     
-    markMultipleResearchAsApplied: (state, action: PayloadAction<{ googleIds: string[], youtubeIds: string[] }>) => {
-      action.payload.googleIds.forEach(id => {
-        const summary = state.googleResearchSummaries.find(s => s.id === id)
-        if (summary) {
-          summary.appliedToScript = true
-        }
-      })
-      
+    markMultipleResearchAsApplied: (state, action: PayloadAction<{ youtubeIds: string[] }>) => {
       action.payload.youtubeIds.forEach(id => {
         const summary = state.youtubeResearchSummaries.find(s => s.id === id)
         if (summary) {
@@ -1049,18 +958,7 @@ export const youtubeSlice = createSlice({
         state.error = action.error.message || 'Network error occurred while summarizing videos'
       })
     
-    // Google research
-    builder
-      .addCase(performGoogleResearch.pending, (state) => {
-        state.error = null
-      })
-      .addCase(performGoogleResearch.fulfilled, (state, action) => {
-        state.googleResearchSummaries.push(action.payload)
-        state.error = null
-      })
-      .addCase(performGoogleResearch.rejected, (state, action) => {
-        state.error = action.error.message || 'Network error occurred while performing Google research'
-      })
+
     
     // Gemini analyze video
     builder
@@ -1113,12 +1011,9 @@ export const {
   resetSubtitleFiles,
   resetAnalysisResults,
   resetAll,
-  addGoogleResearchSummary,
   addYouTubeResearchSummary,
-  removeGoogleResearchSummary,
   removeYouTubeResearchSummary,
   clearAllResearchSummaries,
-  markGoogleResearchAsApplied,
   markYouTubeResearchAsApplied,
   markMultipleResearchAsApplied,
   initializeSubtitleFiles,
@@ -1178,6 +1073,5 @@ export const selectVideoSummarization = (state: { youtube: YouTubeState }) => ({
 })
 
 export const selectResearchSummaries = (state: { youtube: YouTubeState }) => ({
-  googleResearchSummaries: state.youtube.googleResearchSummaries,
   youtubeResearchSummaries: state.youtube.youtubeResearchSummaries,
 }) 

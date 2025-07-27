@@ -9,7 +9,8 @@ import { Textarea } from '../ui/textarea'
 import { Slider } from '../ui/slider'
 import { Checkbox } from '../ui/checkbox'
 import { ScrollArea } from '../ui/scroll-area'
-import { FileText, Sparkles, RefreshCw, Trash2 } from 'lucide-react'
+import { Input } from '../ui/input'
+import { FileText, Sparkles, RefreshCw, Trash2, Edit3, Save, X, Plus } from 'lucide-react'
 import type { ExtractedScene } from '@/types/image-generation'
 
 interface SceneExtractionProps {
@@ -24,6 +25,8 @@ interface SceneExtractionProps {
   onToggleSceneSelection: (index: number) => void
   onExtractScenes: () => void
   onClearError: () => void
+  onUpdateScenePrompt?: (index: number, newPrompt: string) => void
+  onAddCustomScene?: (prompt: string, title: string) => void
   scriptSourceInfo: {
     source: string
     count: number
@@ -43,8 +46,42 @@ export function SceneExtraction({
   onToggleSceneSelection,
   onExtractScenes,
   onClearError,
+  onUpdateScenePrompt,
+  onAddCustomScene,
   scriptSourceInfo
 }: SceneExtractionProps) {
+  const [editingScene, setEditingScene] = useState<number | null>(null)
+  const [editPrompt, setEditPrompt] = useState('')
+  const [showCustomScene, setShowCustomScene] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [customTitle, setCustomTitle] = useState('')
+
+  const handleStartEdit = (index: number, currentPrompt: string) => {
+    setEditingScene(index)
+    setEditPrompt(currentPrompt)
+  }
+
+  const handleSaveEdit = () => {
+    if (editingScene !== null && onUpdateScenePrompt) {
+      onUpdateScenePrompt(editingScene, editPrompt)
+      setEditingScene(null)
+      setEditPrompt('')
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingScene(null)
+    setEditPrompt('')
+  }
+
+  const handleAddCustomScene = () => {
+    if (customPrompt.trim() && customTitle.trim() && onAddCustomScene) {
+      onAddCustomScene(customPrompt.trim(), customTitle.trim())
+      setCustomPrompt('')
+      setCustomTitle('')
+      setShowCustomScene(false)
+    }
+  }
   return (
     <Card>
       <CardHeader>
@@ -152,70 +189,180 @@ export function SceneExtraction({
           </Card>
         )}
 
-        {/* Extracted Scenes */}
-        {extractedScenes.length > 0 && (
+        {/* Custom Scene Creation */}
+        {(extractedScenes.length > 0 || showCustomScene) && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <Label>Extracted Scenes ({extractedScenes.length})</Label>
+              <Label>Image Prompts ({extractedScenes.length})</Label>
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => selectedScenes.forEach((_, i) => onToggleSceneSelection(i))}
-                  disabled={selectedScenes.length === 0}
+                  onClick={() => setShowCustomScene(!showCustomScene)}
                 >
-                  Clear
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Custom
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    const allIndices = Array.from({length: extractedScenes.length}, (_, i) => i)
-                    allIndices.forEach(i => {
-                      if (!selectedScenes.includes(i)) {
-                        onToggleSceneSelection(i)
-                      }
-                    })
-                  }}
-                  disabled={selectedScenes.length === extractedScenes.length}
-                >
-                  Select All
-                </Button>
+                {extractedScenes.length > 0 && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => selectedScenes.forEach((_, i) => onToggleSceneSelection(i))}
+                      disabled={selectedScenes.length === 0}
+                    >
+                      Clear
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        const allIndices = Array.from({length: extractedScenes.length}, (_, i) => i)
+                        allIndices.forEach(i => {
+                          if (!selectedScenes.includes(i)) {
+                            onToggleSceneSelection(i)
+                          }
+                        })
+                      }}
+                      disabled={selectedScenes.length === extractedScenes.length}
+                    >
+                      Select All
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
+
+            {/* Custom Scene Form */}
+            {showCustomScene && (
+              <Card className="border-blue-200 bg-blue-50/30">
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Plus className="h-4 w-4 text-blue-600" />
+                    <Label className="font-medium">Add Custom Image Prompt</Label>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-title">Scene Title</Label>
+                    <Input
+                      id="custom-title"
+                      placeholder="e.g., Opening scene, Character introduction..."
+                      value={customTitle}
+                      onChange={(e) => setCustomTitle(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-prompt">Custom Image Prompt</Label>
+                    <Textarea
+                      id="custom-prompt"
+                      placeholder="A detailed description for your custom image. Be specific about characters, setting, lighting, camera angle, and style..."
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      className="min-h-[100px]"
+                    />
+                    <p className="text-xs text-blue-600">
+                      💡 Tip: Include specific details like age, gender, clothing, setting, lighting, and camera angle for better results
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      onClick={handleAddCustomScene}
+                      disabled={!customPrompt.trim() || !customTitle.trim()}
+                    >
+                      <Save className="h-4 w-4 mr-1" />
+                      Add Scene
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        setShowCustomScene(false)
+                        setCustomPrompt('')
+                        setCustomTitle('')
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             
             <ScrollArea className="h-96 border rounded-md p-4">
               <div className="space-y-4">
                 {extractedScenes.map((scene: ExtractedScene, index: number) => (
-                  <div key={index} className="border rounded-md p-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Checkbox 
-                        id={`scene-${index}`} 
-                        checked={selectedScenes.includes(index)}
-                        onCheckedChange={() => onToggleSceneSelection(index)}
-                      />
-                      <Label 
-                        htmlFor={`scene-${index}`} 
-                        className="font-medium cursor-pointer"
-                      >
-                        {scene.summary}
-                      </Label>
+                  <div key={index} className="border rounded-md p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Checkbox 
+                          id={`scene-${index}`} 
+                          checked={selectedScenes.includes(index)}
+                          onCheckedChange={() => onToggleSceneSelection(index)}
+                        />
+                        <Label 
+                          htmlFor={`scene-${index}`} 
+                          className="font-medium cursor-pointer"
+                        >
+                          {scene.summary}
+                        </Label>
+                      </div>
+                      
+                      {/* Edit Button */}
+                      {onUpdateScenePrompt && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStartEdit(index, scene.imagePrompt)}
+                          disabled={editingScene === index}
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                     
-                    <div className="text-sm text-muted-foreground">
-                      <div className="italic pl-4 border-l-2 border-muted-foreground/30">{scene.imagePrompt}</div>
+                    {/* Image Prompt Display/Edit */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-gray-600">Image Prompt</Label>
+                      {editingScene === index ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={editPrompt}
+                            onChange={(e) => setEditPrompt(e.target.value)}
+                            className="min-h-[100px] text-sm"
+                            placeholder="Edit the image prompt..."
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={handleSaveEdit}>
+                              <Save className="h-4 w-4 mr-1" />
+                              Save
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                              <X className="h-4 w-4 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border-l-4 border-blue-400">
+                          {scene.imagePrompt}
+                        </div>
+                      )}
                     </div>
                     
                     <details className="text-sm">
-                      <summary className="cursor-pointer font-medium">View Original Text</summary>
+                      <summary className="cursor-pointer font-medium text-gray-600">View Original Text</summary>
                       <div className="mt-2 p-2 bg-muted/30 rounded text-muted-foreground max-h-32 overflow-y-auto">
                         {scene.originalText}
                       </div>
                     </details>
                     
                     {scene.error && (
-                      <div className="text-sm text-red-500">
-                        Error: {scene.error}
+                      <div className="text-sm text-red-500 bg-red-50 p-2 rounded">
+                        <strong>Error:</strong> {scene.error}
                       </div>
                     )}
                   </div>

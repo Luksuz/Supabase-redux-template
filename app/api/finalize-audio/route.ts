@@ -169,6 +169,9 @@ async function generateSubtitlesFromAudio(audioUrl: string, userId: string): Pro
 export async function POST(request: NextRequest) {
     const { chunkUrls, userId = "unknown_user", provider, voice, elevenLabsVoiceId, fishAudioVoiceId, googleTtsVoiceName, generateSubtitles = false } = await request.json();
 
+    console.log("*************************************************")
+    console.log(`chunkUrls: ${chunkUrls}`);
+    console.log("*************************************************")
     if (!chunkUrls || !Array.isArray(chunkUrls) || chunkUrls.length === 0) {
         return NextResponse.json({ error: "chunkUrls is required and must be a non-empty array" }, { status: 400 });
     }

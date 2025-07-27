@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Upload, RefreshCw, History, Plus, Edit, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
+import { 
   Select,
   SelectContent,
   SelectGroup,
@@ -62,9 +62,11 @@ const ScriptGenerator: React.FC = () => {
 
   // Store form values in state
   const [title, setTitle] = useState("");
-  const [wordCount, setWordCount] = useState(1000);
+  const [targetSections, setTargetSections] = useState(3); // Replace word count with target sections
   const [theme, setTheme] = useState("");
   const [additionalPrompt, setAdditionalPrompt] = useState("");
+  const [sectionPrompt, setSectionPrompt] = useState(""); // New: separate prompt for section generation
+  const [scriptPrompt, setScriptPrompt] = useState(""); // New: separate prompt for script generation
   const [researchContext, setResearchContext] = useState("");
   const [inspirationalTranscript, setInspirationalTranscript] = useState("");
   const [forbiddenWords, setForbiddenWords] = useState("");
@@ -116,34 +118,9 @@ const ScriptGenerator: React.FC = () => {
   
   // Function to format research for script from Redux state
   const formatResearchForScript = () => {
-    const appliedGoogleResearch = researchSummaries.googleResearchSummaries?.filter((r: any) => r.appliedToScript) || [];
     const appliedYouTubeResearch = researchSummaries.youtubeResearchSummaries?.filter((r: any) => r.appliedToScript) || [];
-    const currentVideoSummary = videoSummarization.videosSummary;
 
     let contextString = "";
-
-    // Add Google Research
-    if (appliedGoogleResearch.length > 0) {
-      contextString += "=== GOOGLE RESEARCH INSIGHTS ===\n\n";
-      appliedGoogleResearch.forEach((research: any, index: number) => {
-        contextString += `Research Query ${index + 1}: "${research.query}"\n`;
-        if (research.context) {
-          contextString += `Context: ${research.context}\n`;
-        }
-        contextString += `Key Insights: ${research.insights}\n\n`;
-        
-        contextString += "Key Findings:\n";
-        research.keyFindings.forEach((finding: string, i: number) => {
-          contextString += `${i + 1}. ${finding}\n`;
-        });
-        
-        contextString += "\nRecommendations:\n";
-        research.recommendations.forEach((rec: string, i: number) => {
-          contextString += `${i + 1}. ${rec}\n`;
-        });
-        contextString += "\n---\n\n";
-      });
-    }
 
     // Add YouTube Research
     if (appliedYouTubeResearch.length > 0) {
@@ -184,32 +161,6 @@ const ScriptGenerator: React.FC = () => {
       });
     }
 
-    // Add current video summary if available and no applied research
-    if (!appliedGoogleResearch.length && !appliedYouTubeResearch.length && currentVideoSummary) {
-      contextString += "=== CURRENT VIDEO ANALYSIS ===\n\n";
-      contextString += `Overall Theme: ${currentVideoSummary.overallTheme}\n\n`;
-      
-      contextString += "Key Insights:\n";
-      currentVideoSummary.keyInsights.forEach((insight: string, i: number) => {
-        contextString += `${i + 1}. ${insight}\n`;
-      });
-      
-      if (currentVideoSummary.characterInsights.length > 0) {
-        contextString += "\nCharacter Insights:\n";
-        currentVideoSummary.characterInsights.forEach((insight: string, i: number) => {
-          contextString += `${i + 1}. ${insight}\n`;
-        });
-      }
-      
-      if (currentVideoSummary.storyIdeas.length > 0) {
-        contextString += "\nStory Ideas:\n";
-        currentVideoSummary.storyIdeas.forEach((idea: string, i: number) => {
-          contextString += `${i + 1}. ${idea}\n`;
-        });
-      }
-      
-      contextString += `\nCreative Prompt: ${currentVideoSummary.creativePrompt}\n`;
-    }
 
     return contextString.trim();
   };
@@ -227,7 +178,7 @@ const ScriptGenerator: React.FC = () => {
     const savedAudience = localStorage.getItem('scriptGenerator.audience');
     
     if (savedTitle) setTitle(savedTitle);
-    if (savedWordCount) setWordCount(parseInt(savedWordCount));
+    if (savedWordCount) setTargetSections(parseInt(savedWordCount) >= 3000 ? 4 : 3); // Convert old word count to sections
     if (savedTheme) setTheme(savedTheme);
     if (savedAdditionalPrompt) setAdditionalPrompt(savedAdditionalPrompt);
     if (savedForbiddenWords) setForbiddenWords(savedForbiddenWords);
@@ -246,9 +197,9 @@ const ScriptGenerator: React.FC = () => {
         }
         const data = await response.json();
         setModels(data);
-      } catch (error) {
+    } catch (error) {
         console.error("Error fetching OpenAI models:", error);
-      }
+    }
     };
     fetchModels();
   }, []);
@@ -262,14 +213,14 @@ const ScriptGenerator: React.FC = () => {
   // Save form values to localStorage when they change
   useEffect(() => {
     localStorage.setItem('scriptGenerator.title', title);
-    localStorage.setItem('scriptGenerator.wordCount', wordCount.toString());
+    localStorage.setItem('scriptGenerator.targetSections', targetSections.toString());
     localStorage.setItem('scriptGenerator.theme', theme);
     localStorage.setItem('scriptGenerator.additionalPrompt', additionalPrompt);
     localStorage.setItem('scriptGenerator.forbiddenWords', forbiddenWords);
     localStorage.setItem('scriptGenerator.povSelection', povSelection);
     localStorage.setItem('scriptGenerator.scriptFormat', scriptFormat);
     localStorage.setItem('scriptGenerator.audience', audience);
-  }, [title, wordCount, theme, additionalPrompt, forbiddenWords, povSelection, scriptFormat, audience]);
+  }, [title, targetSections, theme, additionalPrompt, forbiddenWords, povSelection, scriptFormat, audience]);
 
   // Calculate word count when full script changes
   const updateScriptWordCount = (script: string) => {
@@ -304,9 +255,10 @@ const ScriptGenerator: React.FC = () => {
         },
         body: JSON.stringify({ 
           title, 
-          wordCount, 
+          targetSections, 
           theme, 
-          additionalPrompt, 
+          additionalPrompt,
+          sectionPrompt, 
           researchContext,
           inspirationalTranscript, 
           forbiddenWords,
@@ -356,6 +308,7 @@ const ScriptGenerator: React.FC = () => {
             writingInstructions: generateEnhancedWritingInstructions(section)
           })),
           additionalPrompt,
+          scriptPrompt,
           researchContext,
           forbiddenWords,
           modelName: selectedModel,
@@ -499,7 +452,7 @@ const ScriptGenerator: React.FC = () => {
           content: fullScript.scriptWithMarkdown
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to generate DOCX");
       }
@@ -593,7 +546,7 @@ const ScriptGenerator: React.FC = () => {
         }),
       });
 
-      if (!response.ok) {
+        if (!response.ok) {
         throw new Error(`Failed to regenerate segment. Status: ${response.status}`);
       }
       
@@ -606,7 +559,7 @@ const ScriptGenerator: React.FC = () => {
       // Clear the regenerate prompt and selected segment
       setRegeneratePrompt("");
       setSelectedSegmentIndex(null);
-    } catch (error) {
+      } catch (error) {
       console.error(`❌ Error regenerating segment ${index !== null ? index + 1 : 'unknown'}:`, error);
     }
   };
@@ -639,16 +592,27 @@ const ScriptGenerator: React.FC = () => {
       const updatedSegments = [...scriptSegments];
       updatedSegments[editingSegmentIndex] = editingSegmentText;
       
-      // Rejoin all segments to create the updated full script
-      const updatedScript = updatedSegments.join(' ');
+      // Rejoin all segments to create the updated full script with proper spacing
+      const updatedScript = updatedSegments.join('\n\n');
       
-      // Update the full script in Redux
+      // Create cleaned version for audio
+      const scriptCleaned = updatedScript
+        .replace(/#{1,6}\s+/g, '') // Remove headers
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+        .replace(/\*(.*?)\*/g, '$1') // Remove italic
+        .replace(/`(.*?)`/g, '$1') // Remove inline code
+        .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links
+        .replace(/^\s*[-*+]\s+/gm, '') // Remove list markers
+        .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered list markers
+        .trim();
+      
+      // Update the full script in Redux - maintain the complete structure
       dispatch(setFullScript({
         scriptWithMarkdown: updatedScript,
-        scriptCleaned: updatedScript.replace(/[#*_~`]/g, ''), // Simple markdown removal
+        scriptCleaned: scriptCleaned,
         title: fullScript.title,
         theme: fullScript.theme,
-        wordCount: updatedScript.split(/\s+/).length
+        wordCount: scriptCleaned.split(/\s+/).filter(Boolean).length
       }));
       
       // Reset editing state
@@ -779,7 +743,7 @@ const ScriptGenerator: React.FC = () => {
       console.log('🔄 Fetching saved prompts from /api/prompts...');
       const response = await fetch('/api/prompts');
       console.log('📥 Response status:', response.status, response.statusText);
-      
+
       if (response.ok) {
         const prompts = await response.json();
         console.log('✅ Prompts fetched successfully:', prompts);
@@ -997,7 +961,7 @@ const ScriptGenerator: React.FC = () => {
               <History className="h-4 w-4" />
               Prompt History
             </Button>
-          </div>
+              </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
@@ -1012,23 +976,23 @@ const ScriptGenerator: React.FC = () => {
                 onChange={(e) => setTitle(e.target.value)}
                 className={!title ? "border-red-300 focus-visible:ring-red-500" : ""}
               />
-                    </div>
+              </div>
 
           <div className="space-y-2">
-              <Label htmlFor="wordCount">Word Count</Label>
+              <Label htmlFor="targetSections">Number of Sections</Label>
               <Input
-                id="wordCount"
+                id="targetSections"
                 type="number"
-                min={1000}
-                max={100000}
-                step={1000}
-                value={wordCount}
-                onChange={(e) => setWordCount(Number(e.target.value))}
+                min={2}
+                max={8}
+                step={1}
+                value={targetSections}
+                onChange={(e) => setTargetSections(Number(e.target.value))}
               />
               <p className="text-xs text-muted-foreground">
-                This will generate {Math.max(1, Math.floor(wordCount / 800))} script sections
+                Create {targetSections} logical sections with natural story divisions
             </p>
-          </div>
+            </div>
 
           <div className="space-y-2">
             <Label htmlFor="model">Model</Label>
@@ -1069,7 +1033,7 @@ const ScriptGenerator: React.FC = () => {
                 )}
               </SelectContent>
             </Select>
-          </div>
+      </div>
 
           <div className="space-y-2">
               <Label htmlFor="theme" className="flex justify-between">
@@ -1082,7 +1046,7 @@ const ScriptGenerator: React.FC = () => {
                 onChange={(e) => setTheme(e.target.value)}
               />
             </div>
-          </div>
+      </div>
 
           {/* Second row of inputs for new fields */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1097,9 +1061,9 @@ const ScriptGenerator: React.FC = () => {
                   <SelectItem value="3rd Person">3rd Person</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+              </div>
 
-            <div className="space-y-2">
+              <div className="space-y-2">
               <Label htmlFor="scriptFormat">Format of Scripting</Label>
               <Select value={scriptFormat} onValueChange={setScriptFormat}>
                 <SelectTrigger>
@@ -1114,18 +1078,18 @@ const ScriptGenerator: React.FC = () => {
                   <SelectItem value="Presentation">Presentation</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+                </div>
 
-            <div className="space-y-2">
+                <div className="space-y-2">
               <Label htmlFor="audience">Target Audience</Label>
-              <Input
+                  <Input
                 id="audience"
                 placeholder="E.g., Young adults, Professionals, General audience"
                 value={audience}
                 onChange={(e) => setAudience(e.target.value)}
-              />
-            </div>
-          </div>
+                  />
+              </div>
+                    </div>
 
           {/* Research Context Box */}
           {researchContext && (
@@ -1143,7 +1107,7 @@ const ScriptGenerator: React.FC = () => {
                 >
                   Clear Research
                 </button>
-              </div>
+                    </div>
               <Textarea
                 id="researchContext"
                 value={researchContext}
@@ -1154,49 +1118,79 @@ const ScriptGenerator: React.FC = () => {
               <p className="text-xs text-blue-600">
                 This research data will be automatically included when generating your script to ensure it's backed by insights and analysis.
               </p>
-            </div>
+                    </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="additionalPrompt">Additional Instructions (Optional)</Label>
-            <Textarea
-              id="additionalPrompt"
-              placeholder="Add any specific instructions for the AI to follow when generating your script"
-              value={additionalPrompt}
-              onChange={(e) => setAdditionalPrompt(e.target.value)}
-              className="min-h-[80px]"
-            />
-          </div>
+                    <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="sectionPrompt">Section Generation Instructions (Optional)</Label>
+              <Textarea
+                id="sectionPrompt"
+                placeholder="Specific instructions for how the AI should create and structure the script sections/outline"
+                value={sectionPrompt}
+                onChange={(e) => setSectionPrompt(e.target.value)}
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Controls how the script is divided into sections and the overall structure
+              </p>
+            </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="scriptPrompt">Script Writing Instructions (Optional)</Label>
+              <Textarea
+                id="scriptPrompt"
+                placeholder="Specific instructions for how the AI should write the actual script content"
+                value={scriptPrompt}
+                onChange={(e) => setScriptPrompt(e.target.value)}
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Controls the writing style, tone, and content approach for the final script
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="additionalPrompt">General Instructions (Optional)</Label>
+              <Textarea
+                id="additionalPrompt"
+                placeholder="Any other general instructions that apply to both section generation and script writing"
+                value={additionalPrompt}
+                onChange={(e) => setAdditionalPrompt(e.target.value)}
+                className="min-h-[80px]"
+              />
+            </div>
+          </div>
+                
           <div className="flex flex-col sm:flex-row gap-3">
-              <Button 
+                  <Button
               className="flex-1" 
               onClick={handleGenerateOutline}
               disabled={isLoading || isGeneratingScript || !title}
             >
               {isLoading ? "Generating Sections..." : "Generate Sections"}
-              </Button>
-
+                  </Button>
+                
             {hasScriptSections && (
-              <Button 
+                  <Button
                 className="flex-1" 
                 onClick={handleGenerateFullScript}
                 disabled={isLoading || isGeneratingScript}
                 variant="secondary"
               >
                 {isGeneratingScript ? "Generating Script..." : "Generate Full Script"}
-              </Button>
+                  </Button>
             )}
 
             {fullScript && (
-              <Button 
-                variant="outline"
+                  <Button
+                    variant="outline"
                 onClick={handleDownloadDocx}
                 className="flex-1 gap-2"
-              >
+                  >
                 <Download size={16} />
                 Download DOCX
-              </Button>
+                  </Button>
             )}
           </div>
 
@@ -1205,29 +1199,29 @@ const ScriptGenerator: React.FC = () => {
             <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
               <p className="font-semibold">Error:</p>
               <p className="text-sm">{scriptGenerationError}</p>
-            </div>
+                    </div>
           )}
         </TabsContent>
 
         <TabsContent value="advanced" className="w-full space-y-6 p-6 bg-card rounded-lg border shadow-sm">
-          <div className="space-y-2">
+                    <div className="space-y-2">
             <h2 className="text-2xl font-bold">Advanced Options</h2>
             <p className="text-muted-foreground">
               Fine-tune your script generation with these advanced settings.
             </p>
-            </div>
+                    </div>
 
           <div className="space-y-4">
-            <div className="space-y-2">
+                    <div className="space-y-2">
               <Label htmlFor="inspirationalTranscript">Inspirational Video Transcript</Label>
-              <Textarea
+                      <Textarea
                 id="inspirationalTranscript"
                 placeholder="Paste a transcript from a video that you'd like to use as inspiration"
                 value={inspirationalTranscript}
                 onChange={(e) => setInspirationalTranscript(e.target.value)}
                 className="min-h-[150px]"
-              />
-                </div>
+                      />
+                    </div>
 
             <div className="space-y-2">
               <Label htmlFor="forbiddenWords">Forbidden Words (comma-separated)</Label>
@@ -1237,11 +1231,11 @@ const ScriptGenerator: React.FC = () => {
                 value={forbiddenWords}
                 onChange={(e) => setForbiddenWords(e.target.value)}
               />
-                      </div>
+                        </div>
                       
-            <div className="space-y-2">
+                        <div className="space-y-2">
               <Label htmlFor="uploadScript">Upload Existing Script</Label>
-                          <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
                 <Input
                   id="uploadScript"
                   type="file"
@@ -1253,9 +1247,9 @@ const ScriptGenerator: React.FC = () => {
                   <Upload size={16} />
                   Upload
                                 </Button>
+                              </div>
+                                </div>
                             </div>
-                          </div>
-                        </div>
         </TabsContent>
       </Tabs>
 
@@ -1267,13 +1261,13 @@ const ScriptGenerator: React.FC = () => {
               <h2 className="text-2xl font-bold">Script Sections</h2>
               <p className="text-muted-foreground">
                 Review your script outline. Click "Generate Full Script" when ready.
-              </p>
-            </div>
+                        </p>
+                      </div>
             <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
               {scriptSections.length} Sections
-            </div>
-          </div>
-          
+                      </div>
+                    </div>
+                    
           <div className="space-y-4">
             {scriptSections.map((section, index) => (
               <div key={index} className="border rounded-lg p-4 bg-background">
@@ -1281,7 +1275,7 @@ const ScriptGenerator: React.FC = () => {
                   <h3 className="text-lg font-semibold text-foreground">
                     Section {index + 1}: {section.title}
                   </h3>
-                  <div className="flex gap-2">
+                    <div className="flex gap-2">
                     {/* Hook button for first section (intro) */}
                     {index === 0 && (
                       <Button
@@ -1296,26 +1290,26 @@ const ScriptGenerator: React.FC = () => {
                     )}
                     
                     {/* CTA button for all sections */}
-                    <Button
+                      <Button
                       size="sm"
-                      variant="outline"
+                        variant="outline"
                       onClick={() => openCtaModal(index)}
                       className="border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700"
-                    >
+                      >
                       <Plus size={14} className="mr-1" />
                       Add CTA
-                    </Button>
+                      </Button>
                     
-                    <Button
-                      size="sm"
+                      <Button
+                        size="sm"
                       variant="outline"
                       onClick={() => startEditingSection(index)}
-                    >
+                      >
                       <RefreshCw size={14} className="mr-2" />
                       Edit
-                    </Button>
-                  </div>
-                </div>
+                      </Button>
+                    </div>
+            </div>
 
                 {/* Display Hook (for intro section) */}
                 {section.hook && (
@@ -1323,14 +1317,14 @@ const ScriptGenerator: React.FC = () => {
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="text-sm font-medium text-purple-800">🎣 Hook</h4>
                       <div className="flex gap-1">
-                        <Button
+                <Button 
                           size="sm"
                           variant="ghost"
                           onClick={() => openHookModal(index, section.hook)}
                           className="h-6 w-6 p-0 text-purple-600 hover:text-purple-800"
                         >
                           <Edit size={12} />
-                        </Button>
+                </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1339,7 +1333,7 @@ const ScriptGenerator: React.FC = () => {
                         >
                           <Trash2 size={12} />
                         </Button>
-                      </div>
+                        </div>
                     </div>
                     <p className="text-sm text-purple-700 font-medium">
                       {section.hook.style.charAt(0).toUpperCase() + section.hook.style.slice(1)} Hook: "{section.hook.text}"
@@ -1348,8 +1342,8 @@ const ScriptGenerator: React.FC = () => {
                       <p className="text-xs text-purple-600 mt-1">
                         Instructions: {section.hook.additionalInstructions}
                       </p>
-                    )}
-                  </div>
+                      )}
+                      </div>
                 )}
 
                 {/* Display CTAs */}
@@ -1362,8 +1356,8 @@ const ScriptGenerator: React.FC = () => {
                             📢 CTA {ctaIndex + 1} ({cta.placement === 'custom' ? cta.customPlacement : cta.placement})
                           </h4>
                           <div className="flex gap-1">
-                            <Button
-                              size="sm"
+                           <Button
+                             size="sm"
                               variant="ghost"
                               onClick={() => openCtaModal(index, cta)}
                               className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800"
@@ -1377,8 +1371,8 @@ const ScriptGenerator: React.FC = () => {
                               className="h-6 w-6 p-0 text-red-600 hover:text-red-800"
                             >
                               <Trash2 size={12} />
-                            </Button>
-                          </div>
+                           </Button>
+                         </div>
                         </div>
                         <p className="text-sm text-blue-700 font-medium">"{cta.text}"</p>
                         {cta.additionalInstructions && (
@@ -1386,28 +1380,28 @@ const ScriptGenerator: React.FC = () => {
                             Instructions: {cta.additionalInstructions}
                           </p>
                         )}
-                      </div>
+                       </div>
                     ))}
-                  </div>
+                    </div>
                 )}
                 
                 {/* View Mode - only show when not editing */}
                 {editingSectionIndex !== index && (
-                  <div className="space-y-3">
+                        <div className="space-y-3">
                     <div>
                       <h4 className="text-sm font-medium text-muted-foreground mb-1">Writing Instructions:</h4>
                       <p className="text-sm text-foreground bg-muted p-3 rounded whitespace-pre-wrap">
                         {section.writingInstructions}
-                      </p>
-                    </div>
-                    
+                            </p>
+                          </div>
+                          
                     <div>
                       <h4 className="text-sm font-medium text-muted-foreground mb-1">Image Generation Prompt:</h4>
                       <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded italic">
                         {section.image_generation_prompt}
-                      </p>
+                          </p>
+                        </div>
                     </div>
-                  </div>
                 )}
                 
                 {/* Editing Mode */}
@@ -1415,17 +1409,17 @@ const ScriptGenerator: React.FC = () => {
                   <div className="mt-4 space-y-4 border-t pt-4">
                     <h4 className="text-sm font-medium text-muted-foreground">Edit Section:</h4>
                     
-                    <div className="space-y-2">
+                      <div className="space-y-2">
                       <Label htmlFor={`edit-title-${index}`}>Section Title:</Label>
-                      <Input
+                        <Input
                         id={`edit-title-${index}`}
                         value={editingSectionData.title}
                         onChange={(e) => updateEditingSectionField('title', e.target.value)}
                         placeholder="Enter section title"
-                      />
+                        />
                     </div>
                     
-                    <div className="space-y-2">
+                      <div className="space-y-2">
                       <Label htmlFor={`edit-instructions-${index}`}>Writing Instructions:</Label>
                       <Textarea
                         id={`edit-instructions-${index}`}
@@ -1433,10 +1427,10 @@ const ScriptGenerator: React.FC = () => {
                         onChange={(e) => updateEditingSectionField('writingInstructions', e.target.value)}
                         placeholder="Enter detailed writing instructions for this section"
                         className="min-h-[120px]"
-                      />
-                    </div>
+                        />
+                  </div>
                     
-                    <div className="space-y-2">
+                      <div className="space-y-2">
                       <Label htmlFor={`edit-image-prompt-${index}`}>Image Generation Prompt:</Label>
                       <Textarea
                         id={`edit-image-prompt-${index}`}
@@ -1445,24 +1439,24 @@ const ScriptGenerator: React.FC = () => {
                         placeholder="Enter image generation prompt for this section"
                         className="min-h-[80px]"
                       />
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
+                            </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
                         onClick={saveEditingSection}
                         className="bg-green-600 hover:bg-green-700"
-                      >
-                        Save Changes
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
+                        >
+                          Save Changes
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                         onClick={cancelEditingSection}
-                      >
+                        >
                         Cancel
-                      </Button>
-                    </div>
+                        </Button>
+                      </div>
                   </div>
                 )}
               </div>
@@ -1481,7 +1475,7 @@ const ScriptGenerator: React.FC = () => {
             <p className="text-muted-foreground">
               The complete script based on your outline.
             </p>
-                              </div>
+                </div>
           {fullScript && (
             <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
               Word Count: {scriptWordCount}
@@ -1515,11 +1509,11 @@ const ScriptGenerator: React.FC = () => {
                 >
                   {fullScript.scriptWithMarkdown}
                 </ReactMarkdown>
-                          </div>
-            </div>
+                      </div>
+                    </div>
             
             {scriptSegments.length > 1 && (
-              <div className="space-y-4">
+                    <div className="space-y-4">
                 <h3 className="text-lg font-medium">Script Segments</h3>
                 <p className="text-sm text-muted-foreground">
                   The script is divided into segments of approximately 500 words each for easier editing.
@@ -1532,16 +1526,16 @@ const ScriptGenerator: React.FC = () => {
                       <div className="flex gap-2">
                         {editingSegmentIndex === index ? (
                           <>
-                            <Button
-                              size="sm"
+                                    <Button
+                                      size="sm"
                               onClick={saveEditingSegment}
                               className="bg-green-600 hover:bg-green-700"
-                            >
+                                    >
                               Save
-                            </Button>
-                            <Button
+                                    </Button>
+                              <Button
                               size="sm"
-                              variant="outline"
+                                variant="outline"
                               onClick={cancelEditingSegment}
                             >
                               Cancel
@@ -1550,29 +1544,29 @@ const ScriptGenerator: React.FC = () => {
                         ) : (
                           <>
                             <Button
-                              size="sm"
+                                size="sm"
                               variant="outline"
                               onClick={() => startEditingSegment(index)}
-                            >
+                              >
                               <Edit size={14} className="mr-2" />
                               Edit
-                            </Button>
-                            <Button
-                              size="sm"
+                              </Button>
+                                    <Button
+                                      size="sm"
                               variant="outline"
                               onClick={() => handleDirectRegeneration(index, segment)}
                               disabled={isGeneratingScript}
                             >
                               <RefreshCw size={14} className="mr-2" />
                               Regenerate
-                            </Button>
+                                </Button>
                           </>
                         )}
-                      </div>
-                    </div>
-                    
+                              </div>
+                            </div>
+                            
                     {editingSegmentIndex === index ? (
-                      <Textarea
+                                    <Textarea
                         value={editingSegmentText}
                         onChange={(e) => setEditingSegmentText(e.target.value)}
                         className="min-h-[300px] font-mono text-sm"
@@ -1588,15 +1582,15 @@ const ScriptGenerator: React.FC = () => {
                         >
                           {segment}
                         </ReactMarkdown>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
             )}
-          </div>
-        )}
-      </div>
+                            </div>
+                          )}
+                        </div>
       <Dialog open={isPromptHistoryOpen} onOpenChange={setIsPromptHistoryOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -1635,8 +1629,8 @@ const ScriptGenerator: React.FC = () => {
                   <div key={prompt.id} className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => applyPromptToForm(prompt)}>
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="font-medium text-lg">{prompt.prompt || 'Untitled Prompt'}</h4>
-                      <Button 
-                        size="sm" 
+                                <Button
+                                  size="sm"
                         variant="outline" 
                         onClick={(e) => { 
                           e.stopPropagation(); 
@@ -1644,30 +1638,30 @@ const ScriptGenerator: React.FC = () => {
                         }}
                       >
                         Apply
-                      </Button>
-                    </div>
+                                </Button>
+                                      </div>
                     <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
                       {prompt.title && (
                         <div>
                           <span className="font-medium">Title:</span> {prompt.title}
-                        </div>
+                              </div>
                       )}
                       {prompt.theme && (
                         <div>
                           <span className="font-medium">Theme:</span> {prompt.theme}
-                        </div>
+                              </div>
                       )}
                       {prompt.POV && (
                         <div>
                           <span className="font-medium">POV:</span> {prompt.POV}
-                        </div>
-                      )}
+                            </div>
+                          )}
                       {prompt.format && (
                         <div>
                           <span className="font-medium">Format:</span> {prompt.format}
-                        </div>
+                                  </div>
                       )}
-                    </div>
+                              </div>
                     {prompt.audience && (
                       <div className="mt-2 text-sm">
                         <span className="font-medium text-gray-600">Audience:</span> {prompt.audience}
@@ -1710,7 +1704,7 @@ const ScriptGenerator: React.FC = () => {
                 Be specific about what action you want viewers to take.
               </p>
             </div>
-
+            
             <div className="space-y-2">
               <Label htmlFor="cta-placement">Placement</Label>
               <Select value={ctaPlacement} onValueChange={(value: 'beginning' | 'middle' | 'end' | 'custom') => setCtaPlacement(value)}>
@@ -1724,8 +1718,8 @@ const ScriptGenerator: React.FC = () => {
                   <SelectItem value="custom">Custom placement</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
+                          </div>
+                          
             {ctaPlacement === 'custom' && (
               <div className="space-y-2">
                 <Label htmlFor="cta-custom-placement">Custom Placement Description</Label>
@@ -1735,8 +1729,8 @@ const ScriptGenerator: React.FC = () => {
                   value={ctaCustomPlacement}
                   onChange={(e) => setCtaCustomPlacement(e.target.value)}
                 />
-              </div>
-            )}
+                            </div>
+                          )}
 
             <div className="space-y-2">
               <Label htmlFor="cta-additional-instructions">Additional Instructions (Optional)</Label>
@@ -1750,7 +1744,7 @@ const ScriptGenerator: React.FC = () => {
               <p className="text-xs text-muted-foreground">
                 Add style, tone, or delivery instructions for this CTA.
               </p>
-            </div>
+                        </div>
 
             <div className="flex gap-2 pt-4">
               <Button onClick={saveCta} disabled={!ctaText.trim()} className="flex-1">
@@ -1787,7 +1781,7 @@ const ScriptGenerator: React.FC = () => {
                 Make it compelling and attention-grabbing.
               </p>
             </div>
-
+            
             <div className="space-y-2">
               <Label htmlFor="hook-style">Hook Style</Label>
               <Select value={hookStyle} onValueChange={(value: 'question' | 'statement' | 'story' | 'statistic' | 'custom') => setHookStyle(value)}>
@@ -1803,7 +1797,7 @@ const ScriptGenerator: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-
+            
             <div className="space-y-2">
               <Label htmlFor="hook-additional-instructions">Additional Instructions (Optional)</Label>
               <Textarea

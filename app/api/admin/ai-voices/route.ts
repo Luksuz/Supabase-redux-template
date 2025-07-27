@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Provider, voice_id, and name are required' }, { status: 400 })
     }
 
-    if (!['murf', 'elevenlabs', 'speechify', 'playai', 'minimax'].includes(provider)) {
-      return NextResponse.json({ error: 'Invalid provider. Must be murf, elevenlabs, speechify, playai, or minimax' }, { status: 400 })
+    if (!['murf', 'elevenlabs', 'speechify', 'playai', 'minimax', 'fishaudio', 'voicemaker'].includes(provider)) {
+      return NextResponse.json({ error: 'Invalid provider. Must be murf, elevenlabs, speechify, playai, minimax, fishaudio, or voicemaker' }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -82,8 +82,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID, provider, voice_id, and name are required' }, { status: 400 })
     }
 
-    if (!['murf', 'elevenlabs', 'speechify', 'playai', 'minimax'].includes(provider)) {
-      return NextResponse.json({ error: 'Invalid provider. Must be murf, elevenlabs, speechify, playai, or minimax' }, { status: 400 })
+    if (!['murf', 'elevenlabs', 'speechify', 'playai', 'minimax', 'fishaudio', 'voicemaker'].includes(provider)) {
+      return NextResponse.json({ error: 'Invalid provider. Must be murf, elevenlabs, speechify, playai, minimax, fishaudio, or voicemaker' }, { status: 400 })
     }
 
     const supabase = await createClient()

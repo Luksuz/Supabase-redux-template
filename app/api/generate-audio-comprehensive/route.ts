@@ -98,23 +98,41 @@ async function generateSingleAudioChunk(
         audioBuffer = Buffer.from(bytes);
         break;
 
-      case "fish-audio":
+      case "fishaudio":
         if (!fishAudioVoiceId) throw new Error(`Missing fishAudioVoiceId for Fish Audio [Chunk ${chunkIndex}]`);
         const fishModelToUse = fishAudioModel || FISH_AUDIO_MODEL_DEFAULT;
-        console.log(`🐠 [Chunk ${chunkIndex}] Fish Audio: voiceId=${fishAudioVoiceId}, model=${fishModelToUse}`);
+        console.log(`🐠 [Chunk ${chunkIndex}] Fish Audio: voiceId=${fishAudioVoiceId}, model=${fishModelToUse}, textLength=${textChunk.length}`);
+        
+        const fishRequestBody = {
+          text: textChunk, 
+          chunk_length: 200, 
+          format: "mp3", 
+          mp3_bitrate: 128,
+          reference_id: fishAudioVoiceId, 
+          normalize: true, 
+          latency: "normal",
+        };
+        console.log(`🐠 [Chunk ${chunkIndex}] Fish Audio request body:`, fishRequestBody);
+        
         const fishResponse = await fetch("https://api.fish.audio/v1/tts", {
           method: "POST",
-          headers: { "Authorization": `Bearer ${FISH_AUDIO_API_KEY}`, "Content-Type": "application/json", "Model": fishModelToUse },
-          body: JSON.stringify({
-            text: textChunk, chunk_length: 200, format: "mp3", mp3_bitrate: 128,
-            reference_id: fishAudioVoiceId, normalize: true, latency: "normal",
-          })
+          headers: { 
+            "Authorization": `Bearer ${FISH_AUDIO_API_KEY}`, 
+            "Content-Type": "application/json", 
+            "Model": fishModelToUse 
+          },
+          body: JSON.stringify(fishRequestBody)
         });
+        
+        console.log(`🐠 [Chunk ${chunkIndex}] Fish Audio response status: ${fishResponse.status}`);
+        
         if (!fishResponse.ok || !fishResponse.body) {
           let errorBody = '';
           try { errorBody = await fishResponse.text(); } catch (e) { /* ignore */ }
+          console.error(`🐠 [Chunk ${chunkIndex}] Fish Audio API error:`, errorBody);
           throw new Error(`Fish Audio API error [Chunk ${chunkIndex}]: ${fishResponse.status} ${fishResponse.statusText}. Body: ${errorBody}`);
         }
+        
         const fishReader = fishResponse.body.getReader();
         const fishChunks: Buffer[] = [];
         while (true) {
@@ -123,6 +141,47 @@ async function generateSingleAudioChunk(
           fishChunks.push(Buffer.from(value)); 
         }
         audioBuffer = Buffer.concat(fishChunks as any);
+        console.log(`🐠 [Chunk ${chunkIndex}] Fish Audio completed: ${Math.round(audioBuffer.length / 1024)}KB`);
+        break;
+
+      case "voicemaker":
+        if (!voice) throw new Error(`Missing voice for VoiceMaker [Chunk ${chunkIndex}]`);
+        const vmModel = model || 'neural';
+        console.log(`🎵 [Chunk ${chunkIndex}] VoiceMaker: voice=${voice}, engine=${vmModel}`);
+        const vmResponse = await fetch('https://developer.voicemaker.in/voice/api', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.VOICEMAKER_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            Engine: vmModel,
+            VoiceId: voice,
+            LanguageCode: languageCode || 'en-US',
+            Text: textChunk,
+            OutputFormat: 'mp3',
+            SampleRate: '48000',
+            Effect: 'default',
+            MasterVolume: '0',
+            MasterSpeed: '0',
+            MasterPitch: '0'
+          })
+        });
+        if (!vmResponse.ok) {
+          let errorBody = '';
+          try { errorBody = await vmResponse.text(); } catch (e) { /* ignore */ }
+          throw new Error(`VoiceMaker API error [Chunk ${chunkIndex}]: ${vmResponse.status} ${vmResponse.statusText}. Body: ${errorBody}`);
+        }
+        const vmData = await vmResponse.json();
+        if (!vmData.success || !vmData.path) {
+          throw new Error(`VoiceMaker failed [Chunk ${chunkIndex}]: ${JSON.stringify(vmData)}`);
+        }
+        // Download the audio file from VoiceMaker's URL
+        const vmAudioResponse = await fetch(vmData.path);
+        if (!vmAudioResponse.ok) {
+          throw new Error(`Failed to download VoiceMaker audio [Chunk ${chunkIndex}]: ${vmAudioResponse.status}`);
+        }
+        audioBuffer = Buffer.from(await vmAudioResponse.arrayBuffer());
         break;
 
       case "elevenlabs":
@@ -221,9 +280,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: `Missing required field 'voice' for ${provider}` }, { status: 400 });
       }
       break;
-    case "fish-audio":
+    case "fishaudio":
       if (!fishAudioVoiceId) {
         return NextResponse.json({ error: "Missing required field 'fishAudioVoiceId' for Fish Audio" }, { status: 400 });
+      }
+      break;
+    case "voicemaker":
+      if (!voice) {
+        return NextResponse.json({ error: "Missing required field 'voice' for VoiceMaker" }, { status: 400 });
       }
       break;
     case "elevenlabs":

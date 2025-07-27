@@ -1,12 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Checkbox } from '../ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Settings, Palette, AlertCircle, Loader2, VideoIcon } from 'lucide-react'
+import { Settings, Palette, AlertCircle, Loader2, VideoIcon, Upload, Music, Trash2, Play, Pause } from 'lucide-react'
 import type { SegmentTiming, IntroImageConfig } from '@/types/video-generation'
 import { VideoModeSelection } from './VideoModeSelection'
 
@@ -74,6 +75,129 @@ export function VideoSettings({
   selectedLoopImageId,
   onSelectedLoopImageIdChange
 }: VideoSettingsProps) {
+  const [uploadingMusic, setUploadingMusic] = useState(false)
+  const [customMusicFiles, setCustomMusicFiles] = useState<Array<{
+    id: string
+    name: string
+    url: string
+    duration?: number
+  }>>(settings.customMusicFiles || [])
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null)
+
+  const handleMusicUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    setUploadingMusic(true)
+    const uploadedFiles: Array<{
+      id: string
+      name: string
+      url: string
+      duration?: number
+    }> = []
+
+    try {
+      for (const file of Array.from(files)) {
+        // Validate file type
+        if (!file.type.startsWith('audio/')) {
+          alert(`${file.name} is not a valid audio file`)
+          continue
+        }
+
+        // Create FormData for upload
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('bucket', 'audio')
+        formData.append('path', `custom-music/${Date.now()}-${file.name}`)
+
+        // Upload to Supabase
+        const response = await fetch('/api/upload-file', {
+          method: 'POST',
+          body: formData
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`)
+        }
+
+        const { publicUrl } = await response.json()
+
+        // Get audio duration
+        const audio = new Audio()
+        const duration = await new Promise<number>((resolve) => {
+          audio.addEventListener('loadedmetadata', () => {
+            resolve(audio.duration)
+          })
+          audio.src = URL.createObjectURL(file)
+        })
+
+        uploadedFiles.push({
+          id: `music-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: file.name,
+          url: publicUrl,
+          duration: Math.round(duration)
+        })
+      }
+
+      const updatedMusicFiles = [...customMusicFiles, ...uploadedFiles]
+      setCustomMusicFiles(updatedMusicFiles)
+      onSettingsChange({ 
+        ...settings, 
+        customMusicFiles: updatedMusicFiles,
+        useCustomMusic: updatedMusicFiles.length > 0
+      })
+
+      alert(`Successfully uploaded ${uploadedFiles.length} music file(s)`)
+    } catch (error) {
+      console.error('Music upload error:', error)
+      alert(`Failed to upload music: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setUploadingMusic(false)
+      // Reset file input
+      event.target.value = ''
+    }
+  }
+
+  const handleRemoveMusic = (musicId: string) => {
+    const updatedFiles = customMusicFiles.filter(file => file.id !== musicId)
+    setCustomMusicFiles(updatedFiles)
+    onSettingsChange({ 
+      ...settings, 
+      customMusicFiles: updatedFiles,
+      useCustomMusic: updatedFiles.length > 0
+    })
+  }
+
+  const handlePlayPause = (url: string, musicId: string) => {
+    if (playingAudio === musicId) {
+      // Pause current audio
+      const audio = document.getElementById(`audio-${musicId}`) as HTMLAudioElement
+      if (audio) {
+        audio.pause()
+      }
+      setPlayingAudio(null)
+    } else {
+      // Stop any currently playing audio
+      if (playingAudio) {
+        const currentAudio = document.getElementById(`audio-${playingAudio}`) as HTMLAudioElement
+        if (currentAudio) {
+          currentAudio.pause()
+          currentAudio.currentTime = 0
+        }
+      }
+      
+      // Play new audio
+      const audio = document.getElementById(`audio-${musicId}`) as HTMLAudioElement
+      if (audio) {
+        audio.play()
+        setPlayingAudio(musicId)
+        
+        // Reset when audio ends
+        audio.onended = () => setPlayingAudio(null)
+      }
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Video Mode Selection */}
@@ -90,6 +214,132 @@ export function VideoSettings({
         selectedLoopImageId={selectedLoopImageId}
         onSelectedLoopImageIdChange={onSelectedLoopImageIdChange}
       />
+
+      {/* Custom Music Upload */}
+      <Card className="bg-white shadow-sm border border-gray-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Music className="h-5 w-5 text-purple-600" />
+            Custom Background Music
+          </CardTitle>
+          <CardDescription>
+            Upload your own music files to use as background audio. Single file loops continuously, multiple files play in sequence and loop.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Upload Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Label htmlFor="music-upload" className="text-sm font-medium">
+                  Upload Audio Files (MP3, WAV, M4A)
+                </Label>
+                <Input
+                  id="music-upload"
+                  type="file"
+                  accept="audio/*"
+                  multiple
+                  onChange={handleMusicUpload}
+                  disabled={uploadingMusic || !hasPrerequisites}
+                  className="mt-2"
+                />
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="use-custom-music"
+                  checked={settings.useCustomMusic && customMusicFiles.length > 0}
+                  onCheckedChange={(checked) => onSettingsChange({ 
+                    ...settings, 
+                    useCustomMusic: checked && customMusicFiles.length > 0
+                  })}
+                  disabled={!hasPrerequisites || customMusicFiles.length === 0}
+                />
+                <Label htmlFor="use-custom-music" className="text-sm">
+                  Use custom music
+                </Label>
+              </div>
+            </div>
+
+            {uploadingMusic && (
+              <div className="flex items-center gap-2 text-blue-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Uploading music files...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Music Files List */}
+          {customMusicFiles.length > 0 && (
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">
+                Uploaded Music Files ({customMusicFiles.length})
+              </Label>
+              
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {customMusicFiles.map((file, index) => (
+                  <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
+                        <Music className="h-4 w-4 text-purple-500" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {file.name}
+                        </div>
+                        {file.duration && (
+                          <div className="text-xs text-gray-500">
+                            Duration: {Math.floor(file.duration / 60)}:{(file.duration % 60).toString().padStart(2, '0')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Hidden audio element for playback */}
+                      <audio
+                        id={`audio-${file.id}`}
+                        src={file.url}
+                        preload="none"
+                      />
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePlayPause(file.url, file.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        {playingAudio === file.id ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </Button>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveMusic(file.id)}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {customMusicFiles.length > 1 && (
+                <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+                  <strong>Playback Mode:</strong> Files will play in the order shown above, looping the entire sequence throughout the video.
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Traditional Video Settings - Only show if not using new video modes */}
       {settings.videoMode === 'traditional' && (
@@ -109,25 +359,8 @@ export function VideoSettings({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Basic Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Video Quality</Label>
-                <Select 
-                  value={settings.videoQuality} 
-                  onValueChange={(value: 'hd' | 'sd') => onSettingsChange({ videoQuality: value })}
-                  disabled={!hasPrerequisites}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hd">HD (1280x720)</SelectItem>
-                    <SelectItem value="sd">SD (854x480)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
+            {/* Traditional Video Specific Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm">Timing Mode</Label>
                 <div className="space-y-2">
@@ -150,22 +383,7 @@ export function VideoSettings({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm">Subtitles</Label>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="include-subtitles"
-                    checked={settings.includeSubtitles || false}
-                    onCheckedChange={(checked) => onSettingsChange({ includeSubtitles: checked as boolean })}
-                    disabled={!hasPrerequisites || !audioGeneration?.subtitlesUrl}
-                  />
-                  <Label htmlFor="include-subtitles" className="text-sm">
-                    Include subtitles {!audioGeneration?.subtitlesUrl && '(not available)'}
-                  </Label>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm">Dust Overlay</Label>
+                <Label className="text-sm">Visual Effects</Label>
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="include-overlay"

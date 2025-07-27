@@ -10,6 +10,13 @@ export interface IntroImageConfig {
   order: number
 }
 
+export interface CustomMusicFile {
+  id: string
+  name: string
+  url: string
+  duration?: number
+}
+
 export interface CreateVideoRequestBody {
   imageUrls: string[]
   audioUrl: string
@@ -37,6 +44,9 @@ export interface CreateVideoRequestBody {
   introDuration?: number
   loopImageUrl?: string
   useEqualIntroDuration?: boolean
+  // Custom music properties
+  useCustomMusic?: boolean
+  customMusicFiles?: CustomMusicFile[]
 }
 
 export interface CreateVideoResponse {
@@ -83,4 +93,7 @@ export interface VideoGenerationSettings {
   dustOverlay: boolean
   introDuration: number
   useEqualIntroDuration: boolean
+  // Custom music properties
+  useCustomMusic: boolean
+  customMusicFiles: CustomMusicFile[]
 } 

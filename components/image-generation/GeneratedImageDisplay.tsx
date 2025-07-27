@@ -408,10 +408,14 @@ export function GeneratedImageDisplay({
                           ? 'border-blue-500 bg-blue-50' 
                           : showImageSelection 
                           ? 'border-gray-300 hover:border-blue-300' 
-                          : 'border-transparent hover:border-blue-300'
+                          : 'border-transparent hover:border-blue-300 cursor-pointer'
                       }`}
-                      onClick={showImageSelection ? () => onToggleImageSelection(imageSet.id, imageIndex) : undefined}
-                      style={{ cursor: showImageSelection ? 'pointer' : 'default' }}
+                      onClick={showImageSelection 
+                        ? () => onToggleImageSelection(imageSet.id, imageIndex) 
+                        : () => window.open(url, '_blank', 'noopener,noreferrer')
+                      }
+                      style={{ cursor: 'pointer' }}
+                      title={showImageSelection ? 'Click to select/deselect' : 'Click to open in new window'}
                     >
                       <img 
                         src={url} 
@@ -439,7 +443,10 @@ export function GeneratedImageDisplay({
                           <Button 
                             size="sm" 
                             variant="secondary"
-                            onClick={() => downloadImage(url, `${setIndex + 1}_${imageIndex + 1}_${imageSet.provider}_${imageSet.aspectRatio}.png`)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              downloadImage(url, `${setIndex + 1}_${imageIndex + 1}_${imageSet.provider}_${imageSet.aspectRatio}.png`)
+                            }}
                           >
                             <Download className="h-4 w-4 mr-2" />
                             Download
@@ -447,11 +454,26 @@ export function GeneratedImageDisplay({
                           <Button 
                             size="sm" 
                             variant="secondary"
-                            onClick={() => onRegenerateImage(imageSet.id, imageIndex)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onRegenerateImage(imageSet.id, imageIndex)
+                            }}
                             disabled={isRegenerating}
                           >
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Regenerate
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              window.open(url, '_blank', 'noopener,noreferrer')
+                            }}
+                            title="Open in new window"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
                           </Button>
                         </div>
                       )}

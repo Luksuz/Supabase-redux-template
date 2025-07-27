@@ -1,10 +1,15 @@
 'use client'
 
+import { useState } from 'react'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Label } from '../ui/label'
+import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { IMAGE_STYLES } from '@/data/image'
+import { Plus, Save, X } from 'lucide-react'
 import type { ExtractedScene } from '@/types/image-generation'
 
 interface ImageStyleSelectorProps {
@@ -28,14 +33,43 @@ export function ImageStyleSelector({
   isGenerating,
   isExtractingScenes
 }: ImageStyleSelectorProps) {
+  const [showCustomStyle, setShowCustomStyle] = useState(false)
+  const [customStyleName, setCustomStyleName] = useState('')
+  const [customStylePrefix, setCustomStylePrefix] = useState('')
+  const [customStyles, setCustomStyles] = useState<Array<{value: string, label: string, prefix: string}>>([])
+
   // Helper function to apply image style to prompt
   const applyImageStyle = (basePrompt: string) => {
     if (!selectedImageStyle || selectedImageStyle === 'none') return basePrompt
     
-    const selectedStyle = IMAGE_STYLES.find(style => style.value === selectedImageStyle)
+    // Check both built-in and custom styles
+    const allStyles = [...IMAGE_STYLES, ...customStyles]
+    const selectedStyle = allStyles.find(style => style.value === selectedImageStyle)
     if (!selectedStyle || !selectedStyle.prefix) return basePrompt
     
     return `${selectedStyle.prefix}${basePrompt}`
+  }
+
+  const handleAddCustomStyle = () => {
+    if (customStyleName.trim() && customStylePrefix.trim()) {
+      const newStyle = {
+        value: `custom-${Date.now()}`,
+        label: customStyleName.trim(),
+        prefix: customStylePrefix.trim() + (customStylePrefix.trim().endsWith(' ') ? '' : ', ')
+      }
+      setCustomStyles(prev => [...prev, newStyle])
+      onImageStyleChange(newStyle.value)
+      setCustomStyleName('')
+      setCustomStylePrefix('')
+      setShowCustomStyle(false)
+    }
+  }
+
+  const handleRemoveCustomStyle = (valueToRemove: string) => {
+    setCustomStyles(prev => prev.filter(style => style.value !== valueToRemove))
+    if (selectedImageStyle === valueToRemove) {
+      onImageStyleChange('none')
+    }
   }
 
   return (
@@ -44,7 +78,18 @@ export function ImageStyleSelector({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Image Style Selection */}
         <div className="space-y-3">
-          <Label htmlFor="image-style">Image Style</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="image-style">Image Style</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCustomStyle(!showCustomStyle)}
+              disabled={isGenerating || isExtractingScenes}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Custom
+            </Button>
+          </div>
           <Select
             value={selectedImageStyle}
             onValueChange={onImageStyleChange}
@@ -54,11 +99,39 @@ export function ImageStyleSelector({
               <SelectValue placeholder="Choose an image style..." />
             </SelectTrigger>
             <SelectContent className="max-h-80">
+              {/* Built-in styles */}
               {IMAGE_STYLES.map((style) => (
                 <SelectItem key={style.value} value={style.value}>
                   {style.label}
                 </SelectItem>
               ))}
+              
+              {/* Custom styles separator */}
+              {customStyles.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-xs font-medium text-blue-600 border-t mt-1 pt-2">
+                    Custom Styles
+                  </div>
+                  {customStyles.map((style) => (
+                    <SelectItem key={style.value} value={style.value} className="relative">
+                      <div className="flex items-center justify-between w-full">
+                        <span>{style.label}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveCustomStyle(style.value)
+                          }}
+                          className="h-4 w-4 p-0 ml-2 text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </>
+              )}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
@@ -91,6 +164,88 @@ export function ImageStyleSelector({
         </div>
       </div>
 
+      {/* Custom Style Creation */}
+      {showCustomStyle && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Plus className="h-5 w-5 text-blue-600" />
+              Create Custom Style
+            </CardTitle>
+            <CardDescription>
+              Add your own image style with a custom prefix that will be added to all prompts
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="custom-style-name">Style Name</Label>
+                <Input
+                  id="custom-style-name"
+                  placeholder="e.g., Cyberpunk Neon, Vintage Photography..."
+                  value={customStyleName}
+                  onChange={(e) => setCustomStyleName(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="custom-style-prefix">Style Prefix</Label>
+                <Input
+                  id="custom-style-prefix"
+                  placeholder="e.g., Cyberpunk neon style, Vintage photograph..."
+                  value={customStylePrefix}
+                  onChange={(e) => setCustomStylePrefix(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Full Style Description (Optional)</Label>
+              <Textarea
+                placeholder="Add more detailed styling instructions like lighting, mood, camera settings, artistic techniques, etc."
+                value={customStylePrefix}
+                onChange={(e) => setCustomStylePrefix(e.target.value)}
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-blue-600">
+                💡 Examples: "Cinematic lighting, shallow depth of field, golden hour" or "Black and white film noir style, high contrast, dramatic shadows"
+              </p>
+            </div>
+
+            {/* Preview */}
+            {customStylePrefix.trim() && (
+              <div className="p-3 bg-white border border-blue-200 rounded">
+                <Label className="text-xs font-medium text-blue-700">Preview:</Label>
+                <p className="text-sm font-mono text-gray-700 mt-1">
+                  {customStylePrefix.trim() + (customStylePrefix.trim().endsWith(' ') ? '' : ', ')}[your image prompt here]
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleAddCustomStyle}
+                disabled={!customStyleName.trim() || !customStylePrefix.trim()}
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Save Custom Style
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowCustomStyle(false)
+                  setCustomStyleName('')
+                  setCustomStylePrefix('')
+                }}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Prompt Preview */}
       {selectedImageStyle && selectedImageStyle !== 'none' && (
         <div className="space-y-3">
@@ -102,7 +257,9 @@ export function ImageStyleSelector({
             <div className="text-xs text-blue-700 space-y-2">
               <div className="p-2 bg-white border border-blue-100 rounded">
                 <span className="font-semibold text-blue-900">Style Prefix:</span>{' '}
-                <span className="font-mono">{IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.prefix}</span>
+                <span className="font-mono">
+                  {[...IMAGE_STYLES, ...customStyles].find(style => style.value === selectedImageStyle)?.prefix}
+                </span>
               </div>
               <div className="p-2 bg-white border border-blue-100 rounded">
                 <span className="font-semibold text-blue-900">Example Final Prompt:</span>{' '}

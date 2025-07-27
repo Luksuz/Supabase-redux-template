@@ -374,7 +374,7 @@ export async function POST(request: NextRequest) {
       case 'stable-diffusion-v35-large':
       case 'stable-diffusion-v35-medium':
       case 'ideogram-v3':
-      case 'minimax-image-01':
+      // case 'minimax-image-01':
         if (!FAL_API_KEY) throw new Error('FAL_API_KEY is not set');
         imageUrl = await generateFluxImage(provider, prompt, { width, height });
         break;

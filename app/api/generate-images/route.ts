@@ -3,12 +3,19 @@ import { GenerateImageRequestBody, GenerateImageResponse } from '@/types/image-g
 import { v4 as uuidv4 } from 'uuid';
 import { fal } from "@fal-ai/client";
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 const FAL_API_KEY = process.env.FAL_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
 const LEONARDO_API_URL = 'https://cloud.leonardo.ai/api/rest/v1';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // Initialize OpenAI client
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -18,6 +25,48 @@ if (FAL_API_KEY) {
   fal.config({
     credentials: FAL_API_KEY,
   });
+}
+
+// Helper to upload image to Supabase and return public URL
+async function uploadImageToSupabase(imageData: string | Buffer, prompt: string, provider: string): Promise<string> {
+  let buffer: Buffer;
+  let fileType: 'png' | 'jpeg' = 'png';
+
+  if (typeof imageData === 'string' && imageData.startsWith('http')) {
+    const response = await fetch(imageData);
+    const arrayBuffer = await response.arrayBuffer();
+    buffer = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get('content-type');
+    if (contentType === 'image/jpeg') fileType = 'jpeg';
+  } else if (typeof imageData === 'string' && imageData.startsWith('data:image')) {
+    const parts = imageData.split(',');
+    const meta = parts[0];
+    const data = parts[1];
+    if (meta.includes('image/jpeg')) fileType = 'jpeg';
+    buffer = Buffer.from(data, 'base64');
+  } else if (Buffer.isBuffer(imageData)) {
+    buffer = imageData;
+  } else {
+    throw new Error('Invalid image data format for upload');
+  }
+  
+  const sanitizedPrompt = prompt.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
+  const filePath = `images/${provider}/${Date.now()}-${sanitizedPrompt}.${fileType}`;
+
+  const { error } = await supabase.storage
+    .from('audio')
+    .upload(filePath, buffer, {
+      contentType: `image/${fileType}`,
+      upsert: false,
+    });
+
+  if (error) {
+    console.error('Supabase upload error:', error);
+    throw new Error('Failed to upload image to Supabase.');
+  }
+
+  const { data } = supabase.storage.from('audio').getPublicUrl(filePath);
+  return data.publicUrl;
 }
 
 // Helper function for retrying an async operation
@@ -240,9 +289,9 @@ async function generateLeonardoPhoenixImage(prompt: string, width: number, heigh
     enhancePrompt: false,
   };
 
-  console.log('🚀 Starting Leonardo Phoenix image generation...');
-
-  const generationResponse = await fetch(`${LEONARDO_API_URL}/generations`, {
+      console.log('🚀 Starting Leonardo Phoenix image generation...');
+  
+    const generationResponse = await fetch(`${LEONARDO_API_URL}/generations`, {
     method: 'POST',
     headers: {
       'accept': 'application/json',
@@ -540,8 +589,34 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log(`✅ ${provider} image generation complete. Generated ${imageUrls.length} image(s).`);
-    const responsePayload: GenerateImageResponse = { imageUrls };
+    // Upload base64 images to Supabase Storage and get public URLs
+    console.log(`📤 Uploading ${imageUrls.length} generated images to Supabase Storage...`);
+    const publicImageUrls: string[] = [];
+    
+    for (let i = 0; i < imageUrls.length; i++) {
+      try {
+        const imageUrl = imageUrls[i];
+        
+        // Skip if it's already a public URL (not base64)
+        if (imageUrl.startsWith('http')) {
+          publicImageUrls.push(imageUrl);
+          continue;
+        }
+        
+        // Upload base64 image to Supabase Storage
+        const sanitizedPrompt = prompt.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
+        const publicUrl = await uploadImageToSupabase(imageUrl, sanitizedPrompt, provider);
+        publicImageUrls.push(publicUrl);
+        console.log(`✅ Uploaded image ${i + 1}/${imageUrls.length} to Supabase Storage`);
+      } catch (error) {
+        console.error(`❌ Failed to upload image ${i + 1}:`, error);
+        // Fall back to original URL if upload fails
+        publicImageUrls.push(imageUrls[i]);
+      }
+    }
+
+    console.log(`✅ ${provider} image generation complete. Generated ${publicImageUrls.length} image(s) with public URLs.`);
+    const responsePayload: GenerateImageResponse = { imageUrls: publicImageUrls };
     return NextResponse.json(responsePayload, { status: 200 });
 
   } catch (error: any) {

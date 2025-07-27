@@ -13,7 +13,9 @@ const openai = new OpenAI({
 const scriptSectionsSchema = z.array(z.object({
   title: z.string(),
   writingInstructions: z.string(),
-  image_generation_prompt: z.string()
+  image_generation_prompt: z.string(),
+  narrativeRole: z.string().describe("The role this section plays in the overall story structure"),
+  storyArc: z.string().describe("How this section contributes to the complete story arc")
 }));
 
 export async function POST(request: NextRequest) {
@@ -21,7 +23,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     
     // Check if this is the new script generation flow
-    if ('title' in body && 'wordCount' in body && 'theme' in body) {
+    if ('title' in body && 'theme' in body) {
       return handleNewScriptGeneration(body);
     }
     
@@ -39,21 +41,22 @@ export async function POST(request: NextRequest) {
 async function handleNewScriptGeneration(body: any) {
   const { 
     title, 
-    wordCount, 
     theme, 
-    additionalPrompt, 
+    additionalPrompt,
+    sectionPrompt = "", // New separate prompt for section generation
     researchContext,
     inspirationalTranscript, 
     forbiddenWords,
-    modelName = "gpt-4o-mini", // Default model
+    modelName = "gpt-4o-mini",
     povSelection = "3rd Person",
     scriptFormat = "Story",
-    audience = ""
+    audience = "",
+    targetSections = 3 // Instead of word count, use target number of logical sections
   } = body;
   
-  if (!title || !wordCount) {
+  if (!title) {
     return NextResponse.json(
-      { error: "Missing required fields" },
+      { error: "Missing required title field" },
       { status: 400 }
     );
   }
@@ -78,9 +81,6 @@ async function handleNewScriptGeneration(body: any) {
 
   // Create a parser based on our Zod schema
   const parser = StructuredOutputParser.fromZodSchema(scriptSectionsSchema);
-
-  // Calculate the number of sections based on word count
-  const numSections = Math.max(1, Math.floor(wordCount / 800));
 
   // Build additions to the prompt based on optional parameters
   let additionalInstructions = "";
@@ -124,120 +124,146 @@ IMPORTANT: Create your story about "${title}" using the above transcript's STYLE
     const wordsList = forbiddenWords.split(',').map((word: string) => word.trim()).filter(Boolean);
     if (wordsList.length > 0) {
       additionalInstructions += `
-FORBIDDEN WORDS:
-The following words should be completely avoided in your script outline: ${wordsList.join(', ')}.
+FORBIDDEN WORDS AND PHRASES:
+The following words and phrases should be completely avoided in your script outline: ${wordsList.join(', ')}.
+Also avoid: "Would you like me to continue", "Let me continue", "Shall I proceed", "Do you want more", and similar interactive prompts.
 `;
     }
+  }
+  
+  // Add any section-specific custom instructions
+  if (sectionPrompt && sectionPrompt.trim()) {
+    additionalInstructions += `
+SECTION GENERATION INSTRUCTIONS:
+${sectionPrompt.trim()}
+`;
   }
   
   // Add any additional custom instructions
   if (additionalPrompt && additionalPrompt.trim()) {
     additionalInstructions += `
-ADDITIONAL INSTRUCTIONS:
+ADDITIONAL GENERAL INSTRUCTIONS:
 ${additionalPrompt.trim()}
 `;
   }
 
-  // Define batch size for processing
-  const BATCH_SIZE = 40;
-  const totalBatches = Math.ceil(numSections / BATCH_SIZE);
-  let allSections: any[] = [];
-  
-  console.log(`Generating ${numSections} sections in ${totalBatches} batch(es) of max ${BATCH_SIZE} each`);
+  // Create a comprehensive story structure prompt
+  const systemPrompt = `You are a master storyteller and script writer. Your task is to create a complete, well-structured narrative outline that tells a full story from beginning to end.
 
-  // Process sections in batches
-  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-    const startSection = batchIndex * BATCH_SIZE;
-    const endSection = Math.min((batchIndex + 1) * BATCH_SIZE, numSections);
-    const batchSize = endSection - startSection;
-    
-    console.log(`Processing batch ${batchIndex + 1}/${totalBatches}: sections ${startSection + 1} to ${endSection}`);
-    
-    // Create context from previous sections if this isn't the first batch
-    let contextInstructions = "";
-    if (batchIndex > 0) {
-      // Get the last 3 sections or fewer from the previous batch
-      const contextSections = allSections.slice(-3);
-      contextInstructions = `
-CONTEXT FROM PREVIOUS SECTIONS:
-Here are the last ${contextSections.length} sections that were already created to maintain continuity:
-${contextSections.map((section, i) => 
-  `Section ${startSection - contextSections.length + i + 1}: "${section.title}"
-  Writing Instructions: ${section.writingInstructions.substring(0, 150)}...`
-).join('\n\n')}
+CRITICAL REQUIREMENTS:
+1. Create a COMPLETE story that has a clear beginning, middle, and satisfying ending/resolution
+2. Ensure the story naturally flows from introduction through conflict to resolution
+3. The final section must provide closure and resolution to the central conflict or question
+4. Maintain consistency in character names, locations, and story elements throughout
+5. Do not use interactive phrases like "Would you like me to continue" or similar
+6. Focus on quality storytelling rather than meeting specific length requirements
+7. Create natural section breaks based on story beats, not arbitrary divisions
 
-Ensure that your new sections maintain narrative continuity with these previous sections.
-`;
-    }
+STORY STRUCTURE GUIDELINES:
+- Opening: Establish the premise, characters, and central question/conflict
+- Development: Build tension, explore the topic, introduce complications
+- Climax: Address the central conflict or reveal key insights
+- Resolution: Provide closure, answers, and meaningful conclusion
 
-    // Create the prompt for the model
-    const batchPrompt = `
-You are a professional script outline generator. Create a detailed script outline for ${batchSize} sections ${startSection + 1} to ${endSection} of a story with the following details:
+Each section should serve a specific narrative purpose and contribute to the complete story arc.`;
 
-Title: ${title}
-Theme: ${theme || "No specific theme provided"}
-Total Story Word Count: Approximately ${wordCount} words (${numSections} total sections)
+  const userPrompt = `Create a complete ${targetSections}-part script outline for "${title}".
+
+STORY REQUIREMENTS:
+- Title: ${title}
+- Theme: ${theme || "No specific theme provided"}
+- POV: ${povSelection}
+- Format: ${scriptFormat}
+- Target Audience: ${audience || "General audience"}
+
+STRUCTURAL REQUIREMENTS:
+1. Create exactly ${targetSections} sections that naturally divide the complete story
+2. Each section must have a clear narrative purpose (setup, development, climax, resolution)
+3. The final section MUST provide a satisfying conclusion to the story
+4. Maintain consistent character names, locations, and details throughout
+5. Ensure the story has a complete arc from beginning to end
+
+CONTENT REQUIREMENTS:
+- Focus on compelling storytelling and natural narrative flow
+- Avoid repetitive content, especially avoid repeating the introduction in later sections
+- Each section should advance the story meaningfully
+- Use specific, consistent details (if mentioning locations, use the same names throughout)
+- Create engaging, original content that serves the story
+
 ${additionalInstructions}
-${contextInstructions}
-
-I need you to generate ${batchSize} story sections (specifically sections ${startSection + 1} to ${endSection} out of ${numSections} total).
-
-Each section must have:
-1.  A 'title' that captures the essence of that section.
-2.  Detailed 'writingInstructions' (150-250 words for main content sections) that explain what should happen in that section, including plot developments, character interactions, and thematic elements. These instructions are for the narrator.
-3.  An 'image_generation_prompt' (a concise phrase or sentence, around 10-25 words) that describes the key visual elements of the scene for an AI image generator. This prompt should be purely descriptive of the visuals, suitable for direct use in image generation, and must avoid any taboo, sensitive, or controversial topics.
-
-IMPORTANT GUIDELINES FOR WRITING INSTRUCTIONS:
-1. Do NOT include instructions for the narrator to begin with greetings like "Hi", "Hello", etc.
-2. Do NOT instruct the narrator to state or repeat the title or section names.
-3. Focus on the narrative flow and content rather than introductory elements.
-4. The narrator should begin directly with the story content, not with meta-references to the story itself.
-5. Ensure the story can flow naturally without headers, titles, or section markers.
-
-Make all sections flow logically. Ensure all generated content, including image prompts, is safe, respectful, and avoids controversial subjects.
 
 ${parser.getFormatInstructions()}
-`;
 
-    // Generate the batch of sections
-    const response = await model.invoke(batchPrompt);
-    
-    // Parse the response - ensure we get a string
-    let contentString = "";
-    
-    if (typeof response.content === 'string') {
-      contentString = response.content;
-    } else if (Array.isArray(response.content)) {
-      // Extract text from array of complex message contents
-      contentString = response.content
-        .map((item: any) => {
+Create a compelling, complete story that audiences will want to follow from start to finish. Make sure the story reaches a proper conclusion in the final section.`;
+
+  try {
+    console.log(`Generating ${targetSections} sections for story structure`);
+
+    // Generate the complete outline in one request to ensure consistency
+    const result = await model.invoke([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ]);
+
+    let resultContent = "";
+    if (typeof result.content === 'string') {
+      resultContent = result.content;
+    } else if (Array.isArray(result.content)) {
+      resultContent = result.content
+        .map(item => {
           if (typeof item === 'string') return item;
-          // Handle text content if it's a text content object
-          if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') return item.text;
+          if (item && typeof item === 'object' && 'text' in item) return item.text;
           return '';
         })
         .join('\n');
     }
-        
-    try {
-      const parsedBatchResponse = await parser.parse(contentString);
-      
-      if (Array.isArray(parsedBatchResponse)) {
-        console.log(`✅ Successfully generated ${parsedBatchResponse.length} sections for batch ${batchIndex + 1}`);
-        allSections = [...allSections, ...parsedBatchResponse];
-      } else {
-        console.error(`❌ Parser returned non-array response for batch ${batchIndex + 1}:`, parsedBatchResponse);
-        throw new Error("Parsing error: Expected array of sections");
-      }
-    } catch (parseError) {
-      console.error(`❌ Failed to parse response for batch ${batchIndex + 1}:`, parseError);
-      console.log("Raw content:", contentString.substring(0, 500) + "...");
-      throw parseError;
-    }
-  }
 
-  console.log(`✅ Successfully generated all ${allSections.length} sections`);
-  return NextResponse.json({ sections: allSections });
+    console.log("Raw LLM result:", resultContent);
+
+    // Parse the result
+    const sections = await parser.parse(resultContent);
+    console.log("Parsed sections:", sections);
+
+    return NextResponse.json({
+      sections: sections,
+      success: true,
+      message: `Generated ${sections.length} story sections with complete narrative arc`
+    });
+
+  } catch (error) {
+    console.error("Error generating script outline:", error);
+    
+    // Fallback with manual structure if parsing fails
+    const fallbackSections = [
+      {
+        title: "Opening",
+        writingInstructions: `Introduce the central premise of "${title}". Set up the main question, conflict, or journey that will drive the narrative. Establish key characters or concepts. Create an engaging hook that draws the audience in.`,
+        image_generation_prompt: `Opening scene for ${title}`,
+        narrativeRole: "Introduction and setup",
+        storyArc: "Establishes the foundation and central premise"
+      },
+      {
+        title: "Development", 
+        writingInstructions: `Develop the central story of "${title}". Build tension, explore the main themes, introduce complications or deeper insights. Advance the narrative significantly from the opening.`,
+        image_generation_prompt: `Development scene showing progression in ${title}`,
+        narrativeRole: "Story development and conflict building",
+        storyArc: "Builds tension and develops the central narrative"
+      },
+      {
+        title: "Resolution",
+        writingInstructions: `Bring "${title}" to a satisfying conclusion. Address the central conflict or question established in the opening. Provide closure, resolution, and meaningful takeaways for the audience. End the story completely.`,
+        image_generation_prompt: `Conclusive scene for ${title}`,
+        narrativeRole: "Climax and resolution", 
+        storyArc: "Provides closure and completes the story arc"
+      }
+    ];
+
+    return NextResponse.json({
+      sections: fallbackSections,
+      success: true,
+      message: "Generated fallback story structure"
+    });
+  }
 }
 
 async function handleImageScriptGeneration(body: any) {

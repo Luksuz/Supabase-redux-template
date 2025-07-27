@@ -318,7 +318,10 @@ export function VideoGenerator() {
         introImages: settings.videoMode === 'option2' ? introImages : undefined,
         introDuration: settings.videoMode === 'option2' ? settings.introDuration : undefined,
         loopImageUrl: settings.videoMode === 'option2' ? loopImageUrl : undefined,
-        useEqualIntroDuration: settings.videoMode === 'option2' ? settings.useEqualIntroDuration : undefined
+        useEqualIntroDuration: settings.videoMode === 'option2' ? settings.useEqualIntroDuration : undefined,
+        // Custom music
+        useCustomMusic: settings.useCustomMusic || false,
+        customMusicFiles: settings.customMusicFiles || []
       }
 
       console.log('🎬 Starting video generation with:', requestBody)

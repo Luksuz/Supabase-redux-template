@@ -1,53 +1,29 @@
-import fs from "fs";
-import fetch from "node-fetch";
-import AbortController from "abort-controller";
+import dotenv from 'dotenv';
+dotenv.config();
 
-async function ttsRequestHandler(text, speakerId, model) {
-  const ttsAbortController = new AbortController();
-  const ttsEndPoint = "https://api.wellsaidlabs.com/v1/tts/stream";
-  let ttsResponse;
-  try {
-    ttsResponse = await fetch(ttsEndPoint, {
-      signal: ttsAbortController.signal,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": "4f74b2f4-80bf-405e-b4b2-f480bf505e85"
-      },
-      body: JSON.stringify({
-        speaker_id: speakerId,
-        text,
-        model
-      })
-    });
-  } catch (error) {
-    throw new Error("Service is currently unavailable");
-  }
-
-  if (!ttsResponse.ok) {
-    let errorMessage = "Failed to render";
-    try {
-      const { message } = await ttsResponse.json();
-      errorMessage = message;
-    } catch (error) {}
-    throw new Error(errorMessage);
-  }
-
-  const storageWriteStream = fs.createWriteStream("audio.mp3");
-  ttsResponse.body.pipe(storageWriteStream);
-
-  try {
-    await new Promise((resolve, reject) => {
-      storageWriteStream.on("finish", resolve);
-      storageWriteStream.on("error", reject);
-    });
-  } catch (error) {
-    ttsAbortController.abort();
-    throw error;
-  }
-}
-
-// Example usage
-ttsRequestHandler("what a nice day today", 3, "caruso")
-  .then(() => console.log("Audio file saved successfully"))
-  .catch(error => console.error("Error:", error.message));
+fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+  method: 'POST',
+  headers: {
+    'accept': 'application/json',
+    'authorization': `Bearer ${process.env.LEONARDO_API_KEY}`,
+    'content-type': 'application/json'
+  },
+  body: JSON.stringify({
+    modelId: "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3",
+    contrast: 3.5,
+    prompt: "an orange cat standing on a blue basketball with the text PAWS",
+    num_images: 4,
+    width: 1472,
+    height: 832,
+    alchemy: true,
+    styleUUID: "111dc692-d470-4eec-b791-3475abac4c46",
+    enhancePrompt: false
+  })
+})
+  .then(response => response.json())
+  .then(data => {
+    console.log('Leonardo API response:', data);
+  })
+  .catch(error => {
+    console.error('Error:', error);
+  });
