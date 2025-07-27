@@ -227,6 +227,7 @@ export async function POST(request: NextRequest) {
         totalChunks: textChunks.length,
         voiceId,
         modelId,
+        provider: 'minimax',
         errors: errors.length > 0 ? errors : undefined
       })
       

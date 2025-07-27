@@ -161,7 +161,8 @@ export async function POST(request: NextRequest) {
         audioSize: totalSize,
         chunksGenerated: textChunks.length,
         totalChunks: textChunks.length,
-        modelId: `${model}-${voiceId}`,
+        voiceId: voiceId,
+        modelId: model,
         provider: 'fishaudio'
       }
     })

@@ -924,6 +924,35 @@ export function AudioGeneration() {
     
     return 'Unknown Voice'
   })()
+
+  // Function to get voice name from stored voiceId (for generated audio chunks)
+  const getVoiceNameFromId = (voiceId: string, provider?: string) => {
+    if (!voiceId) return 'Unknown Voice'
+
+    // Determine provider from context if not provided
+    const detectedProvider = provider || selectedProvider
+
+    // Check API voices based on provider
+    if (detectedProvider === 'elevenlabs') {
+      const voice = audioGeneration.voices.find(v => v.id === voiceId)
+      if (voice) return voice.name
+    } else if (detectedProvider === 'voicemaker') {
+      const voice = voicemakerVoices.find(v => v.VoiceId === voiceId)
+      if (voice) return voice.VoiceWebname
+    } else if (detectedProvider === 'fishaudio') {
+      const voice = fishAudioVoices.find(v => v.id === voiceId)
+      if (voice) return voice.name
+    } else if (detectedProvider === 'minimax') {
+      const voice = minimaxVoices.find(v => v.voice_id === voiceId)
+      if (voice) return voice.name
+    }
+    
+    // Check custom voices across all providers
+    const customVoice = customVoices.find(v => v.voice_id === voiceId)
+    if (customVoice) return customVoice.name
+    
+    return `Voice ${voiceId}`
+  }
   const sectionsWithScripts = currentJob?.sections.filter(s => s.texts && s.texts.length > 0) || []
   // Fix duplicate issue: Create a Map to ensure unique audio states by sectionId
   const customAudioStatesMap = new Map()
@@ -1856,7 +1885,9 @@ export function AudioGeneration() {
                           <div className="text-xs text-gray-600">Size</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-lg font-bold text-purple-600">{selectedVoiceName}</div>
+                          <div className="text-lg font-bold text-purple-600">
+                            {getVoiceNameFromId(audioState.result.voiceId || '', audioState.result.provider)}
+                          </div>
                           <div className="text-xs text-gray-600">Voice</div>
                         </div>
                         <div className="text-center">
@@ -2228,7 +2259,7 @@ export function AudioGeneration() {
                       <div>
                         <h4 className="font-medium text-green-900">{section.title}</h4>
                                                  <p className="text-sm text-green-700">
-                           {Math.round((audioState.result?.audioSize || 0) / 1024)}KB • {selectedVoiceName}
+                           {Math.round((audioState.result?.audioSize || 0) / 1024)}KB • {getVoiceNameFromId(audioState.result?.voiceId || '', audioState.result?.provider)}
                          </p>
                           </div>
                       <Badge variant="outline" className="text-green-600 border-green-300">

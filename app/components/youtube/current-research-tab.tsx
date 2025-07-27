@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { BookOpen, PenTool, ChevronDown, ChevronRight, Globe, FileText, Plus, Save, X, Edit, Download, Loader2 } from 'lucide-react'
-import { clearAllResearchSummaries, markMultipleResearchAsApplied, removeGoogleResearchSummary, removeYouTubeResearchSummary, addGoogleResearchSummary, addYouTubeResearchSummary, updateGoogleResearchSummary, updateYouTubeResearchSummary, addSavingToHistory, removeSavingToHistory, selectResearchLoadingStates } from '@/lib/features/youtube/youtubeSlice'
+import { clearAllResearchSummaries, markMultipleResearchAsApplied, removeGoogleResearchSummary, removeYouTubeResearchSummary, addGoogleResearchSummary, addYouTubeResearchSummary, updateGoogleResearchSummary, updateYouTubeResearchSummary, addSavingToHistory, removeSavingToHistory, selectResearchLoadingStates, YouTubeResearchSummary } from '@/lib/features/youtube/youtubeSlice'
 import { AppDispatch, RootState } from '@/lib/store'
 import { useSelector } from 'react-redux'
 import { showToast } from '@/lib/utils/toast'
@@ -25,9 +25,7 @@ interface CustomResearchData {
     keyInsights: string[]
     characterInsights: string[]
     conflictElements: string[]
-    storyIdeas: string[]
     commonPatterns: string[]
-    creativePrompt: string
     actionableItems: string[]
     narrativeThemes: string[]
     videoSummaries?: any[] // Made optional for video summaries
@@ -64,9 +62,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
       keyInsights: [''],
       characterInsights: [''],
       conflictElements: [''],
-      storyIdeas: [''],
       commonPatterns: [''],
-      creativePrompt: '',
       actionableItems: [''],
       narrativeThemes: ['']
     }
@@ -186,8 +182,6 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
               narrativeThemes: [],
               characterInsights: [],
               conflictElements: [],
-              storyIdeas: [],
-              creativePrompt: '',
               visualAudioCues: [],
               audienceQuestions: []
             },
@@ -199,17 +193,18 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
           }
           dispatch(addGoogleResearchSummary(googleResearch))
         } else if (item.type === 'youtube') {
-          const youtubeResearch = {
-            ...researchData,
-            type: 'youtube',
+          const youtubeResearch: YouTubeResearchSummary = {
+            id: researchData.id,
+            query: researchData.query,
+            timestamp: researchData.timestamp,
+            appliedToScript: researchData.appliedToScript,
+            usingMock: researchData.usingMock,
             videosSummary: item.content.videosSummary || {
               overallTheme: '',
               keyInsights: [],
               characterInsights: [],
               conflictElements: [],
-              storyIdeas: [],
               commonPatterns: [],
-              creativePrompt: '',
               actionableItems: [],
               narrativeThemes: [],
               videoSummaries: []
@@ -446,9 +441,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
             keyInsights: customResearch.videosSummary!.keyInsights.filter(i => i.trim()),
             characterInsights: customResearch.videosSummary!.characterInsights.filter(i => i.trim()),
             conflictElements: customResearch.videosSummary!.conflictElements.filter(e => e.trim()),
-            storyIdeas: customResearch.videosSummary!.storyIdeas.filter(s => s.trim()),
             commonPatterns: customResearch.videosSummary!.commonPatterns.filter(p => p.trim()),
-            creativePrompt: customResearch.videosSummary!.creativePrompt,
             actionableItems: customResearch.videosSummary!.actionableItems.filter(a => a.trim()),
             narrativeThemes: customResearch.videosSummary!.narrativeThemes.filter(t => t.trim()),
             videoSummaries: []
@@ -510,17 +503,18 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
         }
         dispatch(addGoogleResearchSummary(googleResearch))
       } else {
-        const youtubeResearch = {
-          ...researchData,
-          type: 'youtube',
+        const youtubeResearch: YouTubeResearchSummary = {
+          id: researchData.id,
+          query: researchData.query,
+          timestamp: researchData.timestamp,
+          appliedToScript: researchData.appliedToScript,
+          usingMock: researchData.usingMock,
           videosSummary: {
             overallTheme: customResearch.videosSummary!.overallTheme,
             keyInsights: customResearch.videosSummary!.keyInsights.filter(i => i.trim()),
             characterInsights: customResearch.videosSummary!.characterInsights.filter(i => i.trim()),
             conflictElements: customResearch.videosSummary!.conflictElements.filter(e => e.trim()),
-            storyIdeas: customResearch.videosSummary!.storyIdeas.filter(s => s.trim()),
             commonPatterns: customResearch.videosSummary!.commonPatterns.filter(p => p.trim()),
-            creativePrompt: customResearch.videosSummary!.creativePrompt,
             actionableItems: customResearch.videosSummary!.actionableItems.filter(a => a.trim()),
             narrativeThemes: customResearch.videosSummary!.narrativeThemes.filter(t => t.trim()),
             videoSummaries: []
@@ -541,9 +535,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
           keyInsights: [''],
           characterInsights: [''],
           conflictElements: [''],
-          storyIdeas: [''],
           commonPatterns: [''],
-          creativePrompt: '',
           actionableItems: [''],
           narrativeThemes: ['']
         }
@@ -909,14 +901,19 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
   const getResearchCategory = (summary: any) => {
     if (summary.category === 'Article Content') return 'Article Content'
     if (summary.research_method === 'firecrawl_scraping') return 'Article Content'
-    if (summary.type === 'youtube') return 'YouTube Analysis'
+    if (summary.type === 'youtube' || summary.videosSummary || summary.content?.videosSummary) return 'YouTube Analysis'
     return 'Perplexity Research'
   }
 
   const getResearchSource = (summary: any) => {
     if (summary.research_method === 'firecrawl_scraping') return 'firecrawl_api'
-    if (summary.type === 'youtube') return 'gemini_analysis'
+    if (summary.videosSummary || summary.type === 'youtube' || summary.content?.videosSummary) return 'gemini_analysis'
     return 'perplexity_api'
+  }
+
+  const getResearchType = (summary: any) => {
+    if (summary.videosSummary || summary.content?.videosSummary) return 'youtube'
+    return summary.type || 'google'
   }
 
   const convertTimestampToSeconds = (timestamp: string) => {
@@ -938,7 +935,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
       const standardizedData = {
         title: summary.query || summary.title || 'Research Item',
         query: summary.query || summary.title || 'No query available',
-        type: summary.type || 'google', // Default to google if type missing
+        type: getResearchType(summary), // Properly detect YouTube vs Google research
         content: {
           // Always include full original data
           originalData: summary,
@@ -1006,7 +1003,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
           const standardizedData = {
             title: summary.query || summary.title || 'Research Item',
             query: summary.query || summary.title || 'No query available',
-            type: summary.type || 'google',
+            type: getResearchType(summary), // Properly detect YouTube vs Google research
             content: {
               // Always include full original data
               originalData: summary,
@@ -1349,53 +1346,8 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                     </button>
                   </div>
 
-                  {/* Story Ideas */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Story Ideas:
-                    </label>
-                    {customResearch.videosSummary!.storyIdeas.map((idea, index) => (
-                      <div key={index} className="flex items-center gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={idea}
-                          onChange={(e) => updateArrayItem('videosSummary.storyIdeas', index, e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                          placeholder="Enter a story idea..."
-                        />
-                        <button
-                          onClick={() => removeArrayItem('videosSummary.storyIdeas', index)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => addArrayItem('videosSummary.storyIdeas')}
-                      className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1"
-                    >
-                      <Plus className="h-3 w-3" />
-                      Add Story Idea
-                    </button>
-                  </div>
-
-                  {/* Creative Prompt */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Creative Prompt:
-                    </label>
-                    <textarea
-                      value={customResearch.videosSummary!.creativePrompt}
-                      onChange={(e) => setCustomResearch(prev => ({
-                        ...prev,
-                        videosSummary: { ...prev.videosSummary!, creativePrompt: e.target.value }
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      rows={3}
-                      placeholder="Enter a creative writing prompt..."
-                    />
-                  </div>
+          
+                  
                 </>
               )}
 
@@ -1814,32 +1766,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                                 </div>
                               )}
                               
-                              {/* Story Ideas */}
-                              {summary.researchSummary.storyIdeas && summary.researchSummary.storyIdeas.length > 0 && (
-                                <div>
-                                  <h5 className="font-semibold text-gray-800 mb-2">Story Ideas</h5>
-                                  <ul className="space-y-1">
-                                    {summary.researchSummary.storyIdeas.map((idea: string, index: number) => (
-                                      <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                        <span className="bg-yellow-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                          💡
-                                        </span>
-                                        {renderEditableField(`${summary.id}.researchSummary.storyIdeas.${index}`, idea, summary.id, summary)}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              
-                              {/* Creative Prompt */}
-                              {summary.researchSummary.creativePrompt && (
-                                <div>
-                                  <h5 className="font-semibold text-gray-800 mb-2">Creative Prompt</h5>
-                                  <div className="text-gray-700 bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded border-l-4 border-purple-500">
-                                    {renderEditableField(`${summary.id}.researchSummary.creativePrompt`, summary.researchSummary.creativePrompt, summary.id, summary, 'Creative prompt...')}
-                                  </div>
-                                </div>
-                              )}
+                           
                               
                               {/* Article Summaries */}
                               {summary.researchSummary.articleSummaries && summary.researchSummary.articleSummaries.length > 0 && (
@@ -1977,22 +1904,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                             </div>
                           )}
                           
-                          {/* Story Ideas */}
-                          {summary.videosSummary.storyIdeas && summary.videosSummary.storyIdeas.length > 0 && (
-                            <div>
-                              <h5 className="font-semibold text-gray-800 mb-2">Story Ideas</h5>
-                              <ul className="space-y-1">
-                                {summary.videosSummary.storyIdeas.map((idea: string, index: number) => (
-                                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="bg-green-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">
-                                      💡
-                                    </span>
-                                    {renderEditableField(`${summary.id}.videosSummary.storyIdeas.${index}`, idea, summary.id, summary)}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                  
                           
                           {/* Common Patterns */}
                           {summary.videosSummary.commonPatterns && summary.videosSummary.commonPatterns.length > 0 && (
@@ -2011,12 +1923,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                             </div>
                           )}
                           
-                          <div>
-                            <h5 className="font-semibold text-gray-800 mb-2">Creative Prompt</h5>
-                            <div className="text-gray-700 bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded border border-purple-200">
-                              {renderEditableField(`${summary.id}.videosSummary.creativePrompt`, summary.videosSummary.creativePrompt || '', summary.id, summary, 'Creative prompt...')}
-                            </div>
-                          </div>
+                         
                           
                           {/* Actionable Items */}
                           {summary.videosSummary.actionableItems && summary.videosSummary.actionableItems.length > 0 && (

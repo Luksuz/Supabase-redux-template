@@ -30,8 +30,6 @@ const TranscriptAnalysisSchema = z.object({
   actionableInsights: z.array(z.string()).describe("Practical takeaways and insights"),
   characterInsights: z.array(z.string()).describe("Insights about people or characters mentioned"),
   conflictElements: z.array(z.string()).describe("Conflicts, tensions, or dramatic moments"),
-  storyIdeas: z.array(z.string()).describe("Potential story concepts inspired by the content"),
-  creativePrompt: z.string().describe("A creative writing prompt based on the video content")
 })
 
 interface AnalyzeTranscriptRequest {
@@ -172,8 +170,6 @@ Your task is to analyze the SRT transcript and create a comprehensive structured
 7. **Actionable Insights**: Practical takeaways and insights
 8. **Character Insights**: Insights about people or characters mentioned
 9. **Conflict Elements**: Conflicts, tensions, or dramatic moments
-10. **Story Ideas**: Potential story concepts inspired by the content
-11. **Creative Prompt**: A creative writing prompt based on the video content
 
 ENHANCED TIMESTAMP EXTRACTION GUIDELINES:
 - Look for natural conversation breaks, topic changes, important statements
@@ -450,14 +446,7 @@ function generateMockAnalysis(query: string, srtContent: string, videoId?: strin
       'Challenges in balancing competing priorities',
       'Disagreement on future predictions and trends'
     ],
-    storyIdeas: [
-      `A documentary exploring the evolution of ${query}`,
-      'Personal journey of someone mastering the subject',
-      'Behind-the-scenes look at expert decision-making',
-      'Comparative analysis across different contexts',
-      'Future scenarios and potential developments'
-    ],
-    creativePrompt: `Write a compelling narrative about someone who discovers the transformative power of ${query}. Explore their journey from initial curiosity to deep understanding, including the challenges they face, the mentors they meet, and the breakthrough moments that change their perspective. Consider how this knowledge impacts their personal and professional life, and what they choose to do with their newfound expertise.`
+
   }
 
   return mockAnalysis

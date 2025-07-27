@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
       additionalResearch, // YouTube research data
       youtubeLinks, // YouTube video links with timestamps
       timestamps, // Specific timestamps for this section
+      enableIntroHook, // Whether intro hook is enabled
+      introHookWordCount, // Specific word count for intro hooks
       // Legacy parameter names for backward compatibility
       sectionTitle, 
       projectTheme, 
@@ -123,16 +125,47 @@ export async function POST(request: NextRequest) {
     console.log(`Using model: ${modelToUse}`);
 
     try {
+      // Check if this is an intro hook section
+      const instructionsLower = finalInstructions?.toLowerCase() || ''
+      const titleLower = finalTitle?.toLowerCase() || ''
+      
+      const isIntroHookSection = titleLower.includes('intro hook') || 
+                                 instructionsLower.includes('intro hook') ||
+                                 instructionsLower.includes('grab viewer attention') ||
+                                 instructionsLower.includes('gets viewers attention') ||
+                                 instructionsLower.includes('get viewers attention') ||
+                                 instructionsLower.includes('punchy hook') ||
+                                 instructionsLower.includes('word hook') ||
+                                 instructionsLower.includes('hook that') ||
+                                 instructionsLower.includes('open with') && instructionsLower.includes('hook') ||
+                                 /\b\d+\s*word\s*hook\b/.test(instructionsLower) // matches "50 word hook", "25 word hook", etc.
+
+      // Extract word count from instructions if specified (e.g., "50 word hook", "punchy 25 word hook")
+      const wordCountMatch = instructionsLower.match(/\b(\d+)\s*word\s*hook\b/)
+      const extractedWordCount = wordCountMatch ? parseInt(wordCountMatch[1]) : null
+      const finalWordCount = extractedWordCount || introHookWordCount || 50
+
+      // Debug logging for intro hook detection
+      if (isIntroHookSection) {
+        console.log(`🎯 Intro hook section detected!`)
+        console.log(`   Title: "${finalTitle}"`)
+        console.log(`   Instructions: "${finalInstructions}"`)
+        console.log(`   Extracted word count: ${extractedWordCount}`)
+        console.log(`   Frontend word count: ${introHookWordCount}`)
+        console.log(`   Final word count: ${finalWordCount}`)
+      }
+
       // Use custom prompt if provided, otherwise use the default style guide
       let prompt = `
 Follow these style rules for every script and section you write:
 
 INTROS:
-- Keep intros short (30-50 words max), in medias res, simple, and straight to the point
+- Keep intros short (${isIntroHookSection ? `exactly ${finalWordCount} words` : '30-50 words max'}), in medias res, simple, and straight to the point${isIntroHookSection ? `\n- CRITICAL: This is an intro hook section - you MUST use EXACTLY ${finalWordCount} words. Count each word carefully before submitting.` : ''}
 - Avoid long sentences and complex words - if a 5th grader can't understand it, it's too complex
 - Fit the "what", "who", "how", and "when" without being verbose
 - Dive straight into action instead of lengthy introductions
 - Make it appealing to the ear for voiceover
+- When covering a case or a person, make sure to make it only about the case or person, dont stray from the topic.
 
 CONVERSATIONAL WRITING:
 - Write like you talk, for voiceover narration
@@ -152,7 +185,7 @@ YOUTUBE CLIP INTEGRATION:
 - For rap/hip-hop content: alternate between narration → clip → connecting narration → clip
 - For true crime content: use clips to show evidence/moments, then provide analysis
 - Narration should connect clips seamlessly without spoiling what's shown
-- Use format: [[CLIP: video_url | start_time-end_time | brief_description]]
+- Use format: [[CLIP DESCRIPTION: video_url | start_time | brief_description]]
 - Only use timestamps that exist within the actual video length
 - Extract timestamps from the research data provided
 
@@ -219,7 +252,7 @@ ${additionalResearch}
 CLIP PLACEMENT INSTRUCTIONS:
 - Extract actual timestamps and descriptions from the research data above
 - Place clips throughout your script where they naturally fit the narrative
-- Use the format: [[CLIP: video_url | actual_timestamp_from_research | description]]
+- Use the format: [[CLIP DESCRIPTION: video_url | actual_timestamp_from_research | description]]
 - Ensure timestamps are within the actual video length (check research data)
 - Don't place all clips at the beginning - distribute them throughout the script
 - Let the narrative flow guide clip placement, not arbitrary rules
@@ -249,6 +282,10 @@ ${youtubeLinks.map((link: any, index: number) =>
 NOTE: Use these links but verify timestamps against the research data above for accuracy.`
       }
 
+      if (isIntroHookSection) {
+        prompt += `\n\nFINAL REMINDER: This is an intro hook section. Your script must be EXACTLY ${finalWordCount} words. After writing, count each word to verify the exact count before submitting.`
+      }
+
       prompt += `\n\nWrite the script now, incorporating clips naturally throughout the content:`
 
       console.log('Sending request to OpenAI...')
@@ -259,7 +296,7 @@ NOTE: Use these links but verify timestamps against the research data above for 
         messages: [
           {
             role: "system",
-            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. IMPORTANT: Only include YouTube clips ([[CLIP: url | timestamp | description]]) if the research data explicitly contains actual YouTube links and timestamps. If the research data is just article content or text without video links, do not create any fake YouTube clips or timestamps. Focus on creating compelling narrative using the provided information without making up video content that doesn't exist."
+            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. IMPORTANT: Only include YouTube clips ([[CLIP DESCRIPTION: url | timestamp | description]]) if the research data explicitly contains actual YouTube links and timestamps. If the research data is just article content or text without video links, do not create any fake YouTube clips or timestamps. Focus on creating compelling narrative using the provided information without making up video content that doesn't exist."
           },
           {
             role: "user",

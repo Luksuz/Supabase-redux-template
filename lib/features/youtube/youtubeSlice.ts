@@ -122,8 +122,6 @@ export interface VideosSummary {
   narrativeThemes: string[]
   characterInsights: string[]
   conflictElements: string[]
-  storyIdeas: string[]
-  creativePrompt: string
 }
 
 // Research Summary interfaces

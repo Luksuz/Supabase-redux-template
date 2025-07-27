@@ -212,25 +212,6 @@ export async function POST(request: NextRequest) {
             docSections.push(new Paragraph({ text: '', spacing: { after: 100 } }))
           }
 
-          if (videosSummary.storyIdeas && videosSummary.storyIdeas.length > 0) {
-            docSections.push(
-              new Paragraph({
-                text: 'Story Ideas',
-                heading: HeadingLevel.HEADING_2,
-                spacing: { before: 200, after: 100 }
-              })
-            )
-            videosSummary.storyIdeas.forEach((idea: string) => {
-              docSections.push(
-                new Paragraph({
-                  text: `• ${idea}`,
-                  spacing: { after: 100 }
-                })
-              )
-            })
-            docSections.push(new Paragraph({ text: '', spacing: { after: 100 } }))
-          }
-
           if (videosSummary.commonPatterns && videosSummary.commonPatterns.length > 0) {
             docSections.push(
               new Paragraph({
@@ -250,19 +231,6 @@ export async function POST(request: NextRequest) {
             docSections.push(new Paragraph({ text: '', spacing: { after: 100 } }))
           }
 
-          if (videosSummary.creativePrompt) {
-            docSections.push(
-              new Paragraph({
-                text: 'Creative Prompt',
-                heading: HeadingLevel.HEADING_2,
-                spacing: { before: 200, after: 100 }
-              }),
-              new Paragraph({
-                text: videosSummary.creativePrompt,
-                spacing: { after: 200 }
-              })
-            )
-          }
 
           if (videosSummary.actionableItems && videosSummary.actionableItems.length > 0) {
             docSections.push(

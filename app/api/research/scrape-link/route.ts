@@ -5,6 +5,44 @@ import FireCrawlApp from '@mendable/firecrawl-js'
 
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || "fc-76340c36330641ebabc0b9ab85458d21"
 
+// Function to remove all links from content and replace with "LINK REMOVED"
+function removeLinksFromContent(content: string): string {
+  console.log('🔗 Removing links from scraped content')
+  
+  let processedContent = content
+  
+  // Remove markdown links [text](url) -> "text LINK REMOVED"
+  processedContent = processedContent.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1 LINK REMOVED')
+  
+  // Remove markdown reference links [text][ref] -> "text LINK REMOVED"
+  processedContent = processedContent.replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1 LINK REMOVED')
+  
+  // Remove HTML links <a href="url">text</a> -> "text LINK REMOVED"
+  processedContent = processedContent.replace(/<a[^>]*href="[^"]*"[^>]*>([^<]*)<\/a>/gi, '$1 LINK REMOVED')
+  
+  // Remove plain URLs (http/https/ftp)
+  processedContent = processedContent.replace(/(https?:\/\/[^\s]+)/g, 'LINK REMOVED')
+  processedContent = processedContent.replace(/(ftp:\/\/[^\s]+)/g, 'LINK REMOVED')
+  
+  // Remove www URLs
+  processedContent = processedContent.replace(/(www\.[^\s]+)/g, 'LINK REMOVED')
+  
+  // Remove email links
+  processedContent = processedContent.replace(/mailto:[^\s]+/g, 'LINK REMOVED')
+  
+  // Remove reference link definitions [ref]: url
+  processedContent = processedContent.replace(/^\[[^\]]+\]:\s*[^\s]+.*$/gm, '')
+  
+  // Clean up multiple consecutive "LINK REMOVED" occurrences
+  processedContent = processedContent.replace(/(\s*LINK REMOVED\s*){2,}/g, ' LINK REMOVED ')
+  
+  // Clean up extra whitespace
+  processedContent = processedContent.replace(/\n\s*\n\s*\n/g, '\n\n')
+  
+  console.log('✅ Successfully removed all links from content')
+  return processedContent.trim()
+}
+
 // Enhanced Zod schema for rich research extraction (same as Perplexity)
 const ArticleSummarySchema = z.object({
   articleId: z.string().describe("Unique identifier for the article"),
@@ -31,8 +69,6 @@ const ResearchExtractionSchema = z.object({
   narrativeThemes: z.array(z.string()).describe("Story themes for content creation"),
   characterInsights: z.array(z.string()).describe("Insights about people, organizations, or key figures"),
   conflictElements: z.array(z.string()).describe("Tensions, conflicts, or controversies discovered"),
-  storyIdeas: z.array(z.string()).describe("Creative story ideas based on the research"),
-  creativePrompt: z.string().describe("Creative writing prompt for content creation"),
   visualAudioCues: z.array(z.string()).describe("Visual or audio elements that could enhance content"),
   audienceQuestions: z.array(z.string()).describe("Engaging questions or hooks for audience engagement")
 })
@@ -57,8 +93,11 @@ async function scrapeWithFirecrawl(url: string): Promise<{ content: string, titl
     
     console.log(`✅ Successfully scraped ${url}`)
     
+    // Remove all links from the scraped content
+    const cleanedContent = removeLinksFromContent(scrapeResult.markdown)
+    
     return {
-      content: scrapeResult.markdown,
+      content: cleanedContent,
       title: scrapeResult.metadata?.title || 'Scraped Article'
     }
     
@@ -95,8 +134,6 @@ async function extractResearchFromContent(content: string, url: string, title: s
       narrativeThemes: [],
       characterInsights: [],
       conflictElements: [],
-      storyIdeas: [],
-      creativePrompt: `Create content based on insights from: ${title}`,
       visualAudioCues: [],
       audienceQuestions: []
     }
@@ -168,7 +205,6 @@ Please pay extra attention to this directive while still maintaining comprehensi
 
 4. ACTIONABLE INSIGHTS:
    - Provide specific recommendations based on the content
-   - Suggest creative content ideas and story angles
    - Identify potential follow-up research directions
    - Note gaps or areas needing additional investigation
 

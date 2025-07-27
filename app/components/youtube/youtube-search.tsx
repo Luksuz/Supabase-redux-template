@@ -286,9 +286,7 @@ export default function YouTubeSearch() {
                 keyInsights: analysis.keyPoints || [`Key insights from this video`],
                 characterInsights: analysis.characterInsights || [],
                 conflictElements: analysis.conflictElements || [],
-                storyIdeas: analysis.storyIdeas || [`Content ideas based on analysis from ${video.snippet.title}`],
                 commonPatterns: analysis.topics || (query ? [`Patterns found for "${query}"`] : ['General patterns']),
-                creativePrompt: analysis.creativePrompt || `Based on the transcript analysis of ${video.snippet.title}, create content that explores these themes...`,
                 actionableItems: analysis.actionableInsights || [`Review detailed transcript analysis for this video`],
                 narrativeThemes: analysis.topics || (query ? [query] : ['General content']),
                 videoSummaries: [{
@@ -355,7 +353,7 @@ export default function YouTubeSearch() {
         showToast.success(successMessage)
         
       } else {
-        // Bulk Gemini analysis - REAL IMPLEMENTATION
+        // Bulk Gemini analysis - Direct video URL analysis (no subtitles needed)
         const videosForGemini = searchResults.selectedVideos.filter(videoId => {
           return searchResults.videos.find(v => v.id.videoId === videoId)
         })
@@ -365,69 +363,11 @@ export default function YouTubeSearch() {
           return
         }
         
-        // First, generate subtitles for selected videos that don't have them
-        const videosNeedingSubtitles = videosForGemini.filter(videoId => {
-          const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
-          return !subtitleFile || subtitleFile.status !== 'completed'
-        })
+        console.log(`🚀 Starting bulk Gemini analysis for ${videosForGemini.length} videos directly via URLs...`)
+        showToast.info(`🤖 Analyzing ${videosForGemini.length} videos with Gemini AI...`)
         
-        if (videosNeedingSubtitles.length > 0) {
-          console.log(`🎬 Generating subtitles for ${videosNeedingSubtitles.length} videos before AI analysis...`)
-          showToast.info(`🎬 Generating subtitles for ${videosNeedingSubtitles.length} videos before AI analysis...`)
-          
-          // Generate subtitles for videos that need them
-          await dispatch(generateSubtitlesIndividually(videosNeedingSubtitles))
-          
-          // Wait a bit for subtitles to be processed
-          await new Promise(resolve => setTimeout(resolve, 2000))
-        }
-
-        // Check how many videos have subtitles after generation attempt and categorize failures
-        const videosWithSubtitlesForGemini = []
-        const failedSubtitleVideos = []
-        const noTranscriptVideosGemini = []
-        
-        for (const videoId of videosForGemini) {
-          const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
-          
-          if (subtitleFile && subtitleFile.status === 'completed') {
-            videosWithSubtitlesForGemini.push(videoId)
-          } else if (subtitleFile && subtitleFile.status === 'error') {
-            // Check if the error is due to no transcript available
-            const errorMessage = subtitleFile.progress || ''
-            if (errorMessage.includes('No transcript content available') || 
-                errorMessage.includes('transcript not available') ||
-                errorMessage.includes('captions not available')) {
-              noTranscriptVideosGemini.push(videoId)
-            } else {
-              failedSubtitleVideos.push(videoId)
-            }
-          } else {
-            failedSubtitleVideos.push(videoId)
-          }
-        }
-        
-        const totalSubtitleFailures = failedSubtitleVideos.length + noTranscriptVideosGemini.length
-        
-        if (totalSubtitleFailures > 0) {
-          let warningMessage = `⚠️ Skipping ${totalSubtitleFailures} video(s): `
-          const warnings = []
-          if (noTranscriptVideosGemini.length > 0) {
-            warnings.push(`${noTranscriptVideosGemini.length} without transcripts`)
-          }
-          if (failedSubtitleVideos.length > 0) {
-            warnings.push(`${failedSubtitleVideos.length} with errors`)
-          }
-          warningMessage += warnings.join(', ')
-          warningMessage += `. Continuing AI analysis with ${videosWithSubtitlesForGemini.length} video(s).`
-          
-          showToast.warning(warningMessage)
-        }
-        
-        console.log(`🚀 Starting bulk Gemini analysis for ${videosWithSubtitlesForGemini.length} videos (${totalSubtitleFailures} skipped due to subtitle failures)`)
-        
-        // Process each video through the real Gemini API
-        const analysisPromises = videosWithSubtitlesForGemini.map(async (videoId) => {
+        // Process each video through the real Gemini API directly (no subtitle requirement)
+        const analysisPromises = videosForGemini.map(async (videoId) => {
           const video = searchResults.videos.find(v => v.id.videoId === videoId)
           if (!video) return null
 
@@ -515,9 +455,7 @@ export default function YouTubeSearch() {
               keyInsights: analysis.keyPoints,
               characterInsights: analysis.characterInsights,
               conflictElements: analysis.conflictElements,
-              storyIdeas: analysis.storyIdeas,
               commonPatterns: analysis.topics,
-              creativePrompt: analysis.creativePrompt,
               actionableItems: analysis.actionableInsights,
               narrativeThemes: analysis.topics,
               videoSummaries: [{
@@ -546,23 +484,19 @@ export default function YouTubeSearch() {
           dispatch(addYouTubeResearchSummary(individualSummary))
         })
         
-        const totalAttempted = videosWithSubtitlesForGemini.length
+        const totalAttempted = videosForGemini.length
         const totalSelected = videosForGemini.length
-        const subtitleFailures = totalSubtitleFailures
         const analysisFailures = totalAttempted - successfulResults.length
         
         let successMessage = `✅ Bulk AI analysis completed! Successfully analyzed ${successfulResults.length}/${totalSelected} videos and created individual research entries.`
         
-        if (subtitleFailures > 0 || analysisFailures > 0) {
-          const failures = []
-          if (subtitleFailures > 0) failures.push(`${subtitleFailures} subtitle generation failures`)
-          if (analysisFailures > 0) failures.push(`${analysisFailures} analysis failures`)
-          successMessage += ` (${failures.join(', ')})`
+        if (analysisFailures > 0) {
+          successMessage += ` (${analysisFailures} analysis failures)`
         }
         
         showToast.success(successMessage)
         
-        console.log(`🎉 Bulk Gemini analysis complete: ${successfulResults.length}/${totalSelected} videos processed as individual entries (${subtitleFailures} subtitle failures, ${analysisFailures} analysis failures)`)
+        console.log(`🎉 Bulk Gemini analysis complete: ${successfulResults.length}/${totalSelected} videos processed as individual entries (${analysisFailures} analysis failures)`)
       }
       
     } catch (error) {
@@ -677,9 +611,7 @@ export default function YouTubeSearch() {
           keyInsights: analysisData.keyPoints,
           characterInsights: analysisData.characterInsights,
           conflictElements: analysisData.conflictElements,
-          storyIdeas: analysisData.storyIdeas,
           commonPatterns: analysisData.topics,
-          creativePrompt: analysisData.creativePrompt,
           actionableItems: analysisData.actionableInsights,
           narrativeThemes: analysisData.topics,
           videoSummaries: [{

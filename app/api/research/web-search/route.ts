@@ -6,6 +6,44 @@ import path from 'path'
 
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY
 
+// Function to remove all links from content and replace with "LINK REMOVED"
+function removeLinksFromContent(content: string): string {
+  console.log('🔗 Removing links from content')
+  
+  let processedContent = content
+  
+  // Remove markdown links [text](url) -> "text LINK REMOVED"
+  processedContent = processedContent.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1 LINK REMOVED')
+  
+  // Remove markdown reference links [text][ref] -> "text LINK REMOVED"
+  processedContent = processedContent.replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1 LINK REMOVED')
+  
+  // Remove HTML links <a href="url">text</a> -> "text LINK REMOVED"
+  processedContent = processedContent.replace(/<a[^>]*href="[^"]*"[^>]*>([^<]*)<\/a>/gi, '$1 LINK REMOVED')
+  
+  // Remove plain URLs (http/https/ftp)
+  processedContent = processedContent.replace(/(https?:\/\/[^\s]+)/g, 'LINK REMOVED')
+  processedContent = processedContent.replace(/(ftp:\/\/[^\s]+)/g, 'LINK REMOVED')
+  
+  // Remove www URLs
+  processedContent = processedContent.replace(/(www\.[^\s]+)/g, 'LINK REMOVED')
+  
+  // Remove email links
+  processedContent = processedContent.replace(/mailto:[^\s]+/g, 'LINK REMOVED')
+  
+  // Remove reference link definitions [ref]: url
+  processedContent = processedContent.replace(/^\[[^\]]+\]:\s*[^\s]+.*$/gm, '')
+  
+  // Clean up multiple consecutive "LINK REMOVED" occurrences
+  processedContent = processedContent.replace(/(\s*LINK REMOVED\s*){2,}/g, ' LINK REMOVED ')
+  
+  // Clean up extra whitespace
+  processedContent = processedContent.replace(/\n\s*\n\s*\n/g, '\n\n')
+  
+  console.log('✅ Successfully removed all links from content')
+  return processedContent.trim()
+}
+
 interface WebSearchResult {
   title: string
   link: string
@@ -70,8 +108,6 @@ const ResearchExtractionSchema = z.object({
   narrativeThemes: z.array(z.string()).describe("Story themes for content creation"),
   characterInsights: z.array(z.string()).describe("Insights about people, organizations, or key figures"),
   conflictElements: z.array(z.string()).describe("Tensions, conflicts, or controversies discovered"),
-  storyIdeas: z.array(z.string()).describe("Creative story ideas based on the research"),
-  creativePrompt: z.string().describe("Creative writing prompt for content creation"),
   visualAudioCues: z.array(z.string()).describe("Visual or audio elements that could enhance content"),
   audienceQuestions: z.array(z.string()).describe("Engaging questions or hooks for audience engagement")
 })
@@ -91,7 +127,7 @@ async function getPerplexityResearch(query: string, region: string = 'us', langu
       messages: [
         {
           role: 'system',
-          content: 'You are a comprehensive research assistant. Provide detailed, well-sourced research with specific facts, data, quotes, and citations. Include current information, multiple perspectives, dramatic elements, and compelling storytelling angles on the topic. Always prioritize English-language sources and provide responses in English. Avoid youtube, instagram, tiktok, and other social media platforms.'
+          content: 'You are a comprehensive research assistant. Provide detailed, well-sourced research with specific facts, data, quotes, and citations. Include current information, multiple perspectives, dramatic elements, and compelling storytelling angles on the topic. Always prioritize English-language sources and provide responses in English. Focus on credible news sources, academic publications, official websites, and professional publications. Avoid social media platforms including YouTube, Instagram, TikTok, Twitter, Facebook, LinkedIn, Reddit, and similar platforms.'
         },
         {
           role: 'user',
@@ -178,7 +214,6 @@ Focus on creating:
 - Engaging audience questions and hooks
 - Dramatic elements and conflicts within the research
 - Character insights about people, organizations involved
-- Creative prompts for content creation
 - Detailed analysis of individual articles with rich metadata
 
 Extract comprehensive insights that go beyond basic facts to include emotional tone, dramatic elements, creative possibilities, and storytelling potential.`
@@ -269,8 +304,6 @@ function extractBasicStructure(perplexityData: PerplexityResponse, maxResults: n
     narrativeThemes: ['Research-based insights', 'Expert analysis'],
     characterInsights: ['Key figures and organizations involved'],
     conflictElements: ['Different perspectives on the topic'],
-    storyIdeas: ['Content creation opportunities based on research'],
-    creativePrompt: `Based on this research, create content that explores the key themes and insights discovered.`,
     visualAudioCues: ['Charts and data visualizations', 'Expert interview clips'],
     audienceQuestions: ['What does this mean for your industry?', 'How might this affect you?']
   }
@@ -307,22 +340,81 @@ export async function POST(request: NextRequest) {
     
     console.log(`✅ Perplexity search completed with ${perplexityData.search_results?.length || 0} search results`)
     
-    // Extract available links from Perplexity search results for scraping
-    const availableLinks = (perplexityData.search_results || []).map((result: any) => ({
+    // Social media domains that Firecrawl cannot scrape
+    const socialMediaDomains = [
+      'youtube.com',
+      'youtu.be',
+      'instagram.com',
+      'facebook.com',
+      'fb.com',
+      'tiktok.com',
+      'twitter.com',
+      'x.com',
+      'linkedin.com',
+      'snapchat.com',
+      'pinterest.com',
+      'reddit.com',
+      'discord.com',
+      'telegram.org',
+      'whatsapp.com',
+      'wechat.com',
+      'weibo.com',
+      'vk.com',
+      'twitch.tv',
+      'clubhouse.com'
+    ]
+
+    // Function to check if a URL is from a social media platform
+    const isSocialMediaUrl = (url: string): boolean => {
+      try {
+        const hostname = new URL(url).hostname.toLowerCase()
+        return socialMediaDomains.some(domain => 
+          hostname === domain || 
+          hostname.endsWith(`.${domain}`) ||
+          hostname.includes(domain.split('.')[0])
+        )
+      } catch {
+        return false
+      }
+    }
+
+    // Extract and filter available links from Perplexity search results
+    const allLinks = (perplexityData.search_results || []).map((result: any) => ({
       url: result.url,
       title: result.title,
       source: new URL(result.url).hostname,
       date: result.date,
-      last_updated: result.last_updated
+      last_updated: result.last_updated,
+      isSocialMedia: isSocialMediaUrl(result.url)
     }))
+
+    // Filter out social media links for scraping
+    const availableLinks = allLinks.filter(link => !link.isSocialMedia)
+    const filteredLinks = allLinks.filter(link => link.isSocialMedia)
+
+    // Create filtering stats
+    const filteringStats = {
+      totalFound: allLinks.length,
+      availableForScraping: availableLinks.length,
+      filteredOut: filteredLinks.length,
+      filteredDomains: [...new Set(filteredLinks.map(link => link.source))],
+      reason: 'Social media platforms cannot be scraped by Firecrawl'
+    }
+
+    console.log(`🔍 Filtering results: ${allLinks.length} total, ${availableLinks.length} available, ${filteredLinks.length} filtered (social media)`)
+    
+    // Clean links from Perplexity content
+    const rawContent = perplexityData.choices[0]?.message?.content || ''
+    const cleanedContent = rawContent ? removeLinksFromContent(rawContent) : ''
     
     return NextResponse.json({
       success: true,
       perplexityData, // Raw Perplexity response
       query: enhancedQuery,
       perplexityUsage: perplexityData.usage,
-      availableLinks, // Links available for scraping
-      content: perplexityData.choices[0]?.message?.content || '',
+      availableLinks, // Links available for scraping (filtered)
+      filteringStats, // Information about what was filtered
+      content: cleanedContent, // Content with links removed
       citations: perplexityData.citations || [],
       search_results: perplexityData.search_results || []
     })

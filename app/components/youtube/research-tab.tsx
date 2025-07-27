@@ -25,6 +25,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
   const [extractionPrompt, setExtractionPrompt] = React.useState('')
   const [selectedRegion, setSelectedRegion] = React.useState('us')
   const [selectedLanguage, setSelectedLanguage] = React.useState('en')
+  const [filteringStats, setFilteringStats] = React.useState<any>(null)
   
   // Get research loading states from Redux
   const {
@@ -47,6 +48,13 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
     }
   }, [lastSearchQuery, lastSearchContext, researchQuery, researchContext])
 
+  // Helper function to determine research source
+  const getResearchSource = (research: any) => {
+    if (research.research_method === 'firecrawl_scraping') return 'firecrawl_api'
+    if (research.videosSummary || research.type === 'youtube' || research.content?.videosSummary) return 'gemini_analysis'
+    return 'perplexity_api'
+  }
+
   // Save research to history function
   const saveToResearchHistory = async (research: any) => {
     const researchId = research.id
@@ -67,7 +75,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
         },
         tags: [],
         category: research.category === 'Article Content' ? 'Article Content' : 'Perplexity Research',
-        source: research.research_method === 'firecrawl_scraping' ? 'firecrawl_api' : 'perplexity_api'
+        source: getResearchSource(research)
       }
 
       const response = await fetch('/api/research-cards', {
@@ -100,6 +108,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
     dispatch(setIsResearching(true))
     dispatch(setLastSearchQuery(researchQuery))
     dispatch(setLastSearchContext(researchContext))
+    setFilteringStats(null) // Clear previous filtering stats
     
     try {
       // Only perform web search, don't summarize yet
@@ -128,6 +137,12 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
       if (webData.availableLinks && webData.availableLinks.length > 0) {
         dispatch(setAvailableLinks(webData.availableLinks))
         console.log(`🔗 Found ${webData.availableLinks.length} links available for scraping`)
+      }
+      
+      // Store filtering statistics for display
+      if (webData.filteringStats) {
+        setFilteringStats(webData.filteringStats)
+        console.log(`🔍 Filtering stats: ${webData.filteringStats.totalFound} total, ${webData.filteringStats.filteredOut} filtered (social media)`)
       }
       
       console.log(`🔍 Found ${webData.search_results?.length || 0} search results from Perplexity for "${researchQuery}"`)
@@ -465,6 +480,36 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
         </div>
       </div>
 
+      {/* Filtering Statistics Notice */}
+      {filteringStats && filteringStats.filteredOut > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                <span className="text-amber-600 font-bold text-sm">!</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-amber-800 mb-2">Social Media Links Filtered</h4>
+              <p className="text-sm text-amber-700 mb-2">
+                <strong>{filteringStats.filteredOut}</strong> out of <strong>{filteringStats.totalFound}</strong> search results were filtered out because they are from social media platforms that cannot be scraped.
+              </p>
+              <p className="text-xs text-amber-600 mb-2">
+                <strong>Reason:</strong> {filteringStats.reason}
+              </p>
+              {filteringStats.filteredDomains && filteringStats.filteredDomains.length > 0 && (
+                <div className="text-xs text-amber-600">
+                  <strong>Filtered domains:</strong> {filteringStats.filteredDomains.join(', ')}
+                </div>
+              )}
+              <div className="mt-2 text-xs text-amber-600">
+                💡 <strong>{filteringStats.availableForScraping}</strong> links are available for detailed content scraping.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Perplexity Search Results for Link Scraping */}
       {pendingWebResults.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
@@ -552,6 +597,7 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
                   dispatch(clearResearchState())
                   setResearchQuery('')
                   setResearchContext('')
+                  setFilteringStats(null)
                 }}
                 className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
@@ -590,7 +636,10 @@ export const ResearchTab: React.FC<ResearchTabProps> = ({
             
             {googleResearchResults.length > 0 && (
               <button
-                onClick={() => dispatch(clearAllResearchSummaries())}
+                onClick={() => {
+                  dispatch(clearAllResearchSummaries())
+                  setFilteringStats(null)
+                }}
                 className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Clear All

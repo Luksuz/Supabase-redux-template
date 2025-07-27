@@ -1,0 +1,93 @@
+{
+  "id": "dcea4a1a-1063-4119-b96f-94bd9f721308",
+  "model": "sonar-pro",
+  "created": 1753620886,
+  "usage": {
+    "prompt_tokens": 98,
+    "completion_tokens": 762,
+    "total_tokens": 860,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://en.wikipedia.org/wiki/List_of_serial_rapists",
+    "https://www.ice.gov/news/releases/ice-arrests-sexual-predators-who-victimized-children-across-nation",
+    "https://www.security.org/blog/u-s-cities-ranked-by-the-frequency-of-registered-sex-offenders/",
+    "https://www.ussc.gov/sites/default/files/pdf/research-and-publications/quick-facts/Sexual_Abuse_FY21.pdf",
+    "https://www.fbi.gov/wanted/cac",
+    "https://www.usmarshals.gov/what-we-do/fugitive-investigations/most-wanted-international-sex-offenders",
+    "https://www.iwf.org.uk/news-media/news/eu-still-hosts-the-most-child-sexual-abuse-material-in-the-world/",
+    "https://www.dps.texas.gov/texas10mostwanted/MostWanted/sexOffenders",
+    "https://www.fbi.gov/news/stories/2007/september/wanted_090707"
+  ],
+  "search_results": [
+    {
+      "title": "List of serial rapists - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/List_of_serial_rapists",
+      "date": "2019-10-18",
+      "last_updated": "2025-07-01"
+    },
+    {
+      "title": "ICE arrests sexual predators who victimized children across the nation",
+      "url": "https://www.ice.gov/news/releases/ice-arrests-sexual-predators-who-victimized-children-across-nation",
+      "date": "2025-06-13",
+      "last_updated": "2025-05-14"
+    },
+    {
+      "title": "United States Cities Ranked by the Frequency of Registered Sex ...",
+      "url": "https://www.security.org/blog/u-s-cities-ranked-by-the-frequency-of-registered-sex-offenders/",
+      "date": "2024-01-25",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "[PDF] Quick Facts on Sexual Abuse Offenses",
+      "url": "https://www.ussc.gov/sites/default/files/pdf/research-and-publications/quick-facts/Sexual_Abuse_FY21.pdf",
+      "date": null,
+      "last_updated": "2025-01-29"
+    },
+    {
+      "title": "Crimes Against Children - FBI.gov",
+      "url": "https://www.fbi.gov/wanted/cac",
+      "date": "2010-08-26",
+      "last_updated": "2025-07-27"
+    },
+    {
+      "title": "Most Wanted International Sex Offenders | U.S. Marshals Service",
+      "url": "https://www.usmarshals.gov/what-we-do/fugitive-investigations/most-wanted-international-sex-offenders",
+      "date": null,
+      "last_updated": "2025-07-27"
+    },
+    {
+      "title": "EU still hosts the most child sexual abuse material in the world",
+      "url": "https://www.iwf.org.uk/news-media/news/eu-still-hosts-the-most-child-sexual-abuse-material-in-the-world/",
+      "date": "2023-04-26",
+      "last_updated": "2025-07-17"
+    },
+    {
+      "title": "Texas 10 Most Wanted Sex Offenders",
+      "url": "https://www.dps.texas.gov/texas10mostwanted/MostWanted/sexOffenders",
+      "date": null,
+      "last_updated": "2025-07-24"
+    },
+    {
+      "title": "Sex Offender Added to Top Ten - FBI.gov",
+      "url": "https://www.fbi.gov/news/stories/2007/september/wanted_090707",
+      "date": "2007-09-07",
+      "last_updated": "2024-07-14"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Several individuals have gained notoriety as some of the most prolific or notorious **child molesters** due to the scale, severity, or impact of their crimes. Below are some of the most infamous cases, based on criminal records, convictions, and law enforcement reports:\n\n**Notorious Child Molesters (Historical and Recent Cases):**\n\n- **Sidney Cooke (United Kingdom, 1960s–1980s):**\n  Known as \"Hissing Sid,\" Cooke was a leader of a gang of pedophiles responsible for procuring, kidnapping, drugging, gang-raping, and torturing boys. He was convicted on multiple counts of child sex offenses and is suspected in several murders and disappearances of boys. His crimes caused public outrage and led to protests in the UK[1].\n\n- **John Allen (United Kingdom, 1960s–1995):**\n  Allen preyed on children in Welsh children's homes over several decades. He was convicted in 1995 and again in 2014 for a total of 33 sexual offenses against 19 boys and one girl[1].\n\n- **William Vahey (United States, Nicaragua, United Kingdom, 1963–2014):**\n  An American teacher who abused boys at international schools for decades, Vahey drugged his victims and produced child pornography. He evaded detection for years due to failures in background checks and ultimately committed suicide after being exposed[1].\n\n- **Nathaniel Bar-Jonah (United States, 1964–1999):**\n  Born David Paul Brown, Bar-Jonah was a violent child predator involved in kidnappings, rapes, and suspected murders. He is also suspected of cannibalizing his victims[1].\n\n**Recent Law Enforcement Actions:**\n\n- **ICE Arrests (2025):**\n  U.S. Immigration and Customs Enforcement (ICE) recently arrested several individuals convicted of child sex crimes, including:\n  - **Carlos Araujo** (Massachusetts): Convicted of indecent assault and battery on a 7-year-old.\n  - **Carlos Ubence Cortez-Lopez** (California): Convicted of unlawful sexual intercourse with a minor and possession of child pornography.\n  - **Dublas Perez Salazar** (New York): Charged with child rape[2].\n\n**Most Wanted Lists:**\n\n- **FBI and U.S. Marshals Service:**\n  Both agencies maintain lists of fugitives wanted for crimes against children, including sexual exploitation and abuse. These lists include individuals with outstanding warrants for severe offenses against minors[5][6][8].\n\n**Statistical Context:**\n\n- According to the U.S. Sentencing Commission, in FY 2021, 1,062 federal cases involved sexual abuse offenses. The vast majority of offenders were men (93.6%), with an average age of 38. Most were U.S. citizens, and nearly all received prison sentences, with an average sentence of 211 months (about 17.5 years)[4].\n\n**Important Caveats:**\n\n- Law enforcement and advocacy organizations emphasize that the vast majority of child sexual abuse is committed by individuals known to the victim, not by high-profile or \"notorious\" offenders.\n- Lists of \"top\" offenders are typically based on the scale of abuse, number of victims, or public impact, not on any formal ranking system.\n- Many offenders remain unidentified or unreported due to the secretive nature of these crimes.\n\nIf you are seeking information on wanted offenders or resources for protection and reporting, official law enforcement websites such as the FBI’s Crimes Against Children page and the U.S. Marshals Most Wanted International Sex Offenders initiative provide up-to-date information and victim support resources[5][6][8]."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

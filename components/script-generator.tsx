@@ -645,7 +645,7 @@ export function ScriptGenerator() {
             if (video.keyQuotes && video.keyQuotes.length > 0) {
               fullResearchData += `\nKey Quotes:\n`
               video.keyQuotes.forEach((quote, idx) => {
-                fullResearchData += `  "${quote}"\n`
+                fullResearchData += `  "${JSON.stringify(quote)}"\n`
               })
             }
             
@@ -723,17 +723,6 @@ export function ScriptGenerator() {
               })
             }
             
-            if (rs.storyIdeas && rs.storyIdeas.length > 0) {
-              fullResearchData += `Story Ideas:\n`
-              rs.storyIdeas.forEach((idea, idx) => {
-                fullResearchData += `  ${idx + 1}. ${idea}\n`
-              })
-            }
-            
-            if (rs.creativePrompt) {
-              fullResearchData += `Creative Prompt: ${rs.creativePrompt}\n`
-            }
-            
             if (rs.actionableItems && rs.actionableItems.length > 0) {
               fullResearchData += `Actionable Items:\n`
               rs.actionableItems.forEach((item, idx) => {
@@ -783,7 +772,7 @@ export function ScriptGenerator() {
               if (video.keyQuotes && video.keyQuotes.length > 0) {
                 fullResearchData += `  Key Quotes:\n`
                 video.keyQuotes.forEach((quote, quoteIdx) => {
-                  fullResearchData += `    "${quote}"\n`
+                  fullResearchData += `    "${JSON.stringify(quote)}"\n`
                 })
               }
               
@@ -847,7 +836,7 @@ export function ScriptGenerator() {
                  fullResearchData += `     Dramatic Elements: ${analysis.dramaticElements.join(', ')}\n`
                }
                if (analysis.keyQuotes && analysis.keyQuotes.length > 0) {
-                 fullResearchData += `     Key Quotes: ${analysis.keyQuotes.join('; ')}\n`
+                 fullResearchData += `     Key Quotes: ${JSON.stringify(analysis.keyQuotes.join('; '))}\n`
                }
                
                // Add timestamp if available in analysis (single timestamp, not array)
@@ -973,7 +962,9 @@ export function ScriptGenerator() {
         model: selectedModel,
         additionalContext,
         additionalResearch,
-        youtubeLinks: section.youtubeLinks || []
+        youtubeLinks: section.youtubeLinks || [],
+        enableIntroHook: enableIntroHook,
+        introHookWordCount: introHookWordCount
       }
 
       // Add promptId if a custom prompt is selected
@@ -1051,7 +1042,9 @@ export function ScriptGenerator() {
           model: selectedModel,
           additionalContext,
           additionalResearch,
-          youtubeLinks: section.youtubeLinks || []
+          youtubeLinks: section.youtubeLinks || [],
+          enableIntroHook: enableIntroHook,
+          introHookWordCount: introHookWordCount
         }
 
         // Add promptId if a custom prompt is selected

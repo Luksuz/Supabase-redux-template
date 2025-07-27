@@ -63,26 +63,24 @@ Please provide your analysis in a detailed format covering:
 - Actionable insights and takeaways
 - Character insights (if applicable)
 - Conflict elements or dramatic moments
-- Story ideas inspired by the content
-- A creative writing prompt based on the video
 
 CRITICAL ENHANCED NOTATION FORMATS:
 Throughout your analysis, identify different types of video elements and use these enhanced formats:
 
 1. **Standard Timestamps** (for quotes and regular moments):
-   (00m15 - 00m18): [Speaker Name] "Exact quote if available"
+   (00h00m15s): [Speaker Name] "Exact quote if available"
    Extra info: Context about who was speaking to whom and situation details.
 Description and significance of this moment.
 
 2. **Enhanced Video Element Formats** (choose the appropriate type):
-   - [[BACKGROUND FOOTAGE: 00m30 - 01m15 | Description of background footage or B-roll]]
-   - [[CRIME SCENE FOOTAGE: 02m45 - 03m20 | Police investigation at the scene]]
-   - [[THE MOMENT [EVENT]: 04m10 - 04m35 | Critical dramatic moment description]]
-   - [[SECURITY CAMERA: 05m22 - 05m40 | CCTV footage showing the incident]]
-   - [[NEWS FOOTAGE: 06m15 - 06m45 | News report about the event]]
-   - [[COURT FOOTAGE: 07m30 - 08m10 | Defendant's reaction in courtroom]]
-   - [[DRAMATIC MOMENT: 09m20 - 09m50 | Emotional breakdown or confrontation]]
-   - [[EVIDENCE FOOTAGE: 10m05 - 10m35 | Presentation of key evidence]]
+   - [[BACKGROUND FOOTAGE: 00h00m30s | Description of background footage or B-roll]]
+   - [[CRIME SCENE FOOTAGE: 00h02m45s | Police investigation at the scene]]
+   - [[THE MOMENT [EVENT]: 00h04m10s | Critical dramatic moment description]]
+   - [[SECURITY CAMERA: 00h05m22s | CCTV footage showing the incident]]
+   - [[NEWS FOOTAGE: 00h06m15s | News report about the event]]
+   - [[COURT FOOTAGE: 00h07m30s | Defendant's reaction in courtroom]]
+   - [[DRAMATIC MOMENT: 00h09m20s | Emotional breakdown or confrontation]]
+   - [[EVIDENCE FOOTAGE: 00h10m05s | Presentation of key evidence]]
 
 SPEAKER SEPARATION AND DIALOGUE PRECISION REQUIREMENTS:
 When analyzing conversations, dialogues, or multiple speakers discussing the same topic:
@@ -95,14 +93,14 @@ When analyzing conversations, dialogues, or multiple speakers discussing the sam
 
 DIALOGUE SEPARATION EXAMPLES:
 ❌ WRONG - Combining speakers:
-(06m19 - 06m51): [Rihanna and Kim Kardashian] "Both advocate for Brown's release"
+(00h06m19s): [Rihanna and Kim Kardashian] "Both advocate for Brown's release"
 
 ✅ CORRECT - Separate speakers:
-(06m19 - 06m33): [Rihanna] "Specific quote about Brown's release"
+(00h06m19s): [Rihanna] "Specific quote about Brown's release"
 Extra info: Rihanna speaking directly to interviewer about her position on the case.
 Description and significance of her specific stance.
 
-(06m48 - 06m51): [Kim Kardashian] "Different quote about Brown's release"  
+(00h06m48s): [Kim Kardashian] "Different quote about Brown's release"  
 Extra info: Kim Kardashian giving her separate statement to the reporter.
 Description and significance of her distinct perspective.
 
@@ -113,31 +111,31 @@ CONVERSATION FLOW ANALYSIS:
 - Pay attention to cuts between different interviews or settings
 
 TIMESTAMP FORMAT REQUIREMENTS:
-1. **ALWAYS use minutes:seconds format**: 00m00 - 00m00 (NOT seconds like "180-240")
-2. **Examples of CORRECT format**: 01m23 - 01m45, 00m05 - 00m12, 15m30 - 16m45
-3. **NEVER use seconds format**: Avoid formats like "180-240" or "1:23-1:45"
-4. **For times under 1 minute**: Use 00m00 format (e.g., 00m05 - 00m18)
-5. **For times over 1 minute**: Use appropriate minutes (e.g., 01m15 - 01m32)
+1. **ALWAYS use hours/minutes/seconds format with 's' suffix**: 00h00m00s (for single timestamps only)
+2. **Examples of CORRECT format**: 00h01m23s, 00h00m05s, 00h15m30s, 01h05m30s
+3. **NEVER use time ranges**: Use single timestamps only, not ranges like "00m15 - 00m18"
+4. **For times under 1 minute**: Use 00s format (e.g., 05s, 18s)
+5. **For times over 1 hour**: Include hours (e.g., 01h05m30s, 02h15m45s)
 
 Examples of the required enhanced formats:
-- (00m15 - 00m18): [News Reporter] "4 people were shot and so were 2 cars."
+- (00h00m15s): [News Reporter] "4 people were shot and so were 2 cars."
   Extra info: Reporter speaking to camera during live broadcast, appears to be breaking news situation.
   This stark announcement sets a grim tone, emphasizing the severity of the incident.
 
-- [[CRIME SCENE FOOTAGE: 02m30 - 03m15 | Police cordoning off the area where the shooting occurred]]
+- [[CRIME SCENE FOOTAGE: 00h02m30s | Police cordoning off the area where the shooting occurred]]
 
-- [[THE MOMENT RAPPER GOT KILLED: 05m22 - 05m40 | Security footage capturing the fatal shooting]]
+- [[THE MOMENT RAPPER GOT KILLED: 00h05m22s | Security footage capturing the fatal shooting]]
 
-- (08m45 - 09m12): [Witness] "I heard the shots and immediately called 911."
+- (00h08m45s): [Witness] "I heard the shots and immediately called 911."
   Extra info: Eyewitness speaking to police detective, hands visibly shaking during interview.
   Provides crucial timeline evidence for the investigation.
 
-- [[COURT FOOTAGE: 12m10 - 12m45 | Defendant's emotional breakdown during sentencing]]
+- [[COURT FOOTAGE: 00h12m10s | Defendant's emotional breakdown during sentencing]]
 
 FORMATTING RULES:
 1. Use the enhanced notation [[TYPE: timestamp | description]] for visual elements, footage, and dramatic moments
 2. Use standard (timestamp): [Speaker] format for quotes and dialogue
-3. ALWAYS use 00m00 - 00m00 timestamp format - never seconds
+3. ALWAYS use 00h00m00s timestamp format with 's' suffix - single timestamps only, never ranges
 4. Include speaker identification when possible
 5. Provide rich context about visual elements, locations, and dramatic significance
 

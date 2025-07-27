@@ -1,0 +1,79 @@
+{
+  "id": "5260d6e1-a2d3-4e73-811d-9374d935a7f3",
+  "model": "sonar-pro",
+  "created": 1753618047,
+  "usage": {
+    "prompt_tokens": 97,
+    "completion_tokens": 772,
+    "total_tokens": 869,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+    "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+    "https://www.ranker.com/list/rappers-who-have-been-shot/ranker-hip-hop",
+    "https://www.revolt.tv/article/13-rappers-who-nearly-died-and-came-back-stronger",
+    "https://www.rap-up.com/article/2024/03/06/rappers-we-lost-way-too-soon",
+    "https://www.xxlmag.com/rappers-beat-legal-cases/",
+    "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians"
+  ],
+  "search_results": [
+    {
+      "title": "Rap On Trial: Hip Hop's Most Notorious Criminal Cases - HipHopDX",
+      "url": "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+      "date": "2025-03-04",
+      "last_updated": "2025-07-27"
+    },
+    {
+      "title": "The biggest controversies involving rappers in 2024: Diddy's arrest ...",
+      "url": "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+      "date": "2024-12-10",
+      "last_updated": "2025-05-21"
+    },
+    {
+      "title": "33 Rappers Who Have Been Shot - Ranker",
+      "url": "https://www.ranker.com/list/rappers-who-have-been-shot/ranker-hip-hop",
+      "date": "2024-02-06",
+      "last_updated": "2025-07-26"
+    },
+    {
+      "title": "13 rappers who nearly died and came back stronger - Revolt TV",
+      "url": "https://www.revolt.tv/article/13-rappers-who-nearly-died-and-came-back-stronger",
+      "date": "2024-07-20",
+      "last_updated": "2025-07-21"
+    },
+    {
+      "title": "16 Rappers We Lost Way Too Soon — Takeoff, Pop Smoke And More",
+      "url": "https://www.rap-up.com/article/2024/03/06/rappers-we-lost-way-too-soon",
+      "date": "2024-03-06",
+      "last_updated": "2025-05-31"
+    },
+    {
+      "title": "Rappers Who Won Serious Legal Cases - XXL Mag",
+      "url": "https://www.xxlmag.com/rappers-beat-legal-cases/",
+      "date": "2025-02-20",
+      "last_updated": "2025-02-21"
+    },
+    {
+      "title": "List of murdered hip-hop musicians - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians",
+      "date": "2013-10-20",
+      "last_updated": "2025-07-15"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Some of the most significant and dramatic incidents involving rappers span criminal cases, violent attacks, high-profile deaths, and major controversies. These events have shaped both hip-hop culture and public perceptions of the genre.\n\n**1. High-Profile Murders and Shootings**\n- **Tupac Shakur (1996) and The Notorious B.I.G. (1997):** Both were murdered in drive-by shootings, and their deaths remain unsolved. These incidents are among the most infamous in music history, symbolizing the deadly East Coast–West Coast rivalry of the 1990s[3][7].\n- **Pop Smoke (2020):** Killed during a home invasion in Los Angeles at age 20, his death shocked the industry and highlighted the dangers young artists face[5].\n- **Nipsey Hussle (2019):** Murdered outside his Marathon Clothing Store in Los Angeles, his killing led to an outpouring of grief and renewed conversations about violence in hip-hop[5].\n- **50 Cent (2000):** Survived being shot nine times at close range, an event that became central to his music and public persona[3][4].\n\n**2. Major Legal Cases and Trials**\n- **Snoop Dogg (1995):** Tried for first-degree murder after a fatal shooting involving his bodyguard. He was acquitted after evidence supported a self-defense claim[1][6].\n- **Gucci Mane (2005):** Charged with murder after shooting a man during a confrontation. He claimed self-defense and was acquitted after nine months in jail[1][6].\n- **T.I. (2008):** Arrested on federal weapons charges while already a convicted felon, leading to a year in prison at the height of his career[1].\n- **6ix9ine (2018–2019):** Arrested on racketeering charges and became a government witness, testifying against the Nine Trey Gangsters. His cooperation was unprecedented for a rapper of his profile[1].\n\n**3. Recent and Ongoing Controversies**\n- **Diddy (2024):** Arrested on sex trafficking and racketeering charges, with numerous civil suits alleging sexual assault and violence dating back decades. The case has implicated other celebrities and led to widespread scrutiny[2].\n- **Kanye West:** Sued for alleged assault during a music video shoot, adding to a long list of public controversies[2].\n- **A$AP Rocky (2025):** Acquitted in a high-profile trial for allegedly shooting a childhood friend, after a widely covered 14-day trial[6].\n\n**4. Survival and Comebacks**\n- **Lil Tjay (2022):** Survived being shot seven times during an attempted robbery and returned to music with a song about his recovery[4].\n- **Kanye West (2002):** Survived a near-fatal car crash, inspiring his breakthrough single \"Through the Wire,\" recorded with his jaw wired shut[4].\n\n**5. Broader Patterns and Impact**\n- Studies show that murder is the leading cause of death among hip-hop artists, with a homicide rate far higher than any other music genre. Many cases remain unsolved, reflecting broader issues of violence, poverty, and lack of support within the industry[7].\n\n**Caveats and Limitations**\n- Many incidents remain unsolved or shrouded in controversy, with conflicting accounts and ongoing legal proceedings.\n- The list above highlights only the most widely reported and influential incidents; numerous other rappers have faced violence, legal troubles, or untimely deaths.\n\nThese incidents underscore the volatility and high stakes of the rap world, where personal rivalries, legal battles, and violence have left a lasting mark on the culture and its artists."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

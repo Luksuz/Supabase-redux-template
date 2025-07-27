@@ -69,6 +69,7 @@ export interface AudioGenerationResult {
   errors?: string[]
   voiceId?: string
   modelId?: string
+  provider?: string
   mock?: boolean
   message?: string
 }

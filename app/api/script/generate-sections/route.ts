@@ -84,7 +84,7 @@ The intro hook should be generated as a separate section with title "Intro Hook"
   }
 
   // Add section generation instructions - AI determines optimal sections
-  basePrompt += `\n\nAnalyze the provided research data and theme to determine the optimal number of script sections needed to thoroughly cover all concepts, insights, and narrative elements. ${enableIntroHook ? 'After the intro hook, create' : 'Create'} as many main content sections as needed to:
+  basePrompt += `\n\nAnalyze the provided research data and theme to determine the optimal number of script sections needed to thoroughly cover all concepts, insights, and narrative elements or People referenced in the research data - Preferrably 1 section per person. ${enableIntroHook ? 'After the intro hook, create' : 'Create'} as many main content sections as needed to:
 - Utilize all valuable content from the research data
 - Explain each major concept or theme identified
 - Create a logical narrative flow
@@ -99,7 +99,7 @@ Each section should include:
    - How to incorporate YouTube clips throughout the section (not just at the beginning)
    - The flow pattern appropriate for this niche (${theme === "rap" ? "narration → clip → narration → clip" : theme === "crime" ? "clip → narration" : "flexible based on content"})
    - Instructions on how narration should connect clips without spoiling them
-3. **researchData**: A string containing relevant YouTube links with their actual timestamps and descriptions of what happens in those clips, extracted from the research materials. Include specific quotes, moments, and context for each clip. Format as: [[CLIP: youtube_url | timestamp_range | description_of_what_happens]]
+3. **researchData**: A string containing relevant YouTube links with their actual timestamps and descriptions of what happens in those clips, extracted from the research materials. Include specific quotes, moments, and context for each clip. Format as: [[CLIP DESCRIPTION: youtube_url | timestamp_range | description_of_what_happens]]
 
 The sections should flow logically and create a compelling narrative arc. Make the writing instructions specific and actionable - they will be used to generate the actual script content with properly placed clips later.
 
@@ -120,7 +120,7 @@ function buildEnhancedSystemPrompt(theme: string, additionalResearch?: string) {
   let systemPrompt = themeToSystem[theme as keyof typeof themeToSystem] || themeToSystem.general
   
   if (additionalResearch && additionalResearch.includes('YOUTUBE RESEARCH DATA')) {
-    systemPrompt += `\n\nIMPORTANT: You have been provided with comprehensive YouTube research data including video transcripts, analysis results, and research summaries. Use this data to:\n- Ground your script sections in real examples and insights from the research\n- Reference specific quotes, themes, and patterns found in the analyzed content\n- Incorporate relevant timestamps and video references where appropriate\n- Build upon the narrative themes and character insights identified\n- Use the creative prompts and story ideas as inspiration for section development\n- Determine the optimal number of sections based on the volume and complexity of research data\n- Ensure each major concept, theme, or insight from the research gets proper coverage\n\nWhen creating sections, prioritize authenticity by drawing from the actual research data provided rather than generic examples. Create as many sections as needed to thoroughly utilize all valuable research content without artificial constraints.`
+    systemPrompt += `\n\nIMPORTANT: You have been provided with comprehensive YouTube research data including video transcripts, analysis results, and research summaries. Use this data to:\n- Ground your script sections in real examples and insights from the research\n- Reference specific quotes, themes, and patterns found in the analyzed content\n- Incorporate relevant timestamps and video references where appropriate\n- Build upon the narrative themes and character insights identified\n- Determine the optimal number of sections based on the volume and complexity of research data\n- Ensure each major concept, theme, or insight from the research gets proper coverage\n\nWhen creating sections, prioritize authenticity by drawing from the actual research data provided rather than generic examples. Create as many sections as needed to thoroughly utilize all valuable research content without artificial constraints.`
   }
   
   return systemPrompt

@@ -26,8 +26,6 @@ const VideosSummarySchema = z.object({
   narrativeThemes: z.array(z.string()).describe("Central themes with dramatic elements and quotes"),
   characterInsights: z.array(z.string()).describe("Character insights with specific behavioral examples"),
   conflictElements: z.array(z.string()).describe("Conflicts with specific quotes and dramatic moments"),
-  storyIdeas: z.array(z.string()).describe("Story concepts with specific dramatic scenarios"),
-  creativePrompt: z.string().describe("A compelling paragraph with specific references and dramatic elements")
 })
 
 interface SummarizeVideosRequest {
@@ -130,7 +128,6 @@ Instructions:
 - Identify narrative elements with precise details and emotional context
 - Look for conflicts, challenges, and tensions with specific quotes
 - Generate story concepts grounded in actual dramatic moments from the content
-- Create a final creative prompt that incorporates real quotes and dramatic elements
 - Focus on moments that would translate well to dramatic storytelling
 - Consider how real conflicts and tensions could inspire compelling narratives
 - Extract character insights from actual behavior and statements observed
@@ -275,13 +272,6 @@ function generateMockSummary(videos: Array<{ videoId: string; title: string; srt
       `Investigation reveals: "Tension reached breaking point during admission: 'I can't keep lying about this anymore.'" The confession occurred at 00:22:15 with visible emotional impact.`,
       `Court transcript shows: "Conflict intensified when participant accused others: 'You all knew this was wrong!'" The accusation at 00:25:30 created immediate defensive responses from others.`
     ],
-    storyIdeas: [
-      `According to case study analysis: "A character forced to confront their deepest fears when someone declares 'The truth about you is finally coming out!' This moment of exposure creates immediate dramatic tension with real-world authenticity."`,
-      `Investigation report suggests: "Someone discovering their life's purpose when a mentor states 'You're capable of so much more than this.' The revelation scene includes genuine emotional breakthrough with documented behavioral changes."`,
-      `Court document inspiration: "A community crisis emerges when a leader admits 'I've been lying to all of you.' The confession scene provides authentic dramatic material with real consequences and emotional fallout."`,
-      `Documentary evidence shows: "An individual's transformation when they finally declare 'I'm done pretending to be someone I'm not.' This moment of authenticity creates compelling character development grounded in real human experience."`
-    ],
-    creativePrompt: `According to comprehensive analysis of human behavioral patterns documented across multiple video testimonies, your story should explore the moment when someone's carefully constructed facade finally crumbles. At timestamp 00:15:23, Subject A declared: "I can't keep living this lie anymore," followed by visible emotional breakdown. This authentic moment of vulnerability, witnessed and documented, provides the foundation for your narrative. Court transcript #2847 shows how truth emerges under pressure: "The defendant's composure broke when confronted with evidence, leading to full confession." Your characters should experience similar moments of authentic emotional breakthrough, grounded in the real human responses observed in these documented cases. The most compelling drama emerges when people can no longer maintain their protective barriers, creating genuine moments of connection and transformation that resonate because they mirror actual human experience.`
   }
 }
 

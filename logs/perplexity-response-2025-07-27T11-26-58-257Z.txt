@@ -1,0 +1,86 @@
+{
+  "id": "917a36d2-57b2-4bd6-b638-1921cd61704e",
+  "model": "sonar-pro",
+  "created": 1753615618,
+  "usage": {
+    "prompt_tokens": 71,
+    "completion_tokens": 839,
+    "total_tokens": 910,
+    "search_context_size": "high"
+  },
+  "citations": [
+    "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+    "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+    "https://www.youtube.com/watch?v=A_ok71kkYGw",
+    "https://www.revolt.tv/article/13-rappers-who-nearly-died-and-came-back-stronger",
+    "https://www.ranker.com/list/rappers-who-killed-people/ranker-hip-hop",
+    "https://www.imdb.com/list/ls052761608/",
+    "https://www.youtube.com/watch?v=334-HbYw3U0",
+    "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians"
+  ],
+  "search_results": [
+    {
+      "title": "Rap On Trial: Hip Hop's Most Notorious Criminal Cases",
+      "url": "https://hiphopdx.com/news/hip-hop-biggest-trials/",
+      "date": "2025-03-04",
+      "last_updated": "2025-07-17"
+    },
+    {
+      "title": "All the major controversies involving rappers in 2024",
+      "url": "https://www.prestigeonline.com/my/lifestyle/culture-plus-entertainment/biggest-controversies-involving-rappers-2024-diddy-drake-kendrick-lamar/",
+      "date": "2024-12-10",
+      "last_updated": "2025-05-21"
+    },
+    {
+      "title": "Every Rapper Murder Explained In 42 Minutes",
+      "url": "https://www.youtube.com/watch?v=A_ok71kkYGw",
+      "date": "2025-06-29",
+      "last_updated": "2025-06-29"
+    },
+    {
+      "title": "13 rappers who nearly died and came back stronger - Revolt TV",
+      "url": "https://www.revolt.tv/article/13-rappers-who-nearly-died-and-came-back-stronger",
+      "date": "2024-07-20",
+      "last_updated": "2025-07-21"
+    },
+    {
+      "title": "15 Rappers Who Have Killed People",
+      "url": "https://www.ranker.com/list/rappers-who-killed-people/ranker-hip-hop",
+      "date": "2025-01-09",
+      "last_updated": "2025-07-10"
+    },
+    {
+      "title": "Rappers and Their Rap Sheets",
+      "url": "https://www.imdb.com/list/ls052761608/",
+      "date": "2013-10-09",
+      "last_updated": "2025-07-26"
+    },
+    {
+      "title": "Legal troubles mount for some of today's top female rappers",
+      "url": "https://www.youtube.com/watch?v=334-HbYw3U0",
+      "date": "2025-07-26",
+      "last_updated": "2025-07-26"
+    },
+    {
+      "title": "List of murdered hip-hop musicians",
+      "url": "https://en.wikipedia.org/wiki/List_of_murdered_hip-hop_musicians",
+      "date": "2013-10-20",
+      "last_updated": "2025-07-15"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Some of the most significant and dramatic incidents involving top rappers span criminal cases, violent attacks, high-profile feuds, and major controversies. These events have shaped hip-hop culture and often made international headlines.\n\n**Major Criminal Cases and Legal Troubles**\n- **Gucci Mane (2005):** Involved in a deadly altercation where he shot and killed Pookie Loc, a friend of rival rapper Jeezy. Gucci Mane claimed self-defense, was charged with murder, but was acquitted after witnesses supported his account[1][5].\n- **T.I. (2008):** Arrested on federal gun charges just as his career peaked. He took a plea deal, serving a year in prison and paying a $100,000 fine, which significantly impacted his career trajectory[1].\n- **6ix9ine (2018–2019):** The controversial rapper was arrested as part of a RICO case against the Nine Trey Gangsters. He became a government witness, testifying against his former gang associates in a landmark case for hip-hop, breaking the genre’s code of silence[1].\n\n**Violent Attacks and Murders**\n- **50 Cent (2000):** Survived being shot nine times at close range, an event that defined his debut album and public persona[4].\n- **Lil Tjay (2022):** Critically injured in a shooting during an attempted robbery, but made a notable comeback[4].\n- **Kanye West (2002):** Nearly died in a car crash, which inspired his breakthrough song \"Through the Wire,\" recorded with his jaw wired shut[4].\n- **Pop Smoke, XXXTentacion, King Von:** All murdered in high-profile attacks, with Pop Smoke’s death linked to an Instagram post, XXXTentacion executed in broad daylight, and King Von killed during a street fight[3].\n- **Tupac Shakur (1996) and The Notorious B.I.G. (1997):** Their unsolved murders remain two of the most infamous incidents in music history, symbolizing the deadly East Coast–West Coast rivalry[8].\n\n**Recent and Ongoing Controversies**\n- **Diddy (2024):** Arrested on sex trafficking and racketeering charges, with nearly two dozen lawsuits alleging sexual assault and violence. His arrest led to home raids and the discovery of weapons and other incriminating evidence. The scandal has implicated other celebrities and dominated headlines[2].\n- **Kanye West (2024):** Sued for alleged assault during a music video shoot, adding to a long list of public controversies[2].\n- **Cardi B and GloRilla (2023–2025):** Cardi B faced ongoing legal issues from a microphone-throwing incident, while GloRilla was arrested on drug charges, highlighting the legal scrutiny faced by top female rappers[7].\n\n**Other Notorious Incidents**\n- **G. Dep:** Confessed to a cold case murder years after the crime, resulting in a 15-years-to-life sentence[5].\n- **Kidd Creole:** Founding member of Grandmaster Flash and the Furious Five, convicted of manslaughter after fatally stabbing a man in New York City[5].\n- **Shyne:** Served nearly a decade in prison for his role in a nightclub shooting involving Diddy in 1999[6].\n\n**Patterns and Impact**\n- **High Homicide Rate:** Studies show that murder is the leading cause of death among hip-hop artists, with a rate far higher than other music genres. Many cases remain unsolved, reflecting broader issues of violence and systemic neglect in the industry[8].\n- **Feuds and Diss Tracks:** Public beefs, such as the 2024 Drake vs. Kendrick Lamar feud, continue to fuel controversy and shape the genre’s narrative[2].\n\nThese incidents underscore the volatility and high stakes of the rap world, where fame, street credibility, and personal rivalries often intersect with violence and legal peril. The stories of survival, tragedy, and scandal have become an indelible part of hip-hop’s legacy."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

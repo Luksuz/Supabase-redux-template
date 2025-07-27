@@ -363,6 +363,7 @@ export async function POST(request: Request) {
         totalChunks: textChunks.length,
         voiceId,
         modelId,
+        provider: 'elevenlabs',
         errors: errors.length > 0 ? errors : undefined
       });
       

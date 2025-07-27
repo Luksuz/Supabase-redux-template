@@ -73,7 +73,8 @@ export async function POST(request: NextRequest) {
           audioSize: 0, // VoiceMaker doesn't provide size in response
           chunksGenerated: 1,
           totalChunks: 1,
-          modelId: `${engine}-${voiceId}`,
+          voiceId: voiceId,
+          modelId: engine,
           provider: 'voicemaker',
           usedChars: data.usedChars,
           remainChars: data.remainChars,
