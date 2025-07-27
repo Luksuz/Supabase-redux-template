@@ -105,7 +105,6 @@ async function generateSingleAudioChunk(
         
         const fishRequestBody = {
           text: textChunk, 
-          chunk_length: 200, 
           format: "mp3", 
           mp3_bitrate: 128,
           reference_id: fishAudioVoiceId, 
