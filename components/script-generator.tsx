@@ -47,7 +47,8 @@ import { Textarea } from './ui/textarea'
 import { RatingComponent } from './ui/rating'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
-import { FileText, Loader2, Edit3, Play, Download, Copy, CheckCircle, AlertCircle, User, LogOut, Lock, Settings, MessageCircle, Send, Bot, Eye, Zap, Plus, Trash2, Paperclip, Clock, Quote, Video } from 'lucide-react'
+import { Progress } from './ui/progress'
+import { FileText, Loader2, Edit3, Play, Download, Copy, CheckCircle, AlertCircle, User, LogOut, Lock, Settings, MessageCircle, Send, Bot, Eye, Zap, Plus, Trash2, Paperclip, Clock, Quote, Video, BarChart3 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
 // Timestamp interface for selection with enhanced element types
@@ -378,6 +379,15 @@ export function ScriptGenerator() {
   const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini')
   const [fineTunedModels, setFineTunedModels] = useState<any[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
+  
+  // Sequential generation state
+  const [sequentialGeneration, setSequentialGeneration] = useState({
+    isGenerating: false,
+    currentIndex: 0,
+    totalSections: 0,
+    progress: 0,
+    currentSectionTitle: ''
+  })
   
   // Auth form inputs
   const [authEmail, setAuthEmail] = useState('')
@@ -1124,6 +1134,172 @@ export function ScriptGenerator() {
         `Generated ${successCount}/${results.length} scripts successfully! Please review and approve them below.${modelMessage}${promptMessage}${youtubeMessage}`,
         'info'
       )
+    }
+  }
+
+  // Generate all scripts sequentially with context from previous sections
+  const handleGenerateAllScriptsSequentially = async () => {
+    if (!user.isLoggedIn) {
+      showMessage('Please log in to generate scripts', 'error')
+      setShowAuthForm(true)
+      return
+    }
+
+    if (!currentJob?.sections) return
+
+    const sections = currentJob.sections
+    const totalSections = sections.length
+
+    // Initialize sequential generation state
+    setSequentialGeneration({
+      isGenerating: true,
+      currentIndex: 0,
+      totalSections,
+      progress: 0,
+      currentSectionTitle: ''
+    })
+
+    dispatch(startGeneratingAllScripts())
+    showMessage('Generating scripts sequentially with context...', 'info')
+
+    // Build comprehensive research context once for all sections
+    const fullResearchData = buildFullResearchData()
+    const additionalContext = fullResearchData ? 'This script should incorporate insights from analyzed YouTube videos and research data with specific timestamps and clips.' : ''
+    const additionalResearch = fullResearchData
+
+    const successfulPendingScripts: PendingScript[] = []
+    let successCount = 0
+    const generatedScripts: string[] = []
+
+    try {
+      for (let i = 0; i < sections.length; i++) {
+        const section = sections[i]
+        
+        // Update progress
+        setSequentialGeneration(prev => ({
+          ...prev,
+          currentIndex: i,
+          progress: (i / totalSections) * 100,
+          currentSectionTitle: section.title
+        }))
+
+        try {
+          // Build context from previous 3 sections
+          const previousSectionsContext = generatedScripts
+            .slice(Math.max(0, i - 3), i)
+            .map((script, index) => {
+              const sectionIndex = Math.max(0, i - 3) + index
+              const sectionTitle = sections[sectionIndex]?.title || `Section ${sectionIndex + 1}`
+              return `=== ${sectionTitle} ===\n${script}`
+            })
+            .join('\n\n')
+
+          const requestBody: any = {
+            title: section.title,
+            writingInstructions: section.writing_instructions,
+            theme: currentJob.theme,
+            targetAudience: targetAudience,
+            tone: tone,
+            stylePreferences: stylePreferences,
+            model: selectedModel,
+            additionalContext,
+            additionalResearch,
+            youtubeLinks: section.youtubeLinks || [],
+            enableIntroHook: enableIntroHook,
+            introHookWordCount: introHookWordCount,
+            previousSectionsContext: previousSectionsContext || undefined
+          }
+
+          // Add promptId if a custom prompt is selected
+          if (selectedPromptId && selectedPromptId !== 'default') {
+            requestBody.promptId = selectedPromptId
+          }
+
+          // Add custom prompt content if it has been edited
+          if (selectedPromptId && selectedPromptId !== 'default' && selectedPromptContent) {
+            requestBody.customPrompt = selectedPromptContent
+          }
+
+          const response = await fetch('/api/script/generate-full-script', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+          })
+
+          if (!response.ok) {
+            throw new Error(`Failed to generate script for ${section.title}`)
+          }
+
+          const data = await response.json()
+          
+          // Store the generated script for context in next iterations
+          generatedScripts.push(data.script)
+          
+          // Create pending script for approval
+          const pendingScript: PendingScript = {
+            sectionId: section.id,
+            title: section.title,
+            writingInstructions: section.writing_instructions,
+            generatedScript: data.script,
+            tempId: `temp-${Date.now()}-${Math.random()}-${section.id}`,
+            characterCount: data.script.length,
+            wordCount: data.script.trim().split(/\s+/).length,
+            youtubeLinks: section.youtubeLinks
+          }
+          
+          successfulPendingScripts.push(pendingScript)
+          successCount++
+
+          // Add to Redux state immediately so user can see progress
+          dispatch(setPendingScript(pendingScript))
+
+        } catch (error) {
+          console.error(`Error generating script for ${section.title}:`, error)
+          showMessage(`Failed to generate script for ${section.title}: ${(error as Error).message}`, 'error')
+          // Continue with next section even if one fails
+        }
+
+        // Small delay to prevent overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+
+      // Update final progress
+      setSequentialGeneration(prev => ({
+        ...prev,
+        progress: 100,
+        currentSectionTitle: 'Complete'
+      }))
+
+      const modelMessage = selectedModel !== 'gpt-4.1-mini' ? ` (Using ${selectedModel})` : ''
+      const promptMessage = selectedPromptId && selectedPromptId !== 'default' ? ' (Using custom prompt)' : ''
+      
+      // Check if YouTube data was used
+      const hasYouTubeData = !!youtubeState.videosSummary || 
+                            (youtubeState.googleResearchSummaries && youtubeState.googleResearchSummaries.length > 0) ||
+                            (youtubeState.youtubeResearchSummaries && youtubeState.youtubeResearchSummaries.length > 0)
+      const youtubeMessage = hasYouTubeData ? ' (Enhanced with YouTube data)' : ''
+      
+      if (successCount === sections.length) {
+        showMessage(
+          `Generated ${successCount} scripts sequentially with context! Please review and approve them below.${modelMessage}${promptMessage}${youtubeMessage}`,
+          'success'
+        )
+      } else {
+        showMessage(
+          `Generated ${successCount}/${sections.length} scripts sequentially! Please review and approve them below.${modelMessage}${promptMessage}${youtubeMessage}`,
+          'info'
+        )
+      }
+
+    } finally {
+      // Reset sequential generation state
+      setSequentialGeneration({
+        isGenerating: false,
+        currentIndex: 0,
+        totalSections: 0,
+        progress: 0,
+        currentSectionTitle: ''
+      })
     }
   }
 
@@ -2628,17 +2804,39 @@ export function ScriptGenerator() {
                         </Button>
                         <Button 
                           onClick={handleGenerateAllScripts}
-                          disabled={currentJob.sections.some((s: FineTuningSection) => s.isGeneratingScript)}
+                          disabled={currentJob.sections.some((s: FineTuningSection) => s.isGeneratingScript) || sequentialGeneration.isGenerating}
                           className="flex items-center gap-2"
                         >
                           <Play className="h-4 w-4" />
                           Generate All Scripts
                         </Button>
+                        <Button 
+                          onClick={handleGenerateAllScriptsSequentially}
+                          disabled={currentJob.sections.some((s: FineTuningSection) => s.isGeneratingScript) || sequentialGeneration.isGenerating}
+                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          Generate Sequentially
+                        </Button>
                       </div>
                     </div>
                     <CardDescription>
-                      Review and edit sections, then generate training scripts
+                      Review and edit sections, then generate training scripts. Use "Generate All Scripts" for parallel generation or "Generate Sequentially" for context-aware scripts that build upon previous sections.
                     </CardDescription>
+                    {sequentialGeneration.isGenerating && (
+                      <div className="px-6 pb-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Generating scripts sequentially...</span>
+                            <span>{Math.round(sequentialGeneration.progress)}%</span>
+                          </div>
+                          <Progress value={sequentialGeneration.progress} className="w-full" />
+                          <div className="text-xs text-muted-foreground">
+                            Section {sequentialGeneration.currentIndex + 1} of {sequentialGeneration.totalSections}: {sequentialGeneration.currentSectionTitle}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">

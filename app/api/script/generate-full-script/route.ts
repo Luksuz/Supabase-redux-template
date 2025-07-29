@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       timestamps, // Specific timestamps for this section
       enableIntroHook, // Whether intro hook is enabled
       introHookWordCount, // Specific word count for intro hooks
+      previousSectionsContext, // Context from previous 3 sections for coherence
       // Legacy parameter names for backward compatibility
       sectionTitle, 
       projectTheme, 
@@ -84,7 +85,8 @@ export async function POST(request: NextRequest) {
       youtubeLinks: youtubeLinks ? `${youtubeLinks.length} links` : 'none',
       timestamps: timestamps ? `${timestamps.length} timestamps` : 'none',
       usingStoredPrompt: !!finalPrompt,
-      model: requestedModel
+      model: requestedModel,
+      previousSectionsContext: previousSectionsContext ? `${previousSectionsContext.length} characters` : 'none'
     })
 
     if (!finalTitle || !finalInstructions) {
@@ -223,7 +225,14 @@ SECTION DETAILS:
 - Section Title: ${finalTitle}
 - Writing Instructions: ${finalInstructions}
 
-REQUIREMENTS:
+${previousSectionsContext ? `PREVIOUS SECTIONS CONTEXT:
+Use the following previously generated script content from the last 3 sections to maintain narrative coherence and flow:
+
+${previousSectionsContext}
+
+IMPORTANT: Build upon this previous content naturally. Reference events, themes, or narrative elements from previous sections where appropriate to create smooth transitions and maintain story continuity. Don't repeat information but ensure this section flows logically from what came before.
+
+` : ''}REQUIREMENTS:
 - Write a complete, polished script for this specific section
 - Follow the writing instructions precisely
 - Target the specified audience with the appropriate tone
@@ -296,14 +305,14 @@ NOTE: Use these links but verify timestamps against the research data above for 
         messages: [
           {
             role: "system",
-            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. IMPORTANT: Only include YouTube clips ([[CLIP DESCRIPTION: url | timestamp | description]]) if the research data explicitly contains actual YouTube links and timestamps. If the research data is just article content or text without video links, do not create any fake YouTube clips or timestamps. Focus on creating compelling narrative using the provided information without making up video content that doesn't exist."
+            content: "You are a professional script writer who creates engaging, natural-sounding scripts for voiceover and video content. Always write in a conversational, engaging tone that flows naturally when spoken aloud. When provided with previous sections context, ensure smooth narrative transitions and maintain story continuity without repetition. IMPORTANT: Only include YouTube clips ([[CLIP DESCRIPTION: url | timestamp | description]]) if the research data explicitly contains actual YouTube links and timestamps. If the research data is just article content or text without video links, do not create any fake YouTube clips or timestamps. Focus on creating compelling narrative using the provided information without making up video content that doesn't exist. Make sure the content is not repeated from previous sections."
           },
           {
             role: "user",
             content: prompt
           }
         ],
-        max_tokens: 1000,
+        max_tokens: 8000,
         temperature: 0.8
       })
 
