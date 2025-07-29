@@ -96,7 +96,7 @@ const ArticleSummarySchema = z.object({
   dramaticElements: z.array(z.string()).describe("Dramatic or compelling elements for storytelling"),
   contextualInfo: z.string().describe("Background context and significance"),
   overallTheme: z.string().describe("Overall theme or message of the article"),
-  date: z.string().optional().describe("Publication date if available")
+  date: z.string().nullable().optional().describe("Publication date if available")
 })
 
 const ResearchExtractionSchema = z.object({

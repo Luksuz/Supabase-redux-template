@@ -676,6 +676,7 @@ export function ScriptGenerator() {
                    fullResearchData += `     Significance: ${timestamp.significance}\n`
                  }
                  fullResearchData += `     URL with timestamp: ${videoUrl}&t=${timestamp.startTime.replace(/:/g, 'm').replace(/m$/, 's')}\n`
+                fullResearchData += `     Clip format: [[CLIP: ${videoUrl}&t=${timestamp.startTime.replace(/:/g, 'm').replace(/m$/, 's')} | ${timestamp.startTime}-${timestamp.endTime || timestamp.startTime} | ${timestamp.description}]]\n`
                })
              }
             
@@ -803,6 +804,7 @@ export function ScriptGenerator() {
                     fullResearchData += `       Significance: ${timestamp.significance}\n`
                   }
                   fullResearchData += `       URL with timestamp: ${videoUrl}&t=${timestamp.startTime.replace(/:/g, 'm').replace(/m$/, 's')}\n`
+                  fullResearchData += `       Clip format: [[CLIP: ${videoUrl}&t=${timestamp.startTime.replace(/:/g, 'm').replace(/m$/, 's')} | ${timestamp.startTime}-${timestamp.endTime || timestamp.startTime} | ${timestamp.description}]]\n`
                 })
               }
               

@@ -261,7 +261,7 @@ ${additionalResearch}
 CLIP PLACEMENT INSTRUCTIONS:
 - Extract actual timestamps and descriptions from the research data above
 - Place clips throughout your script where they naturally fit the narrative
-- Use the format: [[CLIP DESCRIPTION: video_url | actual_timestamp_from_research | description]]
+- Use the format: [[CLIP DESCRIPTION: video_url | start_time | description]]
 - Ensure timestamps are within the actual video length (check research data)
 - Don't place all clips at the beginning - distribute them throughout the script
 - Let the narrative flow guide clip placement, not arbitrary rules
@@ -295,7 +295,7 @@ NOTE: Use these links but verify timestamps against the research data above for 
         prompt += `\n\nFINAL REMINDER: This is an intro hook section. Your script must be EXACTLY ${finalWordCount} words. After writing, count each word to verify the exact count before submitting.`
       }
 
-      prompt += `\n\nWrite the script now, incorporating clips naturally throughout the content:`
+      prompt += `\n\nWrite the script now, incorporating clips naturally throughout the content. Remember to use the format [[CLIP DESCRIPTION: video_url | start_time | description]] where clips are 3-7 seconds long (e.g., 1:23-1:28, 0:45-0:50, 2:15-2:20):`
 
       console.log('Sending request to OpenAI...')
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')

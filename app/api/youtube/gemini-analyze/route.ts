@@ -114,8 +114,9 @@ TIMESTAMP FORMAT REQUIREMENTS:
 1. **ALWAYS use hours/minutes/seconds format with 's' suffix**: 00h00m00s (for single timestamps only)
 2. **Examples of CORRECT format**: 00h01m23s, 00h00m05s, 00h15m30s, 01h05m30s
 3. **NEVER use time ranges**: Use single timestamps only, not ranges like "00m15 - 00m18"
-4. **For times under 1 minute**: Use 00s format (e.g., 05s, 18s)
+4. **For times under 1 minute**: Use 00h00m00s format (e.g., 00h00m05s, 00h00m18s)
 5. **For times over 1 hour**: Include hours (e.g., 01h05m30s, 02h15m45s)
+6. **CLIP DURATION**: The processing system will automatically create 3-7 second clips from your single timestamps
 
 Examples of the required enhanced formats:
 - (00h00m15s): [News Reporter] "4 people were shot and so were 2 cars."

@@ -12,11 +12,11 @@ const TranscriptAnalysisSchema = z.object({
     startTime: z.string().describe("Start timestamp in format 00:00:00"),
     endTime: z.string().describe("End timestamp in format 00:00:00"),
     speaker: z.string().describe("Speaker name, video element type, or [Unknown Speaker] if unclear"),
-    quote: z.string().optional().describe("Exact quote if available, or description for video elements"),
+    quote: z.string().nullable().optional().describe("Exact quote if available, or description for video elements"),
     extraInfo: z.string().describe("Context about who was speaking to whom, situation details, or video element context"),
     description: z.string().describe("What happens during this time range or video element description"),
     significance: z.string().describe("Why this moment is important or significant for storytelling"),
-    elementType: z.string().optional().describe("Type of video element: 'quote', 'background_footage', 'crime_scene', 'dramatic_moment', 'security_camera', 'news_footage', 'court_footage', 'evidence', etc.")
+    elementType: z.string().nullable().optional().describe("Type of video element: 'quote', 'background_footage', 'crime_scene', 'dramatic_moment', 'security_camera', 'news_footage', 'court_footage', 'evidence', etc.")
   })).describe("Key timestamp ranges including both quotes/dialogue and video elements like footage, dramatic moments, etc."),
   topics: z.array(z.string()).describe("Main topics and themes discussed"),
   emotionalTone: z.string().describe("Overall emotional tone and mood"),
@@ -157,7 +157,8 @@ Your task is to analyze the SRT transcript and create a comprehensive structured
 1. **Summary**: A comprehensive overall summary of the video content
 2. **Key Points**: 5-8 main points and insights from the video
 3. **Timestamps**: Multiple timestamp ranges (aim for 15-25) with detailed information including both dialogue and video elements:
-   - startTime and endTime in 00:00:00 format (convert from SRT timestamps)
+   - startTime in MM:SS or HH:MM:SS format (convert from SRT timestamps)
+   - endTime should be 3-7 seconds after startTime for optimal clip length
    - speaker identification (extract from context or use "Unknown Speaker")
    - exact quotes when available for dialogue
    - elementType: Identify type of content ("quote", "background_footage", "crime_scene", "dramatic_moment", "security_camera", "news_footage", "court_footage", "evidence", etc.)
@@ -188,7 +189,8 @@ ENHANCED TIMESTAMP EXTRACTION GUIDELINES:
   * "court_footage" - For courtroom scenes and legal proceedings
   * "evidence" - For presentation of evidence or documentation
   * "the_moment" - For critical turning points or specific events
-- Convert SRT timestamps (00:01:23,456) to clean format (00:01:23)
+- Convert SRT timestamps (00:01:23,456) to clean format (1:23 for times under 1 hour, 1:01:23 for times over 1 hour)
+- Create 3-7 second clips by setting endTime a few seconds after startTime
 - Focus on moments that would be valuable for content creation and storytelling
 
 ANALYSIS FOCUS:
