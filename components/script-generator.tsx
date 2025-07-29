@@ -357,6 +357,10 @@ export function ScriptGenerator() {
   // Preview modal state
   const [showResearchPreview, setShowResearchPreview] = useState(false)
   const [previewResearchData, setPreviewResearchData] = useState('')
+  
+  // Script preview mode state
+  const [scriptPreviewMode, setScriptPreviewMode] = useState<{[key: string]: boolean}>({})
+  const [pendingScriptPreviewMode, setPendingScriptPreviewMode] = useState<{[key: string]: boolean}>({})
 
   // Clip attachment state
   const [showClipAttachment, setShowClipAttachment] = useState(false)
@@ -516,6 +520,24 @@ export function ScriptGenerator() {
     setMessage(msg)
     setMessageType(type)
     setTimeout(() => setMessage(''), 5000)
+  }
+
+  // Helper function to convert script brackets to clickable YouTube links for display
+  const convertScriptLinksForDisplay = (text: string): string => {
+    // Convert [[CLIP DESCRIPTION: video_url | start_time-end_time | description]] to clickable links
+    return text.replace(
+      /\[\[CLIP DESCRIPTION: (https?:\/\/[^\s|]+) \| ([^|]+) \| ([^\]]+)\]\]/g,
+      (match, url, timeRange, description) => {
+        // Create a clickable link with the time range and description
+        return `[📹 ${timeRange}: ${description}](${url})`
+      }
+    ).replace(
+      /\[\[CLIP: (https?:\/\/[^\s|]+) \| ([^|]+) \| ([^\]]+)\]\]/g,
+      (match, url, timeRange, description) => {
+        // Handle alternative CLIP format
+        return `[📹 ${timeRange}: ${description}](${url})`
+      }
+    )
   }
 
   // Handle prompt selection
@@ -2349,10 +2371,22 @@ export function ScriptGenerator() {
                     <div className="bg-white rounded p-4 border space-y-3">
                       <div className="flex items-center gap-2 mb-3">
                         <FileText className="h-4 w-4 text-gray-600" />
-                        <span className="font-medium">Generated Script (Editable)</span>
+                        <span className="font-medium">Generated Script</span>
                         <Badge variant="secondary">
                           {pendingScript.characterCount} chars • {pendingScript.wordCount} words
                         </Badge>
+                        <Button
+                          onClick={() => setPendingScriptPreviewMode(prev => ({
+                            ...prev,
+                            [pendingScript.tempId]: !prev[pendingScript.tempId]
+                          }))}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                        >
+                          <Eye className="h-3 w-3" />
+                          {pendingScriptPreviewMode[pendingScript.tempId] ? 'Edit' : 'Preview'}
+                        </Button>
                         <Button
                           onClick={() => {
                             const textareaRef = { current: document.getElementById(`pending-script-${pendingScript.tempId}`) as HTMLTextAreaElement }
@@ -2361,21 +2395,43 @@ export function ScriptGenerator() {
                           variant="outline"
                           size="sm"
                           className="ml-auto flex items-center gap-1"
-                          disabled={availableTimestamps.length === 0}
+                          disabled={availableTimestamps.length === 0 || pendingScriptPreviewMode[pendingScript.tempId]}
                         >
                           <Clock className="h-3 w-3" />
                           Add Timestamp {availableTimestamps.length > 0 && `(${availableTimestamps.length})`}
                         </Button>
                       </div>
-                      <Textarea
-                        id={`pending-script-${pendingScript.tempId}`}
-                        value={pendingScript.generatedScript}
-                        onChange={(e) => updatePendingScript(pendingScript.tempId, { generatedScript: e.target.value })}
-                        className="min-h-[200px] bg-gray-50 border-gray-200 font-mono text-sm"
-                        placeholder="Edit the generated script content here... Click anywhere and use 'Add Timestamp' to insert timestamps."
-                      />
+                      {pendingScriptPreviewMode[pendingScript.tempId] ? (
+                        <div className="bg-white border border-gray-200 rounded-md p-3 font-mono text-sm min-h-[200px] whitespace-pre-wrap">
+                          <ReactMarkdown
+                            components={{
+                              a: ({ href, children }) => (
+                                <a 
+                                  href={href} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  {children}
+                                </a>
+                              ),
+                              p: ({ children }) => <span>{children}</span>
+                            }}
+                          >
+                            {convertScriptLinksForDisplay(pendingScript.generatedScript)}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <Textarea
+                          id={`pending-script-${pendingScript.tempId}`}
+                          value={pendingScript.generatedScript}
+                          onChange={(e) => updatePendingScript(pendingScript.tempId, { generatedScript: e.target.value })}
+                          className="min-h-[200px] bg-gray-50 border-gray-200 font-mono text-sm"
+                          placeholder="Edit the generated script content here... Click anywhere and use 'Add Timestamp' to insert timestamps."
+                        />
+                      )}
                       <p className="text-xs text-blue-600">
-                        💡 Click anywhere in the script above, then use "Add Timestamp" to insert timestamps at that position
+                        💡 {pendingScriptPreviewMode[pendingScript.tempId] ? 'Switch to Edit mode to modify the script and add timestamps' : 'Click anywhere in the script above, then use "Add Timestamp" to insert timestamps at that position'}
                       </p>
                     </div>
                     
@@ -2977,23 +3033,36 @@ export function ScriptGenerator() {
                                   Add Timestamp {availableTimestamps.length > 0 && `(${availableTimestamps.length})`}
                                 </Button>
                                       </div>
-                              <Textarea
+                              <div className="bg-white border border-gray-200 rounded-md p-3 font-mono text-sm min-h-[200px] whitespace-pre-wrap">
+                                <ReactMarkdown
+                                  components={{
+                                    a: ({ href, children }) => (
+                                      <a 
+                                        href={href} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 underline"
+                                      >
+                                        {children}
+                                      </a>
+                                    ),
+                                    p: ({ children }) => <span>{children}</span>
+                                  }}
+                                >
+                                  {convertScriptLinksForDisplay(section.texts[0].generated_script)}
+                                </ReactMarkdown>
+                              </div>
+                              <textarea
                                 id={`script-${section.texts[0].id}`}
                                 value={section.texts[0].generated_script}
+                                className="hidden"
                                 readOnly
-                                onClick={(e) => {
-                                  // Allow cursor positioning even in read-only mode
-                                  const textarea = e.target as HTMLTextAreaElement
-                                  textarea.focus()
-                                }}
-                                className="bg-white border-gray-200 font-mono text-sm min-h-[200px] cursor-text"
-                                placeholder="Click anywhere in this text area and use 'Add Timestamp' to insert timestamps..."
                               />
                               <div className="mt-2 text-xs text-gray-500">
                                 {section.texts[0].character_count} characters • {section.texts[0].word_count} words
                               </div>
                               <p className="text-xs text-blue-600 mt-1">
-                                💡 Click anywhere in the script above, then use "Add Timestamp" to insert timestamps at that position
+                                💡 Script displays clickable YouTube links. Use the copy button to get the raw text for editing.
                               </p>
                               
                               {/* Text Rating */}

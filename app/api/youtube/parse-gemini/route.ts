@@ -111,7 +111,7 @@ Look for both standard timestamps and enhanced video element formats:
 
 For standard timestamps, extract:
 - startTime: Convert from 00h00m00s format to "MM:SS" or "HH:MM:SS" (e.g., "00h00m15s" → "00:15")
-- endTime: Add 3-7 seconds to startTime for clip duration (e.g., if startTime is "00:15", endTime could be "00:20")
+- endTime
 - speaker: Speaker name from [brackets] or "Unknown Speaker"
 - quote: Exact quote from "quotation marks" (optional if not available)
 - extraInfo: Context from "Extra info:" or surrounding context about who was speaking to whom
@@ -120,7 +120,7 @@ For standard timestamps, extract:
 
 For enhanced video elements, create timestamp objects with:
 - startTime: Convert from 00h00m00s format to "MM:SS" or "HH:MM:SS"
-- endTime: Add 3-7 seconds to startTime for clip duration (e.g., if startTime is "02:30", endTime could be "02:35")
+- endTime
 - speaker: Use the element type (e.g., "Background Footage", "Crime Scene", "Security Camera")
 - quote: Use the description after the | symbol
 - extraInfo: Use the element type and context
@@ -129,16 +129,16 @@ For enhanced video elements, create timestamp objects with:
 
 For keyQuotes, create objects with:
 - startTime: Convert from 00h00m00s format to "MM:SS" or "HH:MM:SS"
-- endTime: Add 3-7 seconds to startTime for clip duration (e.g., if quote starts at "01:23", endTime could be "01:28")
+- endTime
 - speaker: Who said the quote
 - quote: The exact quote text
 - context: Full context about the situation and who they were speaking to
 
 TIMESTAMP CONVERSION EXAMPLES:
-- "00h00m15s" → startTime: "0:15", endTime: "0:20" (5 second clip)
-- "00h01m23s" → startTime: "1:23", endTime: "1:28" (5 second clip)
-- "00h15m30s" → startTime: "15:30", endTime: "15:35" (5 second clip)
-- "01h05m30s" → startTime: "1:05:30", endTime: "1:05:35" (5 second clip)
+- "00h00m15s" → "00:00:15"
+- "00h01m23s" → "00:01:23" 
+- "00h15m30s" → "00:15:30"
+- "01h05m30s" → "01:05:30"
 
 PARSING EXAMPLES:
 Standard format: "(00h00m15s): [News Reporter] '4 people were shot and so were 2 cars.' Extra info: Reporter speaking to camera..."
@@ -153,8 +153,8 @@ Extract as:
 
 Enhanced format: "[[CRIME SCENE FOOTAGE: 00h02m30s | Police cordoning off the area where the shooting occurred]]"
 Extract as:
-- startTime: "2:30"
-- endTime: "2:35"
+- startTime: "02:30"
+- endTime: "02:30"
 - speaker: "Crime Scene Footage"
 - quote: "Police cordoning off the area where the shooting occurred"
 - extraInfo: "Crime scene footage showing police investigation"

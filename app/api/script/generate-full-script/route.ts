@@ -282,8 +282,6 @@ NOTE: Use these links but verify timestamps against the research data above for 
         prompt += `\n\nFINAL REMINDER: This is an intro hook section. Your script must be EXACTLY ${finalWordCount} words. After writing, count each word to verify the exact count before submitting.`
       }
 
-      prompt += `\n\nWrite the script now, incorporating clips naturally throughout the content. Remember to use the format [[CLIP DESCRIPTION: video_url | start_time-end_time | description]] where clips are 3-7 seconds long (e.g., 1:23-1:28, 0:45-0:50, 2:15-2:20):`
-
       console.log('Sending request to OpenAI...')
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
 
