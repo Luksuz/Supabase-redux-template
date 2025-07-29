@@ -964,6 +964,10 @@ export function ScriptGenerator() {
       const additionalContext = fullResearchData ? 'This script should incorporate insights from analyzed YouTube videos and research data with specific timestamps and clips.' : ''
       const additionalResearch = fullResearchData
 
+      // Check if this is the first section
+      const sectionIndex = currentJob?.sections?.findIndex(s => s.id === section.id) ?? -1
+      const isFirstSection = sectionIndex === 0
+
       const requestBody: any = {
         title: section.title,
         writingInstructions: section.writing_instructions,
@@ -976,7 +980,8 @@ export function ScriptGenerator() {
         additionalResearch,
         youtubeLinks: section.youtubeLinks || [],
         enableIntroHook: enableIntroHook,
-        introHookWordCount: introHookWordCount
+        introHookWordCount: introHookWordCount,
+        isFirstSection: isFirstSection
       }
 
       // Add promptId if a custom prompt is selected
@@ -1041,7 +1046,7 @@ export function ScriptGenerator() {
     const additionalContext = fullResearchData ? 'This script should incorporate insights from analyzed YouTube videos and research data with specific timestamps and clips.' : ''
     const additionalResearch = fullResearchData
 
-    const promises = currentJob.sections.map(async (section: FineTuningSection) => {
+    const promises = currentJob.sections.map(async (section: FineTuningSection, index: number) => {
       try {
 
         const requestBody: any = {
@@ -1056,7 +1061,8 @@ export function ScriptGenerator() {
           additionalResearch,
           youtubeLinks: section.youtubeLinks || [],
           enableIntroHook: enableIntroHook,
-          introHookWordCount: introHookWordCount
+          introHookWordCount: introHookWordCount,
+          isFirstSection: index === 0 // First section in parallel generation
         }
 
         // Add promptId if a custom prompt is selected
@@ -1209,6 +1215,7 @@ export function ScriptGenerator() {
             youtubeLinks: section.youtubeLinks || [],
             enableIntroHook: enableIntroHook,
             introHookWordCount: introHookWordCount,
+            isFirstSection: i === 0, // First section in sequential generation
             previousSectionsContext: previousSectionsContext || undefined
           }
 

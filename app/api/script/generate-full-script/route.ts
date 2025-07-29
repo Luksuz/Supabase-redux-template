@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       timestamps, // Specific timestamps for this section
       enableIntroHook, // Whether intro hook is enabled
       introHookWordCount, // Specific word count for intro hooks
+      isFirstSection, // Whether this is the first section (for intro hook detection)
       previousSectionsContext, // Context from previous 3 sections for coherence
       // Legacy parameter names for backward compatibility
       sectionTitle, 
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
       timestamps: timestamps ? `${timestamps.length} timestamps` : 'none',
       usingStoredPrompt: !!finalPrompt,
       model: requestedModel,
+      isFirstSection: !!isFirstSection,
       previousSectionsContext: previousSectionsContext ? `${previousSectionsContext.length} characters` : 'none'
     })
 
@@ -127,34 +129,19 @@ export async function POST(request: NextRequest) {
     console.log(`Using model: ${modelToUse}`);
 
     try {
-      // Check if this is an intro hook section
-      const instructionsLower = finalInstructions?.toLowerCase() || ''
-      const titleLower = finalTitle?.toLowerCase() || ''
+      // Check if this is an intro hook section - should be first section when hooks are enabled
+      const isIntroHookSection = enableIntroHook && isFirstSection
       
-      const isIntroHookSection = titleLower.includes('intro hook') || 
-                                 instructionsLower.includes('intro hook') ||
-                                 instructionsLower.includes('grab viewer attention') ||
-                                 instructionsLower.includes('gets viewers attention') ||
-                                 instructionsLower.includes('get viewers attention') ||
-                                 instructionsLower.includes('punchy hook') ||
-                                 instructionsLower.includes('word hook') ||
-                                 instructionsLower.includes('hook that') ||
-                                 instructionsLower.includes('open with') && instructionsLower.includes('hook') ||
-                                 /\b\d+\s*word\s*hook\b/.test(instructionsLower) // matches "50 word hook", "25 word hook", etc.
-
-      // Extract word count from instructions if specified (e.g., "50 word hook", "punchy 25 word hook")
-      const wordCountMatch = instructionsLower.match(/\b(\d+)\s*word\s*hook\b/)
-      const extractedWordCount = wordCountMatch ? parseInt(wordCountMatch[1]) : null
-      const finalWordCount = extractedWordCount || introHookWordCount || 50
+      // Use the provided word count for intro hooks, default to 50
+      const finalWordCount = introHookWordCount || 50
 
       // Debug logging for intro hook detection
       if (isIntroHookSection) {
         console.log(`🎯 Intro hook section detected!`)
         console.log(`   Title: "${finalTitle}"`)
-        console.log(`   Instructions: "${finalInstructions}"`)
-        console.log(`   Extracted word count: ${extractedWordCount}`)
-        console.log(`   Frontend word count: ${introHookWordCount}`)
-        console.log(`   Final word count: ${finalWordCount}`)
+        console.log(`   Is first section: ${isFirstSection}`)
+        console.log(`   Hooks enabled: ${enableIntroHook}`)
+        console.log(`   Word count: ${finalWordCount}`)
       }
 
       // Use custom prompt if provided, otherwise use the default style guide
@@ -261,7 +248,7 @@ ${additionalResearch}
 CLIP PLACEMENT INSTRUCTIONS:
 - Extract actual timestamps and descriptions from the research data above
 - Place clips throughout your script where they naturally fit the narrative
-- Use the format: [[CLIP DESCRIPTION: video_url | start_time | description]]
+- Use the format: [[CLIP DESCRIPTION: video_url | start_time-end_time | description]]
 - Ensure timestamps are within the actual video length (check research data)
 - Don't place all clips at the beginning - distribute them throughout the script
 - Let the narrative flow guide clip placement, not arbitrary rules
@@ -295,7 +282,7 @@ NOTE: Use these links but verify timestamps against the research data above for 
         prompt += `\n\nFINAL REMINDER: This is an intro hook section. Your script must be EXACTLY ${finalWordCount} words. After writing, count each word to verify the exact count before submitting.`
       }
 
-      prompt += `\n\nWrite the script now, incorporating clips naturally throughout the content. Remember to use the format [[CLIP DESCRIPTION: video_url | start_time | description]] where clips are 3-7 seconds long (e.g., 1:23-1:28, 0:45-0:50, 2:15-2:20):`
+      prompt += `\n\nWrite the script now, incorporating clips naturally throughout the content. Remember to use the format [[CLIP DESCRIPTION: video_url | start_time-end_time | description]] where clips are 3-7 seconds long (e.g., 1:23-1:28, 0:45-0:50, 2:15-2:20):`
 
       console.log('Sending request to OpenAI...')
       console.log('Prompt preview:', prompt.substring(0, 300) + '...')
