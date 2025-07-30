@@ -76,7 +76,9 @@ Create a natural language system prompt that explains:
 - The AI's role and identity 
 - What the AI should do
 - How it should behave
-- Any constraints or guidelines
+- Any constraints or guidelines about YouTube clip placement (coherent 5-15 second clips, avoid fragmented 1-2 second clips)
+- Instructions to combine adjacent content when appropriate rather than creating many short clips
+- The "show, don't tell" principle for clip placement
 - The specific domain expertise needed
 
 ## User Prompt Requirements:
@@ -89,7 +91,15 @@ Create a natural language user prompt that includes:
   * Tone: Communication style desired
   * Style Preferences: How it should be written
   * Additional Context: Background information
-  * Additional Research: Generate actual mock research materials such as realistic news article excerpts, court document quotes, witness statements, police report details, expert quotes, etc. These should be specific, detailed, and sound authentic - not instructions about what research to gather. IMPORTANT: If the input script mentions that links were not found or research is missing, ignore that and create comprehensive research materials as if they were available.
+  * Additional Research: Generate comprehensive mock research materials including:
+    - Realistic news article excerpts with publication dates and outlets
+    - Court document quotes and case numbers
+    - Witness statements and expert testimonies
+    - Police report details and evidence descriptions
+    - YouTube video analysis with coherent timestamps (5-15 second ranges, not fragmented 1-2 second clips)
+    - Video descriptions including speaker names, quotes, and visual context
+    - Multiple video sources with realistic URLs and timestamp ranges
+    These should be specific, detailed, and sound authentic - not instructions about what research to gather. IMPORTANT: If the input script mentions that links were not found or research is missing, ignore that and create comprehensive research materials as if they were available.
 
 Both prompts should be written in natural, conversational language with bullet points where appropriate - NOT as structured lists or JSON.
 
@@ -97,10 +107,17 @@ Create training data prompts for this script: ${prompt}
 
 IMPORTANT NOTE: If the input script mentions missing research, broken links, or unavailable sources, disregard those mentions and generate comprehensive, realistic research materials as if all sources were successfully found and available.
 
-Example of natural language style:
-System Prompt: "You are an expert video scriptwriter who specializes in creating engaging true crime content for YouTube. Your role is to help users write compelling scripts that balance factual accuracy with dramatic storytelling..."
+When generating YouTube research data, ensure:
+- Realistic video IDs and URLs (e.g., youtube.com/watch?v=abc123def)
+- Coherent timestamp ranges (5-15 seconds each: e.g., 0:15-0:22, 1:34-1:46)
+- Complete speaker quotes with proper attribution
+- Detailed video descriptions that match the timestamp content
+- Multiple video sources with different perspectives on the same event
 
-User Prompt: "I need help writing a script for a true crime video about courtroom drama. The theme should focus on shocking defendant outbursts and family confrontations. My target audience is adults aged 25-65 who enjoy true crime content. The tone should be dramatic and suspenseful while remaining factual. For style preferences, I want short punchy sentences and cliffhanger transitions. Additional context: this is for a YouTube compilation video. Additional research: According to court transcript #2847, the defendant shouted 'You don't understand what happened!' before security intervened. CNN reported on March 15th: 'Family members were escorted from the courtroom after the emotional outburst.' Police report #445-2023 states 'Defendant required physical restraint by three officers.' Witness Maria González told local news: 'I've never seen anything like it in 20 years of court reporting.'"
+Example of natural language style:
+System Prompt: "You are an expert video scriptwriter who specializes in creating engaging true crime content for YouTube. Your role is to help users write compelling scripts that balance factual accuracy with dramatic storytelling. When placing YouTube clips, always create coherent 5-15 second segments that capture complete moments rather than fragmented 1-2 second clips. Combine adjacent related content into single longer clips when appropriate. Follow the 'show, don't tell' principle - build anticipation before clips but let the clips provide the actual revelations. Avoid quoting what's said in clips before showing them..."
+
+User Prompt: "I need help writing a script for a true crime video about courtroom drama. The theme should focus on shocking defendant outbursts and family confrontations. My target audience is adults aged 25-65 who enjoy true crime content. The tone should be dramatic and suspenseful while remaining factual. For style preferences, I want short punchy sentences and cliffhanger transitions with coherent YouTube clip placement - use 5-15 second clips that capture complete moments rather than fragmented 1-2 second clips. Additional context: this is for a YouTube compilation video. Additional research: According to court transcript #2847, the defendant shouted 'You don't understand what happened!' before security intervened. CNN reported on March 15th: 'Family members were escorted from the courtroom after the emotional outburst.' Police report #445-2023 states 'Defendant required physical restraint by three officers.' Witness Maria González told local news: 'I've never seen anything like it in 20 years of court reporting.' YouTube Analysis - Court TV footage (https://youtube.com/watch?v=abc123): Video ID: abc123, Title: 'Shocking Courtroom Outburst Leads to Chaos', Description: Live coverage of dramatic defendant breakdown during sentencing. Key timestamps: 0:15-0:22 (defendant stands up shouting), 1:34-1:46 (security intervention and restraint), 2:55-3:08 (family members react and are escorted out), 4:12-4:25 (judge calls for order and recess). Speaker quotes: Defendant at 0:18: 'You don't understand what happened that night!' Judge at 4:15: 'This court will not tolerate such outbursts.' Each clip captures complete emotional moments and interactions."
 
 Generate similar natural language prompts with actual research materials, not research instructions.`
 
@@ -139,6 +156,8 @@ IMPORTANT: You must return a formatted string with the exact structure:
 - Narrate the confrontations in court, first by Russo's brother, then Flanagan's sister, and describe Schirilla's response.
 - Present the anticipation of the judge's decision, then state Schirilla's sentence of 30 years to life.
 - End with a teaser: "There's still some who doubt that Mackenzie murdered her friends on purpose… but how does that compare to a murderous friend whose guilt lands her in a mental institution?" to build suspense for the next segment.
+- When placing YouTube clips, use coherent 5-15 second segments showing complete emotional moments or interactions rather than fragmented clips
+- Apply "show, don't tell" principle - build anticipation before clips but let footage provide the actual revelations
 - Keep language clear and concise, balancing the crash's details with courtroom emotional moments and sentencing.
       
     },
@@ -154,6 +173,8 @@ IMPORTANT: You must return a formatted string with the exact structure:
 - Contrast Shelia's lack of confidence with Rachel's remorse, and show Skylar's dad's reaction.
 - Include Rachel's and Shelia's sentencing moments.
 - End with a hook: "These teenage murders sent some heartless tweets… but how can that compare to someone who takes an incriminating Snapchat video from the back of a police car?" to set the stage for the next segment.
+- Use coherent YouTube clips (5-15 seconds) that capture complete conversations or emotional reactions rather than splitting into multiple short fragments
+- Combine adjacent related content into single clips when showing extended interactions or confrontations
 - Keep the narration clear and emotionally engaging, balancing crime facts, psychological elements, and courtroom reactions to sustain interest.
       
     },
@@ -185,6 +206,8 @@ IMPORTANT: You must return a formatted string with the exact structure:
 - Note both pleaded guilty, Goodale apologized, but it was too late.
 - Both sentenced to life imprisonment.
 - End with a hook connecting this crime to a more chaotic school shooting: "These teenagers murdered their Spanish teacher out of anger… but how does that compare to someone who opens fire in a group of students?"
+- When incorporating YouTube clips, ensure each clip shows complete moments (e.g., full interrogation exchanges, complete courtroom reactions) rather than fragmented 1-2 second clips
+- Prioritize clip coherence over quantity - better to have fewer well-placed clips than many fragmented ones
 - Use clear, concise narration focusing on the escalation from a bad grade to a brutal murder, the role of social media in their capture, and courtroom outcomes.
       
     },

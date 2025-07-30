@@ -149,6 +149,8 @@ Include at least 20-25 timestamp ranges throughout your analysis, marking:
 - Character introductions or interactions
 - Conflict moments or resolutions
 
+IMPORTANT: Focus on creating COHERENT timestamp ranges (5-15 seconds each) rather than many fragmented 1-2 second clips. If related content occurs within a few seconds, combine it into a single, longer timestamp that captures the full context.
+
 CRITICAL QUOTE AND TRANSCRIPT ACCURACY RULES:
 1. **NEVER quote from transcripts** - only quote what you actually see/hear in the video
 2. **ONLY use direct video quotes** - what speakers actually say on camera

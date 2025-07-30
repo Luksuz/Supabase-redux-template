@@ -249,9 +249,13 @@ CLIP PLACEMENT INSTRUCTIONS:
 - Extract actual timestamps and descriptions from the research data above
 - Place clips throughout your script where they naturally fit the narrative
 - Use the format: [[CLIP DESCRIPTION: video_url | start_time-end_time | description]]
+- Create coherent 5-15 second clips from the timestamps in research data
+- AVOID fragmented 1-2 second clips - combine adjacent content into longer, coherent clips when appropriate
+- If multiple related timestamps appear close together (within 5 seconds), consider using a longer single clip that covers the full context
 - Ensure timestamps are within the actual video length (check research data)
 - Don't place all clips at the beginning - distribute them throughout the script
 - Let the narrative flow guide clip placement, not arbitrary rules
+- Prioritize clip coherence over quantity - better to have fewer, well-placed clips than many fragmented ones
 
 CRITICAL: APPLY "SHOW, DON'T TELL" PRINCIPLE:
 - DO NOT quote or reveal what's said in clips before showing them
