@@ -492,6 +492,12 @@ export function AudioGenerator() {
               model: requestBody.model,
               textLength: chunk.length
             });
+          } else if (selectedProvider === 'minimax') {
+            console.log(`🤖 MiniMax request for chunk ${chunkIndex}:`, {
+              voice: requestBody.voice,
+              model: requestBody.model,
+              textLength: chunk.length
+            });
           }
 
           const response = await fetch('/api/generate-audio-comprehensive', {
@@ -525,6 +531,14 @@ export function AudioGenerator() {
           failed: failedCount,
           successfulUrls: successfulUrls.slice(0, 2).concat(successfulUrls.length > 2 ? ['...'] : [])
         });
+        
+        // Log failed results for debugging minimax issues
+        if (failedCount > 0 && selectedProvider === 'minimax') {
+          console.error(`❌ MiniMax batch failures:`, results.filter(r => r.status === 'rejected').map((r, idx) => ({
+            chunkIndex: startIndex + idx,
+            error: r.reason?.message || r.reason
+          })));
+        }
         
         if (failedCount > 0) {
           console.warn(`❌ ${failedCount} chunks failed in this batch`);
@@ -570,6 +584,19 @@ export function AudioGenerator() {
           voice: providerVoice,
           chunkUrls: successfulChunkUrls.slice(0, 3).concat(successfulChunkUrls.length > 3 ? ['...'] : [])
         });
+
+        // Special logging for minimax debugging
+        if (selectedProvider === 'minimax') {
+          console.log(`🤖 MiniMax finalization details:`, {
+            totalChunksExpected: textChunks.length,
+            successfulChunksReceived: successfulChunkUrls.length,
+            allChunkUrls: successfulChunkUrls
+          });
+          
+          if (successfulChunkUrls.length === 0) {
+            console.error(`❌ MiniMax has ZERO successful chunks! Check chunk generation failures above.`);
+          }
+        }
 
         const finalizeResponse = await fetch('/api/finalize-audio', {
         method: 'POST',
