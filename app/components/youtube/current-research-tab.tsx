@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { BookOpen, PenTool, ChevronDown, ChevronRight, Globe, FileText, Plus, Save, X, Edit, Download, Loader2 } from 'lucide-react'
+import { BookOpen, PenTool, ChevronDown, ChevronRight, Globe, FileText, Plus, Save, X, Edit, Download, Loader2, Trash2 } from 'lucide-react'
 import { clearAllResearchSummaries, markMultipleResearchAsApplied, removeGoogleResearchSummary, removeYouTubeResearchSummary, addGoogleResearchSummary, addYouTubeResearchSummary, updateGoogleResearchSummary, updateYouTubeResearchSummary, addSavingToHistory, removeSavingToHistory, selectResearchLoadingStates, YouTubeResearchSummary } from '@/lib/features/youtube/youtubeSlice'
 import { AppDispatch, RootState } from '@/lib/store'
 import { useSelector } from 'react-redux'
@@ -48,6 +48,7 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
   const [selectedHistoryItems, setSelectedHistoryItems] = React.useState<Set<string>>(new Set())
   const [isExporting, setIsExporting] = React.useState(false)
   const [historySearchQuery, setHistorySearchQuery] = React.useState('')
+  const [deletingHistoryItems, setDeletingHistoryItems] = React.useState<Set<string>>(new Set())
   // Get saving to history state from Redux
   const { savingToHistory } = useSelector((state: RootState) => selectResearchLoadingStates(state))
   
@@ -223,6 +224,54 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
     } catch (error) {
       console.error('Error adding history to current research:', error)
       showToast.error('Error adding research: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
+  }
+
+  // Delete research history item function
+  const deleteResearchHistoryItem = async (itemId: string) => {
+    // Find the item to get its title for confirmation
+    const item = researchHistory.find(i => i.id === itemId)
+    const itemTitle = item?.query || 'this research item'
+    
+    // Show confirmation dialog
+    if (!window.confirm(`Are you sure you want to permanently delete "${itemTitle}"? This action cannot be undone.`)) {
+      return
+    }
+    
+    setDeletingHistoryItems(prev => new Set(prev).add(itemId))
+    
+    try {
+      const response = await fetch(`/api/research-cards?id=${itemId}`, {
+        method: 'DELETE'
+      })
+      
+      const result = await response.json()
+      
+      if (!result.success && response.status !== 404) {
+        throw new Error(result.error || 'Failed to delete from database')
+      }
+      
+      // Remove from local state
+      setResearchHistory(prev => prev.filter(item => item.id !== itemId))
+      
+      // Remove from selection if it was selected
+      setSelectedHistoryItems(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(itemId)
+        return newSet
+      })
+      
+      showToast.success('Research item deleted successfully!')
+      
+    } catch (error) {
+      console.error('Error deleting research history item:', error)
+      showToast.error('Failed to delete research item: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setDeletingHistoryItems(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(itemId)
+        return newSet
+      })
     }
   }
 
@@ -1493,20 +1542,35 @@ export const CurrentResearchTab: React.FC<CurrentResearchTabProps> = ({
                             />
                             
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                {item.type === 'google' ? (
-                                  <Globe className="h-4 w-4 text-blue-600" />
-                                ) : (
-                                  <FileText className="h-4 w-4 text-red-600" />
-                                )}
-                                <span className="font-medium text-gray-900">
-                                  {item.type === 'google' ? 'Perplexity Research' : 'YouTube Analysis'}
-                                </span>
-                                {isAlreadyInCurrent && (
-                                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
-                                    Already in Current Research
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {item.type === 'google' ? (
+                                    <Globe className="h-4 w-4 text-blue-600" />
+                                  ) : (
+                                    <FileText className="h-4 w-4 text-red-600" />
+                                  )}
+                                  <span className="font-medium text-gray-900">
+                                    {item.type === 'google' ? 'Perplexity Research' : 'YouTube Analysis'}
                                   </span>
-                                )}
+                                  {isAlreadyInCurrent && (
+                                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                                      Already in Current Research
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <button
+                                  onClick={() => deleteResearchHistoryItem(item.id)}
+                                  disabled={deletingHistoryItems.has(item.id)}
+                                  className="text-red-400 hover:text-red-600 disabled:text-red-300 transition-colors p-1"
+                                  title="Delete from research history"
+                                >
+                                  {deletingHistoryItems.has(item.id) ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </button>
                               </div>
                               
                               <h4 className="font-medium text-gray-800 mb-2">{item.query}</h4>
