@@ -194,6 +194,8 @@ export const audioSlice = createSlice({
     completeBatch: (state, action: PayloadAction<{ chunkUrls: string[] }>) => {
       const { chunkUrls } = action.payload;
       
+      console.log(`🎵 Redux: Adding ${chunkUrls.length} chunk URLs to state. Total will be: ${state.successfulChunkUrls.length + chunkUrls.length}`);
+      
       // Add successful URLs
       state.successfulChunkUrls.push(...chunkUrls);
       state.audioProgress.completed = state.successfulChunkUrls.length;

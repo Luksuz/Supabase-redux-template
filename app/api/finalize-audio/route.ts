@@ -170,10 +170,28 @@ export async function POST(request: NextRequest) {
     const { chunkUrls, userId = "unknown_user", provider, voice, elevenLabsVoiceId, fishAudioVoiceId, googleTtsVoiceName, generateSubtitles = false } = await request.json();
 
     console.log("*************************************************")
-    console.log(`chunkUrls: ${chunkUrls}`);
+    console.log(`🎵 Finalize Audio Request:`, {
+        provider,
+        chunkUrlsCount: chunkUrls?.length || 0,
+        chunkUrls: chunkUrls?.slice(0, 3)?.concat(chunkUrls?.length > 3 ? ['...'] : []) || [],
+        voice,
+        elevenLabsVoiceId,
+        fishAudioVoiceId,
+        googleTtsVoiceName,
+        generateSubtitles
+    });
     console.log("*************************************************")
+    
     if (!chunkUrls || !Array.isArray(chunkUrls) || chunkUrls.length === 0) {
-        return NextResponse.json({ error: "chunkUrls is required and must be a non-empty array" }, { status: 400 });
+        console.error(`❌ Empty or invalid chunkUrls for provider ${provider}:`, {
+            chunkUrls,
+            type: typeof chunkUrls,
+            isArray: Array.isArray(chunkUrls),
+            length: chunkUrls?.length
+        });
+        return NextResponse.json({ 
+            error: `chunkUrls is required and must be a non-empty array. Received ${chunkUrls?.length || 0} chunks for provider ${provider}` 
+        }, { status: 400 });
     }
 
     const tempDir = path.join(process.cwd(), 'temp-audio-finalizing', `req-${uuidv4()}`);

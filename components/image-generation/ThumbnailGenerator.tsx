@@ -149,21 +149,21 @@ export function ThumbnailGenerator({
               </p>
             )}
           </div>
-        </div>
-
+          </div>
+          
         {/* Prompt Input */}
-        <div className="space-y-2">
+              <div className="space-y-2">
           <Label htmlFor="thumbnail-prompt" className="text-sm font-medium">
             Thumbnail Description
-          </Label>
+                </Label>
           <Textarea
             id="thumbnail-prompt"
             placeholder="Describe the thumbnail you want to create..."
             value={thumbnailPrompt}
             onChange={(e) => onThumbnailPromptChange(e.target.value)}
             className="min-h-[100px]"
-            disabled={isGeneratingThumbnail}
-          />
+                  disabled={isGeneratingThumbnail}
+                />
         </div>
 
         {/* Reference Images Upload */}
@@ -210,18 +210,18 @@ export function ThumbnailGenerator({
                   PNG, JPG, WebP up to 10MB each
                 </p>
               </label>
-            </div>
+          </div>
 
             {/* Show uploaded images */}
-            {referenceImages.length > 0 && (
+          {referenceImages.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {referenceImages.map((file, index) => (
                   <div key={index} className="relative group">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`Reference ${index + 1}`}
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Reference ${index + 1}`}
                       className="w-full h-24 object-cover rounded-lg border"
-                    />
+                      />
                     <Button
                       variant="destructive"
                       size="sm"
@@ -238,15 +238,15 @@ export function ThumbnailGenerator({
                 ))}
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
 
         {/* Error Display */}
         {thumbnailError && (
           <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
             <AlertCircle className="h-4 w-4 text-red-500" />
             <span className="text-sm text-red-700">{thumbnailError}</span>
-          </div>
+        </div>
         )}
 
         {/* Generation Button */}
@@ -290,7 +290,7 @@ export function ThumbnailGenerator({
               <CheckCircle className="h-5 w-5 text-green-500" />
               <span className="text-sm font-medium text-green-700">
                 Thumbnail generated successfully with {currentModelInfo.name}!
-              </span>
+                </span>
             </div>
             
             <div className="relative">
@@ -302,14 +302,14 @@ export function ThumbnailGenerator({
             </div>
 
             <div className="flex gap-2">
-              <Button
+                <Button
                 onClick={onDownloadThumbnail}
-                variant="outline"
+                  variant="outline"
                 className="flex-1"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </Button>
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
               <Button
                 onClick={onClearThumbnailGenerator}
                 variant="outline"

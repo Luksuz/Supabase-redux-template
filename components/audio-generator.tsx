@@ -519,8 +519,20 @@ export function AudioGenerator() {
           .map(result => result.value);
         
         const failedCount = results.length - successfulUrls.length;
+        console.log(`🎵 Batch ${batchState.currentBatchIndex + 1}/${batchState.totalBatches} complete:`, {
+          provider: selectedProvider,
+          successful: successfulUrls.length,
+          failed: failedCount,
+          successfulUrls: successfulUrls.slice(0, 2).concat(successfulUrls.length > 2 ? ['...'] : [])
+        });
+        
         if (failedCount > 0) {
-          console.warn(`${failedCount} chunks failed in this batch`);
+          console.warn(`❌ ${failedCount} chunks failed in this batch`);
+          // Log failed results for debugging
+          const failedResults = results.filter(result => result.status === 'rejected');
+          failedResults.forEach((result, index) => {
+            console.error(`❌ Failed chunk ${startIndex + index}:`, result.reason);
+          });
         }
 
         dispatch(completeBatch({ chunkUrls: successfulUrls }));
@@ -544,6 +556,20 @@ export function AudioGenerator() {
           elevenLabsVoiceId: providerVoice,
           generateSubtitles: generateSubtitlesOption
         };
+
+        // Add provider-specific voice IDs
+        if (selectedProvider === 'fishaudio') {
+          finalizeBody.fishAudioVoiceId = providerVoice;
+        } else if (selectedProvider === 'google-tts') {
+          finalizeBody.googleTtsVoiceName = providerVoice;
+        }
+
+        console.log(`🎵 Finalizing audio with ${successfulChunkUrls.length} chunks for provider: ${selectedProvider}`, {
+          provider: selectedProvider,
+          chunkCount: successfulChunkUrls.length,
+          voice: providerVoice,
+          chunkUrls: successfulChunkUrls.slice(0, 3).concat(successfulChunkUrls.length > 3 ? ['...'] : [])
+        });
 
         const finalizeResponse = await fetch('/api/finalize-audio', {
         method: 'POST',

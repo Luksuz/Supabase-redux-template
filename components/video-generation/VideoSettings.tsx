@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -84,6 +84,54 @@ export function VideoSettings({
     duration?: number
   }>>(settings.customMusicFiles || [])
   const [playingAudio, setPlayingAudio] = useState<string | null>(null)
+  const lastGeneratedTimingsRef = useRef<string | null>(null)
+
+  // Generate script-based timings with natural variation
+  const generateScriptBasedTimings = () => {
+    if (!audioGeneration?.duration || selectedImagesCount === 0) return
+
+    const totalDuration = audioGeneration.duration
+    const baseTimePerSegment = totalDuration / selectedImagesCount
+    
+    // Generate variation for all segments except the last one
+    const durations: number[] = []
+    let totalUsed = 0
+    
+    // Randomize ALL segments except the last
+    for (let i = 0; i < selectedImagesCount - 1; i++) {
+      // Generate variation factor between 0.8 and 1.2 (±20%)
+      const variation = 0.8 + Math.random() * 0.4
+      const duration = baseTimePerSegment * variation
+      durations.push(duration)
+      totalUsed += duration
+    }
+    
+    // Last segment gets exactly the remaining duration
+    const lastSegmentDuration = totalDuration - totalUsed
+    durations.push(lastSegmentDuration)
+    
+    // Update all segment timings
+    durations.forEach((duration, index) => {
+      onUpdateSegmentTiming(index, duration)
+    })
+  }
+
+  // Auto-generate script-based timings when the mode is enabled
+  useEffect(() => {
+    if (settings.useScriptBasedTiming && audioGeneration?.duration && selectedImagesCount > 0) {
+      // Create a unique key for this configuration
+      const currentKey = `${audioGeneration.duration}-${selectedImagesCount}-${settings.useScriptBasedTiming}`
+      
+      // Only generate if this is a new configuration
+      if (lastGeneratedTimingsRef.current !== currentKey) {
+        lastGeneratedTimingsRef.current = currentKey
+        generateScriptBasedTimings()
+      }
+    } else if (!settings.useScriptBasedTiming) {
+      // Clear the ref when script-based timing is disabled
+      lastGeneratedTimingsRef.current = null
+    }
+  }, [settings.useScriptBasedTiming, audioGeneration?.duration, selectedImagesCount])
 
   const handleMusicUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -445,6 +493,22 @@ export function VideoSettings({
                     />
                     <Label htmlFor="segmented-timing" className="text-sm">Custom segment timing</Label>
                   </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="script-based-timing"
+                      checked={settings.useScriptBasedTiming || false}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          onSettingsChange({ useScriptBasedTiming: true, useSegmentedTiming: false })
+                        } else {
+                          onSettingsChange({ useScriptBasedTiming: false })
+                        }
+                      }}
+                      disabled={!hasPrerequisites}
+                    />
+                    <Label htmlFor="script-based-timing" className="text-sm">Script-based timing</Label>
+                  </div>
                 </div>
               </div>
 
@@ -528,6 +592,66 @@ export function VideoSettings({
                       No images selected for video
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Script-Based Timing Configuration */}
+            {settings.useScriptBasedTiming && (
+              <div className={`space-y-4 p-4 bg-green-50 border border-green-200 rounded-lg ${!hasPrerequisites ? 'opacity-60' : ''}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">Script-Based Timing</h4>
+                    <p className="text-sm text-gray-600">
+                      Automatic timing based on script content and natural flow
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">
+                      Total: {totalSegmentDuration.toFixed(1)}s
+                    </div>
+                    {audioGeneration?.duration && (
+                      <div className={`text-xs ${
+                        Math.abs(totalSegmentDuration - audioGeneration.duration) < 0.5 
+                          ? 'text-green-600' 
+                          : 'text-orange-600'
+                      }`}>
+                        Audio: {audioGeneration.duration.toFixed(1)}s
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {selectedImagesCount > 0 ? getOrderedImageUrls().map((imageUrl: string, index: number) => (
+                    <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
+                      <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
+                        <img
+                          src={imageUrl}
+                          alt={`Image ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-500">Image {index + 1}</div>
+                        <div className="h-6 text-xs bg-gray-50 border rounded px-2 py-1 text-center font-medium">
+                          {customSegmentTimings[index]?.duration.toFixed(1) || '0.0'}
+                        </div>
+                        <div className="text-xs text-gray-400">seconds</div>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="col-span-full text-center text-gray-500 py-4">
+                      No images selected for video
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
+                  <strong>How it works:</strong> Each segment gets a randomized duration between 80% and 120% 
+                  of the equal time distribution, while maintaining the total video duration.
                 </div>
               </div>
             )}
@@ -784,6 +908,7 @@ export function VideoSettings({
                   settings.videoMode === 'option1' ? 'Loop All with Zoom' :
                   settings.videoMode === 'option2' ? 'Intro + Loop' :
                   settings.useSegmentedTiming ? 'Custom Timing' :
+                  settings.useScriptBasedTiming ? 'Script-Based Timing' :
                   'Traditional'
                 })
               </>

@@ -1212,7 +1212,7 @@ const ScriptGenerator: React.FC = () => {
                 )}
               </SelectContent>
             </Select>
-          </div>
+      </div>
 
           {/* Sequential Generation Option */}
           <div className="space-y-2">
@@ -1761,13 +1761,13 @@ const ScriptGenerator: React.FC = () => {
               </div>
             )}
             
-            {fullScript && (
-              <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
-                Word Count: {scriptWordCount}
-              </div>
-            )}
+          {fullScript && (
+            <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
+              Word Count: {scriptWordCount}
+                              </div>
+                            )}
           </div>
-        </div>
+                          </div>
         
         {!fullScript ? (
           <div className="h-[300px] flex items-center justify-center border rounded-lg bg-muted/50">

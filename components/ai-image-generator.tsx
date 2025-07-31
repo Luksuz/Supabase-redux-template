@@ -621,9 +621,9 @@ export function AIImageGenerator() {
       
       // Only append reference images if the model actually uses them
       if (model === 'gpt-image-1') {
-        referenceImages.forEach((file, index) => {
-          formData.append(`image_${index}`, file)
-        })
+      referenceImages.forEach((file, index) => {
+        formData.append(`image_${index}`, file)
+      })
       }
 
       const response = await fetch('/api/generate-thumbnail', {

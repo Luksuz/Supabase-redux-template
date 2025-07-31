@@ -163,15 +163,15 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Convert files to OpenAI format
-      const images = await Promise.all(
-        imageFiles.map(async (file) => {
-          const buffer = Buffer.from(await file.arrayBuffer())
-          return await toFile(buffer, file.name, {
-            type: file.type,
-          })
+    // Convert files to OpenAI format
+    const images = await Promise.all(
+      imageFiles.map(async (file) => {
+        const buffer = Buffer.from(await file.arrayBuffer())
+        return await toFile(buffer, file.name, {
+          type: file.type,
         })
-      )
+      })
+    )
 
       imageBase64 = await generateOpenAIThumbnail(model as 'gpt-image-1', prompt, images)
     }
@@ -196,4 +196,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+} 

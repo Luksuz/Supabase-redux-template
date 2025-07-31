@@ -138,9 +138,28 @@ export function VideoGenerator() {
 
   // Update segment timing duration
   const updateSegmentTiming = (index: number, duration: number) => {
-    const updatedTimings = [...customSegmentTimings]
-    updatedTimings[index] = { duration }
-    setCustomSegmentTimings(updatedTimings)
+    setCustomSegmentTimings(prevTimings => {
+      // Ensure the array has enough slots
+      const maxLength = Math.max(prevTimings.length, index + 1)
+      const updatedTimings = new Array(maxLength)
+      
+      // Copy existing timings
+      for (let i = 0; i < prevTimings.length; i++) {
+        updatedTimings[i] = prevTimings[i] || { duration: 0 }
+      }
+      
+      // Fill any gaps with default values
+      for (let i = prevTimings.length; i < maxLength; i++) {
+        if (i !== index) {
+          updatedTimings[i] = { duration: 0 }
+        }
+      }
+      
+      // Set the new duration
+      updatedTimings[index] = { duration }
+      
+      return updatedTimings
+    })
   }
 
   // Distribute total duration equally across all segments
@@ -202,34 +221,43 @@ export function VideoGenerator() {
     return null
   }
 
-  // Convert script durations to segment timings for video generation
+  // Generate script-based timings with natural variation
   const getScriptBasedTimings = (): SegmentTiming[] => {
-    if (!audioGeneration?.scriptDurations || getOrderedImageUrls().length === 0) {
+    const orderedUrls = getOrderedImageUrls()
+    if (!audioGeneration?.duration || orderedUrls.length === 0) {
       return []
     }
 
-    // Map images to their corresponding script durations
-    const timings: SegmentTiming[] = []
+    const totalDuration = audioGeneration.duration
+    const baseTimePerSegment = totalDuration / orderedUrls.length
     
-    getOrderedImageUrls().forEach((imageUrl, index) => {
-      // For now, we'll use index-based matching since imageUrl doesn't directly map to imageId
-      // In a real implementation, you'd need to maintain the relationship between imageUrl and imageId
-      const scriptDuration = audioGeneration.scriptDurations?.[index]
-      if (scriptDuration) {
-        timings.push({ duration: scriptDuration.duration })
-      } else {
-        // Fallback to equal timing if no script duration found
-        const fallbackDuration = audioGeneration.duration ? audioGeneration.duration / getOrderedImageUrls().length : 3
-        timings.push({ duration: fallbackDuration })
-        console.warn(`No script duration found for image ${index}, using fallback: ${fallbackDuration}s`)
-      }
-    })
+    // Generate random factors between 0.8 and 1.2 (±20%)
+    const randomFactors = []
+    for (let i = 0; i < orderedUrls.length; i++) {
+      // Generate random factor between 0.8 and 1.2
+      randomFactors.push(0.8 + Math.random() * 0.4)
+    }
+    
+    // Calculate raw durations
+    let rawDurations = randomFactors.map(factor => baseTimePerSegment * factor)
+    
+    // Normalize to ensure total equals audio duration
+    const rawTotal = rawDurations.reduce((sum, duration) => sum + duration, 0)
+    const normalizedDurations = rawDurations.map(duration => 
+      (duration / rawTotal) * totalDuration
+    )
+    
+    // Convert to SegmentTiming format
+    const timings: SegmentTiming[] = normalizedDurations.map(duration => ({
+      duration: duration
+    }))
 
+    console.log('🎲 Generated script-based randomized timings:', timings.map(t => t.duration.toFixed(1)).join('s, ') + 's')
     return timings
   }
 
-  // Check if script-based timing is available
-  const scriptBasedTimingAvailable = audioGeneration?.scriptDurations && audioGeneration.scriptDurations.length > 0
+        // Check if script-based timing is available (needs audio duration and images)
+      const scriptBasedTimingAvailable = audioGeneration?.duration && getOrderedImageUrls().length > 0
 
   // Handle video generation with ordered images from Redux
   const handleGenerateVideo = async () => {
