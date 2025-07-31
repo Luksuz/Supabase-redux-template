@@ -1188,7 +1188,7 @@ function SectionDetailView({
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {section.texts.slice(0, 3).map((text, index) => (
+                {section.texts.map((text, index) => (
                   <div key={text.id || index} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-start justify-between mb-2">
                       <h4 className="font-medium text-gray-900">Text #{index + 1}</h4>

@@ -846,7 +846,7 @@ export function FineTuningExport() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {autoDataset.autoDataset.slice(0, 3).map((item, index) => (
+                  {autoDataset.autoDataset.map((item, index) => (
                     <div key={index} className="border rounded-lg p-4 bg-green-50">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="secondary">Example {index + 1}</Badge>
@@ -881,11 +881,6 @@ export function FineTuningExport() {
                   ))}
                 </div>
 
-                {autoDataset.autoDataset.length > 3 && (
-                  <div className="text-center text-sm text-gray-600">
-                    ... and {autoDataset.autoDataset.length - 3} more training examples
-                  </div>
-                )}
 
                 {/* Model Selection and Fine-Tuning */}
                 <div className="border-t pt-4 space-y-4">

@@ -97,13 +97,38 @@ export function FineTuningSessions() {
   const [uploadJobName, setUploadJobName] = useState('')
   const [uploadJobDescription, setUploadJobDescription] = useState('')
   const [uploadTheme, setUploadTheme] = useState('')
+  const [uploadModel, setUploadModel] = useState('gpt-3.5-turbo')
   const [isUploading, setIsUploading] = useState(false)
   const [parsedData, setParsedData] = useState<any>(null)
+  
+  // Fine-tuned models state
+  const [fineTunedModels, setFineTunedModels] = useState<any[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
     setMessageType(type)
     setTimeout(() => setMessage(''), 5000)
+  }
+
+  const loadFineTunedModels = async () => {
+    if (!user.isLoggedIn) return
+
+    setLoadingModels(true)
+    try {
+      const response = await fetch('/api/fine-tuning/models')
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setFineTunedModels(data.models)
+      } else {
+        console.error('Failed to load fine-tuned models:', data.error)
+      }
+    } catch (error) {
+      console.error('Failed to load fine-tuned models:', error)
+    } finally {
+      setLoadingModels(false)
+    }
   }
 
   const fetchSessions = async () => {
@@ -284,7 +309,8 @@ export function FineTuningSessions() {
         body: JSON.stringify({
           name: uploadJobName.trim(),
           description: uploadJobDescription.trim(),
-          theme: uploadTheme.trim()
+          theme: uploadTheme.trim(),
+          model: uploadModel
         })
       })
 
@@ -323,6 +349,7 @@ export function FineTuningSessions() {
       setUploadJobName('')
       setUploadJobDescription('')
       setUploadTheme('')
+      setUploadModel('gpt-3.5-turbo')
       setParsedData(null)
       
     } catch (error: any) {
@@ -334,6 +361,7 @@ export function FineTuningSessions() {
 
   useEffect(() => {
     fetchSessions()
+    loadFineTunedModels()
   }, [user.isLoggedIn])
 
   if (!user.isLoggedIn) {
@@ -547,7 +575,7 @@ export function FineTuningSessions() {
               </div>
 
               {/* Job Details */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="jobName">Job Name *</Label>
                   <Input
@@ -565,6 +593,41 @@ export function FineTuningSessions() {
                     onChange={(e) => setUploadTheme(e.target.value)}
                     placeholder="e.g., Product descriptions"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="model">Fine-Tuning Model *</Label>
+                  <Select value={uploadModel} onValueChange={setUploadModel}>
+                    <SelectTrigger id="model">
+                      <SelectValue placeholder={loadingModels ? "Loading models..." : "Select model"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                      <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                      <SelectItem value="gpt-4o-mini-2024-07-18">GPT-4o Mini (2024-07-18)</SelectItem>
+                      <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 (2025-04-14)</SelectItem>
+                      <SelectItem value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (2025-04-14)</SelectItem>
+                      <SelectItem value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (2025-04-14)</SelectItem>
+                      <SelectItem value="babbage-002">Babbage-002</SelectItem>
+                      <SelectItem value="davinci-002">Davinci-002</SelectItem>
+                      {fineTunedModels.length > 0 && (
+                        <>
+                          <SelectItem disabled value="divider" className="font-semibold text-blue-600">
+                            --- Your Fine-Tuned Models ---
+                          </SelectItem>
+                          {fineTunedModels.map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {model.name.split(':').pop()} (based on {model.baseModel})
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose from standard OpenAI models or your fine-tuned models
+                    {loadingModels && " (Loading...)"}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
@@ -635,6 +698,10 @@ export function FineTuningSessions() {
                 <Button
                   onClick={() => {
                     setUploadData('')
+                    setUploadJobName('')
+                    setUploadJobDescription('')
+                    setUploadTheme('')
+                    setUploadModel('gpt-3.5-turbo')
                     setParsedData(null)
                     showMessage('Form cleared', 'info')
                   }}

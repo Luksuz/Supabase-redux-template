@@ -1,46 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import OpenAI from 'openai'
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 export async function GET(request: NextRequest) {
   console.log('=== GET /api/fine-tuning/models ===')
   
   try {
-    console.log('Creating Supabase client...')
+    // Verify authentication with Supabase
     const supabase = await createClient()
-    console.log('Supabase client created successfully')
-    
-    // Get current user
-    console.log('Getting user authentication...')
     const { data: { user }, error: userError } = await supabase.auth.getUser()
-    console.log('Auth result:', { user: user?.id, email: user?.email, userError })
     
     if (userError || !user) {
       console.log('Authentication failed:', userError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get completed sessions with fine-tuned models
-    const { data: sessions, error } = await supabase
-      .from('fine_tuning_sessions')
-      .select('id, fine_tuned_model, model, status, created_at, openai_finished_at')
-      .eq('user_id', user.id)
-      .eq('status', 'succeeded')
-      .not('fine_tuned_model', 'is', null)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Database error fetching models:', error)
-      return NextResponse.json({ error: 'Failed to fetch models' }, { status: 500 })
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OpenAI API key not configured')
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    // Transform to a simpler format for model selection
-    const models = sessions?.map(session => ({
-      id: session.fine_tuned_model,
-      name: session.fine_tuned_model,
-      baseModel: session.model,
-      createdAt: session.created_at,
-      finishedAt: session.openai_finished_at
-    })) || []
+    console.log('Fetching models from OpenAI API...')
+    
+    // Get all models from OpenAI
+    const modelsResponse = await openai.models.list()
+    console.log(`Found ${modelsResponse.data.length} total models from OpenAI`)
+
+    // Filter for custom models (not owned by "openai")
+    const customModels = modelsResponse.data
+      .filter(model => model.owned_by == 'pletfree-creations-ltd')
+      .sort((a, b) => b.created - a.created) // Sort by creation date, newest first
+    
+    console.log(`Found ${customModels.length} custom models (not owned by openai)`)
+    
+    // Transform to a format suitable for UI
+    const models = customModels.map(model => ({
+      id: model.id,
+      name: model.id,
+      baseModel: model.id.includes(':') ? model.id.split(':')[1] : 'unknown', // Extract base model from ID
+      ownedBy: model.owned_by,
+      created: model.created,
+      createdAt: new Date(model.created * 1000).toISOString() // Convert Unix timestamp to ISO string
+    }))
+
+    console.log('Returning models:', models.map(m => ({ id: m.id, ownedBy: m.ownedBy })))
 
     return NextResponse.json({
       success: true,
@@ -48,8 +55,20 @@ export async function GET(request: NextRequest) {
       count: models.length
     })
 
-  } catch (error) {
-    console.error('Unexpected error in models GET:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (error: any) {
+    console.error('Error fetching models from OpenAI:', error)
+    
+    // Handle OpenAI API errors specifically
+    if (error?.status) {
+      return NextResponse.json({ 
+        error: `OpenAI API error: ${error.message}`,
+        status: error.status 
+      }, { status: 500 })
+    }
+    
+    return NextResponse.json({ 
+      error: 'Failed to fetch models from OpenAI',
+      details: error.message 
+    }, { status: 500 })
   }
 } 
