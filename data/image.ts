@@ -69,6 +69,13 @@ export const MODEL_INFO: Record<ImageProvider, {
       rateLimit: '10/min per batch',
       features: ['Turbo mode', 'Advanced typography', 'High quality', 'Commercial use', 'Via fal.ai']
     },
+    'imagen-4': {
+      name: 'Google Imagen 4',
+      description: 'Google\'s latest and most advanced image generation model with exceptional quality and prompt adherence',
+      batchSize: 10,
+      rateLimit: '5/min per batch',
+      features: ['Superior prompt adherence', 'Photorealistic quality', 'Google AI', 'Advanced reasoning', 'Base64 output']
+    },
     // 'minimax-image-01': {
     //   name: 'MiniMax Image 01',
     //   description: 'MiniMax\'s latest image generation model with enhanced quality and realism',

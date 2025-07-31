@@ -6,6 +6,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import {
   ImageIcon,
   Upload,
@@ -19,6 +20,8 @@ import {
   Info
 } from 'lucide-react'
 
+type ThumbnailModel = 'gpt-image-1' | 'dalle-3' | 'imagen-4'
+
 interface ThumbnailGeneratorProps {
   thumbnailPrompt: string
   onThumbnailPromptChange: (value: string) => void
@@ -27,7 +30,7 @@ interface ThumbnailGeneratorProps {
   isGeneratingThumbnail: boolean
   thumbnailResult: string | null
   thumbnailError: string | null
-  onGenerateThumbnail: () => void
+  onGenerateThumbnail: (model: ThumbnailModel) => void
   onDownloadThumbnail: () => void
   onClearThumbnailGenerator: () => void
 }
@@ -44,7 +47,9 @@ export function ThumbnailGenerator({
   onDownloadThumbnail,
   onClearThumbnailGenerator
 }: ThumbnailGeneratorProps) {
-  const handleReferenceImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const [selectedModel, setSelectedModel] = useState<ThumbnailModel>('gpt-image-1')
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
     onReferenceImagesChange([...referenceImages, ...files])
   }
@@ -54,6 +59,44 @@ export function ThumbnailGenerator({
     onReferenceImagesChange(newImages)
   }
 
+  // Handle model change and clear images if new model doesn't need them
+  const handleModelChange = (newModel: ThumbnailModel) => {
+    setSelectedModel(newModel)
+    const newModelInfo = modelInfo[newModel]
+    
+    // Clear reference images if switching to a model that doesn't use them
+    if (!newModelInfo.showImageUpload && referenceImages.length > 0) {
+      onReferenceImagesChange([])
+    }
+  }
+
+  const modelInfo = {
+    'gpt-image-1': {
+      name: 'GPT Image 1',
+      description: 'Advanced image editing with reference images (OpenAI)',
+      requiresImages: true,
+      showImageUpload: true,
+      features: ['Image editing', 'Reference-based', 'High quality']
+    },
+    'dalle-3': {
+      name: 'DALL-E 3',
+      description: 'Creative image generation from text prompts (OpenAI)', 
+      requiresImages: false,
+      showImageUpload: false,
+      features: ['Creative generation', 'Text-to-image', 'High quality']
+    },
+    'imagen-4': {
+      name: 'Google Imagen 4',
+      description: 'Google\'s most advanced text-to-image model',
+      requiresImages: false,
+      showImageUpload: false,
+      features: ['Superior quality', 'Prompt adherence', 'Professional results']
+    }
+  }
+
+  const currentModelInfo = modelInfo[selectedModel]
+  const showImageRequirement = currentModelInfo.requiresImages && referenceImages.length === 0
+
   return (
     <Card>
       <CardHeader>
@@ -62,197 +105,222 @@ export function ThumbnailGenerator({
           Thumbnail Generator
         </CardTitle>
         <CardDescription>
-          Generate custom thumbnails using OpenAI's image editing with reference images and custom prompts
+          Generate custom thumbnails using AI models with reference images and custom prompts
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Reference Images Upload */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="text-base font-medium">Reference Images</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onClearThumbnailGenerator}
-              disabled={isGeneratingThumbnail}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear All
-            </Button>
-          </div>
+        {/* Model Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="model-select" className="text-sm font-medium">
+            AI Model
+          </Label>
+          <Select value={selectedModel} onValueChange={(value: ThumbnailModel) => handleModelChange(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select AI model" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(modelInfo).map(([key, info]) => (
+                <SelectItem key={key} value={key}>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{info.name}</span>
+                    <span className="text-xs text-gray-500">{info.description}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-            <div className="text-center">
-              <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <div className="space-y-2">
-                <Label htmlFor="reference-upload" className="cursor-pointer">
-                  <div className="text-lg font-medium text-gray-900">Upload Reference Images</div>
-                  <div className="text-sm text-gray-500">PNG, JPG up to 10MB each</div>
-                </Label>
-                <Input
-                  id="reference-upload"
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleReferenceImageUpload}
-                  className="hidden"
-                  disabled={isGeneratingThumbnail}
-                />
+          {/* Model Features */}
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <Info className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">{currentModelInfo.name} Features</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {currentModelInfo.features.map((feature, index) => (
+                <span key={index} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">
+                  {feature}
+                </span>
+              ))}
+            </div>
+            {currentModelInfo.requiresImages && (
+              <p className="text-xs text-blue-600 mt-2">
+                ⚠️ This model requires at least one reference image
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Prompt Input */}
+        <div className="space-y-2">
+          <Label htmlFor="thumbnail-prompt" className="text-sm font-medium">
+            Thumbnail Description
+          </Label>
+          <Textarea
+            id="thumbnail-prompt"
+            placeholder="Describe the thumbnail you want to create..."
+            value={thumbnailPrompt}
+            onChange={(e) => onThumbnailPromptChange(e.target.value)}
+            className="min-h-[100px]"
+            disabled={isGeneratingThumbnail}
+          />
+        </div>
+
+        {/* Reference Images Upload */}
+        {currentModelInfo.showImageUpload && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="reference-images" className="text-sm font-medium">
+                Reference Images
+                {currentModelInfo.requiresImages && <span className="text-red-500 ml-1">*</span>}
+              </Label>
+              {referenceImages.length > 0 && (
                 <Button
                   variant="outline"
-                  onClick={() => document.getElementById('reference-upload')?.click()}
+                  size="sm"
+                  onClick={() => onReferenceImagesChange([])}
+                  className="text-red-600 hover:text-red-700"
                   disabled={isGeneratingThumbnail}
                 >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Choose Files
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Clear All
                 </Button>
-              </div>
+              )}
             </div>
-          </div>
 
-          {/* Reference Images Preview */}
-          {referenceImages.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                Uploaded Images ({referenceImages.length})
-              </Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="file-upload"
+                disabled={isGeneratingThumbnail}
+              />
+              <label htmlFor="file-upload" className="cursor-pointer">
+                <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                <p className="text-sm text-gray-600">
+                  {currentModelInfo.requiresImages 
+                    ? 'Upload reference images (required)'
+                    : 'Upload reference images (optional for inspiration)'
+                  }
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  PNG, JPG, WebP up to 10MB each
+                </p>
+              </label>
+            </div>
+
+            {/* Show uploaded images */}
+            {referenceImages.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {referenceImages.map((file, index) => (
                   <div key={index} className="relative group">
-                    <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden border">
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={`Reference ${index + 1}`}
-                        className="w-full h-full object-cover"
-                        onLoad={(e) => {
-                          // Clean up the object URL after the image loads
-                          const img = e.target as HTMLImageElement
-                          if (img.src.startsWith('blob:')) {
-                            setTimeout(() => URL.revokeObjectURL(img.src), 100)
-                          }
-                        }}
-                      />
-                    </div>
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={`Reference ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border"
+                    />
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => removeReferenceImage(index)}
                       disabled={isGeneratingThumbnail}
                     >
                       <X className="h-3 w-3" />
                     </Button>
-                    <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                      {file.name.length > 15 ? `${file.name.substring(0, 12)}...` : file.name}
+                    <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1 rounded">
+                      {index + 1}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* Custom Prompt */}
-        <div className="space-y-2">
-          <Label htmlFor="thumbnail-prompt" className="text-base font-medium">
-            Custom Prompt
-          </Label>
-          <Textarea
-            id="thumbnail-prompt"
-            placeholder="Describe how you want to combine the reference images. For example: 'Generate a photorealistic image of a gift basket on a white background labeled 'Relax & Unwind' with a ribbon and handwriting-like font, containing all the items in the reference pictures.'"
-            value={thumbnailPrompt}
-            onChange={(e) => onThumbnailPromptChange(e.target.value)}
-            className="min-h-[120px]"
-            disabled={isGeneratingThumbnail}
-          />
-          <p className="text-xs text-gray-500">
-            Be specific about the composition, style, background, and how the reference images should be combined.
-          </p>
-        </div>
+        {/* Error Display */}
+        {thumbnailError && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="h-4 w-4 text-red-500" />
+            <span className="text-sm text-red-700">{thumbnailError}</span>
+          </div>
+        )}
 
-        {/* Generate Button */}
+        {/* Generation Button */}
         <Button
-          onClick={onGenerateThumbnail}
-          disabled={isGeneratingThumbnail || !thumbnailPrompt.trim() || referenceImages.length === 0}
-          className="w-full bg-green-600 hover:bg-green-700"
+          onClick={() => onGenerateThumbnail(selectedModel)}
+          disabled={
+            isGeneratingThumbnail || 
+            !thumbnailPrompt.trim() || 
+            showImageRequirement
+          }
+          className="w-full"
           size="lg"
         >
           {isGeneratingThumbnail ? (
             <>
-              <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-              Generating Thumbnail...
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Generating with {currentModelInfo.name}...
             </>
           ) : (
             <>
-              <Sparkles className="h-5 w-5 mr-2" />
-              Generate Thumbnail
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate with {currentModelInfo.name}
             </>
           )}
         </Button>
 
-        {/* Error Display */}
-        {thumbnailError && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <span className="font-medium text-red-800">Error</span>
-            </div>
-            <p className="text-red-700 mt-1 text-sm">{thumbnailError}</p>
+        {/* Image requirement warning */}
+        {showImageRequirement && (
+          <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <span className="text-sm text-yellow-700">
+              {currentModelInfo.name} requires at least one reference image to work properly.
+            </span>
           </div>
         )}
 
         {/* Result Display */}
         {thumbnailResult && (
-          <Card className="bg-green-50 border-green-200">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  Generated Thumbnail
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onDownloadThumbnail}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="aspect-video bg-white rounded-lg overflow-hidden border">
-                  <img
-                    src={thumbnailResult}
-                    alt="Generated thumbnail"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div className="text-sm text-gray-600">
-                  <p><strong>Prompt used:</strong> {thumbnailPrompt}</p>
-                  <p><strong>Reference images:</strong> {referenceImages.length} files</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span className="text-sm font-medium text-green-700">
+                Thumbnail generated successfully with {currentModelInfo.name}!
+              </span>
+            </div>
+            
+            <div className="relative">
+              <img
+                src={thumbnailResult}
+                alt="Generated thumbnail"
+                className="w-full max-w-lg mx-auto rounded-lg border shadow-sm"
+              />
+            </div>
 
-        {/* Info Box */}
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-start gap-2">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-blue-800">How it works:</p>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Upload 1-4 reference images that you want to combine</li>
-                <li>• Write a detailed prompt describing the final composition</li>
-                <li>• OpenAI's GPT Image 1 model will create a new image based on your references</li>
-                <li>• Perfect for creating thumbnails, product compositions, or artistic combinations</li>
-              </ul>
+            <div className="flex gap-2">
+              <Button
+                onClick={onDownloadThumbnail}
+                variant="outline"
+                className="flex-1"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+              <Button
+                onClick={onClearThumbnailGenerator}
+                variant="outline"
+                className="flex-1"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear All
+              </Button>
             </div>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   )

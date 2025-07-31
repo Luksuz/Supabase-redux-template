@@ -4,11 +4,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { fal } from "@fal-ai/client";
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { GoogleGenAI } from '@google/genai';
 
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 const FAL_API_KEY = process.env.FAL_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
+const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY;
 const LEONARDO_API_URL = 'https://cloud.leonardo.ai/api/rest/v1';
 
 // Initialize Supabase client
@@ -19,6 +21,9 @@ const supabase = createClient(
 
 // Initialize OpenAI client
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+
+// Initialize Google AI client
+const googleAI = GOOGLE_AI_API_KEY ? new GoogleGenAI({ apiKey: GOOGLE_AI_API_KEY }) : null;
 
 // Configure fal.ai
 if (FAL_API_KEY) {
@@ -331,6 +336,42 @@ async function generateLeonardoPhoenixImage(prompt: string, width: number, heigh
   return imageUrl;
 }
 
+// Generate image using Google Imagen
+async function generateImagenImage(prompt: string): Promise<string> {
+  if (!googleAI) {
+    throw new Error('Google GenAI client not initialized - check API key');
+  }
+
+  console.log(`🎨 Generating Google Imagen image`);
+  
+  try {
+    const response = await googleAI.models.generateImages({
+      model: 'imagen-4.0-generate-preview-06-06',
+      prompt: prompt,
+      config: {
+        numberOfImages: 1,
+      },
+    });
+
+    console.log('Imagen response', response);
+
+    if (!response.generatedImages || response.generatedImages.length === 0) {
+      throw new Error('No image generated from Google Imagen');
+    }
+
+    const generatedImage = response.generatedImages[0];
+    if (!generatedImage.image?.imageBytes) {
+      throw new Error('No image data received from Google Imagen');
+    }
+
+    // Return as data URL for immediate use
+    return `data:image/png;base64,${generatedImage.image.imageBytes}`;
+  } catch (error) {
+    console.error('Google Imagen generation error:', error);
+    throw error;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateImageRequestBody;
@@ -369,6 +410,10 @@ export async function POST(request: NextRequest) {
 
     if (provider === 'leonardo-phoenix' && !LEONARDO_API_KEY) {
       return NextResponse.json({ error: 'Leonardo API key is not configured for Phoenix model.' }, { status: 500 });
+    }
+
+    if (provider === 'imagen-4' && !GOOGLE_AI_API_KEY) {
+      return NextResponse.json({ error: 'Google GenAI API key is not configured for Imagen. Please install @google/genai package.' }, { status: 500 });
     }
 
     const imageUrls: string[] = [];
@@ -553,6 +598,29 @@ export async function POST(request: NextRequest) {
           await new Promise(resolve => setTimeout(resolve, 10000));
         }
       }
+    } else if (provider === 'imagen-4') {
+      // Google Imagen generation
+      console.log(`Generating ${numberOfImages} image(s) with Google Imagen...`);
+      
+      // Process all Google Imagen requests in parallel (batch size 20)
+      const requestPromises = Array.from({ length: numberOfImages }, async (_, index) => {
+        try {
+          console.log(`Starting Google Imagen image ${index + 1} of ${numberOfImages}...`);
+          const imageUrl = await generateImagenImage(prompt);
+          console.log(`✅ Successfully generated Google Imagen image ${index + 1}`);
+          return imageUrl;
+        } catch (error) {
+          console.error(`❌ Error generating Google Imagen image ${index + 1}:`, error);
+          return null;
+        }
+      });
+
+      // Wait for all Google Imagen requests to complete
+      const results = await Promise.all(requestPromises);
+      const validImageUrls = results.filter((url): url is string => url !== null);
+      imageUrls.push(...validImageUrls);
+      
+      console.log(`✅ Google Imagen batch complete: ${validImageUrls.length}/${numberOfImages} images generated successfully`);
     } else {
       // Flux models using fal.ai
       console.log(`Generating ${numberOfImages} image(s) with ${provider}...`);
@@ -640,5 +708,8 @@ if (process.env.NODE_ENV !== 'test') {
   }
   if (!LEONARDO_API_KEY) {
     console.warn("Warning: LEONARDO_API_KEY environment variable is not set. Leonardo Phoenix image generation will fail.");
+  }
+  if (!GOOGLE_AI_API_KEY) {
+    console.warn("Warning: GOOGLE_AI_API_KEY environment variable is not set. Google Imagen 4 image generation will fail.");
   }
 } 

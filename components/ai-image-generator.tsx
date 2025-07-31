@@ -599,14 +599,15 @@ export function AIImageGenerator() {
   }
 
   // Thumbnail generator functions
-  const generateThumbnail = async () => {
+  const generateThumbnail = async (model: 'gpt-image-1' | 'dalle-3' | 'imagen-4' = 'gpt-image-1') => {
     if (!thumbnailPrompt.trim()) {
       setThumbnailError('Please enter a prompt for thumbnail generation')
       return
     }
 
-    if (referenceImages.length === 0) {
-      setThumbnailError('Please upload at least one reference image')
+    // Only check model-specific requirements for models that actually need them
+    if (model === 'gpt-image-1' && referenceImages.length === 0) {
+      setThumbnailError('GPT Image 1 requires at least one reference image')
       return
     }
 
@@ -616,10 +617,14 @@ export function AIImageGenerator() {
     try {
       const formData = new FormData()
       formData.append('prompt', thumbnailPrompt)
+      formData.append('model', model)
       
-      referenceImages.forEach((file, index) => {
-        formData.append(`image_${index}`, file)
-      })
+      // Only append reference images if the model actually uses them
+      if (model === 'gpt-image-1') {
+        referenceImages.forEach((file, index) => {
+          formData.append(`image_${index}`, file)
+        })
+      }
 
       const response = await fetch('/api/generate-thumbnail', {
         method: 'POST',

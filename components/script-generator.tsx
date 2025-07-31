@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Upload, RefreshCw, History, Plus, Edit, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Select,
   SelectContent,
@@ -90,6 +91,23 @@ const ScriptGenerator: React.FC = () => {
   const [povSelection, setPovSelection] = useState<string>("3rd Person");
   const [scriptFormat, setScriptFormat] = useState<string>("Story");
   const [audience, setAudience] = useState<string>("");
+  
+  // State for sequential generation
+  const [useSequentialGeneration, setUseSequentialGeneration] = useState<boolean>(false);
+  const [sequentialProgress, setSequentialProgress] = useState<{
+    currentSection: number;
+    totalSections: number;
+    isGenerating: boolean;
+    generatedSections: ScriptSection[];
+  }>({
+    currentSection: 0,
+    totalSections: 0,
+    isGenerating: false,
+    generatedSections: []
+  });
+  
+  // State for script segmentation
+  const [segmentMode, setSegmentMode] = useState<'sentences' | 'full'>('sentences');
   
   // State for prompt history sidebar
   const [isPromptHistoryOpen, setIsPromptHistoryOpen] = useState(false);
@@ -403,6 +421,109 @@ const ScriptGenerator: React.FC = () => {
     await generateFullScriptDirectly(scriptSections);
   };
 
+  // Sequential generation function
+  const handleSequentialGeneration = async () => {
+    if (!title) {
+      dispatch(setScriptGenerationError("Title is required for sequential generation"));
+      return;
+    }
+
+    try {
+      // Reset progress
+      setSequentialProgress({
+        currentSection: 0,
+        totalSections: targetSections,
+        isGenerating: true,
+        generatedSections: []
+      });
+
+      // Clear existing sections
+      dispatch(setScriptSections([]));
+      dispatch(clearFullScript());
+
+      const generatedSections: ScriptSection[] = [];
+
+      // Generate sections sequentially
+      for (let i = 0; i < targetSections; i++) {
+        setSequentialProgress(prev => ({
+          ...prev,
+          currentSection: i + 1
+        }));
+
+        console.log(`🔄 Generating section ${i + 1}/${targetSections}`);
+
+        // Prepare context from previous sections (max 3)
+        const contextSections = generatedSections.slice(Math.max(0, generatedSections.length - 3));
+        
+        const response = await fetch("/api/generate-sequential-section", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sectionIndex: i,
+            totalSections: targetSections,
+            title,
+            theme,
+            additionalPrompt,
+            sectionPrompt,
+            researchContext,
+            inspirationalTranscript,
+            forbiddenWords,
+            modelName: selectedModel,
+            povSelection,
+            scriptFormat,
+            audience,
+            previousSections: contextSections // Context from previous sections
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Failed to generate section ${i + 1}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.section) {
+          generatedSections.push(data.section);
+          // Update Redux with new sections as we generate them
+          dispatch(setScriptSections([...generatedSections]));
+          
+          // Update progress state to show completed sections
+          setSequentialProgress(prev => ({
+            ...prev,
+            generatedSections: [...generatedSections]
+          }));
+          
+          console.log(`✅ Generated section ${i + 1}: ${data.section.title}`);
+        } else {
+          throw new Error(`Invalid response for section ${i + 1}`);
+        }
+      }
+
+      setSequentialProgress(prev => ({
+        ...prev,
+        isGenerating: false,
+        generatedSections
+      }));
+
+      console.log(`✅ Sequential generation complete: ${generatedSections.length} sections generated`);
+
+      // Automatically generate the full script after all sections are complete
+      console.log("🚀 Starting automatic full script generation...");
+      await generateFullScriptDirectly(generatedSections);
+
+    } catch (error) {
+      console.error("Error in sequential generation:", error);
+      dispatch(setScriptGenerationError((error as Error).message));
+      setSequentialProgress(prev => ({
+        ...prev,
+        isGenerating: false
+      }));
+    }
+  };
+
   const handleUpdateSection = (index: number, updatedSection: ScriptSection) => {
     dispatch(updateScriptSection({ index, section: updatedSection }));
   };
@@ -564,21 +685,79 @@ const ScriptGenerator: React.FC = () => {
     }
   };
 
-  // Function to split text into 500-word segments for display
-  const splitIntoSegments = (text: string, wordsPerSegment = 500): string[] => {
+  // Function to split text into segments - improved to split at sentence boundaries
+  const splitIntoSegments = (text: string, mode: 'sentences' | 'full' = segmentMode): string[] => {
     if (!text) return [];
     
-    const words = text.split(/\s+/);
-    const segments: string[] = [];
-    
-    for (let i = 0; i < words.length; i += wordsPerSegment) {
-      segments.push(words.slice(i, i + wordsPerSegment).join(' '));
+    // If full mode, return the entire text as one segment
+    if (mode === 'full') {
+      return [text];
     }
     
-    return segments;
+    // Split at sentence boundaries for better readability
+    // Look for sentences ending with period, exclamation, or question mark followed by space or newline
+    const sentenceRegex = /([.!?]+)(\s+|$)/g;
+    const sentences: string[] = [];
+    
+    // Split into sentences
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = sentenceRegex.exec(text)) !== null) {
+      const sentence = text.slice(lastIndex, match.index + match[1].length).trim();
+      if (sentence) {
+        sentences.push(sentence);
+      }
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add any remaining text
+    if (lastIndex < text.length) {
+      const remaining = text.slice(lastIndex).trim();
+      if (remaining) {
+        sentences.push(remaining);
+      }
+    }
+    
+    // If no sentences found (edge case), return the full text
+    if (sentences.length === 0) {
+      return [text];
+    }
+    
+    // Group sentences into segments of reasonable size (aim for ~500-800 words per segment)
+    const segments: string[] = [];
+    let currentSegment = '';
+    let currentWordCount = 0;
+    const targetWordsPerSegment = 600; // Slightly larger for better context
+    
+    for (const sentence of sentences) {
+      const sentenceWordCount = sentence.split(/\s+/).length;
+      
+      // If adding this sentence would exceed the target and we already have content, start a new segment
+      if (currentWordCount > 0 && currentWordCount + sentenceWordCount > targetWordsPerSegment) {
+        segments.push(currentSegment.trim());
+        currentSegment = sentence;
+        currentWordCount = sentenceWordCount;
+      } else {
+        // Add sentence to current segment
+        if (currentSegment) {
+          currentSegment += ' ' + sentence;
+        } else {
+          currentSegment = sentence;
+        }
+        currentWordCount += sentenceWordCount;
+      }
+    }
+    
+    // Add the last segment if it has content
+    if (currentSegment.trim()) {
+      segments.push(currentSegment.trim());
+    }
+    
+    return segments.length > 0 ? segments : [text];
   };
   
-  const scriptSegments = splitIntoSegments(fullScript?.scriptWithMarkdown || '');
+  const scriptSegments = splitIntoSegments(fullScript?.scriptWithMarkdown || '', segmentMode);
 
   // Functions for editing segments
   const startEditingSegment = (index: number) => {
@@ -1033,7 +1212,41 @@ const ScriptGenerator: React.FC = () => {
                 )}
               </SelectContent>
             </Select>
-      </div>
+          </div>
+
+          {/* Sequential Generation Option */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="sequential-generation"
+                checked={useSequentialGeneration}
+                onCheckedChange={(checked) => setUseSequentialGeneration(checked as boolean)}
+              />
+              <Label htmlFor="sequential-generation" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Sequential Generation
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Generate sections one by one with context from previous sections for better story continuity
+            </p>
+            
+            {useSequentialGeneration && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 w-4 h-4 bg-amber-400 rounded-full mt-0.5" />
+                  <div className="text-xs text-amber-800">
+                    <p className="font-medium mb-1">Sequential Mode Active</p>
+                    <ul className="space-y-1">
+                      <li>• Sections generated one at a time with context</li>
+                      <li>• Each section builds on previous ones (max 3 for context)</li>
+                      <li>• Better story consistency and flow</li>
+                      <li>• Full script automatically generated at the end</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
               <Label htmlFor="theme" className="flex justify-between">
@@ -1165,17 +1378,24 @@ const ScriptGenerator: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3">
                   <Button
               className="flex-1" 
-              onClick={handleGenerateOutline}
-              disabled={isLoading || isGeneratingScript || !title}
+              onClick={useSequentialGeneration ? handleSequentialGeneration : handleGenerateOutline}
+              disabled={isLoading || isGeneratingScript || sequentialProgress.isGenerating || !title}
             >
-              {isLoading ? "Generating Sections..." : "Generate Sections"}
+              {sequentialProgress.isGenerating 
+                ? `Generating Section ${sequentialProgress.currentSection}/${sequentialProgress.totalSections}...`
+                : isLoading 
+                ? "Generating Sections..." 
+                : useSequentialGeneration 
+                ? "Generate Sections Sequentially" 
+                : "Generate Sections"
+              }
                   </Button>
                 
-            {hasScriptSections && (
+            {hasScriptSections && !useSequentialGeneration && (
                   <Button
                 className="flex-1" 
                 onClick={handleGenerateFullScript}
-                disabled={isLoading || isGeneratingScript}
+                disabled={isLoading || isGeneratingScript || sequentialProgress.isGenerating}
                 variant="secondary"
               >
                 {isGeneratingScript ? "Generating Script..." : "Generate Full Script"}
@@ -1187,12 +1407,60 @@ const ScriptGenerator: React.FC = () => {
                     variant="outline"
                 onClick={handleDownloadDocx}
                 className="flex-1 gap-2"
+                disabled={sequentialProgress.isGenerating}
                   >
                 <Download size={16} />
                 Download DOCX
                   </Button>
             )}
           </div>
+
+          {/* Sequential Generation Progress */}
+          {sequentialProgress.isGenerating && (
+            <div className="space-y-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">
+                    Sequential Generation in Progress
+                  </span>
+                </div>
+                <span className="text-sm text-blue-600">
+                  {sequentialProgress.currentSection}/{sequentialProgress.totalSections}
+                </span>
+              </div>
+              
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${(sequentialProgress.currentSection / sequentialProgress.totalSections) * 100}%` 
+                  }}
+                />
+              </div>
+              
+              <p className="text-xs text-blue-700">
+                Generating section {sequentialProgress.currentSection} with context from previous sections...
+              </p>
+              
+              {/* Show completed sections */}
+              {sequentialProgress.generatedSections.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-blue-800 mb-1">Completed Sections:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {sequentialProgress.generatedSections.map((section, index) => (
+                      <span 
+                        key={index}
+                        className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
+                      >
+                        {index + 1}. {section.title}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Error Display */}
           {scriptGenerationError && (
@@ -1476,12 +1744,30 @@ const ScriptGenerator: React.FC = () => {
               The complete script based on your outline.
             </p>
                 </div>
-          {fullScript && (
-            <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
-              Word Count: {scriptWordCount}
-                              </div>
-                            )}
-                          </div>
+          <div className="flex items-center gap-4">
+            {/* Segment Mode Selector */}
+            {fullScript && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="segment-mode" className="text-sm">View Mode:</Label>
+                <Select value={segmentMode} onValueChange={(value: 'sentences' | 'full') => setSegmentMode(value)}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sentences">Segments</SelectItem>
+                    <SelectItem value="full">Full Text</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {fullScript && (
+              <div className="text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
+                Word Count: {scriptWordCount}
+              </div>
+            )}
+          </div>
+        </div>
         
         {!fullScript ? (
           <div className="h-[300px] flex items-center justify-center border rounded-lg bg-muted/50">
@@ -1512,11 +1798,15 @@ const ScriptGenerator: React.FC = () => {
                       </div>
                     </div>
             
-            {scriptSegments.length > 1 && (
+            {scriptSegments.length > 0 && segmentMode === 'sentences' && (
                     <div className="space-y-4">
-                <h3 className="text-lg font-medium">Script Segments</h3>
+                <h3 className="text-lg font-medium">
+                  Script Segments {scriptSegments.length > 1 ? `(${scriptSegments.length} segments)` : '(1 segment)'}
+                </h3>
                 <p className="text-sm text-muted-foreground">
-                  The script is divided into segments of approximately 500 words each for easier editing.
+                  {scriptSegments.length > 1 
+                    ? 'The script is divided into segments at sentence boundaries for easier editing.' 
+                    : 'The entire script is shown as one segment.'}
                 </p>
                 
                 {scriptSegments.map((segment, index) => (
