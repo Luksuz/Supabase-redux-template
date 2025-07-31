@@ -321,7 +321,10 @@ export function VideoGenerator() {
         useEqualIntroDuration: settings.videoMode === 'option2' ? settings.useEqualIntroDuration : undefined,
         // Custom music
         useCustomMusic: settings.useCustomMusic || false,
-        customMusicFiles: settings.customMusicFiles || []
+        customMusicFiles: settings.customMusicFiles || [],
+        // Volume controls
+        musicVolume: settings.musicVolume || 0.7,
+        voiceoverVolume: settings.voiceoverVolume || 1.0
       }
 
       console.log('🎬 Starting video generation with:', requestBody)

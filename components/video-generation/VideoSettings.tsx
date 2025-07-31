@@ -7,7 +7,8 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Checkbox } from '../ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Settings, Palette, AlertCircle, Loader2, VideoIcon, Upload, Music, Trash2, Play, Pause } from 'lucide-react'
+import { Slider } from '../ui/slider'
+import { Settings, Palette, AlertCircle, Loader2, VideoIcon, Upload, Music, Trash2, Play, Pause, Volume2 } from 'lucide-react'
 import type { SegmentTiming, IntroImageConfig } from '@/types/video-generation'
 import { VideoModeSelection } from './VideoModeSelection'
 
@@ -338,6 +339,71 @@ export function VideoSettings({
               )}
             </div>
           )}
+
+          {/* Volume Controls */}
+          <div className="space-y-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-2 mb-3">
+              <Volume2 className="h-4 w-4 text-gray-600" />
+              <Label className="text-sm font-medium">Audio Volume Controls</Label>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Music Volume */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Background Music Volume
+                  </Label>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    {Math.round((settings.musicVolume || 0.7) * 100)}%
+                  </span>
+                </div>
+                <Slider
+                  value={[settings.musicVolume || 0.7]}
+                  onValueChange={(value) => onSettingsChange({ ...settings, musicVolume: value[0] })}
+                  max={1}
+                  min={0}
+                  step={0.05}
+                  className="w-full"
+                  disabled={!hasPrerequisites}
+                />
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>Silent</span>
+                  <span>Full Volume</span>
+                </div>
+              </div>
+
+              {/* Voiceover Volume */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Voiceover Volume
+                  </Label>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    {Math.round((settings.voiceoverVolume || 1.0) * 100)}%
+                  </span>
+                </div>
+                <Slider
+                  value={[settings.voiceoverVolume || 1.0]}
+                  onValueChange={(value) => onSettingsChange({ ...settings, voiceoverVolume: value[0] })}
+                  max={1}
+                  min={0}
+                  step={0.05}
+                  className="w-full"
+                  disabled={!hasPrerequisites}
+                />
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>Silent</span>
+                  <span>Full Volume</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+              <strong>Note:</strong> Music volume is automatically reduced when voiceover is playing to ensure speech clarity. 
+              These controls set the maximum volume levels for each audio type.
+            </div>
+          </div>
         </CardContent>
       </Card>
 

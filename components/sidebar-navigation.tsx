@@ -23,12 +23,10 @@ export function SidebarNavigation({
   // YouTube research state
   const youtube = useAppSelector(state => state.youtube)
   const hasYouTubeResearch = youtube && (
-    (youtube.googleResearchSummaries && youtube.googleResearchSummaries.length > 0) ||
     (youtube.youtubeResearchSummaries && youtube.youtubeResearchSummaries.length > 0) ||
     youtube.videosSummary
   )
   const appliedResearchCount = youtube ? (
-    (youtube.googleResearchSummaries?.filter(r => r.appliedToScript) || []).length +
     (youtube.youtubeResearchSummaries?.filter(r => r.appliedToScript) || []).length
   ) : 0
 

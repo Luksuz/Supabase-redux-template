@@ -47,6 +47,9 @@ export interface CreateVideoRequestBody {
   // Custom music properties
   useCustomMusic?: boolean
   customMusicFiles?: CustomMusicFile[]
+  // Volume controls
+  musicVolume?: number
+  voiceoverVolume?: number
 }
 
 export interface CreateVideoResponse {
@@ -96,4 +99,7 @@ export interface VideoGenerationSettings {
   // Custom music properties
   useCustomMusic: boolean
   customMusicFiles: CustomMusicFile[]
+  // Volume controls
+  musicVolume: number  // 0-1 range for music volume
+  voiceoverVolume: number  // 0-1 range for voiceover volume
 } 

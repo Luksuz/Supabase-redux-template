@@ -23,7 +23,11 @@ const initialState: VideoState = {
     zoomEffect: false,
     dustOverlay: false,
     introDuration: 60, // 1 minute default
-    useEqualIntroDuration: true
+    useEqualIntroDuration: true,
+    useCustomMusic: false,
+    customMusicFiles: [],
+    musicVolume: 0.7, // Default music volume
+    voiceoverVolume: 1.0 // Default voiceover volume
   },
   statusRefreshInterval: null
 }

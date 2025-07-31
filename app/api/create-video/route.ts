@@ -123,7 +123,10 @@ export async function POST(request: NextRequest) {
       useEqualIntroDuration = true,
       // Custom music properties
       useCustomMusic = false,
-      customMusicFiles = []
+      customMusicFiles = [],
+      // Volume controls
+      musicVolume = 0.7,
+      voiceoverVolume = 1.0
     } = body;
     
     console.log(`🖼️ Image URLs: ${imageUrls}`);
@@ -508,33 +511,56 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Handle audio tracks - custom music or default audio
+    // Handle audio tracks - voiceover always plays, custom music is additional
+    
+    // 1. ALWAYS add voiceover/speech audio (when available)
+    const audioUrlToUse = audioUrl || compressedAudioUrl;
+    if (audioUrlToUse) {
+        console.log(`🎵 Adding voiceover audio: ${audioUrl ? 'original' : 'compressed'} - ${audioUrlToUse}`);
+        
+        const voiceoverTrack = {
+            clips: [{
+                asset: {
+                    type: "audio",
+                    src: audioUrlToUse,
+                    volume: voiceoverVolume
+                },
+                start: 0,
+                length: totalDuration
+            }]
+        };
+        tracks.push(voiceoverTrack);
+    } else {
+        console.warn('⚠️ No voiceover audio URL provided for video generation');
+    }
+
+    // 2. OPTIONALLY add custom background music (plays simultaneously with voiceover)
     if (useCustomMusic && customMusicFiles && customMusicFiles.length > 0) {
-        console.log(`🎶 Using custom music: ${customMusicFiles.length} file(s)`);
+        console.log(`🎶 Adding custom background music: ${customMusicFiles.length} file(s)`);
         
         if (customMusicFiles.length === 1) {
             // Single file - loop continuously
             const musicFile = customMusicFiles[0];
             console.log(`🔄 Looping single music file: ${musicFile.name}`);
             
-            const audioTrack = {
+            const musicTrack = {
                 clips: [{
                     asset: {
                         type: "audio",
                         src: musicFile.url,
-                        volume: 0.7 // Slightly lower volume for background music
+                        volume: musicVolume
                     },
                     start: 0,
                     length: totalDuration,
                     loop: true // Enable looping for single file
                 }]
             };
-            tracks.push(audioTrack);
+            tracks.push(musicTrack);
         } else {
             // Multiple files - play in sequence and loop the sequence
-            console.log(`🎵 Creating sequence from ${customMusicFiles.length} music files`);
+            console.log(`🎵 Creating music sequence from ${customMusicFiles.length} files`);
             
-            const audioClips: any[] = [];
+            const musicClips: any[] = [];
             let currentTime = 0;
             let sequenceIndex = 0;
             
@@ -553,11 +579,11 @@ export async function POST(request: NextRequest) {
                     const fileDuration = musicFile.duration || 30;
                     const clipDuration = Math.min(fileDuration, totalDuration - currentTime);
                     
-                    audioClips.push({
+                    musicClips.push({
                         asset: {
                             type: "audio",
                             src: musicFile.url,
-                            volume: 0.7
+                            volume: musicVolume
                         },
                         start: currentTime,
                         length: clipDuration
@@ -569,35 +595,15 @@ export async function POST(request: NextRequest) {
                 sequenceIndex++;
             }
             
-            const audioTrack = {
-                clips: audioClips
+            const musicTrack = {
+                clips: musicClips
             };
-            tracks.push(audioTrack);
+            tracks.push(musicTrack);
             
-            console.log(`✅ Created ${audioClips.length} audio clips covering ${currentTime.toFixed(1)}s (${sequenceIndex} sequences)`);
+            console.log(`✅ Created ${musicClips.length} music clips covering ${currentTime.toFixed(1)}s (${sequenceIndex} sequences)`);
         }
     } else {
-        // Use default audio (speech/narration)
-        const audioUrlToUse = audioUrl || compressedAudioUrl;
-        
-        if (audioUrlToUse) {
-            console.log(`🎵 Using ${audioUrl ? 'original' : 'compressed'} speech audio for video: ${audioUrlToUse}`);
-            
-            const audioTrack = {
-                clips: [{
-                    asset: {
-                        type: "audio",
-                        src: audioUrlToUse,
-                        volume: 1 // Full volume for speech
-                    },
-                    start: 0,
-                    length: totalDuration
-                }]
-            };
-            tracks.push(audioTrack);
-        } else {
-            console.warn('⚠️ No audio URL provided for video generation');
-        }
+        console.log(`🔇 No custom music - voiceover only`);
     }
 
     // Prepend dust overlay track if available (becomes the first track)
