@@ -20,7 +20,8 @@ const GeminiVideoAnalysisSchema = z.object({
   characterInsights: z.array(z.string()).describe("Insights about people or characters mentioned"),
   conflictElements: z.array(z.string()).describe("Conflicts, tensions, or dramatic moments"),
   storyIdeas: z.array(z.string()).describe("Potential story concepts inspired by the content"),
-  creativePrompt: z.string().describe("A creative writing prompt based on the video content")
+  creativePrompt: z.string().describe("A creative writing prompt based on the video content"),
+  similarTitles: z.array(z.string()).describe("5-7 similar video title suggestions based on the content, style, and themes")
 })
 
 interface ParseGeminiRequest {
@@ -81,6 +82,7 @@ Your task is to extract and organize the following information from the Gemini r
 - conflictElements: Array of conflicts, tensions, or dramatic moments
 - storyIdeas: Array of creative story concepts inspired by the content
 - creativePrompt: A creative writing prompt based on the video content
+- similarTitles: Array of 5-7 video title suggestions that would be similar in content, style, or theme to this video
 
 SPECIAL ATTENTION TO TIMESTAMPS:
 Look for any time references in these formats:

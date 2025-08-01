@@ -683,6 +683,28 @@ const CurrentResearchTab = ({
                             </div>
                           )}
                           
+                          {/* Similar Titles Section - Added for Gemini analysis */}
+                          {summary.videosSummary.similarTitles && summary.videosSummary.similarTitles.length > 0 && (
+                            <div>
+                              <h5 className="font-semibold text-gray-800 mb-2">Similar Title Suggestions</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {summary.videosSummary.similarTitles.map((title: string, index: number) => (
+                                  <div key={index} className="bg-gradient-to-r from-green-50 to-blue-50 p-3 rounded border-l-4 border-green-400">
+                                    <div className="flex items-center gap-2">
+                                      <span className="bg-green-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">
+                                        {index + 1}
+                                      </span>
+                                      <p className="text-sm text-gray-800 font-medium">{title}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2">
+                                💡 These are AI-generated title suggestions based on the video's content, style, and themes
+                              </p>
+                            </div>
+                          )}
+                          
                           {/* Character Insights */}
                           {summary.videosSummary.characterInsights && summary.videosSummary.characterInsights.length > 0 && (
                             <div>
@@ -1265,6 +1287,13 @@ export default function YouTubeSearch() {
   const [analysisMode, setAnalysisMode] = React.useState<'openai' | 'gemini'>('openai')
   const [isAnalyzingBatch, setIsAnalyzingBatch] = React.useState(false)
   const [batchAnalysisProgress, setBatchAnalysisProgress] = React.useState({ completed: 0, total: 0 })
+  
+  // Custom YouTube link analysis state
+  const [customYouTubeLink, setCustomYouTubeLink] = React.useState('')
+  const [customLinkAnalysisType, setCustomLinkAnalysisType] = React.useState<'transcript' | 'gemini'>('gemini')
+  const [analyzingCustomLink, setAnalyzingCustomLink] = React.useState(false)
+  const [customTranscript, setCustomTranscript] = React.useState('')
+  const [customAnalysisQuery, setCustomAnalysisQuery] = React.useState('Comprehensive analysis of this video content')
 
   // Research History Management Functions
   const deleteFromHistory = (historyId: string) => {
@@ -1607,6 +1636,169 @@ export default function YouTubeSearch() {
     dispatch(summarizeVideos(videosWithSubtitles))
   }
 
+  // Helper function to extract video ID from YouTube URL
+  const extractVideoIdFromUrl = (url: string): string | null => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&\n?#]+)/,
+      /youtube\.com\/watch\?.*v=([^&\n?#]+)/
+    ]
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern)
+      if (match && match[1]) {
+        return match[1]
+      }
+    }
+    return null
+  }
+
+  // Custom YouTube link analysis function
+  const handleAnalyzeCustomLink = async () => {
+    // Validation based on analysis type
+    if (customLinkAnalysisType === 'gemini') {
+      if (!customYouTubeLink.trim()) {
+        alert('Please enter a YouTube URL for Gemini analysis')
+        return
+      }
+    } else if (customLinkAnalysisType === 'transcript') {
+      if (!customTranscript.trim()) {
+        alert('Please enter a transcript for analysis')
+        return
+      }
+      if (!customAnalysisQuery.trim()) {
+        alert('Please enter an analysis query')
+        return
+      }
+    }
+
+    const videoId = customYouTubeLink.trim() ? extractVideoIdFromUrl(customYouTubeLink.trim()) : `custom-${Date.now()}`
+    
+    // For Gemini analysis, videoId extraction is required
+    if (customLinkAnalysisType === 'gemini' && (videoId === null || videoId.startsWith('custom-'))) {
+      alert('Invalid YouTube URL. Please enter a valid YouTube video URL for Gemini analysis.')
+      return
+    }
+
+    setAnalyzingCustomLink(true)
+
+    try {
+      if (customLinkAnalysisType === 'transcript') {
+        // Transcript analysis using existing LLM functionality
+        console.log('🎯 Starting transcript analysis for custom content')
+        
+        const result = await dispatch(analyzeTranscript({
+          videoId: videoId || `custom-transcript-${Date.now()}`,
+          srtContent: customTranscript,
+          query: customAnalysisQuery,
+          videoTitle: `Custom Transcript Analysis${customYouTubeLink ? ` (${customYouTubeLink})` : ''}`
+        })).unwrap()
+
+        // Create research summary for custom transcript analysis
+        const customTranscriptResearchSummary = {
+          id: `custom-transcript-analysis-${Date.now()}`,
+          query: `Custom Transcript Analysis: ${customAnalysisQuery}`,
+          videosSummary: {
+            overallTheme: result.analysis.length > 0 ? result.analysis[0].summary : 'Transcript analysis completed',
+            keyInsights: result.analysis.map((a: any) => a.summary || 'Analysis insight'),
+            timestamps: result.analysis.filter((a: any) => a.timestamp).map((a: any) => ({
+              time: a.timestamp,
+              description: a.summary,
+              significance: a.keyPoints?.[0] || 'Important moment'
+            })),
+            similarTitles: [], // Not applicable for transcript analysis
+            videoSummaries: [{
+              videoId: videoId || `custom-transcript-${Date.now()}`,
+              title: `Custom Transcript Analysis${customYouTubeLink ? ` (${customYouTubeLink})` : ''}`,
+              keyPoints: result.analysis.flatMap((a: any) => a.keyPoints || []),
+              mainTopic: customAnalysisQuery,
+              narrativeElements: result.analysis.flatMap((a: any) => a.narrativeElements || []),
+              emotionalTone: result.analysis.find((a: any) => a.emotionalTone)?.emotionalTone || 'Neutral'
+            }],
+            commonPatterns: ['Custom transcript analysis performed using OpenAI'],
+            actionableItems: result.analysis.flatMap((a: any) => a.actionableItems || []),
+            narrativeThemes: result.analysis.flatMap((a: any) => a.themes || []),
+            characterInsights: result.analysis.flatMap((a: any) => a.characterInsights || []),
+            conflictElements: result.analysis.flatMap((a: any) => a.conflictElements || []),
+            storyIdeas: result.analysis.flatMap((a: any) => a.storyIdeas || []),
+            creativePrompt: result.analysis.find((a: any) => a.creativePrompt)?.creativePrompt || ''
+          },
+          timestamp: new Date().toISOString(),
+          usingMock: result.usingMock || false,
+          appliedToScript: false,
+          analysisType: 'openai' as 'openai',
+          customVideoUrl: customYouTubeLink || undefined,
+          customTranscript: true // Flag to indicate this was a custom transcript analysis
+        }
+
+        dispatch(addYouTubeResearchSummary(customTranscriptResearchSummary))
+        console.log(`✅ Created custom transcript research summary`)
+        
+        // Clear the inputs and switch to current research tab
+        setCustomTranscript('')
+        setCustomAnalysisQuery('Comprehensive analysis of this video content')
+        setCustomYouTubeLink('')
+        setActiveTab('current-research')
+        
+      } else {
+        // Gemini analysis (existing functionality)
+        console.log('🎯 Starting Gemini analysis for custom link:', customYouTubeLink)
+        
+        const result = await dispatch(analyzeVideoWithGemini({
+          videoId: videoId!,
+          videoUrl: customYouTubeLink,
+          title: `Custom Video Analysis (${videoId})`,
+          query: customAnalysisQuery
+        })).unwrap()
+
+        // Create research summary for custom Gemini analysis
+        const customGeminiResearchSummary = {
+          id: `custom-gemini-analysis-${videoId}-${Date.now()}`,
+          query: `${result.parsedWithGPT ? 'Gemini AI + GPT-4o-mini' : 'Gemini AI'} Custom Analysis: ${customYouTubeLink}`,
+          videosSummary: {
+            overallTheme: result.analysis.summary,
+            keyInsights: result.analysis.keyPoints,
+            timestamps: result.analysis.timestamps,
+            similarTitles: result.analysis.similarTitles || [], // Add similar titles
+            videoSummaries: [{
+              videoId: videoId!,
+              title: `Custom Video Analysis (${videoId})`,
+              keyPoints: result.analysis.keyPoints,
+              mainTopic: result.analysis.topics[0] || 'Custom video analysis',
+              narrativeElements: result.analysis.storyIdeas,
+              emotionalTone: result.analysis.emotionalTone
+            }],
+            commonPatterns: [`Custom analysis performed using ${result.parsedWithGPT ? 'Gemini AI with GPT-4o-mini structured parsing' : 'Gemini AI'}`],
+            actionableItems: result.analysis.actionableInsights || ['Review analysis insights for content creation'],
+            narrativeThemes: result.analysis.topics.slice(0, 5),
+            characterInsights: result.analysis.characterInsights,
+            conflictElements: result.analysis.conflictElements,
+            storyIdeas: result.analysis.storyIdeas,
+            creativePrompt: result.analysis.creativePrompt
+          },
+          timestamp: new Date().toISOString(),
+          usingMock: false,
+          appliedToScript: false,
+          analysisType: result.parsedWithGPT ? 'gemini+gpt' : 'gemini' as 'gemini' | 'gemini+gpt',
+          customVideoUrl: customYouTubeLink // Add custom URL for reference
+        }
+
+        dispatch(addYouTubeResearchSummary(customGeminiResearchSummary))
+        console.log(`✅ Created custom Gemini research summary for: ${customYouTubeLink}`)
+        
+        // Clear the inputs and switch to current research tab
+        setCustomYouTubeLink('')
+        setCustomAnalysisQuery('Comprehensive analysis of this video content')
+        setActiveTab('current-research')
+      }
+
+    } catch (error) {
+      console.error('Error analyzing custom content:', error)
+      alert(`Failed to analyze content: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setAnalyzingCustomLink(false)
+    }
+  }
+
   const getVideosWithSubtitlesCount = () => {
     return searchResults.selectedVideos.filter(videoId => {
       const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
@@ -1707,6 +1899,7 @@ export default function YouTubeSearch() {
                 overallTheme: result.analysis.summary,
                 keyInsights: result.analysis.keyPoints,
                 timestamps: result.analysis.timestamps, // Add timestamps to the structure
+                similarTitles: result.analysis.similarTitles || [], // Add similar titles
                 videoSummaries: [{
                   videoId: videoId,
                   title: video.snippet.title,
@@ -2017,6 +2210,169 @@ export default function YouTubeSearch() {
                   <p className="text-sm text-red-600 mt-2">
                     Please enter either a search query or a channel URL (or both).
                   </p>
+                )}
+              </div>
+            </div>
+
+            {/* Custom YouTube Link Analysis */}
+            <div className="bg-blue-50 p-6 rounded-lg mb-6">
+              <h3 className="text-lg font-medium text-blue-900 mb-4">
+                🔗 Analyze Custom YouTube Link
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="customYouTubeLink" className="block text-sm font-medium text-gray-700 mb-2">
+                    YouTube Video URL {customLinkAnalysisType === 'gemini' ? '(Required)' : '(Optional)'}:
+                  </label>
+                  <input
+                    type="text"
+                    id="customYouTubeLink"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
+                    value={customYouTubeLink}
+                    onChange={(e) => setCustomYouTubeLink(e.target.value)}
+                    disabled={analyzingCustomLink}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {customLinkAnalysisType === 'gemini' 
+                      ? 'Enter a YouTube video URL for Gemini to analyze directly from the video'
+                      : 'Optional: Enter a YouTube URL for reference (you will provide the transcript below)'
+                    }
+                  </p>
+                </div>
+
+                {/* Transcript Analysis Fields */}
+                {customLinkAnalysisType === 'transcript' && (
+                  <>
+                    <div>
+                      <label htmlFor="customTranscript" className="block text-sm font-medium text-gray-700 mb-2">
+                        Video Transcript (Required):
+                      </label>
+                      <textarea
+                        id="customTranscript"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Paste the video transcript here... You can include timestamps like [00:30] or use SRT format."
+                        value={customTranscript}
+                        onChange={(e) => setCustomTranscript(e.target.value)}
+                        disabled={analyzingCustomLink}
+                        rows={8}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Paste the complete transcript of the video. Supports plain text or SRT format with timestamps.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="customAnalysisQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                        Analysis Query (Required):
+                      </label>
+                      <input
+                        type="text"
+                        id="customAnalysisQuery"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="What should the AI analyze? e.g., 'Key insights about marketing strategies'"
+                        value={customAnalysisQuery}
+                        onChange={(e) => setCustomAnalysisQuery(e.target.value)}
+                        disabled={analyzingCustomLink}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Specify what you want the AI to focus on when analyzing the transcript.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* Analysis Query for Gemini */}
+                {customLinkAnalysisType === 'gemini' && (
+                  <div>
+                    <label htmlFor="customAnalysisQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                      Analysis Focus (Optional):
+                    </label>
+                    <input
+                      type="text"
+                      id="customAnalysisQuery"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 'Focus on marketing strategies and audience engagement'"
+                      value={customAnalysisQuery}
+                      onChange={(e) => setCustomAnalysisQuery(e.target.value)}
+                      disabled={analyzingCustomLink}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Optional: Specify what aspects you want Gemini to focus on during analysis.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Analysis Type:
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="customAnalysisType"
+                          value="gemini"
+                          checked={customLinkAnalysisType === 'gemini'}
+                          onChange={(e) => setCustomLinkAnalysisType(e.target.value as 'gemini' | 'transcript')}
+                          disabled={analyzingCustomLink}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-gray-600">Gemini AI Analysis</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="customAnalysisType"
+                          value="transcript"
+                          checked={customLinkAnalysisType === 'transcript'}
+                          onChange={(e) => setCustomLinkAnalysisType(e.target.value as 'gemini' | 'transcript')}
+                          disabled={analyzingCustomLink}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-gray-600">Transcript Analysis</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleAnalyzeCustomLink}
+                    disabled={
+                      analyzingCustomLink || 
+                      (customLinkAnalysisType === 'gemini' && !customYouTubeLink.trim()) ||
+                      (customLinkAnalysisType === 'transcript' && (!customTranscript.trim() || !customAnalysisQuery.trim()))
+                    }
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors ml-auto"
+                  >
+                    {analyzingCustomLink ? (
+                      <span className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Analyzing...
+                      </span>
+                    ) : (
+                      'Analyze Video'
+                    )}
+                  </button>
+                </div>
+                
+                {customLinkAnalysisType === 'transcript' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <p className="text-sm text-blue-800">
+                      <strong>Transcript Analysis:</strong> Provide your own transcript for detailed AI analysis using OpenAI models. 
+                      Perfect when you already have the transcript or want to analyze specific content sections.
+                    </p>
+                  </div>
+                )}
+                
+                {customLinkAnalysisType === 'gemini' && (
+                  <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                    <p className="text-sm text-green-800">
+                      <strong>Gemini AI Analysis:</strong> Get comprehensive video analysis directly from YouTube URL including 
+                      timestamps, similar title suggestions, and content insights using Google's Gemini AI.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
