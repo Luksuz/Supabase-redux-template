@@ -6,12 +6,14 @@ import { VideoIcon } from 'lucide-react'
 interface VideoEmptyStateProps {
   hasPrerequisites: boolean
   hasGeneratedImages: boolean
+  selectedVideosCount: number
   audioGeneration: any
 }
 
 export function VideoEmptyState({ 
   hasPrerequisites, 
   hasGeneratedImages, 
+  selectedVideosCount,
   audioGeneration 
 }: VideoEmptyStateProps) {
   if (hasPrerequisites) {

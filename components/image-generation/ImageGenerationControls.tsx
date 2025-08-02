@@ -66,7 +66,7 @@ export function ImageGenerationControls({
         <Badge variant="secondary">{aspectRatio} Aspect Ratio</Badge>
         {selectedImageStyle && selectedImageStyle !== 'none' && (
           <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-            {IMAGE_STYLES.find(style => style.value === selectedImageStyle)?.label || 'Custom Style'}
+            {IMAGE_STYLES[selectedImageStyle as keyof typeof IMAGE_STYLES]?.name || 'Custom Style'}
           </Badge>
         )}
         <Badge variant="secondary">{selectedScenes.length} Selected Scene{selectedScenes.length !== 1 ? 's' : ''}</Badge>

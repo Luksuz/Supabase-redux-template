@@ -77,14 +77,20 @@ export interface VideoSummary {
 export interface VideosSummary {
   overallTheme: string
   keyInsights: string[]
-  videoSummaries: VideoSummary[]
-  commonPatterns: string[]
   actionableItems: string[]
-  narrativeThemes: string[]
   characterInsights: string[]
   conflictElements: string[]
   storyIdeas: string[]
   creativePrompt: string
+  // Optional properties for backward compatibility
+  videoSummaries?: VideoSummary[]
+  commonPatterns?: string[]
+  narrativeThemes?: string[]
+  timestamps?: Array<{
+    time: string
+    description: string
+    significance: string
+  }>
 }
 
 // Research Summary interfaces

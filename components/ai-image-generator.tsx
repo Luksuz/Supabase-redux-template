@@ -25,7 +25,7 @@ import {
 } from '@/lib/features/imageGeneration/imageGenerationSlice'
 import type { ExtractedScene, GeneratedImageSet, ImageProvider } from '@/types/image-generation'
 import { v4 as uuidv4 } from 'uuid'
-import { IMAGE_STYLES, MODEL_INFO } from '@/data/image'
+import { IMAGE_STYLES, LIGHTING_TONES, MODEL_INFO } from '@/data/image'
 
 // Import modular components
 import { ModelSelection } from './image-generation/ModelSelection'
@@ -62,6 +62,8 @@ export function AIImageGenerator() {
   const [downloadingZip, setDownloadingZip] = useState<string | null>(null)
   const [showImageSelection, setShowImageSelection] = useState(false)
   const [selectedImageStyle, setSelectedImageStyle] = useState<string>('realistic')
+  const [selectedLightingTone, setSelectedLightingTone] = useState<string>('balanced')
+  const [customStylePrompt, setCustomStylePrompt] = useState<string>('')
   const [regeneratingImages, setRegeneratingImages] = useState<Set<string>>(new Set())
 
   // Thumbnail generator state
@@ -70,6 +72,9 @@ export function AIImageGenerator() {
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false)
   const [thumbnailResult, setThumbnailResult] = useState<string | null>(null)
   const [thumbnailError, setThumbnailError] = useState<string | null>(null)
+  const [thumbnailImageStyle, setThumbnailImageStyle] = useState<string>('realistic')
+  const [thumbnailLightingTone, setThumbnailLightingTone] = useState<string>('balanced')
+  const [thumbnailCustomStyle, setThumbnailCustomStyle] = useState<string>('')
 
   // Get available script sources (prioritized)
   const fullScriptText = fullScript?.scriptWithMarkdown || ''
@@ -165,7 +170,7 @@ export function AIImageGenerator() {
   const applyImageStyle = (basePrompt: string) => {
     if (!selectedImageStyle || selectedImageStyle === 'none') return basePrompt
     
-    const selectedStyle = IMAGE_STYLES.find(style => style.value === selectedImageStyle)
+    const selectedStyle = IMAGE_STYLES[selectedImageStyle as keyof typeof IMAGE_STYLES]
     if (!selectedStyle || !selectedStyle.prefix) return basePrompt
     
     return `${selectedStyle.prefix}${basePrompt}`
@@ -734,12 +739,16 @@ export function AIImageGenerator() {
             <ImageStyleSelector
               selectedImageStyle={selectedImageStyle}
               onImageStyleChange={setSelectedImageStyle}
+              selectedLightingTone={selectedLightingTone}
+              onLightingToneChange={setSelectedLightingTone}
               aspectRatio={aspectRatio}
               onAspectRatioChange={(ratio) => dispatch(setAspectRatio(ratio))}
               selectedScenes={selectedScenes}
               extractedScenes={extractedScenes}
               isGenerating={isGenerating}
               isExtractingScenes={isExtractingScenes}
+              customStylePrompt={customStylePrompt}
+              onCustomStylePromptChange={setCustomStylePrompt}
             />
           )}
 
@@ -807,6 +816,12 @@ export function AIImageGenerator() {
             onGenerateThumbnail={generateThumbnail}
             onDownloadThumbnail={downloadThumbnail}
             onClearThumbnailGenerator={clearThumbnailGenerator}
+            selectedImageStyle={thumbnailImageStyle}
+            onImageStyleChange={setThumbnailImageStyle}
+            selectedLightingTone={thumbnailLightingTone}
+            onLightingToneChange={setThumbnailLightingTone}
+            customStylePrompt={thumbnailCustomStyle}
+            onCustomStylePromptChange={setThumbnailCustomStyle}
           />
         </TabsContent>
       </Tabs>

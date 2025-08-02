@@ -10,6 +10,7 @@ import {
   setIsGeneratingVideo
 } from '../lib/features/video/videoSlice'
 import { CreateVideoRequestBody, VideoRecord, SegmentTiming, IntroImageConfig } from '@/types/video-generation'
+import { getStoredVideosFromLocalStorage } from '@/utils/video-storage-utils'
 
 // Import modular components
 import { VideoPrerequisites } from './video-generation/VideoPrerequisites'
@@ -17,6 +18,7 @@ import { VideoSettings } from './video-generation/VideoSettings'
 import { VideoGenerationStatus } from './video-generation/VideoGenerationStatus'
 import { VideoStatusMessage } from './video-generation/VideoStatusMessage'
 import { VideoEmptyState } from './video-generation/VideoEmptyState'
+import { SelectedVideosDisplay } from './video-generation/SelectedVideosDisplay'
 
 export function VideoGenerator() {
   const dispatch = useAppDispatch()
@@ -30,12 +32,14 @@ export function VideoGenerator() {
   const { 
     currentGeneration, 
     isGeneratingVideo,
-    settings
+    settings,
+    selectedVideosForGeneration
   } = useAppSelector(state => state.video)
   
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [customSegmentTimings, setCustomSegmentTimings] = useState<SegmentTiming[]>([])
+  const [selectedVideosCount, setSelectedVideosCount] = useState(0)
 
   // Add subtitle styling state
   const [subtitleSettings, setSubtitleSettings] = useState({
@@ -50,6 +54,13 @@ export function VideoGenerator() {
   // Add state for intro images configuration (for Option 2)
   const [introImages, setIntroImages] = useState<IntroImageConfig[]>([])
   const [selectedLoopImageId, setSelectedLoopImageId] = useState<string>('')
+
+  // Track selected videos count
+  useEffect(() => {
+    const storedVideos = getStoredVideosFromLocalStorage()
+    const selectedVideos = storedVideos.filter(video => selectedVideosForGeneration.includes(video.id))
+    setSelectedVideosCount(selectedVideos.length)
+  }, [selectedVideosForGeneration])
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -122,19 +133,20 @@ export function VideoGenerator() {
     })
   }, [imageSets, selectedImagesOrder, hasGeneratedImages])
 
-  // Check if we have all prerequisites for video generation
-  const hasPrerequisites = hasGeneratedImages && audioGeneration?.audioUrl
+  // Check if we have all prerequisites for video generation (either images OR videos, plus audio)
+  const hasVideoContent = hasGeneratedImages || selectedVideosCount > 0
+  const hasPrerequisites = hasVideoContent && audioGeneration?.audioUrl
 
   // Show messages for state changes
   useEffect(() => {
-    if (hasGeneratedImages && audioGeneration?.audioUrl) {
+    if (hasVideoContent && audioGeneration?.audioUrl) {
       showMessage('Ready to generate video! All prerequisites are met.', 'success')
-    } else if (!hasGeneratedImages) {
-      showMessage('Select images in Image Generator first to create a video.', 'info')
+    } else if (!hasVideoContent) {
+      showMessage('Select images in Image Generator OR videos from Text/Image-to-Video Generator first.', 'info')
     } else if (!audioGeneration?.audioUrl) {
       showMessage('Generate audio first to create a video.', 'info')
     }
-  }, [hasGeneratedImages, audioGeneration?.audioUrl])
+  }, [hasVideoContent, audioGeneration?.audioUrl])
 
   // Update segment timing duration
   const updateSegmentTiming = (index: number, duration: number) => {
@@ -436,12 +448,18 @@ export function VideoGenerator() {
         audioGeneration={audioGeneration}
       />
 
+      {/* Selected Videos Display */}
+      {selectedVideosCount > 0 && (
+        <SelectedVideosDisplay />
+      )}
+
       {/* Video Settings */}
       <VideoSettings
         settings={settings}
         onSettingsChange={handleSettingsChange}
         hasPrerequisites={hasPrerequisites as boolean}
         selectedImagesCount={selectedImagesOrder.length}
+        selectedVideosCount={selectedVideosCount}
         audioGeneration={audioGeneration}
         isGeneratingVideo={isGeneratingVideo}
         onGenerateVideo={handleGenerateVideo}
@@ -476,6 +494,7 @@ export function VideoGenerator() {
       <VideoEmptyState
         hasPrerequisites={hasPrerequisites as boolean}
         hasGeneratedImages={hasGeneratedImages}
+        selectedVideosCount={selectedVideosCount}
         audioGeneration={audioGeneration}
       />
     </div>

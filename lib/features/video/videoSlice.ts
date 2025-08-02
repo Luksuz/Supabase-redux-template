@@ -7,6 +7,7 @@ interface VideoState {
   isGeneratingVideo: boolean
   settings: VideoGenerationSettings
   statusRefreshInterval: number | null
+  selectedVideosForGeneration: string[] // Array of video IDs selected for video generation
 }
 
 const initialState: VideoState = {
@@ -25,7 +26,8 @@ const initialState: VideoState = {
     introDuration: 60, // 1 minute default
     useEqualIntroDuration: true
   },
-  statusRefreshInterval: null
+  statusRefreshInterval: null,
+  selectedVideosForGeneration: []
 }
 
 export const videoSlice = createSlice({
@@ -141,10 +143,42 @@ export const videoSlice = createSlice({
       state.currentGeneration = null
       state.generationHistory = []
       state.isGeneratingVideo = false
+      state.selectedVideosForGeneration = []
       if (state.statusRefreshInterval) {
         clearInterval(state.statusRefreshInterval)
         state.statusRefreshInterval = null
       }
+    },
+
+    // Selected videos for generation management
+    addVideoToSelection: (state, action: PayloadAction<string>) => {
+      const videoId = action.payload
+      if (!state.selectedVideosForGeneration.includes(videoId)) {
+        state.selectedVideosForGeneration.push(videoId)
+      }
+    },
+
+    removeVideoFromSelection: (state, action: PayloadAction<string>) => {
+      const videoId = action.payload
+      state.selectedVideosForGeneration = state.selectedVideosForGeneration.filter(id => id !== videoId)
+    },
+
+    toggleVideoSelection: (state, action: PayloadAction<string>) => {
+      const videoId = action.payload
+      const index = state.selectedVideosForGeneration.indexOf(videoId)
+      if (index > -1) {
+        state.selectedVideosForGeneration.splice(index, 1)
+      } else {
+        state.selectedVideosForGeneration.push(videoId)
+      }
+    },
+
+    setSelectedVideos: (state, action: PayloadAction<string[]>) => {
+      state.selectedVideosForGeneration = action.payload
+    },
+
+    clearSelectedVideos: (state) => {
+      state.selectedVideosForGeneration = []
     }
   }
 })
@@ -160,7 +194,12 @@ export const {
   loadVideoHistory,
   clearCurrentGeneration,
   setStatusRefreshInterval,
-  clearAllVideoData
+  clearAllVideoData,
+  addVideoToSelection,
+  removeVideoFromSelection,
+  toggleVideoSelection,
+  setSelectedVideos,
+  clearSelectedVideos
 } = videoSlice.actions
 
 export default videoSlice.reducer 

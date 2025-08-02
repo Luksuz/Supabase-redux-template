@@ -78,18 +78,72 @@ export const MODEL_INFO: Record<ImageProvider, {
     // }
     
   }
-  // Define available image styles with their prefixes
-  export const IMAGE_STYLES = [
-    { value: 'none', label: 'No specific style', prefix: '' },
-    { value: 'ancient-beige-paper-ink', label: 'Ancient beige paper ink illustration style', prefix: 'Ancient beige paper ink illustration style, ' },
-    { value: 'ancient-beige-paper-book', label: 'Ancient beige paper ink illustration from an ancient book', prefix: 'Ancient beige paper ink illustration from an ancient book, ' },
-    { value: 'esoteric-1400s', label: 'Esoteric 1400s drawing style', prefix: 'Esoteric 1400s drawing style, ' },
-    { value: 'medieval', label: 'Medieval drawing style', prefix: 'Medieval drawing style, ' },
-    { value: 'oil-painting', label: 'Oil painting style', prefix: 'Oil painting style, ' },
-    { value: 'ary-scheffer', label: "Ary Scheffer's painting depicting style", prefix: "Ary Scheffer's painting depicting style, " },
-    { value: 'pieter-jansz', label: 'Pieter-Jansz van Asch painting style', prefix: 'Pieter-Jansz van Asch painting style, ' },
-    { value: 'black-white', label: 'Black & White', prefix: 'Black & White, ' },
-    { value: 'ancient-egyptian', label: 'Ancient Egyptian art style', prefix: 'Ancient Egyptian art style, ' },
-    { value: 'modern-symbolist', label: 'Modern Symbolist/Esoteric Art style', prefix: 'Modern Symbolist/Esoteric Art style, ' },
-    { value: 'northern-renaissance', label: 'Northern Renaissance engraving style', prefix: 'Northern Renaissance engraving style, ' }
-  ]
+
+// Image Style Categories
+export const IMAGE_STYLES = {
+  realistic: {
+    name: 'Realistic',
+    description: 'Photorealistic style',
+    prefix: 'photorealistic, high-quality photography, professional lighting, '
+  },
+  artistic: {
+    name: 'Artistic',
+    description: 'Creative, painterly style',
+    prefix: 'artistic painting style, creative brushwork, expressive colors, '
+  },
+  cinematic: {
+    name: 'Cinematic',
+    description: 'Movie-like composition',
+    prefix: 'cinematic composition, movie-style framing, dramatic perspective, '
+  },
+  animation: {
+    name: 'Animation',
+    description: '3D/cartoon style',
+    prefix: '3D rendered animation style, cartoon-like characters, vibrant colors, '
+  },
+  graphic: {
+    name: 'Graphic',
+    description: 'Bold, graphic design style',
+    prefix: 'bold graphic design style, clean lines, modern aesthetics, '
+  },
+  fantasy: {
+    name: 'Fantasy',
+    description: 'Fantasy art style',
+    prefix: 'fantasy art style, magical atmosphere, ethereal elements, '
+  }
+}
+
+// Lighting Tone Options
+export const LIGHTING_TONES = {
+  light: {
+    name: 'Light',
+    description: 'Bright, well-lit scenes',
+    prefix: 'bright lighting, well-lit scene, soft natural light, '
+  },
+  balanced: {
+    name: 'Balanced',
+    description: 'Natural lighting (default)',
+    prefix: 'balanced natural lighting, '
+  },
+  dark: {
+    name: 'Dark',
+    description: 'Dramatic, darker scenes',
+    prefix: 'dramatic dark lighting, moody atmosphere, low-key lighting, '
+  }
+}
+
+// Legacy IMAGE_STYLES array for backward compatibility
+export const LEGACY_IMAGE_STYLES = [
+  { value: 'none', label: 'No specific style', prefix: '' },
+  { value: 'ancient-beige-paper-ink', label: 'Ancient beige paper ink illustration style', prefix: 'Ancient beige paper ink illustration style, ' },
+  { value: 'ancient-beige-paper-book', label: 'Ancient beige paper ink illustration from an ancient book', prefix: 'Ancient beige paper ink illustration from an ancient book, ' },
+  { value: 'esoteric-1400s', label: 'Esoteric 1400s drawing style', prefix: 'Esoteric 1400s drawing style, ' },
+  { value: 'medieval', label: 'Medieval drawing style', prefix: 'Medieval drawing style, ' },
+  { value: 'oil-painting', label: 'Oil painting style', prefix: 'Oil painting style, ' },
+  { value: 'ary-scheffer', label: "Ary Scheffer's painting depicting style", prefix: "Ary Scheffer's painting depicting style, " },
+  { value: 'pieter-jansz', label: 'Pieter-Jansz van Asch painting style', prefix: 'Pieter-Jansz van Asch painting style, ' },
+  { value: 'black-white', label: 'Black & White', prefix: 'Black & White, ' },
+  { value: 'ancient-egyptian', label: 'Ancient Egyptian art style', prefix: 'Ancient Egyptian art style, ' },
+  { value: 'modern-symbolist', label: 'Modern Symbolist/Esoteric Art style', prefix: 'Modern Symbolist/Esoteric Art style, ' },
+  { value: 'northern-renaissance', label: 'Northern Renaissance engraving style', prefix: 'Northern Renaissance engraving style, ' }
+]

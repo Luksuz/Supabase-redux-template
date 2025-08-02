@@ -6,7 +6,7 @@ import { Card } from './ui/card'
 import { Badge } from './ui/badge'
 import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Mic, Video, Activity, Settings, Search } from 'lucide-react'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -23,12 +23,10 @@ export function SidebarNavigation({
   // YouTube research state
   const youtube = useAppSelector(state => state.youtube)
   const hasYouTubeResearch = youtube && (
-    (youtube.googleResearchSummaries && youtube.googleResearchSummaries.length > 0) ||
     (youtube.youtubeResearchSummaries && youtube.youtubeResearchSummaries.length > 0) ||
     youtube.videosSummary
   )
   const appliedResearchCount = youtube ? (
-    (youtube.googleResearchSummaries?.filter(r => r.appliedToScript) || []).length +
     (youtube.youtubeResearchSummaries?.filter(r => r.appliedToScript) || []).length
   ) : 0
 
@@ -50,6 +48,12 @@ export function SidebarNavigation({
       label: 'Image Generator', 
       icon: ImageIcon,
       description: 'Create images from scripts'
+    },
+    {
+      id: 'text-image-video-generator' as NavigationView,
+      label: 'Text & Image to Video Generator',
+      icon: VideoIcon,
+      description: 'Create videos from text and images'
     },
     {
       id: 'audio-generator' as NavigationView,

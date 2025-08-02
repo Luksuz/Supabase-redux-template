@@ -16,6 +16,7 @@ interface VideoSettingsProps {
   onSettingsChange: (settings: any) => void
   hasPrerequisites: boolean
   selectedImagesCount: number
+  selectedVideosCount: number
   audioGeneration: any
   isGeneratingVideo: boolean
   onGenerateVideo: () => void
@@ -58,6 +59,7 @@ export function VideoSettings({
   onSettingsChange,
   hasPrerequisites,
   selectedImagesCount,
+  selectedVideosCount,
   audioGeneration,
   isGeneratingVideo,
   onGenerateVideo,
@@ -683,7 +685,7 @@ export function VideoSettings({
                 <span className="font-medium text-orange-800">Prerequisites Required</span>
               </div>
               <div className="text-sm text-orange-700 space-y-1">
-                {selectedImagesCount === 0 && <div>• Select images from Image Generator first</div>}
+                {selectedImagesCount === 0 && selectedVideosCount === 0 && <div>• Select images from Image Generator OR videos from Text/Image-to-Video Generator</div>}
                 {!audioGeneration?.audioUrl && <div>• Generate audio from scripts</div>}
               </div>
             </div>
@@ -692,7 +694,7 @@ export function VideoSettings({
           {/* Generate Button */}
           <Button
             onClick={onGenerateVideo}
-            disabled={isGeneratingVideo || !hasPrerequisites || selectedImagesCount === 0}
+            disabled={isGeneratingVideo || !hasPrerequisites}
             className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
             size="lg"
           >

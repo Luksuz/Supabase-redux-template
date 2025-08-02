@@ -1,17 +1,26 @@
+import Replicate from "replicate";
 import dotenv from "dotenv";
-
+import { writeFile, readFile } from "fs/promises";
 dotenv.config();
 
-const formData = new FormData();
-formData.append('prompt', 'A photo of a cat');
-formData.append('rendering_speed', 'TURBO');
-// To add style reference images, uncomment the following lines
-// formData.append('style_reference_images', '<style_reference_image_1>');
-// formData.append('style_reference_images', '<style_reference_image_2>');
-const response = await fetch('https://api.ideogram.ai/v1/ideogram-v3/generate', {
-  method: 'POST',
-  headers: { 'Api-Key': "03de20f7-30df-4a31-928a-b237da28c3c0:219b3278c2f5aa49ffe8661388d5cc25" },
-  body: formData
-});
-const data = await response.json();
-console.log(data);
+const data = (await readFile("./audi.jpeg")).toString("base64");
+const image = `data:application/octet-stream;base64,${data}`;
+
+const input = {
+  prompt: "a woman sits in the car and drives off",
+  image: image,
+  duration: 10
+};
+
+const replicate = new Replicate();
+
+
+const output = await replicate.run("bytedance/seedance-1-lite", { input });
+
+// To access the file URL:
+console.log(output.url());
+//=> "https://replicate.delivery/.../output.mp4"
+
+// To write the file to disk:
+await writeFile("output.mp4", output);
+//=> output.mp4 written to disk

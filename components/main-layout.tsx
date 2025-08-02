@@ -10,8 +10,9 @@ import { VideoGenerator } from './video-generator'
 import { VideoStatus } from './video-status'
 import { AdminDashboard } from './admin-dashboard'
 import YouTubeSearch from './youtube-search'
+import { TextImageVideoGenerator } from './text-image-video-generator'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator'
 
 export function MainLayout() {
   // Start with script generator as the default view
@@ -33,6 +34,8 @@ export function MainLayout() {
         return <AdminDashboard />
       case 'youtube-search':
         return <YouTubeSearch />
+      case 'text-image-video-generator':
+        return <TextImageVideoGenerator />
       default:
         return <ScriptGenerator />
     }
