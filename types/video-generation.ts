@@ -16,6 +16,7 @@ export interface CreateVideoRequestBody {
   muteStockVideo?: boolean
   brightness?: number // -50 to +50, 0 = normal
   voiceVolume?: number // 0.0 to 1.0, 1.0 = full volume
+  overlayEffects?: ('dust' | 'fire-particles' | 'screen-displacement' | 'snow-falling')[] // Visual overlay effects (max 2)
   // Subtitle styling options
   fontFamily?: string
   fontSize?: number

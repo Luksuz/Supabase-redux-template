@@ -193,6 +193,7 @@ export async function POST(request: NextRequest) {
       muteStockVideo,
       brightness,
       voiceVolume,
+      overlayEffects,
       // Subtitle styling properties
       fontFamily,
       fontSize,
@@ -217,6 +218,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔇 Mute Stock Video: ${muteStockVideo}`);
     console.log(`🌞 Brightness: ${brightness || 0}`);
     console.log(`🔊 Voice Volume: ${voiceVolume !== undefined ? `${Math.round(voiceVolume * 100)}%` : '100%'}`);
+    console.log(`✨ Overlay Effects: ${overlayEffects?.length ? overlayEffects.join(', ') : 'none'}`);
     console.log(`📋 Text Transform: ${textTransform}`);
     console.log(`🎨 Font Color: ${fontColor || '#ffffff'}`);
     console.log(`📝 Font Family: ${fontFamily || 'Montserrat ExtraBold'}`);
@@ -231,6 +233,7 @@ export async function POST(request: NextRequest) {
       - Background Music: ${musicUrl ? 'YES' : 'NO'}
       - Music Volume: ${musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}
       - Mute Stock Video: ${muteStockVideo ? 'YES' : 'NO'}
+      - Overlay Effects: ${overlayEffects?.length ? `YES (${overlayEffects.join(', ')})` : 'NO'}
       - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (traditional video)'}
       - User ID: ${authenticatedUserId}
     `);
@@ -294,7 +297,48 @@ export async function POST(request: NextRequest) {
     // Initialize tracks array
     let tracks = [];
 
-    // Track for subtitles (captions) - Add this first if it exists
+    // Track for overlay effects (if overlayEffects is present) - Must be first for proper layering
+    if (overlayEffects && overlayEffects.length > 0) {
+        // Map overlay effect to URL
+        const getOverlayUrl = (effect: string): string => {
+            const overlayMap: Record<string, string> = {
+                'dust': 'https://byktarizdjtreqwudqmv.supabase.co/storage/v1/object/public/video-generator/overlay.webm',
+                'fire-particles': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/Fire%20Particles%20Overlay.mov',
+                'screen-displacement': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/screen-displacement-map-glitch-effect-digital-pixe-2024-07-17-05-42-56-utc.mov',
+                'snow-falling': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/snow-falling-2023-11-27-04-51-47-utc.mp4'
+            }
+            return overlayMap[effect] || ''
+        }
+
+        console.log(`✨ Adding ${overlayEffects.length} overlay effects (first tracks for proper layering)`);
+        
+        // Create a track for each overlay effect
+        overlayEffects.forEach((effect, index) => {
+            const overlayUrl = getOverlayUrl(effect);
+            if (overlayUrl) {
+                const overlayTrack = {
+                    clips: [{
+                        asset: {
+                            type: "video",
+                            src: overlayUrl,
+                            volume: 0 // Mute overlay video audio to avoid interference
+                        },
+                        start: 0,
+                        length: totalDuration,
+                        fit: "cover",
+                        opacity: 0.2 // Match the opacity from your example
+                    }]
+                };
+                tracks.push(overlayTrack);
+                
+                console.log(`   ✨ Overlay track ${index + 1} added: ${effect} with opacity 0.2`);
+            } else {
+                console.warn(`⚠️ Unknown overlay effect: ${effect}`);
+            }
+        });
+    }
+
+    // Track for subtitles (captions) - Add after overlay if it exists
     if (subtitlesUrl) {
       console.log(`Adding subtitles to video: ${subtitlesUrl}`);
       const transformedSubtitlesUrl = await processSubtitleFile(subtitlesUrl, textTransform || 'uppercase');
@@ -512,6 +556,8 @@ export async function POST(request: NextRequest) {
         };
         tracks.push(musicTrack);
     }
+
+
     
     // Log the track structure for debugging
     // console.log('📊 Final track structure:');
@@ -564,7 +610,8 @@ export async function POST(request: NextRequest) {
           hasSubtitles: !!subtitlesUrl,
           hasMusic: !!musicUrl,
           musicVolume: musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A',
-          muteStockVideo: muteStockVideo
+          muteStockVideo: muteStockVideo,
+          overlayEffects: overlayEffects?.length ? overlayEffects.join(', ') : 'none'
         },
         payload: shotstackPayload
       };
@@ -587,6 +634,7 @@ export async function POST(request: NextRequest) {
     console.log(`- Music Volume: ${musicUrl && musicVolume ? `${Math.round(musicVolume * 100)}%` : 'N/A'}`);
     console.log(`- Mute Stock Video: ${muteStockVideo ? 'YES' : 'NO'}`);
     console.log(`- Brightness: ${brightness !== undefined && brightness !== 0 ? `${brightness > 0 ? '+' : ''}${brightness} (chroma-based ${brightness > 0 ? 'lighten' : 'darken'})` : 'Normal (0)'}`);
+    console.log(`- Overlay Effects: ${overlayEffects?.length ? `YES (${overlayEffects.join(', ')})` : 'NO'}`);
     console.log(`- Subtitles: ${subtitlesUrl ? 'YES' : 'NO'}`);
     console.log(`- Font Color: ${fontColor || '#ffffff'}`);
     console.log(`- Total duration: ${totalDuration.toFixed(2)}s`);

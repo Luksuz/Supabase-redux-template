@@ -79,7 +79,7 @@ export function VideoGenerator() {
     isGeneratingVideo,
     settings
   } = useAppSelector(state => state.video)
-  const { id: userId } = useAppSelector(state => state.user)
+  const { id: userId } = useAppSelector(state => state.user) as { id: string }
   
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
@@ -105,6 +105,20 @@ export function VideoGenerator() {
   
   // Voice track volume state
   const [voiceVolume, setVoiceVolume] = useState(1.0) // 0.0 to 1.0, 1.0 = full volume
+
+  // Overlay effects state (can select up to 2)
+  const [selectedOverlayEffects, setSelectedOverlayEffects] = useState<string[]>([])
+
+  // Handle overlay effect selection (max 2)
+  const handleOverlayEffectChange = (effect: string, checked: boolean) => {
+    if (checked) {
+      if (selectedOverlayEffects.length < 2) {
+        setSelectedOverlayEffects(prev => [...prev, effect])
+      }
+    } else {
+      setSelectedOverlayEffects(prev => prev.filter(e => e !== effect))
+    }
+  }
 
   // Font family options
   const fontFamilyOptions = [
@@ -397,6 +411,7 @@ export function VideoGenerator() {
         muteStockVideo: settings.muteStockVideo,
         brightness: videoBrightness, // Add brightness adjustment
         voiceVolume: voiceVolume, // Add voice volume control
+        overlayEffects: selectedOverlayEffects.length > 0 ? selectedOverlayEffects as ('dust' | 'fire-particles' | 'screen-displacement' | 'snow-falling')[] : undefined, // Add overlay effects
         // Include subtitle styling settings when subtitles are enabled
         ...(settings.includeSubtitles && audioGeneration.subtitlesUrl && {
           fontFamily: subtitleSettings.fontFamily,
@@ -971,6 +986,47 @@ export function VideoGenerator() {
               </div>
             </div>
 
+                        {/* Overlay Effects */}
+            <div className="space-y-3">
+              <Label className="text-sm flex items-center gap-2">
+                <Palette className="h-4 w-4" />
+                Overlay Effects (Select up to 2)
+              </Label>
+              <div className="space-y-2">
+                {[
+                  { value: 'dust', label: '🌫️ Dust Overlay' },
+                  { value: 'fire-particles', label: '🔥 Fire Particles' },
+                  { value: 'screen-displacement', label: '📺 Screen Displacement' },
+                  { value: 'snow-falling', label: '❄️ Snow Falling' }
+                ].map((effect) => (
+                  <div key={effect.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`overlay-${effect.value}`}
+                      checked={selectedOverlayEffects.includes(effect.value)}
+                      onCheckedChange={(checked) => handleOverlayEffectChange(effect.value, checked as boolean)}
+                      disabled={!hasPrerequisites || (!selectedOverlayEffects.includes(effect.value) && selectedOverlayEffects.length >= 2)}
+                    />
+                    <Label htmlFor={`overlay-${effect.value}`} className="text-sm">
+                      {effect.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-gray-500">
+                Select up to 2 overlay effects to combine on your video
+              </div>
+              {selectedOverlayEffects.length > 0 && (
+                <div className="text-xs text-blue-600">
+                  Selected: {selectedOverlayEffects.map(effect => 
+                    effect === 'dust' ? 'Dust' :
+                    effect === 'fire-particles' ? 'Fire' :
+                    effect === 'screen-displacement' ? 'Displacement' :
+                    effect === 'snow-falling' ? 'Snow' : effect
+                  ).join(' + ')}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label className="text-sm">Background Music</Label>
               <div className="space-y-3">
@@ -1240,7 +1296,12 @@ export function VideoGenerator() {
                   settings.useSegmentedTiming ? 'Custom Timing' :
                   settings.useScriptBasedTiming && scriptBasedTimingAvailable ? 'Script-Based' :
                   'Traditional'
-                }{settings.includeMusic ? ' + Music' : ''})
+                }{settings.includeMusic ? ' + Music' : ''}{selectedOverlayEffects.length > 0 ? ` + ${selectedOverlayEffects.map(effect => 
+                  effect === 'dust' ? 'Dust' :
+                  effect === 'fire-particles' ? 'Fire' :
+                  effect === 'screen-displacement' ? 'Displacement' :
+                  effect === 'snow-falling' ? 'Snow' : effect
+                ).join('+')}` : ''})
               </>
             )}
           </Button>
