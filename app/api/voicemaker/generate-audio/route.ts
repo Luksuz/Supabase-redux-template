@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
+    console.log('VoiceMaker API response:', data)
+
     if (!response.ok) {
       throw new Error(data.error || `VoiceMaker API error: ${response.status}`)
     }
@@ -63,14 +65,29 @@ export async function POST(request: NextRequest) {
     if (data.success && data.path) {
       console.log(`✅ VoiceMaker audio generated successfully for section: ${sectionId}`)
       console.log(`📊 Used characters: ${data.usedChars}, Remaining: ${data.remainChars}`)
+      console.log(`🔄 Downloading audio from: ${data.path}`)
+      
+      // Download the audio file from VoiceMaker's URL
+      const audioResponse = await fetch(data.path)
+      if (!audioResponse.ok) {
+        throw new Error(`Failed to download audio from VoiceMaker: ${audioResponse.status}`)
+      }
+      
+      // Convert to buffer and then to base64
+      const audioBuffer = await audioResponse.arrayBuffer()
+      const audioBase64 = Buffer.from(audioBuffer).toString('base64')
+      const audioSize = audioBuffer.byteLength
+      const audioUrl = `data:audio/mpeg;base64,${audioBase64}`
+      
+      console.log(`✅ Audio downloaded and converted to data URL. Size: ${Math.round(audioSize / 1024)}KB`)
       
       return NextResponse.json({
         success: true,
-        audioUrl: data.path,
+        audioUrl: audioUrl,
         result: {
           success: true,
-          audioUrl: data.path,
-          audioSize: 0, // VoiceMaker doesn't provide size in response
+          audioUrl: audioUrl,
+          audioSize: audioSize,
           chunksGenerated: 1,
           totalChunks: 1,
           voiceId: voiceId,

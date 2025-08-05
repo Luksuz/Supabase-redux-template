@@ -51,7 +51,7 @@ export function AudioGeneration() {
     progress: 0,
     status: ''
   })
-  const [autoJoinAfterGeneration, setAutoJoinAfterGeneration] = useState(false)
+
   const [joinedAudioUrl, setJoinedAudioUrl] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<'elevenlabs' | 'voicemaker' | 'fishaudio' | 'minimax'>('elevenlabs')
   const [voicemakerVoices, setVoicemakerVoices] = useState<any[]>([])
@@ -346,65 +346,14 @@ export function AudioGeneration() {
     // Show final result
     if (totalSuccessCount === textChunks.length) {
       showMessage(`🎉 Successfully generated audio for all ${totalSuccessCount} chunks!`, 'success')
-      console.log(`🔄 Batch processing complete. Checking auto-join: checkbox=${autoJoinAfterGeneration}, chunks=${totalSuccessCount}`)
-      
-      // Auto-join if checkbox is checked and we have multiple successful generations
-      if (autoJoinAfterGeneration && totalSuccessCount > 1) {
-        showMessage('🔄 Waiting for uploads to complete, then auto-joining...', 'info')
-        // Wait for Supabase uploads to complete before joining
-        waitForUploadsAndJoin(totalSuccessCount)
-      }
     } else if (totalSuccessCount > 0 && totalErrorCount > 0) {
       showMessage(`⚠️ Generated audio for ${totalSuccessCount} chunks, ${totalErrorCount} failed`, 'info')
-      console.log(`🔄 Partial success complete. Checking auto-join: checkbox=${autoJoinAfterGeneration}, chunks=${totalSuccessCount}`)
-      
-      // Auto-join if checkbox is checked and we have multiple successful generations
-      if (autoJoinAfterGeneration && totalSuccessCount > 1) {
-        showMessage('🔄 Waiting for uploads to complete, then auto-joining...', 'info')
-        // Wait for Supabase uploads to complete before joining
-        waitForUploadsAndJoin(totalSuccessCount)
-      }
     } else {
       showMessage(`❌ Failed to generate audio for all ${totalErrorCount} chunks`, 'error')
     }
   }
 
-  // Wait for all uploads to complete before auto-joining
-  const waitForUploadsAndJoin = async (expectedChunkCount: number) => {
-    const maxRetries = 20 // Maximum number of retries (20 * 500ms = 10 seconds)
-    let retries = 0
 
-    const checkUploadsComplete = () => {
-      const chunksWithAudio = audioGeneration.sectionAudioStates.filter(audioState => 
-        audioState.result?.success && 
-        audioState.audioUrl &&
-        audioState.sectionId.startsWith('chunk-')
-      )
-
-      console.log(`📊 Upload check: ${chunksWithAudio.length}/${expectedChunkCount} chunks have URLs`)
-
-      if (chunksWithAudio.length >= expectedChunkCount) {
-        // All uploads complete, start joining
-        showMessage('🔄 All uploads complete! Auto-joining audio chunks...', 'info')
-        setTimeout(() => {
-          joinAllAudio()
-        }, 500)
-        return true
-      }
-
-      if (retries >= maxRetries) {
-        showMessage('⚠️ Some uploads are taking longer than expected. You can manually join when ready.', 'info')
-        return true
-      }
-
-      // Not ready yet, retry in 500ms
-      retries++
-      setTimeout(checkUploadsComplete, 500)
-      return false
-    }
-
-    checkUploadsComplete()
-  }
 
   const playPauseAudio = (sectionId: string, audioUrl: string) => {
     const isCurrentlyPlaying = audioGeneration.isPlaying && audioGeneration.currentPlayingSection === sectionId
@@ -1680,19 +1629,6 @@ export function AudioGeneration() {
       {/* Generate Audio Button */}
       {currentJob && sectionsWithScripts.length > 0 && (
         <div className="flex flex-col gap-4">
-          {/* Auto-join checkbox */}
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <input
-              type="checkbox"
-              id="autoJoinChunks"
-              checked={autoJoinAfterGeneration}
-              onChange={(e) => setAutoJoinAfterGeneration(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="autoJoinChunks" className="text-sm font-medium text-gray-700">
-              Automatically join audio chunks after generation
-            </label>
-          </div>
 
           <Button
             onClick={generateAllAudioInBatches}
@@ -1737,7 +1673,7 @@ export function AudioGeneration() {
                 className="w-full"
               />
               <p className="text-xs text-blue-600 mt-2">
-                Processing and uploading text chunks in batches of 5 for optimal performance{autoJoinAfterGeneration ? ' • Will auto-join when complete' : ''}
+                Processing and uploading text chunks in batches of 5 for optimal performance
               </p>
             </div>
           )}
@@ -1828,62 +1764,81 @@ export function AudioGeneration() {
                     </div>
                   )}
 
-      {/* Final Audio Download - Show when auto-join is enabled and audio is available */}
-      {autoJoinAfterGeneration && !batchProcessing.isProcessing && !combineAudioProgress.isGenerating && (
-        (() => {
-          const chunksWithAudio = audioGeneration.sectionAudioStates.filter(audioState => 
-            audioState.result?.success && 
-            audioState.audioUrl &&
-            audioState.sectionId.startsWith('chunk-')
-          )
-          
-          if (chunksWithAudio.length === 0) return null
-          
-          // Only show if we have joined audio URL (for multiple chunks) or single chunk
-          if (chunksWithAudio.length > 1 && !joinedAudioUrl) return null
-          
-          return (
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="font-medium text-green-900">Audio Ready for Download</h4>
-                    <p className="text-sm text-green-700">
-                      {chunksWithAudio.length === 1 ? 'Single audio chunk' : 
-                       joinedAudioUrl ? `${chunksWithAudio.length} chunks joined` : 
-                       'Multiple chunks processed'} • {selectedVoiceName} • Stored in Supabase
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-green-600 border-green-300">
-                    Ready
-                  </Badge>
+      {/* Join Audio Button - Show when multiple chunks are available */}
+      {(() => {
+        const chunksWithAudio = audioGeneration.sectionAudioStates.filter(audioState => 
+          audioState.result?.success && 
+          audioState.audioUrl &&
+          audioState.sectionId.startsWith('chunk-')
+        )
+        
+        if (chunksWithAudio.length <= 1) return null
+        
+        return (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-medium text-blue-900">Join Audio Chunks</h4>
+                  <p className="text-sm text-blue-700">
+                    {chunksWithAudio.length} chunks ready to be joined into one audio file
+                  </p>
                 </div>
-                
-                <Button
-                  onClick={() => {
-                    if (chunksWithAudio.length === 1) {
-                      // Single chunk - open in blank page for download
-                      const audioState = chunksWithAudio[0]
-                      if (audioState?.audioUrl) {
-                        window.open(audioState.audioUrl, '_blank')
-                        const chunkNumber = audioState.sectionId.split('-')[1] || '?'
-                        showMessage(`Download page opened: Chunk ${chunkNumber}`, 'success')
-                      }
-                    } else if (joinedAudioUrl) {
-                      // Multiple chunks - download the already joined audio
-                      window.open(joinedAudioUrl, '_blank')
-                      showMessage(`Download page opened: Joined Audio`, 'success')
-                    }
-                  }}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Audio
-                </Button>
-              </CardContent>
-            </Card>
-          )
-        })()
+                <Badge variant="outline" className="text-blue-600 border-blue-300">
+                  {chunksWithAudio.length} chunks
+                </Badge>
+              </div>
+              
+              <Button
+                onClick={joinAllAudio}
+                disabled={combineAudioProgress.isGenerating}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                {combineAudioProgress.isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Joining...
+                  </>
+                ) : (
+                  <>
+                    <Music className="h-4 w-4 mr-2" />
+                    Join Audio Chunks
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      })()}
+
+      {/* Download Joined Audio - Show when joined audio is available */}
+      {joinedAudioUrl && (
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-medium text-green-900">Joined Audio Ready</h4>
+                <p className="text-sm text-green-700">
+                  Audio chunks have been joined successfully • Stored in Supabase
+                </p>
+              </div>
+              <Badge variant="outline" className="text-green-600 border-green-300">
+                Ready
+              </Badge>
+            </div>
+            
+            <Button
+              onClick={() => {
+                window.open(joinedAudioUrl, '_blank')
+                showMessage(`Download page opened: Joined Audio`, 'success')
+              }}
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Joined Audio
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       
