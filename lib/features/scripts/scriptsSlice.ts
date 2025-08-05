@@ -558,6 +558,12 @@ export const scriptsSlice = createSlice({
       state.audioGeneration.isPlaying = action.payload.isPlaying
       state.audioGeneration.currentPlayingSection = action.payload.sectionId
     },
+
+    clearAllAudioStates: (state) => {
+      state.audioGeneration.sectionAudioStates = []
+      state.audioGeneration.isPlaying = false
+      state.audioGeneration.currentPlayingSection = null
+    },
   }
 })
 
@@ -598,6 +604,7 @@ export const {
   setAudioGenerationError,
   setAudioUrl,
   setAudioPlaying,
+  clearAllAudioStates,
   // New approval actions
   setPendingSections,
   startApprovingSections,
@@ -820,27 +827,76 @@ export const generateAudioThunk = (params: {
     if (response.ok && result.success) {
       dispatch(setAudioGenerationResult({ sectionId, result: result.result || result }))
       
-      // Handle different response formats
+      // Handle different response formats and upload to Supabase storage
       let audioUrl = null
       
-      if ((provider === 'elevenlabs' || provider === 'minimax') && result.audioData) {
-        // ElevenLabs and Minimax return base64 data that needs to be converted to blob
-        try {
-          const binaryString = atob(result.audioData)
-          const bytes = new Uint8Array(binaryString.length)
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i)
-          }
-          const blob = new Blob([bytes], { type: 'audio/mpeg' })
-          audioUrl = URL.createObjectURL(blob)
-        } catch (error) {
-          console.error('Error creating audio URL:', error)
-          dispatch(setAudioGenerationError({ sectionId, error: 'Error processing audio data' }))
-          return { success: false, error: 'Error processing audio data' }
+      try {
+        let audioDataForUpload = null
+        
+        if ((provider === 'elevenlabs' || provider === 'minimax') && result.audioData) {
+          // ElevenLabs and Minimax return base64 data
+          audioDataForUpload = result.audioData
+        } else if ((provider === 'fishaudio' || provider === 'voicemaker') && result.audioUrl) {
+          // Fish Audio and VoiceMaker return data URLs
+          audioDataForUpload = result.audioUrl
         }
-      } else if ((provider === 'fishaudio' || provider === 'voicemaker') && result.audioUrl) {
-        // Fish Audio and VoiceMaker return direct audio URLs (data URLs)
-        audioUrl = result.audioUrl
+
+        if (audioDataForUpload) {
+          // Upload chunk to Supabase storage
+          const uploadResponse = await fetch('/api/upload-audio-chunk', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              audioData: audioDataForUpload,
+              chunkId: sectionId,
+              projectName: 'audio_project'
+            })
+          })
+
+          const uploadResult = await uploadResponse.json()
+          
+          if (uploadResponse.ok && uploadResult.success) {
+            audioUrl = uploadResult.audioUrl
+            console.log(`✅ Chunk ${sectionId} uploaded to Supabase: ${audioUrl}`)
+          } else {
+            console.error('Failed to upload chunk to Supabase:', uploadResult.error)
+            // Fallback to blob URL for ElevenLabs/Minimax
+            if ((provider === 'elevenlabs' || provider === 'minimax') && result.audioData) {
+              const binaryString = atob(result.audioData)
+              const bytes = new Uint8Array(binaryString.length)
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i)
+              }
+              const blob = new Blob([bytes], { type: 'audio/mpeg' })
+              audioUrl = URL.createObjectURL(blob)
+              console.log(`⚠️ Using fallback blob URL for ${sectionId}`)
+            } else {
+              audioUrl = result.audioUrl
+            }
+          }
+        }
+      } catch (uploadError) {
+        console.error('Error uploading chunk to Supabase:', uploadError)
+        // Fallback to original method
+        if ((provider === 'elevenlabs' || provider === 'minimax') && result.audioData) {
+          try {
+            const binaryString = atob(result.audioData)
+            const bytes = new Uint8Array(binaryString.length)
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i)
+            }
+            const blob = new Blob([bytes], { type: 'audio/mpeg' })
+            audioUrl = URL.createObjectURL(blob)
+          } catch (error) {
+            console.error('Error creating fallback audio URL:', error)
+            dispatch(setAudioGenerationError({ sectionId, error: 'Error processing audio data' }))
+            return { success: false, error: 'Error processing audio data' }
+          }
+        } else if ((provider === 'fishaudio' || provider === 'voicemaker') && result.audioUrl) {
+          audioUrl = result.audioUrl
+        }
       }
 
       if (audioUrl) {

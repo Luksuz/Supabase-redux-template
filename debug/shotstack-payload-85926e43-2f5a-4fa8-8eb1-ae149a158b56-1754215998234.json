@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "videoId": "85926e43-2f5a-4fa8-8eb1-ae149a158b56",
+    "timestamp": "2025-08-03T10:13:18.234Z",
+    "videoType": "Traditional",
+    "totalDuration": 52.487075,
+    "imageCount": 2,
+    "hasAudio": true,
+    "hasSubtitles": false,
+    "hasMusic": false,
+    "musicVolume": "N/A",
+    "muteStockVideo": true,
+    "overlayEffects": "screen-displacement"
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "video",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/screen-displacement-map-glitch-effect-digital-pixe-2024-07-17-05-42-56-utc.mov",
+                "volume": 0
+              },
+              "start": 0,
+              "length": 52.487075,
+              "fit": "cover",
+              "opacity": 0.2
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1754215869181-1t1oqovx2-chunk-1-1754215979050.jpg"
+              },
+              "start": 0,
+              "length": 26.2435375,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1754215869181-1t1oqovx2-chunk-2-1754215979047.jpg"
+              },
+              "start": 26.2435375,
+              "length": 26.2435375,
+              "fit": "cover"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1754215987646.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 52.487075
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}

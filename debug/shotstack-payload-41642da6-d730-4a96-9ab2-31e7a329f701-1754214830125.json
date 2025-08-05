@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "videoId": "41642da6-d730-4a96-9ab2-31e7a329f701",
+    "timestamp": "2025-08-03T09:53:50.125Z",
+    "videoType": "Traditional",
+    "totalDuration": 1.558186,
+    "imageCount": 2,
+    "hasAudio": true,
+    "hasSubtitles": false,
+    "hasMusic": false,
+    "musicVolume": "N/A",
+    "muteStockVideo": true,
+    "overlayEffect": "dust"
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1754214066555-2svja3x7q-chunk-1-1754214078501.jpg"
+              },
+              "start": 0,
+              "length": 0.779093,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1754214071272-978k51um1-chunk-1-1754214078496.jpg"
+              },
+              "start": 0.779093,
+              "length": 0.779093,
+              "fit": "cover"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1754214098129.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 1.558186
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "video",
+                "src": "https://byktarizdjtreqwudqmv.supabase.co/storage/v1/object/public/video-generator/overlay.webm",
+                "volume": 0
+              },
+              "start": 0,
+              "length": 1.558186,
+              "fit": "cover",
+              "opacity": 0.8
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}

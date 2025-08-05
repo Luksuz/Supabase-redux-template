@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "videoId": "abcea307-003d-4d94-af35-8421d7e74d25",
+    "timestamp": "2025-08-03T09:53:52.884Z",
+    "videoType": "Traditional",
+    "totalDuration": 1.558186,
+    "imageCount": 2,
+    "hasAudio": true,
+    "hasSubtitles": false,
+    "hasMusic": false,
+    "musicVolume": "N/A",
+    "muteStockVideo": true,
+    "overlayEffect": "screen-displacement"
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1754214066555-2svja3x7q-chunk-1-1754214078501.jpg"
+              },
+              "start": 0,
+              "length": 0.779093,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1754214071272-978k51um1-chunk-1-1754214078496.jpg"
+              },
+              "start": 0.779093,
+              "length": 0.779093,
+              "fit": "cover"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1754214098129.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 1.558186
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "video",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/screen-displacement-map-glitch-effect-digital-pixe-2024-07-17-05-42-56-utc.mov",
+                "volume": 0
+              },
+              "start": 0,
+              "length": 1.558186,
+              "fit": "cover",
+              "opacity": 0.8
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}

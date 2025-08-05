@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
 
     try {
       // Fetch voices from Minimax API
+      console.log('🔍 Minimax API key:', MINIMAX_API_KEY)
       const response = await fetch('https://api.minimax.io/v1/get_voice', {
         method: 'POST',
         headers: {
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
           'Authorization': `Bearer ${MINIMAX_API_KEY}`
         },
         body: JSON.stringify({
-          voice_type: "system_voice"
+          voice_type: "system"
         })
       })
 
