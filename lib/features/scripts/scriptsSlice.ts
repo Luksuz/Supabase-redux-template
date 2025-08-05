@@ -901,6 +901,7 @@ export const generateAudioThunk = (params: {
 
       if (audioUrl) {
         dispatch(setAudioUrl({ sectionId, audioUrl }))
+        console.log(`🔗 Audio URL set in Redux for ${sectionId}: ${audioUrl.substring(0, 50)}...`)
       }
       
       return { success: true, result: result.result || result }
