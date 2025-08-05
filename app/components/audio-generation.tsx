@@ -346,27 +346,64 @@ export function AudioGeneration() {
     // Show final result
     if (totalSuccessCount === textChunks.length) {
       showMessage(`🎉 Successfully generated audio for all ${totalSuccessCount} chunks!`, 'success')
+      console.log(`🔄 Batch processing complete. Checking auto-join: checkbox=${autoJoinAfterGeneration}, chunks=${totalSuccessCount}`)
       
       // Auto-join if checkbox is checked and we have multiple successful generations
       if (autoJoinAfterGeneration && totalSuccessCount > 1) {
-        showMessage('🔄 Auto-joining audio chunks...', 'info')
-        setTimeout(() => {
-          joinAllAudio()
-        }, 2000)
+        showMessage('🔄 Waiting for uploads to complete, then auto-joining...', 'info')
+        // Wait for Supabase uploads to complete before joining
+        waitForUploadsAndJoin(totalSuccessCount)
       }
     } else if (totalSuccessCount > 0 && totalErrorCount > 0) {
       showMessage(`⚠️ Generated audio for ${totalSuccessCount} chunks, ${totalErrorCount} failed`, 'info')
+      console.log(`🔄 Partial success complete. Checking auto-join: checkbox=${autoJoinAfterGeneration}, chunks=${totalSuccessCount}`)
       
       // Auto-join if checkbox is checked and we have multiple successful generations
       if (autoJoinAfterGeneration && totalSuccessCount > 1) {
-        showMessage('🔄 Auto-joining successfully generated audio chunks...', 'info')
-        setTimeout(() => {
-          joinAllAudio()
-        }, 2000)
+        showMessage('🔄 Waiting for uploads to complete, then auto-joining...', 'info')
+        // Wait for Supabase uploads to complete before joining
+        waitForUploadsAndJoin(totalSuccessCount)
       }
     } else {
       showMessage(`❌ Failed to generate audio for all ${totalErrorCount} chunks`, 'error')
     }
+  }
+
+  // Wait for all uploads to complete before auto-joining
+  const waitForUploadsAndJoin = async (expectedChunkCount: number) => {
+    const maxRetries = 20 // Maximum number of retries (20 * 500ms = 10 seconds)
+    let retries = 0
+
+    const checkUploadsComplete = () => {
+      const chunksWithAudio = audioGeneration.sectionAudioStates.filter(audioState => 
+        audioState.result?.success && 
+        audioState.audioUrl &&
+        audioState.sectionId.startsWith('chunk-')
+      )
+
+      console.log(`📊 Upload check: ${chunksWithAudio.length}/${expectedChunkCount} chunks have URLs`)
+
+      if (chunksWithAudio.length >= expectedChunkCount) {
+        // All uploads complete, start joining
+        showMessage('🔄 All uploads complete! Auto-joining audio chunks...', 'info')
+        setTimeout(() => {
+          joinAllAudio()
+        }, 500)
+        return true
+      }
+
+      if (retries >= maxRetries) {
+        showMessage('⚠️ Some uploads are taking longer than expected. You can manually join when ready.', 'info')
+        return true
+      }
+
+      // Not ready yet, retry in 500ms
+      retries++
+      setTimeout(checkUploadsComplete, 500)
+      return false
+    }
+
+    checkUploadsComplete()
   }
 
   const playPauseAudio = (sectionId: string, audioUrl: string) => {
