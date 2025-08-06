@@ -202,8 +202,9 @@ export function AudioGeneration() {
       return
     }
 
-    if (!currentJob || sectionsWithScripts.length === 0) {
-      showMessage('No scripts available to generate audio from', 'error')
+    const scriptToProcess = editedScript.trim()
+    if (!scriptToProcess) {
+      showMessage('No script content available for audio generation', 'error')
       return
     }
 
@@ -213,11 +214,6 @@ export function AudioGeneration() {
     showMessage('Clearing previous audio and starting fresh generation...', 'info')
 
     // Generate audio from the full combined script, chunked by provider limits
-    const scriptToProcess = editedScript.trim()
-    if (!scriptToProcess) {
-      showMessage('No script content available for audio generation', 'error')
-      return
-    }
 
     // Determine chunk size based on provider
     const getChunkSize = (provider: string) => {
@@ -980,72 +976,76 @@ export function AudioGeneration() {
         </div>
       )}
 
-      {/* Generated Script Text */}
-      {currentJob && sectionsWithScripts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Generated Script {isScriptEdited && <span className="text-orange-600">(Edited)</span>}
-                </CardTitle>
-                <CardDescription>
-                  {isScriptEdited ? 'Edited script text for reference' : `Complete script text from your project: ${currentJob.name} - for reference only`}
-                </CardDescription>
+      {/* Script Text */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Script Text {isScriptEdited && <span className="text-orange-600">(Edited)</span>}
+              </CardTitle>
+              <CardDescription>
+                {currentJob && sectionsWithScripts.length > 0 
+                  ? (isScriptEdited ? 'Edited script text for reference' : `Complete script text from your project: ${currentJob.name} - for reference only`)
+                  : 'Enter or paste your script text for audio generation'
+                }
+              </CardDescription>
+            </div>
+            {isScriptEdited && currentJob && sectionsWithScripts.length > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    // Reset to original script
+                    const originalScript = sectionsWithScripts
+                      .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+                      .map(section => stripResearchData(section.texts[0].generated_script))
+                      .join('\n\n')
+                    setEditedScript(originalScript)
+                    setIsScriptEdited(false)
+                    showMessage('Script reset to original', 'info')
+                  }}
+                  variant="outline"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reset to Original
+                </Button>
               </div>
-              {isScriptEdited && (
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => {
-                      // Reset to original script
-                      const originalScript = sectionsWithScripts
-                        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
-                        .map(section => stripResearchData(section.texts[0].generated_script))
-                        .join('\n\n')
-                      setEditedScript(originalScript)
-                      setIsScriptEdited(false)
-                      showMessage('Script reset to original', 'info')
-                    }}
-                    variant="outline"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Reset to Original
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              value={editedScript}
-              onChange={(e) => {
-                setEditedScript(e.target.value)
-                setIsScriptEdited(true)
-              }}
-              className="min-h-[200px] font-mono text-sm"
-              placeholder="Generated script will appear here for editing..."
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>{editedScript.length} characters • ~{editedScript.trim().split(/\s+/).length} words</span>
-              <span>Est. ~{Math.ceil(editedScript.trim().split(/\s+/).length / 150)} min duration</span>
-            </div>
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium">Audio Generation Info</p>
-                  <p className="mt-1">
-                    Audio is generated from this combined script, chunked by provider limits (e.g. Minimax: 3k chars). 
-                    Each chunk is automatically uploaded to Supabase storage for permanent access.
-                  </p>
-                </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Textarea
+            value={editedScript}
+            onChange={(e) => {
+              setEditedScript(e.target.value)
+              setIsScriptEdited(true)
+            }}
+            className="min-h-[200px] font-mono text-sm"
+            placeholder={currentJob && sectionsWithScripts.length > 0 
+              ? "Generated script will appear here for editing..." 
+              : "Enter your script text here for audio generation..."
+            }
+          />
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>{editedScript.length} characters • ~{editedScript.trim().split(/\s+/).length} words</span>
+            <span>Est. ~{Math.ceil(editedScript.trim().split(/\s+/).length / 150)} min duration</span>
+          </div>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium">Audio Generation Info</p>
+                <p className="mt-1">
+                  Audio is generated from this combined script, chunked by provider limits (e.g. Minimax: 3k chars). 
+                  Each chunk is automatically uploaded to Supabase storage for permanent access.
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Voice Configuration */}
       <Card>
@@ -1627,7 +1627,7 @@ export function AudioGeneration() {
 
 
       {/* Generate Audio Button */}
-      {currentJob && sectionsWithScripts.length > 0 && (
+      {editedScript.trim().length > 0 && (
         <div className="flex flex-col gap-4">
 
           <Button
