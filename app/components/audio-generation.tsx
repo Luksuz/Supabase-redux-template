@@ -495,6 +495,11 @@ export function AudioGeneration() {
         return aNum - bNum
       })
 
+    console.log('🔗 Starting joinAllAudio process...')
+    console.log('📊 Chunks with audio:', chunksWithAudio.length)
+    console.log('🎯 Current environment:', window.location.origin)
+    console.log('📋 Audio chunks:', chunksWithAudio.map(c => ({ id: c.sectionId, url: c.audioUrl?.substring(0, 50) + '...' })))
+
     if (chunksWithAudio.length === 0) {
       showMessage('No audio chunks available to join', 'error')
       return
@@ -512,29 +517,41 @@ export function AudioGeneration() {
     })
 
     try {
+      console.log('🔄 Converting audio URLs...')
+      
       // Collect and convert audio URLs to data URLs if they are blob URLs
-      const audioUrlPromises = chunksWithAudio.map(async (audioState) => {
+      const audioUrlPromises = chunksWithAudio.map(async (audioState, index) => {
         const audioUrl = audioState.audioUrl!
+        console.log(`📥 Processing chunk ${index + 1}: ${audioUrl.substring(0, 100)}...`)
         
         // If it's a blob URL, convert it to a data URL
         if (audioUrl.startsWith('blob:')) {
           try {
+            console.log(`🔄 Converting blob URL for chunk ${index + 1}`)
             const response = await fetch(audioUrl)
             const blob = await response.blob()
+            console.log(`✅ Blob fetch successful for chunk ${index + 1}, size: ${blob.size} bytes`)
             return new Promise<string>((resolve, reject) => {
               const reader = new FileReader()
-              reader.onload = () => resolve(reader.result as string)
-              reader.onerror = reject
+              reader.onload = () => {
+                console.log(`✅ Data URL conversion complete for chunk ${index + 1}`)
+                resolve(reader.result as string)
+              }
+              reader.onerror = (error) => {
+                console.error(`❌ Data URL conversion failed for chunk ${index + 1}:`, error)
+                reject(error)
+              }
               reader.readAsDataURL(blob)
             })
           } catch (error) {
-            console.error('Error converting blob URL:', error)
+            console.error(`❌ Error converting blob URL for chunk ${index + 1}:`, error)
             const chunkNumber = audioState.sectionId.split('-')[1] || '?'
             throw new Error(`Failed to convert audio file for chunk: ${chunkNumber}`)
           }
         }
         
         // If it's already a data URL or regular URL, return as-is
+        console.log(`✅ Using existing URL for chunk ${index + 1}`)
         return audioUrl
       })
 
@@ -546,6 +563,8 @@ export function AudioGeneration() {
 
       // Wait for all audio URLs to be converted
       const audioUrls = await Promise.all(audioUrlPromises)
+      console.log('✅ All audio URLs converted, sending to API...')
+      console.log('📊 Final audio URLs:', audioUrls.map((url, i) => `${i + 1}: ${url.substring(0, 50)}...`))
 
       setCombineAudioProgress(prev => ({
         ...prev,
@@ -554,6 +573,13 @@ export function AudioGeneration() {
       }))
 
       // Send to audio joining API
+      console.log('🚀 Sending POST request to /api/join-audio...')
+      console.log('📦 Request payload:', {
+        audioUrlsCount: audioUrls.length,
+        projectName: currentJob.name,
+        audioUrlTypes: audioUrls.map(url => url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'url')
+      })
+
       const response = await fetch('/api/join-audio', {
         method: 'POST',
         headers: {
@@ -565,10 +591,27 @@ export function AudioGeneration() {
         })
       })
 
-      const data = await response.json()
+      console.log('📡 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+
+      let data
+      try {
+        data = await response.json()
+        console.log('📊 Response data:', data)
+      } catch (parseError) {
+        console.error('❌ Failed to parse JSON response:', parseError)
+        const responseText = await response.text()
+        console.error('📄 Raw response text:', responseText)
+        throw new Error(`Failed to parse server response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`)
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to join audio files')
+        console.error('❌ Server returned error:', data)
+        throw new Error(data.error || `Server error: ${response.status} ${response.statusText}`)
       }
 
       setCombineAudioProgress(prev => ({
@@ -595,8 +638,32 @@ export function AudioGeneration() {
         throw new Error(data.error || 'Audio joining failed')
       }
     } catch (error) {
-      console.error('Error joining audio:', error)
-      showMessage(error instanceof Error ? error.message : 'Failed to join audio files', 'error')
+      console.error('❌ [JOIN-AUDIO] Error during join process:', error)
+      
+      // Enhanced error handling with specific messages
+      let errorMessage = 'Failed to join audio files'
+      
+      if (error instanceof Error) {
+        console.error('❌ [JOIN-AUDIO] Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        })
+        
+        if (error.message.includes('FFmpeg')) {
+          errorMessage = 'Server does not have FFmpeg installed. Please contact administrator.'
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error: Cannot connect to join-audio service. Check your internet connection.'
+        } else if (error.message.includes('Unauthorized')) {
+          errorMessage = 'Authentication error: Please log in again.'
+        } else if (error.message.includes('Failed to parse')) {
+          errorMessage = 'Server response error: Invalid response format.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      showMessage(errorMessage, 'error')
     } finally {
       setTimeout(() => {
         setCombineAudioProgress({

@@ -13,17 +13,60 @@ export async function POST(request: NextRequest) {
   const tempFiles: string[] = []
 
   try {
+    console.log('🎵 [JOIN-AUDIO] API endpoint called')
+    console.log('🌍 [JOIN-AUDIO] Environment:', process.env.NODE_ENV)
+    console.log('🔧 [JOIN-AUDIO] Platform:', process.platform)
+    console.log('📁 [JOIN-AUDIO] Temp directory:', tmpdir())
+
+    // Check FFmpeg availability first
+    try {
+      const { stdout } = await execAsync('ffmpeg -version')
+      console.log('✅ [JOIN-AUDIO] FFmpeg is available:', stdout.split('\n')[0])
+    } catch (ffmpegError) {
+      console.error('❌ [JOIN-AUDIO] FFmpeg not found or not accessible:', ffmpegError)
+      return NextResponse.json({
+        success: false,
+        error: 'FFmpeg is not installed or not accessible on this server. Please install FFmpeg to use audio joining functionality.',
+        details: ffmpegError instanceof Error ? ffmpegError.message : 'Unknown FFmpeg error'
+      }, { status: 500 })
+    }
+
     // Get the user from the authenticated session
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
+      console.error('❌ [JOIN-AUDIO] Authentication failed:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { audioUrls, projectName } = await request.json()
+    console.log('✅ [JOIN-AUDIO] User authenticated:', user.id)
+
+    let requestBody
+    try {
+      requestBody = await request.json()
+    } catch (parseError) {
+      console.error('❌ [JOIN-AUDIO] Failed to parse request body:', parseError)
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid JSON in request body'
+      }, { status: 400 })
+    }
+
+    const { audioUrls, projectName } = requestBody
+
+    console.log('📦 [JOIN-AUDIO] Request details:', {
+      audioUrlsCount: audioUrls?.length || 0,
+      projectName,
+      audioUrlTypes: audioUrls?.map((url: string) => 
+        url.startsWith('data:') ? 'data' : 
+        url.startsWith('blob:') ? 'blob' : 
+        url.startsWith('http') ? 'http' : 'unknown'
+      ) || []
+    })
 
     if (!audioUrls || !Array.isArray(audioUrls) || audioUrls.length === 0) {
+      console.error('❌ [JOIN-AUDIO] Invalid audioUrls:', audioUrls)
       return NextResponse.json({
         success: false,
         error: 'Audio URLs array is required'
@@ -31,6 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (audioUrls.length === 1) {
+      console.log('ℹ️ [JOIN-AUDIO] Single audio file, returning as-is')
       // If only one file, just return it as-is
       return NextResponse.json({
         success: true,
@@ -39,7 +83,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log(`🎵 Joining ${audioUrls.length} audio files${projectName ? ` for project: ${projectName}` : ''}`)
+    console.log(`🎵 [JOIN-AUDIO] Starting join process for ${audioUrls.length} audio files${projectName ? ` for project: ${projectName}` : ''}`)
 
     // Create temporary directory for processing
     tempDir = await mkdtemp(join(tmpdir(), 'audio-join-'))
