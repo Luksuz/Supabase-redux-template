@@ -479,8 +479,6 @@ export function AudioGeneration() {
 
   // Join all project audio files into one
   const joinAllAudio = async () => {
-    if (!currentJob) return
-
     // Get all chunks with generated audio, sorted by chunk number
     const chunksWithAudio = audioGeneration.sectionAudioStates
       .filter(audioState => 
@@ -574,11 +572,11 @@ export function AudioGeneration() {
 
       // Send to audio joining API
       console.log('🚀 Sending POST request to /api/join-audio...')
-      console.log('📦 Request payload:', {
-        audioUrlsCount: audioUrls.length,
-        projectName: currentJob.name,
-        audioUrlTypes: audioUrls.map(url => url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'url')
-      })
+              console.log('📦 Request payload:', {
+          audioUrlsCount: audioUrls.length,
+          projectName: currentJob?.name || 'joined_audio',
+          audioUrlTypes: audioUrls.map(url => url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'url')
+        })
 
       const response = await fetch('/api/join-audio', {
         method: 'POST',
@@ -587,7 +585,7 @@ export function AudioGeneration() {
         },
         body: JSON.stringify({
           audioUrls: audioUrls,
-          projectName: currentJob.name
+          projectName: currentJob?.name || 'joined_audio'
         })
       })
 
@@ -629,7 +627,7 @@ export function AudioGeneration() {
 
                 // Store joined audio URL for download
         const audioUrl = data.audioUrl
-        const filename = data.filename || `${currentJob.name.replace(/[^a-zA-Z0-9]/g, '_')}_joined_audio.mp3`
+        const filename = data.filename || `${(currentJob?.name || 'audio').replace(/[^a-zA-Z0-9]/g, '_')}_joined_audio.mp3`
         
         // Store the joined audio URL in state
         setJoinedAudioUrl(audioUrl)
