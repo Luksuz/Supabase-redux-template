@@ -32,7 +32,7 @@ interface SelectedVideosDisplayProps {
 
 export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayProps) {
   const dispatch = useAppDispatch()
-  const selectedVideoIds = useAppSelector(state => state.video.selectedVideosForGeneration)
+  const selectedVideoIds = useAppSelector(state => state.textImageVideo.selectedVideosForGenerator)
   
   const [selectedVideos, setSelectedVideos] = useState<VideoWithSettings[]>([])
   const [allStoredVideos, setAllStoredVideos] = useState<StoredVideo[]>([])

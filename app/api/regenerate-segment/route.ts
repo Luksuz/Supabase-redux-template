@@ -76,7 +76,6 @@ SCRIPT DETAILS:
 CURRENT SECTION DETAILS:
 - Title: ${currentSection.title}
 - Writing Instructions: ${enhancedInstructions || currentSection.writingInstructions}
-- Current Image Prompt: ${currentSection.image_generation_prompt}
 
 REGENERATION INSTRUCTIONS:
 ${additionalPrompt}
@@ -91,7 +90,6 @@ MARKDOWN FORMATTING REQUIREMENTS:
 Please provide a JSON response with the updated section containing:
 1. "title" - An improved title for this section
 2. "writingInstructions" - Enhanced writing instructions (150-250 words)
-3. "image_generation_prompt" - An improved image generation prompt (10-25 words)
 
 The section should be significantly improved based on the regeneration instructions while maintaining the core purpose and flow of the original section.
 `;
@@ -123,26 +121,23 @@ The section should be significantly improved based on the regeneration instructi
       // Fallback: try to extract section data from the response
       const titleMatch = contentString.match(/"title"\s*:\s*"([^"]+)"/);
       const instructionsMatch = contentString.match(/"writingInstructions"\s*:\s*"([^"]+)"/);
-      const imagePromptMatch = contentString.match(/"image_generation_prompt"\s*:\s*"([^"]+)"/);
       
-      if (titleMatch && instructionsMatch && imagePromptMatch) {
+      if (titleMatch && instructionsMatch) {
         updatedSection = {
           title: titleMatch[1],
-          writingInstructions: instructionsMatch[1],
-          image_generation_prompt: imagePromptMatch[1]
+          writingInstructions: instructionsMatch[1]
         };
       } else {
         // Last resort: use improved version of original section
         updatedSection = {
           title: currentSection.title + " (Improved)",
-          writingInstructions: enhancedInstructions || currentSection.writingInstructions,
-          image_generation_prompt: currentSection.image_generation_prompt
+          writingInstructions: enhancedInstructions || currentSection.writingInstructions
         };
       }
     }
 
     // Validate the updated section
-    if (!updatedSection.title || !updatedSection.writingInstructions || !updatedSection.image_generation_prompt) {
+    if (!updatedSection.title || !updatedSection.writingInstructions) {
       throw new Error('Invalid section data received from model');
     }
 

@@ -94,6 +94,10 @@ export async function POST(request: NextRequest) {
     const body: CreateVideoRequestBody = await request.json();
     const { 
       imageUrls, 
+      videoUrls = [], // Add video URLs support
+      // New ordered content arrays that preserve reordering
+      orderedContentUrls,
+      orderedContentTypes,
       audioUrl, 
       compressedAudioUrl, 
       subtitlesUrl, 
@@ -113,26 +117,23 @@ export async function POST(request: NextRequest) {
       fontWeight = '1000',
       textTransform = 'none',
       audioDuration,
-      // New video mode options
-      videoMode = 'traditional',
+      // Simplified video effects
       zoomEffect = false,
       dustOverlay = false,
-      introImages,
-      introDuration = 60,
-      loopImageUrl,
-      useEqualIntroDuration = true,
       // Custom music properties
       useCustomMusic = false,
       customMusicFiles = []
     } = body;
     
-    console.log(`🖼️ Image URLs: ${imageUrls}`);
+    console.log(`🖼️ Image URLs: ${imageUrls?.length || 0} images`);
+    console.log(`🎬 Video URLs: ${videoUrls?.length || 0} videos`);
+    console.log(`🔄 Ordered Content: ${orderedContentUrls ? orderedContentUrls.length + ' items (reordered)' : 'Using legacy mode'}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
     console.log(`🗜️ Compressed Audio URL: ${compressedAudioUrl}`);
     console.log(`📝 Subtitles URL: ${subtitlesUrl}`);
     console.log(`👤 User ID: ${userId}`);
     console.log(`📷 Thumbnail URL: ${thumbnailUrl}`);
-    console.log(`⏱️ Segment Timings: ${segmentTimings}`);
+    console.log(`⏱️ Segment Timings: ${segmentTimings ? segmentTimings.length + ' segments' : 'No custom timing'}`);
     console.log(`✨ Include Overlay: ${includeOverlay ? 'YES' : 'NO'}`);
     console.log(`🎬 Quality: ${quality}`);
     console.log(`🌟 Enable Overlay: ${enableOverlay}`);
@@ -144,24 +145,43 @@ export async function POST(request: NextRequest) {
     console.log(`🎨 Stroke Width: ${strokeWidth}px`);
     console.log(`🎨 Font Weight: ${fontWeight}`);
     console.log(`🎨 Text Transform: ${textTransform}`);
-    console.log(`🎞️ Video Mode: ${videoMode}`);
     console.log(`🔍 Zoom Effect: ${zoomEffect ? 'YES' : 'NO'}`);
     console.log(`✨ Dust Overlay: ${dustOverlay ? 'YES' : 'NO'}`);
-    if (videoMode === 'option2') {
-      console.log(`⏰ Intro Duration: ${introDuration}s`);
-      console.log(`🖼️ Intro Images: ${introImages?.length || 0}`);
-      console.log(`🔄 Loop Image URL: ${loopImageUrl ? 'YES' : 'NO'}`);
-      console.log(`⚖️ Equal Intro Duration: ${useEqualIntroDuration ? 'YES' : 'NO'}`);
+    console.log(`🎶 Custom Music: ${useCustomMusic ? 'YES' : 'NO'}`);
+    if (useCustomMusic) {
+      console.log(`🎵 Music Files: ${customMusicFiles?.length || 0}`);
+    }
+    
+    // Log ordered content details if available
+    if (orderedContentUrls && orderedContentTypes) {
+      console.log(`🎯 Ordered sequence:`, orderedContentTypes.map((type, i) => `${i+1}. ${type}`).join(', '));
     }
 
+    // Calculate total content count - prioritize ordered content if available
+    let totalImages, totalVideos, totalContent;
     
-    console.log(`📋 Video creation request:
-      - Video Mode: ${videoMode}
-      - Images: ${imageUrls?.length || 0}
+    if (orderedContentUrls && orderedContentTypes) {
+      // Use ordered content arrays when available (preserves reordering)
+      totalContent = orderedContentUrls.length;
+      totalImages = orderedContentTypes.filter(type => type === 'image').length;
+      totalVideos = orderedContentTypes.filter(type => type === 'video').length;
+      console.log(`📊 Using ordered content: ${totalContent} total (${totalImages} images, ${totalVideos} videos)`);
+    } else {
+      // Fallback to legacy arrays for backward compatibility
+      totalImages = imageUrls?.length || 0;
+      totalVideos = videoUrls?.length || 0;
+      totalContent = totalImages + totalVideos;
+      console.log(`📊 Using legacy content arrays: ${totalContent} total (${totalImages} images, ${totalVideos} videos)`);
+    }
+    
+    console.log(`📋 Mixed content video creation request:
+      - Images: ${totalImages}
+      - Videos: ${totalVideos}
+      - Total content pieces: ${totalContent}
       - Audio URL: ${audioUrl ? 'YES' : 'NO'}
       - Compressed Audio URL: ${compressedAudioUrl ? 'YES' : 'NO'}
       - Subtitles URL: ${subtitlesUrl ? 'YES' : 'NO'}
-      - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (equal timing)'}
+      - Segment timings: ${segmentTimings ? 'YES (custom durations)' : 'NO (equal timing)'}
       - Include Overlay: ${includeOverlay ? 'YES' : 'NO'}
       - Enable Overlay: ${enableOverlay}
       - Enable Zoom: ${enableZoom}
@@ -169,13 +189,14 @@ export async function POST(request: NextRequest) {
       - Quality: ${quality}
       - Zoom Effect: ${zoomEffect}
       - Dust Overlay: ${dustOverlay}
+      - Custom Music: ${useCustomMusic}
       - Subtitle Styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke, ${fontWeight}, ${textTransform}
       - User ID: ${userId}
     `);
 
     // Validate inputs
-    if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
-      return NextResponse.json<CreateVideoResponse>({ error: 'Image URLs are required.' }, { status: 400 });
+    if (totalContent === 0) {
+      return NextResponse.json<CreateVideoResponse>({ error: 'At least one image or video is required.' }, { status: 400 });
     }
     if (!audioUrl) {
       return NextResponse.json<CreateVideoResponse>({ error: 'Audio URL is required.' }, { status: 400 });
@@ -184,13 +205,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json<CreateVideoResponse>({ error: 'User ID is required.' }, { status: 400 });
     }
 
+    // Validate arrays
+    if (imageUrls && (!Array.isArray(imageUrls))) {
+      return NextResponse.json<CreateVideoResponse>({ error: 'Image URLs must be an array.' }, { status: 400 });
+    }
+    if (videoUrls && (!Array.isArray(videoUrls))) {
+      return NextResponse.json<CreateVideoResponse>({ error: 'Video URLs must be an array.' }, { status: 400 });
+    }
+
     // Validate segment timings if provided
     if (segmentTimings) {
       if (!Array.isArray(segmentTimings) || segmentTimings.length === 0) {
         return NextResponse.json<CreateVideoResponse>({ error: 'Segment timings must be a non-empty array when provided.' }, { status: 400 });
       }
-      if (segmentTimings.length !== imageUrls.length) {
-        return NextResponse.json<CreateVideoResponse>({ error: 'Number of segment timings must match number of images.' }, { status: 400 });
+      if (segmentTimings.length !== totalContent) {
+        return NextResponse.json<CreateVideoResponse>({ 
+          error: `Number of segment timings (${segmentTimings.length}) must match total content count (${totalContent}: ${totalImages} images + ${totalVideos} videos).` 
+        }, { status: 400 });
       }
     }
 
@@ -213,45 +244,24 @@ export async function POST(request: NextRequest) {
     }
 
     if (segmentTimings && segmentTimings.length > 0) {
-      // Segmented video (custom segment timing): use precise timing from segment timings
+      // Mixed content with custom segment timing: use precise timing from segment timings
       isSegmentedVideo = true;
       totalDuration = segmentTimings.reduce((sum, timing) => sum + timing.duration, 0);
       imageDuration = 0; // Not used for segmented videos
       
-      console.log(`Segmented video configuration:
+      console.log(`Mixed content video with custom timing:
         - Total duration: ${totalDuration.toFixed(2)} seconds
+        - Total content pieces: ${totalContent} (${totalImages} images + ${totalVideos} videos)
         - Number of segments: ${segmentTimings.length}
         - Individual durations: ${segmentTimings.map(t => t.duration.toFixed(2)).join(', ')}s`);
-    } else if (videoMode === 'traditional') {
-      // Traditional mode: distribute images equally across entire video duration
-      imageDuration = totalDuration / imageUrls.length;
+    } else {
+      // Traditional mode: distribute content equally across entire video duration
+      imageDuration = totalDuration / totalContent;
       
-      console.log(`Traditional video configuration:
+      console.log(`Mixed content video with equal timing:
         - Total duration: ${totalDuration.toFixed(1)} seconds
-        - Number of images: ${imageUrls.length}
-        - Each image duration: ${imageDuration.toFixed(1)} seconds`);
-    } else if (videoMode === 'option1') {
-      // Option 1: Loop all images with zoom effects throughout entire duration
-      // Calculate how many complete cycles we can fit
-      const timePerImage = 3; // 3 seconds per image in the loop
-      const cycleTime = imageUrls.length * timePerImage;
-      
-      console.log(`Option 1 video configuration:
-        - Total duration: ${totalDuration.toFixed(1)} seconds
-        - Images looping with zoom effects
-        - Time per image: ${timePerImage} seconds
-        - Complete cycles: ${Math.floor(totalDuration / cycleTime)}`);
-    } else if (videoMode === 'option2') {
-      // Option 2: Intro sequence + loop last image
-      const actualIntroDuration = Math.min(introDuration, totalDuration - 10); // Leave at least 10s for loop
-      const loopDuration = totalDuration - actualIntroDuration;
-      
-      console.log(`Option 2 video configuration:
-        - Total duration: ${totalDuration.toFixed(1)} seconds
-        - Intro duration: ${actualIntroDuration.toFixed(1)} seconds
-        - Loop duration: ${loopDuration.toFixed(1)} seconds
-        - Intro images: ${introImages?.length || 0}
-        - Loop image: ${loopImageUrl ? 'YES' : 'NO'}`);
+        - Total content pieces: ${totalContent} (${totalImages} images + ${totalVideos} videos)
+        - Each content piece duration: ${imageDuration.toFixed(1)} seconds`);
     }
     
     // Check if the dust overlay is accessible and if overlay is enabled
@@ -306,207 +316,87 @@ export async function POST(request: NextRequest) {
       console.log(`Subtitles enabled but no subtitles URL provided`);
     }
 
-    // Track for images - Create slideshow with timing based on mode
-    if (isSegmentedVideo && segmentTimings) {
-      // Segmented video: use precise timing with sliding transitions
-      console.log(`🎬 Creating segmented video with ${imageUrls.length} precisely timed segments:`);
-      let currentTime = 0;
-      const imageClips = imageUrls.map((url, index) => {
-        const duration = segmentTimings[index].duration;
+    // Track for mixed content (images and videos) - Create timeline respecting custom order
+    console.log(`🎬 Creating mixed content video with ${totalImages} images and ${totalVideos} videos:`);
+    
+    const mediaClips: any[] = [];
+    let currentTime = 0;
+    
+    if (orderedContentUrls && orderedContentTypes) {
+      // Use ordered content arrays to preserve exact reordering sequence
+      console.log(`🔄 Processing content using ordered arrays (preserves custom reordering)`);
+      
+      orderedContentUrls.forEach((url, index) => {
+        const assetType = orderedContentTypes[index];
+        const duration = isSegmentedVideo && segmentTimings ? segmentTimings[index].duration : imageDuration;
         const startTime = currentTime;
         
-        // Cycle through sliding effects for visual variety
-        const slideEffects = ["slideLeft", "slideRight", "slideUp", "slideDown"];
-        const selectedEffect = slideEffects[index % slideEffects.length];
+        console.log(`   Processing ${assetType} at position ${index + 1}: ${url.substring(0, 50)}...`);
         
-        console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (${selectedEffect})`);
+        // Verify the URL format (should be actual URL, not ID:index format)
+        if (url.includes(':') && !url.startsWith('http')) {
+          console.warn(`⚠️ WARNING: Asset URL appears to be in ID format: ${url}`);
+        }
         
         const clip = {
           asset: {
-            type: "image",
+            type: assetType,
             src: url
           },
           start: startTime,
           length: duration,
-          effect: selectedEffect,
-          fit: "contain"
+          ...(assetType === 'image' && zoomEffect && { effect: index % 2 === 0 ? "zoomIn" : "zoomOut" }),
+          fit: "cover"
         };
+        
+        mediaClips.push(clip);
+        console.log(`   ✅ ${assetType.charAt(0).toUpperCase() + assetType.slice(1)} ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
+        console.log(`   🎯 Asset URL: ${url}`);
         
         currentTime += duration;
-        return clip;
       });
-
-      const imageTrack = {
-        clips: imageClips
-      };
-      tracks.push(imageTrack);
     } else {
-      // Handle different video modes
-      if (videoMode === 'traditional') {
-        // Traditional mode: distribute images equally across entire duration
-        console.log(`🎬 Creating traditional video with equal timing across ${totalDuration.toFixed(1)}s:`);
+      // Fallback to legacy processing for backward compatibility
+      console.log(`🔄 Processing content using legacy arrays (images first, then videos)`);
+      
+      const allUrls = [...(imageUrls || []), ...(videoUrls || [])];
+      const imageUrlSet = new Set(imageUrls || []);
+      
+      allUrls.forEach((url, index) => {
+        const isImage = imageUrlSet.has(url);
+        const assetType = isImage ? 'image' : 'video';
+        const duration = isSegmentedVideo && segmentTimings ? segmentTimings[index].duration : imageDuration;
+        const startTime = currentTime;
         
-        const imageClips = imageUrls.map((url, index) => {
-          const startTime = index * imageDuration;
-          
-          console.log(`   Image ${index + 1}: ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
-          
-          return {
-            asset: {
-              type: "image",
-              src: url
-            },
-            start: startTime,
-            length: imageDuration,
-            effect: enableZoom ? "zoomIn" : undefined,
-            fit: "cover"
-          };
-        });
-
-        const imageTrack = {
-          clips: imageClips
-        };
-        tracks.push(imageTrack);
+        console.log(`   Processing ${assetType} at position ${index + 1}: ${url.substring(0, 50)}...`);
         
-      } else if (videoMode === 'option1') {
-        // Option 1: Loop all images with zoom effects throughout entire duration
-        console.log(`🎬 Creating Option 1 video with looping images and zoom effects:`);
-        
-        const timePerImage = 3; // 3 seconds per image in the loop
-        const imageClips = [];
-        let currentTime = 0;
-        
-        while (currentTime < totalDuration) {
-          for (let i = 0; i < imageUrls.length && currentTime < totalDuration; i++) {
-            const remainingTime = totalDuration - currentTime;
-            const clipDuration = Math.min(timePerImage, remainingTime);
-            
-            imageClips.push({
-              asset: {
-                type: "image",
-                src: imageUrls[i]
-              },
-              start: currentTime,
-              length: clipDuration,
-              effect: zoomEffect ? (Math.random() > 0.5 ? "zoomIn" : "zoomOut") : undefined,
-              fit: "cover"
-            });
-            
-            currentTime += clipDuration;
-          }
+        // Verify the URL format (should be actual URL, not ID:index format)
+        if (url.includes(':') && !url.startsWith('http')) {
+          console.warn(`⚠️ WARNING: Legacy path - Asset URL appears to be in ID format: ${url}`);
         }
         
-        console.log(`   Created ${imageClips.length} image clips for looping`);
-        
-        const imageTrack = {
-          clips: imageClips
+        const clip = {
+          asset: {
+            type: assetType,
+            src: url
+          },
+          start: startTime,
+          length: duration,
+          ...(isImage && zoomEffect && { effect: index % 2 === 0 ? "zoomIn" : "zoomOut" }),
+          fit: "cover"
         };
-        tracks.push(imageTrack);
         
-      } else if (videoMode === 'option2') {
-        // Option 2: Intro sequence + loop last image
-        console.log(`🎬 Creating Option 2 video with intro sequence + loop:`);
+        mediaClips.push(clip);
+        console.log(`   ✅ ${assetType.charAt(0).toUpperCase() + assetType.slice(1)} ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
         
-        const actualIntroDuration = Math.min(introDuration, totalDuration - 10);
-        const loopDuration = totalDuration - actualIntroDuration;
-        const imageClips = [];
-        
-        // Create intro sequence
-        if (introImages && introImages.length > 0) {
-          let currentTime = 0;
-          
-          for (const introImage of introImages.sort((a, b) => a.order - b.order)) {
-            if (currentTime >= actualIntroDuration) break;
-            
-            const clipDuration = Math.min(introImage.duration, actualIntroDuration - currentTime);
-            
-            imageClips.push({
-              asset: {
-                type: "image",
-                src: introImage.imageUrl
-              },
-              start: currentTime,
-              length: clipDuration,
-              effect: "slideLeft",
-              fit: "cover"
-            });
-            
-            currentTime += clipDuration;
-            console.log(`   Intro image ${introImage.order}: ${clipDuration.toFixed(2)}s at ${(currentTime - clipDuration).toFixed(2)}s`);
-          }
-        }
-        
-        // Create loop sequence with the selected loop image
-        if (loopImageUrl && loopDuration > 0) {
-          const zoomCycleDuration = 15; // Each zoom cycle (in + out) lasts 15 seconds
-          let loopStartTime = actualIntroDuration;
-          
-          while (loopStartTime < totalDuration) {
-            const remainingTime = totalDuration - loopStartTime;
-            const cycleDuration = Math.min(zoomCycleDuration, remainingTime);
-            
-            if (zoomEffect) {
-              // Alternate between zoom in and zoom out
-              const isZoomIn = Math.floor((loopStartTime - actualIntroDuration) / zoomCycleDuration) % 2 === 0;
-              
-              imageClips.push({
-                asset: {
-                  type: "image",
-                  src: loopImageUrl
-                },
-                start: loopStartTime,
-                length: cycleDuration,
-                effect: isZoomIn ? "zoomIn" : "zoomOut",
-                fit: "cover"
-              });
-            } else {
-              imageClips.push({
-                asset: {
-                  type: "image",
-                  src: loopImageUrl
-                },
-                start: loopStartTime,
-                length: cycleDuration,
-                fit: "cover"
-              });
-            }
-            
-            loopStartTime += cycleDuration;
-          }
-          
-          console.log(`   Loop sequence: ${loopDuration.toFixed(2)}s with ${zoomEffect ? 'zoom effects' : 'static display'}`);
-        }
-        
-        const imageTrack = {
-          clips: imageClips
-        };
-        tracks.push(imageTrack);
-        
-      } else {
-        // Fallback to traditional mode if videoMode is not recognized
-        console.log(`🎬 Unknown video mode "${videoMode}", falling back to traditional:`);
-        
-        const imageClips = imageUrls.map((url, index) => {
-          const startTime = index * imageDuration;
-          
-          return {
-            asset: {
-              type: "image",
-              src: url
-            },
-            start: startTime,
-            length: imageDuration,
-            effect: enableZoom ? "zoomIn" : undefined,
-            fit: "cover"
-          };
-        });
-
-        const imageTrack = {
-          clips: imageClips
-        };
-        tracks.push(imageTrack);
-      }
+        currentTime += duration;
+      });
     }
+
+    const mediaTrack = {
+      clips: mediaClips
+    };
+    tracks.push(mediaTrack);
 
     // Handle audio tracks - custom music or default audio
     if (useCustomMusic && customMusicFiles && customMusicFiles.length > 0) {
@@ -660,18 +550,22 @@ export async function POST(request: NextRequest) {
     console.log(`- Callback URL: ${process.env.SHOTSTACK_CALLBACK_URL ? 'Set' : 'Not set'}`);
 
     console.log("📤 Sending Shotstack API request with payload summary:");
-    console.log(`- Video type: ${isSegmentedVideo ? 'Segmented' : 'Traditional'}`);
+    console.log(`- Video type: ${isSegmentedVideo ? 'Mixed Content (Custom Timing)' : 'Mixed Content (Equal Timing)'}`);
     console.log(`- Total tracks: ${tracks.length}`);
-    console.log(`- Images: ${imageUrls.length}`);
+    console.log(`- Images: ${totalImages}`);
+    console.log(`- Videos: ${totalVideos}`);
+    console.log(`- Total content: ${totalContent}`);
     console.log(`- Audio: ${audioUrl ? 'YES' : 'NO'}`);
     console.log(`- Compressed Audio: ${compressedAudioUrl ? 'YES' : 'NO'}`);
     console.log(`- Subtitles: ${subtitlesUrl && enableSubtitles ? 'YES' : subtitlesUrl ? 'DISABLED' : 'NO'}`);
     console.log(`- Overlay: ${isOverlayAvailable ? 'YES' : shouldIncludeOverlay ? 'UNAVAILABLE' : 'DISABLED'}`);
-    console.log(`- Zoom Effects: ${enableZoom ? 'YES' : 'NO'}`);
+    console.log(`- Zoom Effects: ${zoomEffect ? 'YES' : 'NO'}`);
     console.log(`- Quality: ${quality}`);
     console.log(`- Total duration: ${totalDuration.toFixed(2)}s`);
     
     // Make Shotstack API call BEFORE creating database record
+
+    console.log("Shotstack payload:", JSON.stringify(shotstackPayload, null, 2));
     const shotstackResponse = await fetch(`${SHOTSTACK_ENDPOINT}/render`, {
       method: "POST",
       headers: {
@@ -703,24 +597,18 @@ export async function POST(request: NextRequest) {
     // Only create database record AFTER Shotstack successfully accepts the job
     const supabase = await createClient();
     
-    // Prepare metadata for segmented videos
-    const metadata = isSegmentedVideo && segmentTimings ? {
-      type: 'segmented',
-      segment_timings: segmentTimings,
+    // Prepare metadata for mixed content videos
+    const metadata = {
+      type: isSegmentedVideo ? 'mixed-content-custom' : 'mixed-content-equal',
+      segment_timings: isSegmentedVideo ? segmentTimings : undefined,
       total_duration: totalDuration,
-      scenes_count: imageUrls.length
-    } : {
-      type: videoMode,
-      video_mode: videoMode,
-      total_duration: totalDuration,
-      scenes_count: imageUrls.length,
+      content_count: totalContent,
+      image_count: totalImages,
+      video_count: totalVideos,
       zoom_effect: zoomEffect,
       dust_overlay: dustOverlay,
-      ...(videoMode === 'option2' && {
-        intro_duration: introDuration,
-        intro_images_count: introImages?.length || 0,
-        loop_image_url: loopImageUrl
-      })
+      custom_music: useCustomMusic,
+      music_files_count: useCustomMusic ? customMusicFiles?.length || 0 : 0
     };
     
     const { error: dbError } = await supabase
@@ -730,12 +618,12 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         status: 'processing',
         shotstack_id: shotstackId,
-        image_urls: imageUrls,
+        image_urls: imageUrls || [],
         audio_url: audioUrl,
         compressed_audio_url: compressedAudioUrl,
         subtitles_url: subtitlesUrl,
-        // Use provided thumbnail URL if available, otherwise fall back to first image
-        thumbnail_url: thumbnailUrl || imageUrls[0],
+        // Use provided thumbnail URL, or fall back to first image if available, or empty string
+        thumbnail_url: thumbnailUrl || (imageUrls && imageUrls[0]) || '',
         // Store metadata in error_message field for now (temporary solution)
         error_message: JSON.stringify(metadata),
         created_at: new Date().toISOString(),
@@ -750,11 +638,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ ${videoMode} video record created successfully with Shotstack ID: ${shotstackId}`);
+    console.log(`✅ Mixed content video record created successfully with Shotstack ID: ${shotstackId}`);
+    console.log(`📊 Final video composition: ${totalImages} images + ${totalVideos} videos = ${totalContent} total content pieces`);
 
     // Return success response with video ID and shotstack ID
     return NextResponse.json<CreateVideoResponse>({
-      message: `${videoMode} video creation job started successfully`,
+      message: `Mixed content video creation job started successfully (${totalImages} images + ${totalVideos} videos)`,
       video_id: videoId,
       shotstack_id: shotstackId
     }, { status: 202 });

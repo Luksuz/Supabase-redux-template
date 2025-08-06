@@ -7,9 +7,19 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Checkbox } from '../ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Settings, Palette, AlertCircle, Loader2, VideoIcon, Upload, Music, Trash2, Play, Pause } from 'lucide-react'
-import type { SegmentTiming, IntroImageConfig } from '@/types/video-generation'
-import { VideoModeSelection } from './VideoModeSelection'
+import { Badge } from '../ui/badge'
+import { Settings, Palette, AlertCircle, Loader2, VideoIcon, Upload, Music, Trash2, Play, Pause, Clock, MoveUp, MoveDown, RotateCcw, GripVertical } from 'lucide-react'
+import type { SegmentTiming, IntroImageConfig, IntroVideoConfig } from '@/types/video-generation'
+
+// Type for segment items that can be reordered
+type SegmentItem = {
+  id: string
+  type: 'image' | 'video'
+  url: string
+  duration: number
+  originalIndex: number
+  thumbnail?: string
+}
 
 interface VideoSettingsProps {
   settings: any
@@ -28,16 +38,11 @@ interface VideoSettingsProps {
   // Subtitle styling props
   subtitleSettings: any
   onSubtitleSettingsChange: (settings: any) => void
-  // Image URLs for preview
-  getOrderedImageUrls: () => string[]
-  // Additional props for video mode selection
-  imageSets: any[]
-  selectedImagesOrder: string[]
-  // Intro configuration props
-  introImages: IntroImageConfig[]
-  onIntroImagesChange: (introImages: IntroImageConfig[]) => void
-  selectedLoopImageId: string
-  onSelectedLoopImageIdChange: (imageId: string) => void
+  // Segment ordering props
+  orderedSegments: SegmentItem[]
+  onMoveSegment: (fromIndex: number, toIndex: number) => void
+  onResetOrder: () => void
+  isCustomOrder: boolean
 }
 
 const fontFamilyOptions = [
@@ -69,13 +74,10 @@ export function VideoSettings({
   totalSegmentDuration,
   subtitleSettings,
   onSubtitleSettingsChange,
-  getOrderedImageUrls,
-  imageSets,
-  selectedImagesOrder,
-  introImages,
-  onIntroImagesChange,
-  selectedLoopImageId,
-  onSelectedLoopImageIdChange
+  orderedSegments,
+  onMoveSegment,
+  onResetOrder,
+  isCustomOrder
 }: VideoSettingsProps) {
   const [uploadingMusic, setUploadingMusic] = useState(false)
   const [customMusicFiles, setCustomMusicFiles] = useState<Array<{
@@ -202,20 +204,175 @@ export function VideoSettings({
 
   return (
     <div className="space-y-6">
-      {/* Video Mode Selection */}
-      <VideoModeSelection
-        settings={settings}
-        onSettingsChange={onSettingsChange}
-        getOrderedImageUrls={getOrderedImageUrls}
-        selectedImagesCount={selectedImagesCount}
-        imageSets={imageSets}
-        selectedImagesOrder={selectedImagesOrder}
-        hasPrerequisites={hasPrerequisites}
-        introImages={introImages}
-        onIntroImagesChange={onIntroImagesChange}
-        selectedLoopImageId={selectedLoopImageId}
-        onSelectedLoopImageIdChange={onSelectedLoopImageIdChange}
-      />
+      {/* Simplified Video Settings */}
+      <Card className="bg-white shadow-sm border border-gray-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Video Settings
+          </CardTitle>
+          <CardDescription>
+            Configure video effects and segment durations for your images and videos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Video Effects */}
+          <div className="space-y-4">
+            <Label className="text-base font-medium">Video Effects</Label>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="dust-overlay"
+                  checked={settings.dustOverlay || false}
+                  onCheckedChange={(checked) => onSettingsChange({ dustOverlay: checked })}
+                  disabled={!hasPrerequisites}
+                />
+                <Label htmlFor="dust-overlay" className="text-sm">Dust overlay effect</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="zoom-effect"
+                  checked={settings.zoomEffect || false}
+                  onCheckedChange={(checked) => onSettingsChange({ zoomEffect: checked })}
+                  disabled={!hasPrerequisites}
+                />
+                <Label htmlFor="zoom-effect" className="text-sm">Zoom in/out effects</Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Segment Durations with Reordering */}
+          {orderedSegments.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">Segment Order & Durations</Label>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={onDistributeEquallyAcrossSegments}
+                    size="sm"
+                    variant="outline"
+                    disabled={!hasPrerequisites}
+                  >
+                    <Clock className="h-4 w-4 mr-1" />
+                    Distribute Equally
+                  </Button>
+                  {isCustomOrder && (
+                    <Button
+                      onClick={onResetOrder}
+                      size="sm"
+                      variant="outline"
+                      disabled={!hasPrerequisites}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Reset Order
+                    </Button>
+                  )}
+                  <Badge variant="outline" className="border-gray-300">
+                    Total: {totalSegmentDuration.toFixed(1)}s / {audioGeneration?.duration?.toFixed(1) || '0'}s
+                  </Badge>
+                </div>
+              </div>
+
+              {isCustomOrder && (
+                <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                  ℹ️ Custom order active. Drag segments to reorder or click Reset Order to restore default sequence.
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-4">
+                {orderedSegments.map((segment, index) => {
+                  const timing = customSegmentTimings[index]
+                  if (!timing) return null
+                  
+                  const mediaTypeIcon = segment.type === 'image' ? '🖼️' : '🎬'
+                  const mediaType = segment.type === 'image' ? 'Image' : 'Video'
+                  
+                  return (
+                    <div key={`${segment.id}-${index}`} className="flex items-center gap-3 p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+                      {/* Thumbnail */}
+                      <div className="flex-shrink-0 w-8 h-8 rounded overflow-hidden bg-gray-100">
+                        {segment.thumbnail && (
+                          <img 
+                            src={segment.thumbnail} 
+                            alt={`${mediaType} ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      
+                      {/* Position & Type */}
+                      <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-800 text-xs">
+                          {index + 1}
+                        </Badge>
+                        <span className="text-xs text-gray-500">
+                          {mediaTypeIcon}
+                        </span>
+                      </div>
+                      
+                      {/* Type Label */}
+                      <div className="flex-shrink-0 w-12 text-sm font-medium text-gray-600">
+                        {mediaType}
+                      </div>
+                      
+                      {/* Duration Input */}
+                      <div className="flex-1">
+                        <Input
+                          type="number"
+                          value={timing.duration.toFixed(1)}
+                          onChange={(e) => onUpdateSegmentTiming(index, parseFloat(e.target.value) || 0)}
+                          className="h-8 text-xs"
+                          step="0.5"
+                          min="0.5"
+                          disabled={!hasPrerequisites}
+                        />
+                      </div>
+                      
+                      <div className="flex-shrink-0 text-xs text-gray-500">
+                        seconds
+                      </div>
+                      
+                      {/* Reorder Controls */}
+                      <div className="flex-shrink-0 flex flex-col gap-1">
+                        <Button
+                          onClick={() => onMoveSegment(index, index - 1)}
+                          size="sm"
+                          variant="ghost"
+                          disabled={!hasPrerequisites || index === 0}
+                          className="h-6 w-6 p-0"
+                        >
+                          <MoveUp className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          onClick={() => onMoveSegment(index, index + 1)}
+                          size="sm"
+                          variant="ghost"
+                          disabled={!hasPrerequisites || index === orderedSegments.length - 1}
+                          className="h-6 w-6 p-0"
+                        >
+                          <MoveDown className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              
+              <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded-lg">
+                <p className="font-medium mb-1">Duration Logic:</p>
+                <ul className="space-y-1">
+                  <li>• Videos use their original duration by default</li>
+                  <li>• Images share the remaining audio duration equally</li>
+                  <li>• Adjust individual segments as needed</li>
+                  <li>• Total should match your audio duration for best results</li>
+                </ul>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Custom Music Upload */}
       <Card className="bg-white shadow-sm border border-gray-200">
@@ -343,133 +500,7 @@ export function VideoSettings({
         </CardContent>
       </Card>
 
-      {/* Traditional Video Settings - Only show if not using new video modes */}
-      {settings.videoMode === 'traditional' && (
-        <Card className="bg-white shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Traditional Video Settings
-            </CardTitle>
-            <CardDescription>
-              Configure timing, quality, and subtitle options for traditional video generation
-              {!hasPrerequisites && (
-                <span className="block text-orange-600 mt-1">
-                  Complete prerequisites above to enable video generation
-                </span>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Traditional Video Specific Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-sm">Timing Mode</Label>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="segmented-timing"
-                      checked={settings.useSegmentedTiming || false}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          onSettingsChange({ useSegmentedTiming: true, useScriptBasedTiming: false })
-                        } else {
-                          onSettingsChange({ useSegmentedTiming: false })
-                        }
-                      }}
-                      disabled={!hasPrerequisites}
-                    />
-                    <Label htmlFor="segmented-timing" className="text-sm">Custom segment timing</Label>
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm">Visual Effects</Label>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="include-overlay"
-                    checked={settings.includeOverlay || false}
-                    onCheckedChange={(checked) => onSettingsChange({ includeOverlay: checked as boolean })}
-                    disabled={!hasPrerequisites}
-                  />
-                  <Label htmlFor="include-overlay" className="text-sm">
-                    Add dust overlay effect to video
-                  </Label>
-                </div>
-              </div>
-            </div>
-
-            {/* Segment Timing Configuration */}
-            {settings.useSegmentedTiming && (
-              <div className={`space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg ${!hasPrerequisites ? 'opacity-60' : ''}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Custom Segment Timing</h4>
-                    <p className="text-sm text-gray-600">
-                      Adjust how long each image appears in the video
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      Total: {totalSegmentDuration.toFixed(1)}s
-                    </div>
-                    {audioGeneration?.duration && (
-                      <div className={`text-xs ${
-                        Math.abs(totalSegmentDuration - audioGeneration.duration) < 0.5 
-                          ? 'text-green-600' 
-                          : 'text-orange-600'
-                      }`}>
-                        Audio: {audioGeneration.duration.toFixed(1)}s
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={onDistributeEquallyAcrossSegments}
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasPrerequisites || !audioGeneration?.audioUrl}
-                >
-                  Distribute Equally
-                </Button>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {selectedImagesCount > 0 ? getOrderedImageUrls().map((imageUrl: string, index: number) => (
-                    <div key={imageUrl} className="flex items-center gap-2 p-2 bg-white rounded border">
-                      <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
-                        <img
-                          src={imageUrl}
-                          alt={`Image ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500">Image {index + 1}</div>
-                        <Input
-                          type="number"
-                          value={customSegmentTimings[index]?.duration.toFixed(1) || '0.0'}
-                          onChange={(e) => onUpdateSegmentTiming(index, parseFloat(e.target.value) || 0)}
-                          className="h-6 text-xs"
-                          step="0.1"
-                          min="0.1"
-                          disabled={!hasPrerequisites}
-                        />
-                        <div className="text-xs text-gray-400">seconds</div>
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="col-span-full text-center text-gray-500 py-4">
-                      No images selected for video
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Universal Settings Card - Quality and Subtitles */}
       <Card className="bg-white shadow-sm border border-gray-200">
@@ -708,15 +739,19 @@ export function VideoSettings({
                 <VideoIcon className="h-4 w-4 mr-2" />
                 Complete Prerequisites to Generate Video
               </>
-            ) : selectedImagesCount === 0 ? (
+            ) : selectedImagesCount === 0 && selectedVideosCount === 0 ? (
               <>
                 <VideoIcon className="h-4 w-4 mr-2" />
-                Select Images in Image Generator First
+                Select Images OR Videos First
               </>
             ) : (
               <>
                 <VideoIcon className="h-4 w-4 mr-2" />
-                Generate Video with {selectedImagesCount} Selected Image{selectedImagesCount !== 1 ? 's' : ''} ({
+                Generate Video with {
+                  selectedImagesCount > 0 ? 
+                    `${selectedImagesCount} Selected Image${selectedImagesCount !== 1 ? 's' : ''}` :
+                    `${selectedVideosCount} Selected Video${selectedVideosCount !== 1 ? 's' : ''}`
+                } ({
                   settings.videoMode === 'option1' ? 'Loop All with Zoom' :
                   settings.videoMode === 'option2' ? 'Intro + Loop' :
                   settings.useSegmentedTiming ? 'Custom Timing' :

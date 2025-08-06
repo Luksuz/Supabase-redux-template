@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Mic, Video, Activity, Settings, Search } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Mic, Video, Activity, Settings, Search, Zap } from 'lucide-react'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -48,6 +48,12 @@ export function SidebarNavigation({
       label: 'Image Generator', 
       icon: ImageIcon,
       description: 'Create images from scripts'
+    },
+    {
+      id: 'animation-generator' as NavigationView,
+      label: 'Animation Generator',
+      icon: Zap,
+      description: 'Create animations from reference images'
     },
     {
       id: 'text-image-video-generator' as NavigationView,

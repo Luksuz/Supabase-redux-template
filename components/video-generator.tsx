@@ -9,16 +9,26 @@ import {
   saveVideoToHistory,
   setIsGeneratingVideo
 } from '../lib/features/video/videoSlice'
-import { CreateVideoRequestBody, VideoRecord, SegmentTiming, IntroImageConfig } from '@/types/video-generation'
+import { CreateVideoRequestBody, VideoRecord, SegmentTiming, IntroImageConfig, IntroVideoConfig } from '@/types/video-generation'
+
+// Type for segment items that can be reordered
+type SegmentItem = {
+  id: string
+  type: 'image' | 'video'
+  url: string
+  duration: number
+  originalIndex: number
+  thumbnail?: string
+}
 import { getStoredVideosFromLocalStorage } from '@/utils/video-storage-utils'
 
 // Import modular components
 import { VideoPrerequisites } from './video-generation/VideoPrerequisites'
 import { VideoSettings } from './video-generation/VideoSettings'
+import { UnifiedAnimationSection } from './video-generation/UnifiedAnimationSection'
 import { VideoGenerationStatus } from './video-generation/VideoGenerationStatus'
 import { VideoStatusMessage } from './video-generation/VideoStatusMessage'
 import { VideoEmptyState } from './video-generation/VideoEmptyState'
-import { SelectedVideosDisplay } from './video-generation/SelectedVideosDisplay'
 
 export function VideoGenerator() {
   const dispatch = useAppDispatch()
@@ -26,20 +36,24 @@ export function VideoGenerator() {
   // Use Redux state for user instead of NextAuth session
   const { id: userId } = useAppSelector(state => state.user)
   
-  // Use Redux states from imageGeneration, audio, and video slices
+  // Use Redux states from imageGeneration, audio, video, and textImageVideo slices
   const { imageSets, selectedImagesOrder } = useAppSelector(state => state.imageGeneration)
   const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
   const { 
     currentGeneration, 
     isGeneratingVideo,
-    settings,
-    selectedVideosForGeneration
+    settings
   } = useAppSelector(state => state.video)
+  const { selectedVideosForGenerator: selectedVideosForGeneration } = useAppSelector(state => state.textImageVideo)
   
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
   const [customSegmentTimings, setCustomSegmentTimings] = useState<SegmentTiming[]>([])
   const [selectedVideosCount, setSelectedVideosCount] = useState(0)
+  
+  // Segment ordering state
+  const [orderedSegments, setOrderedSegments] = useState<SegmentItem[]>([])
+  const [isCustomOrder, setIsCustomOrder] = useState(false)
 
   // Add subtitle styling state
   const [subtitleSettings, setSubtitleSettings] = useState({
@@ -51,16 +65,121 @@ export function VideoGenerator() {
     textTransform: 'none'
   })
 
-  // Add state for intro images configuration (for Option 2)
-  const [introImages, setIntroImages] = useState<IntroImageConfig[]>([])
-  const [selectedLoopImageId, setSelectedLoopImageId] = useState<string>('')
 
-  // Track selected videos count
+
+  // Track selected videos count and get video data
+  const [selectedVideos, setSelectedVideos] = useState<any[]>([])
+  
   useEffect(() => {
     const storedVideos = getStoredVideosFromLocalStorage()
-    const selectedVideos = storedVideos.filter(video => selectedVideosForGeneration.includes(video.id))
-    setSelectedVideosCount(selectedVideos.length)
+    const selectedVideosList = storedVideos.filter(video => selectedVideosForGeneration.includes(video.id))
+    setSelectedVideos(selectedVideosList)
+    setSelectedVideosCount(selectedVideosList.length)
   }, [selectedVideosForGeneration])
+
+  // Initialize segments and timings when content changes
+  useEffect(() => {
+    const totalImages = selectedImagesOrder.length
+    const totalVideos = selectedVideos.length
+    const totalSegments = totalImages + totalVideos
+
+    if (totalSegments > 0) {
+      // Build ordered segments list (default order: images first, then videos)
+      const newOrderedSegments: SegmentItem[] = []
+      
+      // Add image segments - resolve IDs to actual URLs
+      selectedImagesOrder.forEach((imageId, index) => {
+        // Resolve image ID to actual URL using the same logic as getOrderedImageUrls
+        const [setId, imageIndex] = imageId.split(':')
+        const imageSet = imageSets.find(set => set.id === setId)
+        
+        if (imageSet && imageSet.imageUrls[parseInt(imageIndex)]) {
+          const actualImageUrl = imageSet.imageUrls[parseInt(imageIndex)]
+          console.log(`🔗 Resolved image ID "${imageId}" to URL: ${actualImageUrl.substring(0, 50)}...`)
+          newOrderedSegments.push({
+            id: `image-${index}`,
+            type: 'image',
+            url: actualImageUrl, // Use actual URL instead of ID
+            duration: 0, // Will be calculated below
+            originalIndex: index,
+            thumbnail: actualImageUrl
+          })
+        } else {
+          console.warn(`❌ Could not resolve image ID: ${imageId}`)
+        }
+      })
+      
+      // Add video segments
+      selectedVideos.forEach((video, index) => {
+        newOrderedSegments.push({
+          id: `video-${index}`,
+          type: 'video',
+          url: video.supabaseUrl || video.video_url || '',
+          duration: video.duration || 3,
+          originalIndex: index,
+          thumbnail: video.thumbnail_url || video.supabaseUrl || video.video_url
+        })
+      })
+
+      console.log(`🔧 Built ${newOrderedSegments.length} segments (${newOrderedSegments.filter(s => s.type === 'image').length} images, ${newOrderedSegments.filter(s => s.type === 'video').length} videos)`)
+
+      // Only update if not using custom order or if segments changed significantly
+      if (!isCustomOrder || orderedSegments.length !== newOrderedSegments.length) {
+        setOrderedSegments(newOrderedSegments)
+        setIsCustomOrder(false)
+      }
+
+      // Calculate durations based on audio
+      if (audioGeneration?.duration) {
+        updateSegmentTimingsFromOrder(isCustomOrder ? orderedSegments : newOrderedSegments)
+      }
+    } else {
+      setOrderedSegments([])
+      setCustomSegmentTimings([])
+      setIsCustomOrder(false)
+    }
+  }, [selectedImagesOrder, selectedVideos, audioGeneration?.duration, imageSets])
+
+  // Function to update segment timings based on current order
+  const updateSegmentTimingsFromOrder = (segments: SegmentItem[]) => {
+    if (!audioGeneration?.duration || segments.length === 0) return
+
+    // Calculate total video duration
+    const totalVideoDuration = segments
+      .filter(s => s.type === 'video')
+      .reduce((sum, segment) => sum + segment.duration, 0)
+    
+    // Remaining duration for images
+    const imageCount = segments.filter(s => s.type === 'image').length
+    const remainingDuration = Math.max(0, audioGeneration.duration - totalVideoDuration)
+    const imageDuration = imageCount > 0 ? remainingDuration / imageCount : 0
+
+    // Create segment timings based on order
+    const newTimings: SegmentTiming[] = segments.map(segment => ({
+      duration: segment.type === 'image' ? imageDuration : segment.duration
+    }))
+
+    setCustomSegmentTimings(newTimings)
+  }
+
+  // Reordering functions
+  const handleMoveSegment = (fromIndex: number, toIndex: number) => {
+    const newOrderedSegments = [...orderedSegments]
+    const [movedSegment] = newOrderedSegments.splice(fromIndex, 1)
+    newOrderedSegments.splice(toIndex, 0, movedSegment)
+    
+    setOrderedSegments(newOrderedSegments)
+    setIsCustomOrder(true)
+    updateSegmentTimingsFromOrder(newOrderedSegments)
+    
+    showMessage(`Moved segment ${fromIndex + 1} to position ${toIndex + 1}`, 'success')
+  }
+
+  const handleResetOrder = () => {
+    // Reset to default order (images first, then videos)
+    setIsCustomOrder(false)
+    // The useEffect will handle rebuilding the default order
+  }
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setMessage(msg)
@@ -155,10 +274,13 @@ export function VideoGenerator() {
     setCustomSegmentTimings(updatedTimings)
   }
 
-  // Distribute total duration equally across all segments
+  // Distribute total duration: videos keep original duration, images share the rest equally
   const distributeEquallyAcrossSegments = async () => {
-    if (getOrderedImageUrls().length === 0) {
-      showMessage('No images selected for timing distribution', 'error')
+    const totalImages = selectedImagesOrder.length
+    const totalVideos = selectedVideos.length
+    
+    if (totalImages === 0 && totalVideos === 0) {
+      showMessage('No images or videos selected for timing distribution', 'error')
       return
     }
 
@@ -176,10 +298,36 @@ export function VideoGenerator() {
       }
     }
     
-    const equalDuration = duration / getOrderedImageUrls().length
-    const equalTimings = getOrderedImageUrls().map(() => ({ duration: equalDuration }))
-    setCustomSegmentTimings(equalTimings)
-    showMessage(`Distributed ${duration.toFixed(1)}s equally across ${getOrderedImageUrls().length} images`, 'success')
+    // Calculate total video duration
+    const totalVideoDuration = selectedVideos.reduce((sum, video) => sum + (video.duration || 3), 0)
+    
+    // Remaining duration for images
+    const remainingDuration = Math.max(0, duration - totalVideoDuration)
+    const imageDuration = totalImages > 0 ? remainingDuration / totalImages : 0
+
+    // Create new timings: images first, then videos
+    const newTimings: SegmentTiming[] = []
+    
+    // Add image segments
+    for (let i = 0; i < totalImages; i++) {
+      newTimings.push({ duration: imageDuration })
+    }
+    
+    // Add video segments with their original durations
+    for (const video of selectedVideos) {
+      newTimings.push({ duration: video.duration || 3 })
+    }
+
+    setCustomSegmentTimings(newTimings)
+    
+    if (totalVideos > 0) {
+      showMessage(
+        `Distributed ${duration.toFixed(1)}s: ${totalVideos} video(s) use original duration, ${totalImages} image(s) share ${remainingDuration.toFixed(1)}s equally`, 
+        'success'
+      )
+    } else {
+      showMessage(`Distributed ${duration.toFixed(1)}s equally across ${totalImages} images`, 'success')
+    }
   }
 
   // Get audio duration with fallback to fetch from audio file
@@ -243,76 +391,63 @@ export function VideoGenerator() {
   // Check if script-based timing is available
   const scriptBasedTimingAvailable = audioGeneration?.scriptDurations && audioGeneration.scriptDurations.length > 0
 
-  // Handle video generation with ordered images from Redux
+  // Handle video generation with ordered images and videos
   const handleGenerateVideo = async () => {
     try {
       dispatch(setIsGeneratingVideo(true))
 
-      // Use ordered images from Redux state
-      const orderedImageUrls = getOrderedImageUrls()
+      // Get content for video generation using ordered segments
+      const totalContent = orderedSegments.length
       
-      // Validate that at least one image is selected
-      if (orderedImageUrls.length === 0) {
-        showMessage('Please select images in the Image Generator first.', 'error')
+      // Validate that at least one piece of content is selected
+      if (totalContent === 0) {
+        showMessage('Please select images or videos first.', 'error')
         dispatch(setIsGeneratingVideo(false))
         return
       }
+
+      // Build content arrays that preserve the exact reordered sequence
+      const orderedContentUrls = orderedSegments.map(segment => segment.url)
+      const orderedContentTypes = orderedSegments.map(segment => segment.type)
       
-      console.log(`🎬 Starting video generation with ${orderedImageUrls.length} ordered images in ${settings.videoMode} mode`)
-      showMessage(`Starting ${settings.videoMode} video generation with ${orderedImageUrls.length} images...`, 'info')
+      // Also build separate arrays for backward compatibility
+      const imageUrls: string[] = []
+      const videoUrls: string[] = []
       
-      // Determine which timing mode to use and prepare segment timings
-      let segmentTimings: SegmentTiming[] | undefined = undefined
-      let videoType: 'traditional' | 'segmented' | 'script-based' | 'option1' | 'option2' = 'traditional'
-
-      // Handle new video modes
-      if (settings.videoMode === 'option1') {
-        videoType = 'option1'
-        // Option 1: Loop all images with zoom effects - no specific segment timings needed
-      } else if (settings.videoMode === 'option2') {
-        videoType = 'option2'
-        // Option 2: Intro sequence + loop - validate intro images and loop image
-        if (introImages.length === 0) {
-          showMessage('Please configure intro images for Option 2 video mode.', 'error')
-          dispatch(setIsGeneratingVideo(false))
-          return
+      orderedSegments.forEach(segment => {
+        if (segment.type === 'image') {
+          imageUrls.push(segment.url)
+        } else if (segment.type === 'video') {
+          videoUrls.push(segment.url)
         }
-        if (!selectedLoopImageId) {
-          showMessage('Please select a loop image for Option 2 video mode.', 'error')
-          dispatch(setIsGeneratingVideo(false))
-          return
-        }
-      } else if (settings.useSegmentedTiming) {
-        // Custom segmented timing (manual user input) - adjust for selected images
-        const selectedTimings = customSegmentTimings.slice(0, orderedImageUrls.length)
-        segmentTimings = selectedTimings
-        videoType = 'segmented'
-      } else if (settings.useScriptBasedTiming && scriptBasedTimingAvailable) {
-        // Script-based timing (automatic from audio generation) - adjust for selected images
-        const scriptTimings = getScriptBasedTimings()
-        segmentTimings = scriptTimings.slice(0, orderedImageUrls.length)
-        videoType = 'script-based'
-      }
-      // Otherwise, use traditional equal timing (no segmentTimings)
+      })
 
-      // Get loop image URL for Option 2
-      let loopImageUrl: string | undefined = undefined
-      if (settings.videoMode === 'option2' && selectedLoopImageId) {
-        const [setId, imageIndex] = selectedLoopImageId.split(':')
-        const imageSet = imageSets.find(set => set.id === setId)
-        if (imageSet && imageSet.imageUrls[parseInt(imageIndex)]) {
-          loopImageUrl = imageSet.imageUrls[parseInt(imageIndex)]
-        }
-      }
+      const totalImages = imageUrls.length
+      const totalVideos = videoUrls.length
+      
+      console.log(`🎬 Starting video generation with ${totalImages} images and ${totalVideos} videos in custom order`)
+      console.log(`🔄 Ordered sequence:`, orderedSegments.map((s, i) => `${i+1}. ${s.type} (${s.url.substring(0, 20)}...)`))
+      console.log(`🔗 Ordered URLs being sent to API:`)
+      orderedSegments.forEach((segment, index) => {
+        console.log(`   ${index + 1}. ${segment.type}: ${segment.url}`)
+      })
+      showMessage(`Starting video generation with ${totalImages} images and ${totalVideos} videos in custom order...`, 'info')
+      
+      // Use segment timings that correspond to the ordered segments
+      const segmentTimings = customSegmentTimings.length > 0 ? customSegmentTimings : undefined
 
-      // Prepare request body with ordered images
+      // Prepare request body with ordered content structure
       const requestBody: CreateVideoRequestBody = {
-        imageUrls: orderedImageUrls,
+        imageUrls: imageUrls, // Keep for backward compatibility
+        videoUrls: videoUrls, // Keep for backward compatibility
+        // New ordered content arrays that preserve reordering
+        orderedContentUrls: orderedContentUrls,
+        orderedContentTypes: orderedContentTypes,
         audioUrl: audioGeneration?.audioUrl || 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
         compressedAudioUrl: audioGeneration?.compressedAudioUrl || undefined,
         subtitlesUrl: settings.includeSubtitles && audioGeneration?.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,
         userId: userId || 'current_user',
-        thumbnailUrl: orderedImageUrls[0],
+        thumbnailUrl: orderedSegments[0]?.thumbnail || imageUrls[0] || videoUrls[0] || '', // Use first segment's thumbnail
         segmentTimings: segmentTimings,
         includeOverlay: settings.includeOverlay || false,
         fontFamily: subtitleSettings.fontFamily,
@@ -322,22 +457,16 @@ export function VideoGenerator() {
         fontWeight: subtitleSettings.fontWeight,
         textTransform: subtitleSettings.textTransform,
         audioDuration: audioGeneration?.duration ?? undefined,
-        // New video mode options
-        videoMode: settings.videoMode,
+        // Simplified video effects
         zoomEffect: settings.zoomEffect || false,
         dustOverlay: settings.dustOverlay || false,
-        // Option 2 specific
-        introImages: settings.videoMode === 'option2' ? introImages : undefined,
-        introDuration: settings.videoMode === 'option2' ? settings.introDuration : undefined,
-        loopImageUrl: settings.videoMode === 'option2' ? loopImageUrl : undefined,
-        useEqualIntroDuration: settings.videoMode === 'option2' ? settings.useEqualIntroDuration : undefined,
         // Custom music
         useCustomMusic: settings.useCustomMusic || false,
         customMusicFiles: settings.customMusicFiles || []
       }
 
       console.log('🎬 Starting video generation with:', requestBody)
-      showMessage(`Starting ${videoType} video generation...`, 'info')
+      showMessage('Starting video generation...', 'info')
 
       // Call video creation API
       const response = await fetch('/api/create-video', {
@@ -355,7 +484,7 @@ export function VideoGenerator() {
       
       if (data.video_id) {
         // Show immediate success feedback about Shotstack accepting the job
-        showMessage(`🎬 Video rendering started! Shotstack is processing your ${videoType} video...`, 'success')
+        showMessage(`🎬 Video rendering started! Shotstack is processing your video with ${totalImages} images and ${totalVideos} videos...`, 'success')
         
         // Create video record for Redux state
         const videoRecord: VideoRecord = {
@@ -363,22 +492,21 @@ export function VideoGenerator() {
           user_id: userId || 'current_user',
           status: 'processing',
           shotstack_id: data.shotstack_id || '',
-          image_urls: orderedImageUrls,
+          image_urls: imageUrls,
           audio_url: requestBody.audioUrl,
           subtitles_url: requestBody.subtitlesUrl,
-          thumbnail_url: orderedImageUrls[0],
+          thumbnail_url: imageUrls[0] || '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: {
-            type: videoType,
-            video_mode: settings.videoMode,
-            intro_images: settings.videoMode === 'option2' ? introImages : undefined,
-            loop_image: settings.videoMode === 'option2' ? loopImageUrl : undefined,
+            type: 'mixed-content',
             segment_timings: segmentTimings,
             total_duration: segmentTimings ? 
               segmentTimings.reduce((sum, timing) => sum + timing.duration, 0) : 
               audioGeneration?.duration || 30,
-            scenes_count: orderedImageUrls.length
+            scenes_count: totalContent,
+            image_count: totalImages,
+            video_count: totalVideos
           }
         }
 
@@ -448,10 +576,7 @@ export function VideoGenerator() {
         audioGeneration={audioGeneration}
       />
 
-      {/* Selected Videos Display */}
-      {selectedVideosCount > 0 && (
-        <SelectedVideosDisplay />
-      )}
+
 
       {/* Video Settings */}
       <VideoSettings
@@ -469,13 +594,15 @@ export function VideoGenerator() {
         totalSegmentDuration={totalSegmentDuration}
         subtitleSettings={subtitleSettings}
         onSubtitleSettingsChange={setSubtitleSettings}
-        getOrderedImageUrls={getOrderedImageUrls}
-        imageSets={imageSets}
-        selectedImagesOrder={selectedImagesOrder}
-        introImages={introImages}
-        onIntroImagesChange={setIntroImages}
-        selectedLoopImageId={selectedLoopImageId}
-        onSelectedLoopImageIdChange={setSelectedLoopImageId}
+        orderedSegments={orderedSegments}
+        onMoveSegment={handleMoveSegment}
+        onResetOrder={handleResetOrder}
+        isCustomOrder={isCustomOrder}
+      />
+
+      {/* Animation Generator */}
+      <UnifiedAnimationSection
+        hasPrerequisites={hasPrerequisites as boolean}
       />
 
       {/* Current Generation Status */}

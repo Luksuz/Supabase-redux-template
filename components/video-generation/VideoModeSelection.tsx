@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAppSelector } from '@/lib/hooks'
+import { getStoredVideosFromLocalStorage } from '@/utils/video-storage-utils'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -10,13 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { Settings, Video, Zap, Clock, ArrowUp, ArrowDown, X, Plus } from 'lucide-react'
-import type { IntroImageConfig } from '@/types/video-generation'
+import type { IntroImageConfig, IntroVideoConfig } from '@/types/video-generation'
 
 interface VideoModeSelectionProps {
   settings: any
   onSettingsChange: (settings: any) => void
   getOrderedImageUrls: () => string[]
   selectedImagesCount: number
+  selectedVideosCount: number
   imageSets: any[]
   selectedImagesOrder: string[]
   hasPrerequisites: boolean
@@ -25,6 +28,11 @@ interface VideoModeSelectionProps {
   onIntroImagesChange: (introImages: IntroImageConfig[]) => void
   selectedLoopImageId: string
   onSelectedLoopImageIdChange: (imageId: string) => void
+  // Callbacks for intro videos configuration
+  introVideos: IntroVideoConfig[]
+  onIntroVideosChange: (introVideos: IntroVideoConfig[]) => void
+  selectedLoopVideoId: string
+  onSelectedLoopVideoIdChange: (videoId: string) => void
 }
 
 export function VideoModeSelection({
@@ -32,14 +40,29 @@ export function VideoModeSelection({
   onSettingsChange,
   getOrderedImageUrls,
   selectedImagesCount,
+  selectedVideosCount,
   imageSets,
   selectedImagesOrder,
   hasPrerequisites,
   introImages,
   onIntroImagesChange,
   selectedLoopImageId,
-  onSelectedLoopImageIdChange
+  onSelectedLoopImageIdChange,
+  introVideos,
+  onIntroVideosChange,
+  selectedLoopVideoId,
+  onSelectedLoopVideoIdChange
 }: VideoModeSelectionProps) {
+  // Get selected videos from Redux
+  const selectedVideoIds = useAppSelector(state => state.textImageVideo.selectedVideosForGenerator)
+  const [availableVideos, setAvailableVideos] = useState<any[]>([])
+
+  // Load available videos
+  useEffect(() => {
+    const storedVideos = getStoredVideosFromLocalStorage()
+    const selectedVideos = storedVideos.filter(video => selectedVideoIds.includes(video.id))
+    setAvailableVideos(selectedVideos)
+  }, [selectedVideoIds])
   // Helper function to get image details
   const getImageDetails = (imageId: string) => {
     const [setId, imageIndex] = imageId.split(':')
@@ -112,6 +135,71 @@ export function VideoModeSelection({
 
   // Calculate total intro duration
   const totalIntroDuration = introImages.reduce((sum, img) => sum + img.duration, 0)
+
+  // Video helper functions
+  const getVideoDetails = (videoId: string) => {
+    return availableVideos.find(video => video.id === videoId)
+  }
+
+  // Add video to intro sequence
+  const addToIntroVideoSequence = (videoId: string) => {
+    const videoDetails = getVideoDetails(videoId)
+    if (!videoDetails) return
+
+    const newIntroVideo: IntroVideoConfig = {
+      videoId,
+      videoUrl: videoDetails.supabaseUrl,
+      duration: videoDetails.duration || settings.introDuration / Math.max(selectedVideosCount, 1),
+      order: introVideos.length + 1,
+      thumbnailUrl: undefined // StoredVideo doesn't have thumbnail_url property
+    }
+
+    onIntroVideosChange([...introVideos, newIntroVideo])
+  }
+
+  // Remove video from intro sequence
+  const removeFromIntroVideoSequence = (videoId: string) => {
+    const filtered = introVideos.filter(vid => vid.videoId !== videoId)
+    // Reorder remaining videos
+    const reordered = filtered.map((vid, index) => ({ ...vid, order: index + 1 }))
+    onIntroVideosChange(reordered)
+  }
+
+  // Move intro video up/down
+  const moveIntroVideo = (videoId: string, direction: 'up' | 'down') => {
+    const currentIndex = introVideos.findIndex(vid => vid.videoId === videoId)
+    if (currentIndex === -1) return
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+    if (newIndex < 0 || newIndex >= introVideos.length) return
+
+    const newIntroVideos = [...introVideos]
+    ;[newIntroVideos[currentIndex], newIntroVideos[newIndex]] = [newIntroVideos[newIndex], newIntroVideos[currentIndex]]
+    
+    // Update order numbers
+    const reordered = newIntroVideos.map((vid, index) => ({ ...vid, order: index + 1 }))
+    onIntroVideosChange(reordered)
+  }
+
+  // Update intro video duration
+  const updateIntroVideoDuration = (videoId: string, duration: number) => {
+    const updated = introVideos.map(vid => 
+      vid.videoId === videoId ? { ...vid, duration } : vid
+    )
+    onIntroVideosChange(updated)
+  }
+
+  // Distribute intro duration equally for videos
+  const distributeIntroVideosEqually = () => {
+    if (introVideos.length === 0) return
+
+    const equalDuration = settings.introDuration / introVideos.length
+    const updated = introVideos.map(vid => ({ ...vid, duration: equalDuration }))
+    onIntroVideosChange(updated)
+  }
+
+  // Calculate total intro video duration
+  const totalIntroVideosDuration = introVideos.reduce((sum, vid) => sum + vid.duration, 0)
 
   return (
     <Card className="bg-white shadow-sm border border-gray-200">
@@ -242,26 +330,43 @@ export function VideoModeSelection({
                   </div>
                 </div>
 
-                {/* Intro Images Configuration */}
-                {selectedImagesCount > 0 && (
+                {/* Intro Configuration - Images or Videos */}
+                {(selectedImagesCount > 0 || selectedVideosCount > 0) && (
                   <div className="space-y-4 border-t border-purple-200 pt-4">
-                    <div className="flex items-center justify-between">
-                      <h5 className="font-medium text-purple-800">Configure Intro Sequence</h5>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={distributeIntroEqually}
-                          size="sm"
-                          variant="outline"
-                          disabled={introImages.length === 0}
-                        >
-                          <Clock className="h-4 w-4 mr-1" />
-                          Equal Duration
-                        </Button>
-                        <Badge variant="outline" className="border-purple-300 text-purple-700">
-                          Total: {totalIntroDuration.toFixed(1)}s / {settings.introDuration}s
-                        </Badge>
-                      </div>
-                    </div>
+                    <h5 className="font-medium text-purple-800">Configure Intro Sequence</h5>
+                    
+                    <Tabs defaultValue={selectedImagesCount > 0 ? "images" : "videos"} className="w-full">
+                      {(selectedImagesCount > 0 && selectedVideosCount > 0) ? (
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="images">Images ({selectedImagesCount})</TabsTrigger>
+                          <TabsTrigger value="videos">Videos ({selectedVideosCount})</TabsTrigger>
+                        </TabsList>
+                      ) : (
+                        <TabsList className="grid w-full grid-cols-1">
+                          {selectedImagesCount > 0 && <TabsTrigger value="images">Images ({selectedImagesCount})</TabsTrigger>}
+                          {selectedVideosCount > 0 && <TabsTrigger value="videos">Videos ({selectedVideosCount})</TabsTrigger>}
+                        </TabsList>
+                      )}
+
+                      {/* Images Tab */}
+                      {selectedImagesCount > 0 && (
+                        <TabsContent value="images" className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={distributeIntroEqually}
+                                size="sm"
+                                variant="outline"
+                                disabled={introImages.length === 0}
+                              >
+                                <Clock className="h-4 w-4 mr-1" />
+                                Equal Duration
+                              </Button>
+                              <Badge variant="outline" className="border-purple-300 text-purple-700">
+                                Total: {totalIntroDuration.toFixed(1)}s / {settings.introDuration}s
+                              </Badge>
+                            </div>
+                          </div>
 
                     {/* Available Images */}
                     <div className="space-y-2">
@@ -406,6 +511,182 @@ export function VideoModeSelection({
                         </SelectContent>
                       </Select>
                     </div>
+                        </TabsContent>
+                      )}
+
+                      {/* Videos Tab */}
+                      {selectedVideosCount > 0 && (
+                        <TabsContent value="videos" className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={distributeIntroVideosEqually}
+                                size="sm"
+                                variant="outline"
+                                disabled={introVideos.length === 0}
+                              >
+                                <Clock className="h-4 w-4 mr-1" />
+                                Equal Duration
+                              </Button>
+                              <Badge variant="outline" className="border-purple-300 text-purple-700">
+                                Total: {totalIntroVideosDuration.toFixed(1)}s / {settings.introDuration}s
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Available Videos */}
+                          <div className="space-y-2">
+                            <Label className="text-sm">Available Videos</Label>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto border rounded-lg p-2">
+                              {availableVideos.map((video, index) => {
+                                const isInIntro = introVideos.some(vid => vid.videoId === video.id)
+                                
+                                return (
+                                  <div key={video.id} className="relative group">
+                                    <div className={`aspect-video rounded border-2 overflow-hidden cursor-pointer transition-colors ${
+                                      isInIntro ? 'border-purple-500 bg-purple-100' : 'border-gray-200 hover:border-purple-300'
+                                    }`}>
+                                      {false ? ( // StoredVideo doesn't have thumbnail, so always show placeholder
+                                        <img
+                                          src=""
+                                          alt={`Video ${index + 1}`}
+                                          className="w-full h-full object-cover"
+                                          onClick={() => isInIntro ? removeFromIntroVideoSequence(video.id) : addToIntroVideoSequence(video.id)}
+                                        />
+                                      ) : (
+                                        <div 
+                                          className="w-full h-full bg-gray-100 flex items-center justify-center"
+                                          onClick={() => isInIntro ? removeFromIntroVideoSequence(video.id) : addToIntroVideoSequence(video.id)}
+                                        >
+                                          <Video className="h-6 w-6 text-gray-400" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="absolute -top-1 -right-1">
+                                      {isInIntro ? (
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          className="h-6 w-6 p-0 rounded-full"
+                                          onClick={() => removeFromIntroVideoSequence(video.id)}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          className="h-6 w-6 p-0 rounded-full bg-purple-600 hover:bg-purple-700"
+                                          onClick={() => addToIntroVideoSequence(video.id)}
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Intro Video Sequence */}
+                          {introVideos.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm">Intro Video Sequence ({introVideos.length} videos)</Label>
+                              <div className="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-2">
+                                {[...introVideos]
+                                  .sort((a, b) => a.order - b.order)
+                                  .map((introVideo, index) => (
+                                  <div key={introVideo.videoId} className="flex items-center gap-3 p-2 bg-purple-50 rounded border">
+                                    <div className="flex-shrink-0">
+                                      <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                                        {introVideo.order}
+                                      </Badge>
+                                    </div>
+                                    
+                                    <div className="w-16 h-10 bg-gray-100 rounded overflow-hidden">
+                                      {introVideo.thumbnailUrl ? (
+                                        <img
+                                          src={introVideo.thumbnailUrl}
+                                          alt={`Intro video ${introVideo.order}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                          <Video className="h-4 w-4 text-gray-400" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="flex-1">
+                                      <Input
+                                        type="number"
+                                        value={introVideo.duration.toFixed(1)}
+                                        onChange={(e) => updateIntroVideoDuration(introVideo.videoId, parseFloat(e.target.value) || 0)}
+                                        className="h-8 text-xs"
+                                        step="0.5"
+                                        min="0.5"
+                                        disabled={!hasPrerequisites || settings.useEqualIntroDuration}
+                                      />
+                                    </div>
+                                    
+                                    <div className="flex gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => moveIntroVideo(introVideo.videoId, 'up')}
+                                        disabled={index === 0}
+                                      >
+                                        <ArrowUp className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => moveIntroVideo(introVideo.videoId, 'down')}
+                                        disabled={index === introVideos.length - 1}
+                                      >
+                                        <ArrowDown className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => removeFromIntroVideoSequence(introVideo.videoId)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Loop Video Selection */}
+                          <div className="space-y-2">
+                            <Label className="text-sm">Loop Video (will be shown after intro)</Label>
+                            <Select 
+                              value={selectedLoopVideoId} 
+                              onValueChange={onSelectedLoopVideoIdChange}
+                              disabled={!hasPrerequisites}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select video to loop..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableVideos.map((video, index) => (
+                                  <SelectItem key={video.id} value={video.id}>
+                                    Video {index + 1} - {video.type || 'Generated Video'}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </TabsContent>
+                      )}
+                    </Tabs>
                   </div>
                 )}
               </div>

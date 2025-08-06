@@ -25,7 +25,6 @@ export interface Hook {
 export interface ScriptSection {
   title: string
   writingInstructions: string
-  image_generation_prompt: string
   ctas?: CallToAction[]
   hook?: Hook
 }

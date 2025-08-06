@@ -10,6 +10,14 @@ export interface IntroImageConfig {
   order: number
 }
 
+export interface IntroVideoConfig {
+  videoId: string
+  videoUrl: string
+  duration: number
+  order: number
+  thumbnailUrl?: string
+}
+
 export interface CustomMusicFile {
   id: string
   name: string
@@ -19,6 +27,10 @@ export interface CustomMusicFile {
 
 export interface CreateVideoRequestBody {
   imageUrls: string[]
+  videoUrls?: string[] // Add video URLs for mixed content
+  // Ordered content arrays that preserve exact reordering sequence
+  orderedContentUrls?: string[]
+  orderedContentTypes?: ('image' | 'video')[]
   audioUrl: string
   compressedAudioUrl?: string
   subtitlesUrl?: string
@@ -37,13 +49,8 @@ export interface CreateVideoRequestBody {
   fontWeight?: string
   textTransform?: string
   audioDuration?: number
-  videoMode?: 'option1' | 'option2' | 'traditional'
   zoomEffect?: boolean
   dustOverlay?: boolean
-  introImages?: IntroImageConfig[]
-  introDuration?: number
-  loopImageUrl?: string
-  useEqualIntroDuration?: boolean
   // Custom music properties
   useCustomMusic?: boolean
   customMusicFiles?: CustomMusicFile[]
@@ -72,13 +79,17 @@ export interface VideoRecord {
   created_at: string
   updated_at: string
   metadata?: {
-    type?: 'segmented' | 'traditional' | 'script-based' | 'option1' | 'option2'
+    type?: 'segmented' | 'traditional' | 'script-based' | 'option1' | 'option2' | 'mixed-content'
     segment_timings?: SegmentTiming[]
     total_duration?: number
     scenes_count?: number
+    image_count?: number
+    video_count?: number
     video_mode?: 'option1' | 'option2' | 'traditional'
     intro_images?: IntroImageConfig[]
+    intro_videos?: IntroVideoConfig[]
     loop_image?: string
+    loop_video?: string
   }
 }
 

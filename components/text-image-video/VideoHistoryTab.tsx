@@ -21,7 +21,7 @@ import {
 import { GeneratedVideo, VideoGenerationBatch } from '@/types/text-image-video-generation'
 import { StoredVideo, getStoredVideosFromLocalStorage, deleteStoredVideo } from '@/utils/video-storage-utils'
 import { useAppSelector, useAppDispatch } from '@/lib/hooks'
-import { toggleVideoSelection, clearSelectedVideos } from '@/lib/features/video/videoSlice'
+import { toggleVideoForGenerator, clearSelectedVideosForGenerator } from '@/lib/features/textImageVideo/textImageVideoSlice'
 
 interface VideoHistoryTabProps {
   videoHistory: GeneratedVideo[]
@@ -33,7 +33,7 @@ export function VideoHistoryTab({
   batches
 }: VideoHistoryTabProps) {
   const dispatch = useAppDispatch()
-  const selectedVideosForGeneration = useAppSelector(state => state.video.selectedVideosForGeneration)
+  const selectedVideosForGeneration = useAppSelector(state => state.textImageVideo.selectedVideosForGenerator)
   
   const [storedVideos, setStoredVideos] = useState<StoredVideo[]>([])
   const [isSelectionMode, setIsSelectionMode] = useState(false)
@@ -76,20 +76,20 @@ export function VideoHistoryTab({
   }
 
   const handleVideoSelection = (videoId: string) => {
-    dispatch(toggleVideoSelection(videoId))
+    dispatch(toggleVideoForGenerator(videoId))
   }
 
   const handleSelectAll = () => {
     const allVideoIds = storedVideos.map(v => v.id)
     allVideoIds.forEach(id => {
       if (!selectedVideosForGeneration.includes(id)) {
-        dispatch(toggleVideoSelection(id))
+        dispatch(toggleVideoForGenerator(id))
       }
     })
   }
 
   const handleClearSelection = () => {
-    dispatch(clearSelectedVideos())
+    dispatch(clearSelectedVideosForGenerator())
   }
 
   const applyToVideoGeneration = () => {

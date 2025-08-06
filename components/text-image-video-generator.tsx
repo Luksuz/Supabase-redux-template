@@ -314,7 +314,7 @@ export function TextImageVideoGenerator() {
       </div>
 
       <Tabs defaultValue="text-to-video">
-        <TabsList className="grid grid-cols-4 mb-6">
+        <TabsList className="flex w-full justify-center gap-2 mb-6">
           <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
           <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
           <TabsTrigger value="generation">Current Generation</TabsTrigger>

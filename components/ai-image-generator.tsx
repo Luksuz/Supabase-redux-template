@@ -78,9 +78,6 @@ export function AIImageGenerator() {
 
   // Get available script sources (prioritized)
   const fullScriptText = fullScript?.scriptWithMarkdown || ''
-  const sectionPrompts = scriptSections.length > 0 
-    ? scriptSections.map((s: any) => s.image_generation_prompt || '').filter(Boolean)
-    : []
   
   // Determine what script source to use for extraction
   const getScriptForExtraction = () => {
@@ -89,9 +86,6 @@ export function AIImageGenerator() {
     }
     if (fullScriptText) {
       return fullScriptText
-    }
-    if (sectionPrompts.length > 0) {
-      return sectionPrompts.join('\n\n')
     }
     return ''
   }
@@ -102,9 +96,6 @@ export function AIImageGenerator() {
     }
     if (fullScriptText) {
       return { source: 'full', count: fullScriptText.length, type: 'Full generated script' }
-    }
-    if (sectionPrompts.length > 0) {
-      return { source: 'sections', count: sectionPrompts.join('\n\n').length, type: `${sectionPrompts.length} section prompts` }
     }
     return { source: 'none', count: 0, type: 'No script available' }
   }

@@ -13,7 +13,6 @@ const openai = new OpenAI({
 const scriptSectionsSchema = z.array(z.object({
   title: z.string(),
   writingInstructions: z.string(),
-  image_generation_prompt: z.string(),
   narrativeRole: z.string().describe("The role this section plays in the overall story structure"),
   storyArc: z.string().describe("How this section contributes to the complete story arc")
 }));
@@ -238,21 +237,18 @@ Create a compelling, complete story that audiences will want to follow from star
       {
         title: "Opening",
         writingInstructions: `Introduce the central premise of "${title}". Set up the main question, conflict, or journey that will drive the narrative. Establish key characters or concepts. Create an engaging hook that draws the audience in.`,
-        image_generation_prompt: `Opening scene for ${title}`,
         narrativeRole: "Introduction and setup",
         storyArc: "Establishes the foundation and central premise"
       },
       {
         title: "Development", 
         writingInstructions: `Develop the central story of "${title}". Build tension, explore the main themes, introduce complications or deeper insights. Advance the narrative significantly from the opening.`,
-        image_generation_prompt: `Development scene showing progression in ${title}`,
         narrativeRole: "Story development and conflict building",
         storyArc: "Builds tension and develops the central narrative"
       },
       {
         title: "Resolution",
         writingInstructions: `Bring "${title}" to a satisfying conclusion. Address the central conflict or question established in the opening. Provide closure, resolution, and meaningful takeaways for the audience. End the story completely.`,
-        image_generation_prompt: `Conclusive scene for ${title}`,
         narrativeRole: "Climax and resolution", 
         storyArc: "Provides closure and completes the story arc"
       }

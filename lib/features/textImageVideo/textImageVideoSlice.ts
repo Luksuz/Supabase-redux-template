@@ -5,7 +5,9 @@ import {
   GeneratedVideo, 
   TextToVideoRequest, 
   ImageToVideoRequest,
-  VideoProvider
+  VideoProvider,
+  ExtractedVideoScene,
+  ScriptSummary
 } from '../../../types/text-image-video-generation'
 
 const initialState: TextImageVideoState = {
@@ -31,6 +33,18 @@ const initialState: TextImageVideoState = {
   // History
   videoHistory: [],
   batches: [],
+  selectedVideosForGenerator: [],
+  
+  // Script-based prompt generation
+  scriptBasedPrompts: {
+    scriptInput: '',
+    numberOfScenesToExtract: 10,
+    isExtractingScenes: false,
+    sceneExtractionError: null,
+    extractedScenes: [],
+    selectedScenes: [],
+    scriptSummary: null
+  },
   
   // Rate limiting
   lastRequest: null,
@@ -231,6 +245,123 @@ export const textImageVideoSlice = createSlice({
 
     loadBatchHistory: (state, action: PayloadAction<VideoGenerationBatch[]>) => {
       state.batches = action.payload
+    },
+
+    // Video selection for generator
+    addVideoToGenerator: (state, action: PayloadAction<string>) => {
+      if (!state.selectedVideosForGenerator.includes(action.payload)) {
+        state.selectedVideosForGenerator.push(action.payload)
+      }
+    },
+
+    removeVideoFromGenerator: (state, action: PayloadAction<string>) => {
+      state.selectedVideosForGenerator = state.selectedVideosForGenerator.filter(
+        id => id !== action.payload
+      )
+    },
+
+    toggleVideoForGenerator: (state, action: PayloadAction<string>) => {
+      const videoId = action.payload
+      if (state.selectedVideosForGenerator.includes(videoId)) {
+        state.selectedVideosForGenerator = state.selectedVideosForGenerator.filter(
+          id => id !== videoId
+        )
+      } else {
+        state.selectedVideosForGenerator.push(videoId)
+      }
+    },
+
+    clearSelectedVideosForGenerator: (state) => {
+      state.selectedVideosForGenerator = []
+    },
+
+    // Script-based prompt reducers
+    setScriptInput: (state, action: PayloadAction<string>) => {
+      state.scriptBasedPrompts.scriptInput = action.payload
+    },
+
+    setNumberOfScenesToExtract: (state, action: PayloadAction<number>) => {
+      state.scriptBasedPrompts.numberOfScenesToExtract = Math.max(1, Math.min(50, action.payload))
+    },
+
+    startSceneExtraction: (state) => {
+      state.scriptBasedPrompts.isExtractingScenes = true
+      state.scriptBasedPrompts.sceneExtractionError = null
+      state.scriptBasedPrompts.extractedScenes = []
+      state.scriptBasedPrompts.selectedScenes = []
+    },
+
+    setExtractedScenes: (state, action: PayloadAction<{
+      scenes: ExtractedVideoScene[]
+      scriptSummary?: ScriptSummary
+    }>) => {
+      state.scriptBasedPrompts.extractedScenes = action.payload.scenes
+      state.scriptBasedPrompts.scriptSummary = action.payload.scriptSummary || null
+      state.scriptBasedPrompts.isExtractingScenes = false
+      
+      // Auto-select all scenes
+      state.scriptBasedPrompts.selectedScenes = Array.from(
+        { length: action.payload.scenes.length }, 
+        (_, i) => i
+      )
+    },
+
+    setSceneExtractionError: (state, action: PayloadAction<string>) => {
+      state.scriptBasedPrompts.sceneExtractionError = action.payload
+      state.scriptBasedPrompts.isExtractingScenes = false
+    },
+
+    clearSceneExtractionError: (state) => {
+      state.scriptBasedPrompts.sceneExtractionError = null
+    },
+
+    toggleSceneSelection: (state, action: PayloadAction<number>) => {
+      const index = action.payload
+      const currentSelection = state.scriptBasedPrompts.selectedScenes
+      
+      if (currentSelection.includes(index)) {
+        state.scriptBasedPrompts.selectedScenes = currentSelection.filter(i => i !== index)
+      } else {
+        state.scriptBasedPrompts.selectedScenes.push(index)
+      }
+    },
+
+    updateScenePrompt: (state, action: PayloadAction<{
+      index: number
+      newPrompt: string
+    }>) => {
+      const { index, newPrompt } = action.payload
+      if (state.scriptBasedPrompts.extractedScenes[index]) {
+        state.scriptBasedPrompts.extractedScenes[index].videoPrompt = newPrompt
+      }
+    },
+
+    addCustomScene: (state, action: PayloadAction<{
+      prompt: string
+      title: string
+    }>) => {
+      const { prompt, title } = action.payload
+      const newScene: ExtractedVideoScene = {
+        chunkIndex: state.scriptBasedPrompts.extractedScenes.length,
+        originalText: title,
+        videoPrompt: prompt,
+        summary: title
+      }
+      
+      state.scriptBasedPrompts.extractedScenes.push(newScene)
+      state.scriptBasedPrompts.selectedScenes.push(state.scriptBasedPrompts.extractedScenes.length - 1)
+    },
+
+    clearScriptBasedPrompts: (state) => {
+      state.scriptBasedPrompts = {
+        scriptInput: '',
+        numberOfScenesToExtract: 10,
+        isExtractingScenes: false,
+        sceneExtractionError: null,
+        extractedScenes: [],
+        selectedScenes: [],
+        scriptSummary: null
+      }
     }
   }
 })
@@ -254,7 +385,23 @@ export const {
   removeBatch,
   clearBatchHistory,
   loadVideoHistory,
-  loadBatchHistory
+  loadBatchHistory,
+  // Video selection for generator
+  addVideoToGenerator,
+  removeVideoFromGenerator,
+  toggleVideoForGenerator,
+  clearSelectedVideosForGenerator,
+  // Script-based prompt actions
+  setScriptInput,
+  setNumberOfScenesToExtract,
+  startSceneExtraction,
+  setExtractedScenes,
+  setSceneExtractionError,
+  clearSceneExtractionError,
+  toggleSceneSelection,
+  updateScenePrompt,
+  addCustomScene,
+  clearScriptBasedPrompts
 } = textImageVideoSlice.actions
 
 export default textImageVideoSlice.reducer 

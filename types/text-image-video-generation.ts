@@ -39,6 +39,31 @@ export interface VideoGenerationBatch {
   completedAt?: string
 }
 
+export interface ExtractedVideoScene {
+  chunkIndex: number
+  originalText: string
+  videoPrompt: string
+  summary: string
+  error?: string
+}
+
+export interface ScriptSummary {
+  storySummary: string
+  mainCharacters: string
+  setting: string
+  tone: string
+}
+
+export interface ScriptBasedPromptState {
+  scriptInput: string
+  numberOfScenesToExtract: number
+  isExtractingScenes: boolean
+  sceneExtractionError: string | null
+  extractedScenes: ExtractedVideoScene[]
+  selectedScenes: number[]
+  scriptSummary: ScriptSummary | null
+}
+
 export interface TextImageVideoState {
   // Current generation
   currentBatch: VideoGenerationBatch | null
@@ -62,6 +87,10 @@ export interface TextImageVideoState {
   // History
   videoHistory: GeneratedVideo[]
   batches: VideoGenerationBatch[]
+  selectedVideosForGenerator: string[] // IDs of videos selected for video generator
+  
+  // Script-based prompt generation
+  scriptBasedPrompts: ScriptBasedPromptState
   
   // Rate limiting
   lastRequest: number | null

@@ -29,7 +29,9 @@ export function VideoEmptyState({
           Complete the prerequisite steps to generate professional videos
         </p>
         <div className="space-y-2 text-sm text-gray-500">
-          {!hasGeneratedImages && <div>1. Generate and select images in Image Generator</div>}
+          {!hasGeneratedImages && selectedVideosCount === 0 && (
+            <div>1. Generate images in Image Generator OR select videos from Text/Image-to-Video Generator</div>
+          )}
           {!audioGeneration?.audioUrl && <div>2. Generate audio from scripts</div>}
           <div>3. Configure video settings and generate</div>
         </div>

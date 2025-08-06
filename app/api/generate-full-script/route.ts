@@ -7,7 +7,6 @@ import { ChatAnthropic } from "@langchain/anthropic";
 interface ScriptSection {
   title: string;
   writingInstructions: string;
-  image_generation_prompt: string;
   narrativeRole?: string;
   storyArc?: string;
 }

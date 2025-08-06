@@ -191,12 +191,7 @@ export function ScriptSectionsDisplay({
                   </p>
                 </div>
                 
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Image Generation Prompt:</h4>
-                  <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded italic">
-                    {section.image_generation_prompt}
-                  </p>
-                </div>
+
               </div>
             )}
             
@@ -226,16 +221,7 @@ export function ScriptSectionsDisplay({
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor={`edit-image-prompt-${index}`}>Image Generation Prompt:</Label>
-                  <Textarea
-                    id={`edit-image-prompt-${index}`}
-                    value={editingSectionData.image_generation_prompt}
-                    onChange={(e) => onUpdateEditingSectionField('image_generation_prompt', e.target.value)}
-                    placeholder="Enter image generation prompt for this section"
-                    className="min-h-[80px]"
-                  />
-                </div>
+
 
                 <div className="flex gap-2">
                   <Button

@@ -17,7 +17,7 @@ export function VideoPrerequisites({
   imageSetsCount, 
   audioGeneration 
 }: VideoPrerequisitesProps) {
-  const selectedVideoIds = useAppSelector(state => state.video.selectedVideosForGeneration)
+  const selectedVideoIds = useAppSelector(state => state.textImageVideo.selectedVideosForGenerator)
   const [selectedVideosCount, setSelectedVideosCount] = useState(0)
   const [totalVideoDuration, setTotalVideoDuration] = useState(0)
 
