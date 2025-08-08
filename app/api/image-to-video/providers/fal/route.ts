@@ -1,0 +1,152 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { fal } from "@fal-ai/client"
+
+// Configure FAL AI
+fal.config({
+  credentials: process.env.FAL_KEY
+})
+
+// Available FAL AI models for image-to-video
+const FAL_MODELS = {
+  'wan-v2.2-5b': 'fal-ai/wan/v2.2-5b/image-to-video',
+  'svd-xt': 'fal-ai/stable-video-diffusion-xt',
+  'svd-1.1': 'fal-ai/stable-video-diffusion-1.1',
+  'haiper': 'fal-ai/haiper-video-v2/image-to-video',
+  'luma-dream-machine': 'fal-ai/luma-dream-machine/image-to-video'
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { 
+      prompt, 
+      image_url, 
+      model = 'wan-v2.2-5b',
+      duration = 5,
+      fps = 24,
+      motion_strength = 5,
+      seed
+    } = body
+
+    console.log('🎬 FAL AI Image-to-video request:', { prompt, model, hasImage: !!image_url })
+
+    // Validate inputs
+    if (!prompt || typeof prompt !== 'string') {
+      return NextResponse.json(
+        { error: 'Prompt is required and must be a string' },
+        { status: 400 }
+      )
+    }
+
+    if (!image_url || typeof image_url !== 'string') {
+      return NextResponse.json(
+        { error: 'Image URL is required and must be a string' },
+        { status: 400 }
+      )
+    }
+
+    if (!FAL_MODELS[model as keyof typeof FAL_MODELS]) {
+      return NextResponse.json(
+        { error: `Invalid model. Available models: ${Object.keys(FAL_MODELS).join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    if (!process.env.FAL_KEY) {
+      return NextResponse.json(
+        { error: 'FAL AI API key not configured' },
+        { status: 500 }
+      )
+    }
+
+    const selectedModel = FAL_MODELS[model as keyof typeof FAL_MODELS]
+
+    // Prepare input based on model requirements
+    let input: any = {
+      image_url: image_url,
+      prompt: prompt.trim()
+    }
+
+    // Add model-specific parameters
+    if (model === 'wan-v2.2-5b') {
+      // WAN model specific parameters
+      input = {
+        ...input,
+        duration: duration,
+        fps: fps
+      }
+    } else if (model.startsWith('svd')) {
+      // Stable Video Diffusion parameters
+      input = {
+        ...input,
+        motion_bucket_id: motion_strength,
+        fps: fps
+      }
+    } else if (model === 'haiper') {
+      // Haiper specific parameters
+      input = {
+        ...input,
+        duration: duration,
+        aspect_ratio: "16:9"
+      }
+    }
+
+    if (seed) {
+      input.seed = seed
+    }
+
+    console.log('🚀 Starting FAL AI image-to-video generation with model:', selectedModel)
+
+    // Start the generation with progress tracking
+    const result = await fal.subscribe(selectedModel, {
+      input,
+      logs: true,
+      onQueueUpdate: (update) => {
+        if (update.status === "IN_PROGRESS") {
+          console.log('📊 FAL AI Progress:', update.logs?.map((log) => log.message).join(', '))
+        }
+      },
+    })
+
+    console.log('✅ FAL AI generation completed')
+
+    if (!result.data) {
+      throw new Error('No data returned from FAL AI')
+    }
+
+    // Extract video URL from result
+    let videoUrl = ''
+    if (result.data.video) {
+      videoUrl = result.data.video.url || result.data.video
+    } else if (result.data.url) {
+      videoUrl = result.data.url
+    } else if (typeof result.data === 'string') {
+      videoUrl = result.data
+    }
+
+    if (!videoUrl) {
+      throw new Error('No video URL returned from FAL AI')
+    }
+
+    return NextResponse.json({
+      success: true,
+      videoUrl: videoUrl,
+      provider: 'fal',
+      model: model,
+      requestId: result.requestId,
+      message: 'Image-to-video generation completed successfully'
+    })
+
+  } catch (error) {
+    console.error('❌ FAL AI Image-to-video generation error:', error)
+    
+    return NextResponse.json(
+      { 
+        error: 'Failed to generate image-to-video with FAL AI',
+        provider: 'fal',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
+  }
+}

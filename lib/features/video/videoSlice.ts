@@ -24,7 +24,9 @@ const initialState: VideoState = {
     zoomEffect: false,
     dustOverlay: false,
     introDuration: 60, // 1 minute default
-    useEqualIntroDuration: true
+    useEqualIntroDuration: true,
+    useCustomMusic: false,
+    customMusicFiles: []
   },
   statusRefreshInterval: null,
   selectedVideosForGeneration: []

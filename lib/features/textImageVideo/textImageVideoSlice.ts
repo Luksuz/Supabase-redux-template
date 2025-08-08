@@ -27,6 +27,7 @@ const initialState: TextImageVideoState = {
   
   // Settings
   selectedProvider: 'replicate',
+  selectedModel: 'bytedance/seedance-1-lite',
   defaultDuration: 5,
   batchSize: 5,
   
@@ -58,9 +59,21 @@ export const textImageVideoSlice = createSlice({
     // Settings
     setProvider: (state, action: PayloadAction<VideoProvider>) => {
       state.selectedProvider = action.payload
-      // Reset rate limiting when switching providers
-      state.remainingRequests = 10
+      // Set default model based on provider
+      if (action.payload === 'replicate') {
+        state.selectedModel = 'bytedance/seedance-1-lite'
+        state.remainingRequests = 10
+        state.batchSize = 5
+      } else if (action.payload === 'fal') {
+        state.selectedModel = 'luma-dream-machine'
+        state.remainingRequests = 5
+        state.batchSize = 3
+      }
       state.lastRequest = null
+    },
+
+    setModel: (state, action: PayloadAction<string>) => {
+      state.selectedModel = action.payload
     },
 
     setDefaultDuration: (state, action: PayloadAction<5 | 10>) => {
@@ -368,6 +381,7 @@ export const textImageVideoSlice = createSlice({
 
 export const {
   setProvider,
+  setModel,
   setDefaultDuration,
   setBatchSize,
   updateRateLimit,

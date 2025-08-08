@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const prompt = formData.get('prompt') as string
-    
+
     if (!prompt) {
       return NextResponse.json(
         { error: 'Prompt is required' },
@@ -18,13 +18,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Collect all reference image files  
+    // Collect all image files (reference images)
     const imageFiles: File[] = []
     let index = 0
-    
-    // Try both naming conventions for compatibility
+
     while (true) {
-      const file = formData.get(`referenceImage${index}`) as File || formData.get(`image_${index}`) as File
+      const file = formData.get(`referenceImage${index}`) as File
       if (!file) break
       imageFiles.push(file)
       index++
@@ -38,61 +37,61 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🎬 Processing ${imageFiles.length} reference images for animation generation`)
-    console.log(`📝 Animation prompt: "${prompt.substring(0, 100)}..."`)
 
-    // For now, we'll create a placeholder animation since video generation APIs 
-    // like Runway ML, Stable Video Diffusion require specific implementations
-    // This demonstrates the structure for when you integrate with actual video APIs
-
-    // Convert files to base64 for storage/processing
-    const referenceImages = await Promise.all(
+    // Convert files to OpenAI format
+    const images = await Promise.all(
       imageFiles.map(async (file) => {
         const buffer = Buffer.from(await file.arrayBuffer())
-        const base64 = buffer.toString('base64')
-        return {
-          name: file.name,
+        return await toFile(buffer, file.name, {
           type: file.type,
-          size: file.size,
-          data: `data:${file.type};base64,${base64}`
-        }
+        })
       })
     )
 
-    // Simulate processing time for animation generation
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    console.log(`📝 Generating animation with prompt: "${prompt.substring(0, 100)}..."`)
 
-    // Generate a unique animation ID
+    // Placeholder: Use OpenAI's image editing API as a stand-in for animation generation
+    // In production, replace this with actual video generation API integration
+    const response = await client.images.edit({
+      model: "gpt-image-1",
+      image: images,
+      prompt: prompt,
+      size: "1536x1024"
+    })
+
+    if (!response.data || response.data.length === 0) {
+      throw new Error('No image data returned from OpenAI')
+    }
+
+    const imageBase64 = response.data[0].b64_json
+
+    if (!imageBase64) {
+      throw new Error('No base64 image data returned')
+    }
+
+    // Create a data URL from the generated image
     const animationId = uuidv4()
-    
-    // Here you would integrate with actual video generation services like:
-    // - Runway ML Gen-2 API
-    // - Stable Video Diffusion
-    // - Pika Labs API
-    // - LumaAI Dream Machine
-    
-    // For demonstration, we'll return a placeholder video
-    // In production, this would be the actual generated animation URL
-    const placeholderVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
-    
+    const imageDataUrl = `data:image/png;base64,${imageBase64}`
+
     console.log(`✅ Animation generated successfully with ID: ${animationId}`)
 
     return NextResponse.json({
       success: true,
       animationId: animationId,
-      animationUrl: placeholderVideoUrl,
+      animationUrl: imageDataUrl, // Return the actual generated image
       prompt: prompt,
       referenceCount: imageFiles.length,
-      referenceImages: referenceImages.map(img => ({ name: img.name, size: img.size })),
-      duration: 5, // Default animation duration in seconds
-      format: 'mp4',
-      resolution: '1024x576'
+      animationPreviewFrame: imageBase64,
+      duration: 5,
+      format: 'image', // Changed from 'mp4' to 'image'
+      resolution: '1536x1024' // Match the actual image size
     })
 
   } catch (error) {
     console.error('❌ Animation generation error:', error)
-    
+
     return NextResponse.json(
-      { 
+      {
         error: error instanceof Error ? error.message : 'Failed to generate animation',
         details: error instanceof Error ? error.stack : undefined
       },

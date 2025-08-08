@@ -1,79 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Replicate from 'replicate'
 
-// Initialize Replicate
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-})
+// Available providers and their models
+const PROVIDERS = {
+  replicate: {
+    name: 'Replicate',
+    models: ['bytedance/seedance-1-lite'],
+    endpoint: '/api/text-to-video/providers/replicate'
+  },
+  fal: {
+    name: 'FAL AI',
+    models: ['luma-dream-machine', 'minimax-video-01', 'runway-gen3', 'kling-video', 'haiper-v2'],
+    endpoint: '/api/text-to-video/providers/fal'
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    providers: PROVIDERS,
+    message: 'Available text-to-video providers and models'
+  })
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { prompt, duration = 5, model = 'bytedance/seedance-1-lite' } = body
+    const { provider = 'replicate', ...otherParams } = body
 
-    console.log('🎬 Text-to-video request:', { prompt, duration, model })
+    console.log('🎬 Text-to-video dispatcher request:', { provider, hasOtherParams: Object.keys(otherParams).length > 0 })
 
-    // Validate inputs
-    if (!prompt || typeof prompt !== 'string') {
+    // Validate provider
+    if (!PROVIDERS[provider as keyof typeof PROVIDERS]) {
       return NextResponse.json(
-        { error: 'Prompt is required and must be a string' },
+        { 
+          error: `Invalid provider. Available providers: ${Object.keys(PROVIDERS).join(', ')}`,
+          providers: PROVIDERS
+        },
         { status: 400 }
       )
     }
 
-    if (![5, 10].includes(duration)) {
-      return NextResponse.json(
-        { error: 'Duration must be 5 or 10 seconds' },
-        { status: 400 }
-      )
-    }
+    const selectedProvider = PROVIDERS[provider as keyof typeof PROVIDERS]
 
-    if (!process.env.REPLICATE_API_TOKEN) {
-      return NextResponse.json(
-        { error: 'Replicate API token not configured' },
-        { status: 500 }
-      )
-    }
+    // Forward request to specific provider
+    const providerUrl = `${request.nextUrl.origin}${selectedProvider.endpoint}`
+    
+    console.log('🔄 Forwarding to provider:', providerUrl)
 
-    // Prepare input for Replicate
-    const input = {
-      prompt: prompt.trim(),
-      duration: duration
-    }
-
-    console.log('🚀 Starting Replicate text-to-video generation...')
-
-    // Start the generation using the exact method from test.js
-    const output = await replicate.run("bytedance/seedance-1-lite", { input })
-
-    console.log('✅ Replicate generation completed')
-
-    // Handle the output - could be a URL or FileOutput object
-    let videoUrl = ''
-    if (typeof output === 'string') {
-      videoUrl = output
-    } else if (output && typeof output === 'object' && 'url' in output) {
-      videoUrl = (output as any).url()
-    } else if (Array.isArray(output) && output.length > 0) {
-      videoUrl = output[0]
-    }
-
-    if (!videoUrl) {
-      throw new Error('No video URL returned from Replicate')
-    }
-
-    return NextResponse.json({
-      success: true,
-      videoUrl: videoUrl,
-      message: 'Text-to-video generation completed successfully'
+    const response = await fetch(providerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(otherParams)
     })
 
+    const result = await response.json()
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Provider request failed')
+    }
+
+    return NextResponse.json(result)
+
   } catch (error) {
-    console.error('❌ Text-to-video generation error:', error)
+    console.error('❌ Text-to-video dispatcher error:', error)
     
     return NextResponse.json(
       { 
-        error: 'Failed to start text-to-video generation',
+        error: 'Failed to process text-to-video request',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

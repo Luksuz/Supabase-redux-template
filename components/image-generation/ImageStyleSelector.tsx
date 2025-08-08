@@ -289,7 +289,7 @@ export function ImageStyleSelector({
               if (!scene) return null
               return (
                 <div key={sceneIndex} className="text-sm text-blue-700 bg-white rounded p-2">
-                  <span className="font-medium">Scene {sceneIndex + 1}:</span> {scene.description}
+                  <span className="font-medium">Scene {sceneIndex + 1}:</span> {scene.summary}
                 </div>
               )
             })}

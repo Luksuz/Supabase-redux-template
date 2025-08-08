@@ -6,6 +6,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
+import { ProviderModelSelector } from './ProviderModelSelector'
 import { 
   Plus, 
   Trash2, 
@@ -84,6 +85,9 @@ export function ImageToVideoTab({
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {/* Provider and Model Selection */}
+      <ProviderModelSelector mode="image-to-video" />
 
       {/* Duration Selection */}
       <Card>

@@ -10,6 +10,7 @@ import { Badge } from '../ui/badge'
 import { Separator } from '../ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { ScriptBasedVideoPrompts } from './ScriptBasedVideoPrompts'
+import { ProviderModelSelector } from './ProviderModelSelector'
 import { useAppSelector, useAppDispatch } from '../../lib/hooks'
 import { 
   setScriptInput,
@@ -238,6 +239,9 @@ export function TextToVideoTab({
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {/* Provider and Model Selection */}
+      <ProviderModelSelector mode="text-to-video" />
 
       {/* Tabs for Manual vs Script-based */}
       <Tabs defaultValue="manual" className="w-full">

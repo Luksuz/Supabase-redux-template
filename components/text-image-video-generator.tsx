@@ -39,6 +39,7 @@ export function TextImageVideoGenerator() {
     generationInfo,
     batchProgress,
     selectedProvider,
+    selectedModel,
     defaultDuration,
     batchSize,
     videoHistory,
@@ -127,9 +128,43 @@ export function TextImageVideoGenerator() {
 
         // Make API call
         const endpoint = 'image' in request ? '/api/image-to-video' : '/api/text-to-video'
-        const body = 'image' in request 
-          ? { prompt: request.prompt, image: request.image, duration: request.duration }
-          : { prompt: request.prompt, duration: request.duration }
+        
+        // Prepare request body based on type and provider
+        let body: any = {
+          provider: request.provider,
+          model: request.model,
+          prompt: request.prompt,
+          duration: request.duration
+        }
+        
+        if ('image' in request) {
+          // Image-to-video request
+          if (request.provider === 'fal') {
+            // FAL AI expects image_url
+            body.image_url = request.image_url || request.image
+          } else {
+            // Replicate expects base64 image
+            body.image = request.image
+          }
+          
+          // Add FAL AI specific parameters
+          if (request.provider === 'fal') {
+            if (request.fps) body.fps = request.fps
+            if (request.motion_strength) body.motion_strength = request.motion_strength
+            if (request.seed) body.seed = request.seed
+          }
+        } else {
+          // Text-to-video request
+          if (request.provider === 'fal' && !('image' in request)) {
+            // Add FAL AI specific parameters for text-to-video
+            const textRequest = request as TextToVideoRequest
+            if (textRequest.aspect_ratio) body.aspect_ratio = textRequest.aspect_ratio
+            if (textRequest.fps) body.fps = textRequest.fps
+            if (textRequest.seed) body.seed = textRequest.seed
+            if (textRequest.guidance_scale) body.guidance_scale = textRequest.guidance_scale
+            if (textRequest.num_inference_steps) body.num_inference_steps = textRequest.num_inference_steps
+          }
+        }
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -157,8 +192,16 @@ export function TextImageVideoGenerator() {
         // Direct completion - both endpoints now return videoUrl immediately
         const videoUrl = data.videoUrl
         if (videoUrl) {
+          // Update video object with additional data from response
+          const updatedVideo = {
+            ...video,
+            requestId: data.requestId, // For FAL AI tracking
+            provider: data.provider,
+            model: data.model
+          }
+
           // Upload to Supabase storage in the background
-          uploadVideoToSupabaseBackground(videoUrl, video)
+          uploadVideoToSupabaseBackground(videoUrl, updatedVideo)
 
           dispatch(updateVideoInBatch({
             videoId,
@@ -269,11 +312,11 @@ export function TextImageVideoGenerator() {
       prompt,
       duration,
       provider: selectedProvider,
-      model: 'bytedance/seedance-1-lite'
+      model: selectedModel
     }))
 
     await handleGenerateVideos(requests)
-  }, [selectedProvider])
+  }, [selectedProvider, selectedModel])
 
   // Handle image-to-video generation
   const handleImageToVideo = useCallback(async (
@@ -290,14 +333,14 @@ export function TextImageVideoGenerator() {
         image: base64Images[index] || base64Images[0], // Use first image if not enough images
         duration,
         provider: selectedProvider,
-        model: 'bytedance/seedance-1-lite'
+        model: selectedModel
       }))
 
       await handleGenerateVideos(requests)
     } catch (error) {
       dispatch(failBatchGeneration('Failed to process images for video generation'))
     }
-  }, [selectedProvider])
+  }, [selectedProvider, selectedModel])
 
   return (
     <div className="space-y-8">
