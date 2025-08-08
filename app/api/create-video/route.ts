@@ -310,28 +310,48 @@ export async function POST(request: NextRequest) {
             return overlayMap[effect] || ''
         }
 
-        console.log(`✨ Adding ${overlayEffects.length} overlay effects (first tracks for proper layering)`);
-        
+        // Helper: build looping overlay clips to cover full duration
+        const buildLoopingOverlayClips = (
+          src: string,
+          total: number,
+          segmentSeconds: number,
+          opacity: number
+        ) => {
+          const clips: any[] = []
+          const safeSegment = Math.max(1, Math.min(30, Math.floor(segmentSeconds))) // 1-30s safety bound
+          const loops = Math.ceil(total / safeSegment)
+          for (let i = 0; i < loops; i++) {
+            const startTime = i * safeSegment
+            const clipLength = Math.min(safeSegment, total - startTime)
+            if (clipLength <= 0) break
+            clips.push({
+              asset: {
+                type: 'video',
+                src,
+                volume: 0
+              },
+              start: startTime,
+              length: clipLength,
+              fit: 'cover',
+              opacity
+            })
+          }
+          return clips
+        }
+
+        // Allow overriding the overlay loop segment length via env; default 10s
+        const overlayLoopSeconds = Number(process.env.OVERLAY_LOOP_SECONDS || 10)
+
+        console.log(`✨ Adding ${overlayEffects.length} overlay effects (looped in ~${overlayLoopSeconds}s segments for full coverage)`);
+
         // Create a track for each overlay effect
         overlayEffects.forEach((effect, index) => {
             const overlayUrl = getOverlayUrl(effect);
             if (overlayUrl) {
-                const overlayTrack = {
-                    clips: [{
-                        asset: {
-                            type: "video",
-                            src: overlayUrl,
-                            volume: 0 // Mute overlay video audio to avoid interference
-                        },
-                        start: 0,
-                        length: totalDuration,
-                        fit: "cover",
-                        opacity: 0.2 // Match the opacity from your example
-                    }]
-                };
+                const overlayClips = buildLoopingOverlayClips(overlayUrl, totalDuration, overlayLoopSeconds, 0.2)
+                const overlayTrack = { clips: overlayClips }
                 tracks.push(overlayTrack);
-                
-                console.log(`   ✨ Overlay track ${index + 1} added: ${effect} with opacity 0.2`);
+                console.log(`   ✨ Overlay track ${index + 1} added: ${effect} with ${overlayClips.length} clips`);
             } else {
                 console.warn(`⚠️ Unknown overlay effect: ${effect}`);
             }
