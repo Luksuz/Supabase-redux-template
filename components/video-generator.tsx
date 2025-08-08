@@ -397,10 +397,14 @@ export function VideoGenerator() {
       }
       // Otherwise, use traditional equal timing (no segmentTimings)
 
+      // Prepare per-media video durations if any videos are present
+      const videoDurations = originalImages.map(img => img.mediaType === 'video' ? (img.videoDurationSeconds ?? null) : null)
+
       // Prepare request body
       const requestBody: CreateVideoRequestBody = {
         imageUrls: imageUrls,
         mediaTypes: originalImages.map(img => img.mediaType || 'image'),
+        videoDurations,
         audioUrl: audioGeneration.audioUrl,
         audioDuration: audioGeneration.duration || undefined,
         subtitlesUrl: settings.includeSubtitles && audioGeneration.subtitlesUrl ? audioGeneration.subtitlesUrl : undefined,

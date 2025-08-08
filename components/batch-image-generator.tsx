@@ -195,6 +195,37 @@ export function BatchImageGenerator() {
     setTimeout(() => setMessage(""), 5000)
   }
 
+  // Helper: get duration of a remote video URL via metadata
+  const getVideoDurationSeconds = async (url: string): Promise<number | null> => {
+    try {
+      return await new Promise<number | null>((resolve) => {
+        const video = document.createElement('video')
+        video.preload = 'metadata'
+        video.src = url
+        const onLoaded = () => {
+          const duration = isFinite(video.duration) ? video.duration : null
+          cleanup()
+          resolve(duration)
+        }
+        const onError = () => {
+          cleanup()
+          resolve(null)
+        }
+        const cleanup = () => {
+          video.removeEventListener('loadedmetadata', onLoaded)
+          video.removeEventListener('error', onError)
+          try { video.pause() } catch {}
+          video.src = ''
+        }
+        video.addEventListener('loadedmetadata', onLoaded)
+        video.addEventListener('error', onError)
+        setTimeout(() => onError(), 5000)
+      })
+    } catch {
+      return null
+    }
+  }
+
   // Debug: Monitor mediaCards state changes
   useEffect(() => {
     const searchingCards = mediaCards.filter((card: any) => card.isSearching)
@@ -672,6 +703,15 @@ export function BatchImageGenerator() {
               console.warn('Failed to convert to dataUrl, using original URL:', error)
             }
             
+            // Detect video duration when media is video
+            let videoDurationSeconds: number | undefined = undefined
+            if (card.selectedImageType === 'video') {
+              const detected = await getVideoDurationSeconds(result.savedUrl || card.selectedImageUrl)
+              if (detected && isFinite(detected)) {
+                videoDurationSeconds = detected
+              }
+            }
+            
             return {
               id: imageId,
               name: `scene-${index + 1}.jpg`, // Use selection index for naming
@@ -683,7 +723,8 @@ export function BatchImageGenerator() {
               sortOrder: index + 1, // Critical: Use selection order for video generation
               supabasePath: result.savedUrl, // Store the complete public URL directly
               savedToSupabase: true,
-              mediaType: card.selectedImageType || 'image' // Preserve media type for Shotstack
+              mediaType: card.selectedImageType || 'image', // Preserve media type for Shotstack
+              ...(videoDurationSeconds ? { videoDurationSeconds } : {})
             }
           })
           

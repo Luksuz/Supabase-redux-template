@@ -183,6 +183,7 @@ export async function POST(request: NextRequest) {
     const { 
       imageUrls, 
       mediaTypes, 
+      videoDurations,
       audioUrl, 
       audioDuration, 
       subtitlesUrl, 
@@ -207,6 +208,7 @@ export async function POST(request: NextRequest) {
     } = body;
     console.log(`🖼️ Image URLs: ${imageUrls}`);
     console.log(`🎭 Media Types: ${mediaTypes}`);
+    console.log(`🎞️ Video Durations: ${videoDurations}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
     console.log(`⏱️ Audio Duration: ${audioDuration ? `${audioDuration}s` : 'not provided'}`);
     console.log(`📝 Subtitles URL: ${subtitlesUrl}`);
@@ -276,22 +278,31 @@ export async function POST(request: NextRequest) {
         - Number of segments: ${segmentTimings.length}
         - Individual durations: ${segmentTimings.map(t => t.duration.toFixed(2)).join(', ')}s`);
     } else {
-      // Traditional video: get audio duration and divide equally
-      console.log('Using traditional video timing with audio duration...');
-      
-      // Use passed duration or fallback to getting it from audio file
+      // Traditional video: use voiceover duration; assign real durations for videos, split remaining time evenly for images
+      console.log('Using traditional video timing with audio duration, honoring real video durations...');
+
       const audioDurationValue = audioDuration || await getAudioDuration(audioUrl);
-      
-      // If we can't get audio duration, default to 5 minutes
-      totalDuration = audioDurationValue || 300; 
-      // Each image gets equal time in the slideshow
-      imageDuration = totalDuration / imageUrls.length;
-      
-      console.log(`Traditional video configuration:
-        - Total duration: ${totalDuration.toFixed(1)} seconds
-        - Number of images: ${imageUrls.length}
-        - Duration per image: ${imageDuration.toFixed(1)} seconds
-        - Duration source: ${audioDuration ? 'frontend' : 'fallback'}`);
+      totalDuration = audioDurationValue || 300;
+
+      // Sum provided video durations (fallback to 0 if unknown)
+      const sumVideoDurations = (mediaTypes || []).reduce((sum, t, idx) => {
+        if (t === 'video') {
+          const d = videoDurations && typeof videoDurations[idx] === 'number' ? (videoDurations[idx] as number) : 0;
+          return sum + Math.max(0, d);
+        }
+        return sum;
+      }, 0);
+
+      // Count images
+      const numImages = (mediaTypes || []).filter(t => t !== 'video').length || imageUrls.length;
+      const remainingForImages = Math.max(0, totalDuration - sumVideoDurations);
+      imageDuration = numImages > 0 ? remainingForImages / numImages : 0;
+
+      console.log(`Traditional video configuration (mixed media):
+        - Total duration (voiceover): ${totalDuration.toFixed(1)} seconds
+        - Sum video durations: ${sumVideoDurations.toFixed(1)} seconds
+        - Remaining for images: ${remainingForImages.toFixed(1)} seconds across ${numImages} images
+        - Per-image duration: ${imageDuration.toFixed(2)} seconds`);
     }
     
     // Initialize tracks array
@@ -405,9 +416,14 @@ export async function POST(request: NextRequest) {
       console.log(`🎬 Creating segmented video with ${imageUrls.length} precisely timed media assets:`);
       let currentTime = 0;
       const imageClips = imageUrls.map((url, index) => {
-        const duration = segmentTimings[index].duration;
-        const startTime = currentTime;
+        const requestedDuration = segmentTimings[index].duration;
         const assetType = mediaTypes && mediaTypes[index] ? mediaTypes[index] : 'image';
+        // For videos, cap segment length to provided source duration if available
+        const providedVideoDur = (assetType === 'video' && videoDurations && typeof videoDurations[index] === 'number')
+          ? Math.max(0.1, (videoDurations[index] as number))
+          : null;
+        const duration = providedVideoDur ? Math.min(requestedDuration, providedVideoDur) : requestedDuration;
+        const startTime = currentTime;
         
         console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (${assetType})`);
         if (assetType === 'video' && muteStockVideo) {
@@ -463,9 +479,16 @@ export async function POST(request: NextRequest) {
     } else {
       // Traditional video: equal timing for all images with static display
       console.log(`🎬 Creating traditional slideshow with ${imageUrls.length} media assets:`);
+      let runningTime = 0;
       const imageClips = imageUrls.map((url, index) => {
-        const startTime = index * imageDuration;
         const assetType = mediaTypes && mediaTypes[index] ? mediaTypes[index] : 'image';
+        // For videos: use provided duration if available; otherwise fallback to imageDuration
+        const providedVideoDur = (assetType === 'video' && videoDurations && typeof videoDurations[index] === 'number')
+          ? Math.max(0.1, (videoDurations[index] as number))
+          : null;
+        const clipLen = providedVideoDur ?? imageDuration;
+        const startTime = runningTime;
+        runningTime += clipLen;
         
         console.log(`   Asset ${index + 1}: ${assetType} display, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
         if (assetType === 'video' && muteStockVideo) {
@@ -504,7 +527,7 @@ export async function POST(request: NextRequest) {
             ...(assetType === 'video' && muteStockVideo && { volume: 0 })
           },
           start: startTime,
-          length: imageDuration,
+          length: clipLen,
           fit: "cover",
           // Apply brightness effect using chroma key approach
           ...(brightness !== undefined && brightness !== 0 && getBrightnessEffectTraditional(brightness))

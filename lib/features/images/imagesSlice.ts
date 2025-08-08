@@ -12,6 +12,7 @@ export interface ProcessedImage {
   supabasePath?: string // Path where image is saved in Supabase storage
   savedToSupabase?: boolean // Whether image has been saved to Supabase
   mediaType?: 'image' | 'video' // Type of media asset for Shotstack
+  videoDurationSeconds?: number // Detected duration for video assets
 }
 
 interface ImagesState {
