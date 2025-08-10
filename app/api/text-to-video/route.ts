@@ -47,7 +47,11 @@ export async function POST(request: NextRequest) {
     const selectedProvider = PROVIDERS[provider as keyof typeof PROVIDERS]
 
     // Forward request to specific provider
-    const providerUrl = selectedProvider.endpoint
+    const providerEndpoint = selectedProvider.endpoint
+    
+    // Construct full URL using request origin to ensure it works regardless of domain
+    const baseUrl = new URL(request.url).origin
+    const providerUrl = new URL(providerEndpoint, baseUrl).toString()
     
     console.log('🔄 Forwarding to provider:', providerUrl)
 
