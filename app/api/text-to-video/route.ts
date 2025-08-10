@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const providerEndpoint = selectedProvider.endpoint
     
     // Construct full URL using request origin to ensure it works regardless of domain
-    const baseUrl = new URL(request.url).origin
+    const baseUrl = "https://project-moon.ngrok.app"
     const providerUrl = new URL(providerEndpoint, baseUrl).toString()
     
     console.log('🔄 Forwarding to provider:', providerUrl)
