@@ -65,7 +65,7 @@ export const textImageVideoSlice = createSlice({
         state.remainingRequests = 10
         state.batchSize = 5
       } else if (action.payload === 'fal') {
-        state.selectedModel = 'luma-dream-machine'
+        state.selectedModel = 'hailuo-02-pro'
         state.remainingRequests = 5
         state.batchSize = 3
       }

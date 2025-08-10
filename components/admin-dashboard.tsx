@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAppSelector } from '../lib/hooks'
+import { StaggerContainer, StaggerItem, ScaleOnHover } from './animated-page'
+import { motion } from 'framer-motion'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -499,21 +501,29 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <StaggerContainer className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <Crown className="h-8 w-8 text-yellow-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          </div>
-          <p className="text-gray-600">
-            User management and system administration
-          </p>
-        </div>
+        <StaggerItem>
+          <motion.div 
+            className="text-center space-y-2"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Crown className="h-8 w-8 text-yellow-600" />
+              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+            </div>
+            <p className="text-gray-600">
+              User management and system administration
+            </p>
+          </motion.div>
+        </StaggerItem>
 
         {/* Navigation Tabs */}
-        <Card className="bg-white shadow-sm border border-gray-200">
+        <StaggerItem>
+          <Card className="bg-white shadow-sm border border-gray-200">
           <CardContent className="pt-6">
             <div className="flex gap-2">
               <Button
@@ -543,6 +553,7 @@ export function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+        </StaggerItem>
 
         {/* User Management Section */}
         {currentSection === 'users' && (
@@ -1161,6 +1172,6 @@ export function AdminDashboard() {
           </Card>
         )}
       </div>
-    </div>
+    </StaggerContainer>
   )
 } 

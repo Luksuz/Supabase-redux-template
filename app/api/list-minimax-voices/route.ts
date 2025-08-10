@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data: MinimaxVoicesResponse = await response.json();
+    console.log(data);
     
     console.log(`✅ Successfully fetched ${data.system_voice?.length || 0} Minimax voices`);
     

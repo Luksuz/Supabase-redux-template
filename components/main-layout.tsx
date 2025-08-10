@@ -12,8 +12,13 @@ import { AdminDashboard } from './admin-dashboard'
 import YouTubeSearch from './youtube-search'
 import { TextImageVideoGenerator } from './text-image-video-generator'
 import { UnifiedAnimationGenerator } from './unified-animation-generator'
+import { MusicManager } from './music-manager'
+import { AnimatedPage } from './animated-page'
+import { ComingSoon } from './coming-soon'
+import { MixedContentGenerator } from './mixed-content-generator'
+import { Brain, Package, Archive } from 'lucide-react'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'music-manager' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator' | 'reinforced-learning' | 'content-repackager' | 'visual-asset-vault' | 'mixed-content-generator'
 
 export function MainLayout() {
   // Start with script generator as the default view
@@ -22,30 +27,112 @@ export function MainLayout() {
   const renderContent = () => {
     switch (activeView) {
       case 'script-generator':
-        return <ScriptGenerator />
+        return (
+          <AnimatedPage pageKey="script-generator">
+            <ScriptGenerator />
+          </AnimatedPage>
+        )
       case 'image-generator':
-        return <AIImageGenerator />
+        return (
+          <AnimatedPage pageKey="image-generator">
+            <AIImageGenerator />
+          </AnimatedPage>
+        )
       case 'animation-generator':
-        return <UnifiedAnimationGenerator />
+        return (
+          <AnimatedPage pageKey="animation-generator">
+            <UnifiedAnimationGenerator />
+          </AnimatedPage>
+        )
       case 'audio-generator':
-        return <AudioGenerator />
+        return (
+          <AnimatedPage pageKey="audio-generator">
+            <AudioGenerator />
+          </AnimatedPage>
+        )
+      case 'music-manager':
+        return (
+          <AnimatedPage pageKey="music-manager">
+            <MusicManager />
+          </AnimatedPage>
+        )
       case 'video-generator':
-        return <VideoGenerator />
+        return (
+          <AnimatedPage pageKey="video-generator">
+            <VideoGenerator />
+          </AnimatedPage>
+        )
       case 'video-status':
-        return <VideoStatus />
+        return (
+          <AnimatedPage pageKey="video-status">
+            <VideoStatus />
+          </AnimatedPage>
+        )
       case 'admin-dashboard':
-        return <AdminDashboard />
+        return (
+          <AnimatedPage pageKey="admin-dashboard">
+            <AdminDashboard />
+          </AnimatedPage>
+        )
       case 'youtube-search':
-        return <YouTubeSearch />
+        return (
+          <AnimatedPage pageKey="youtube-search">
+            <YouTubeSearch />
+          </AnimatedPage>
+        )
       case 'text-image-video-generator':
-        return <TextImageVideoGenerator />
+        return (
+          <AnimatedPage pageKey="text-image-video-generator">
+            <TextImageVideoGenerator />
+          </AnimatedPage>
+        )
+      case 'reinforced-learning':
+        return (
+          <AnimatedPage pageKey="reinforced-learning">
+            <ComingSoon 
+              title="Reinforced Learning"
+              description="Advanced AI learning algorithms for optimized content generation"
+              icon={Brain}
+            />
+          </AnimatedPage>
+        )
+      case 'content-repackager':
+        return (
+          <AnimatedPage pageKey="content-repackager">
+            <ComingSoon 
+              title="Content Repackager"
+              description="Transform and repurpose your existing content into new formats"
+              icon={Package}
+            />
+          </AnimatedPage>
+        )
+      case 'visual-asset-vault':
+        return (
+          <AnimatedPage pageKey="visual-asset-vault">
+            <ComingSoon 
+              title="Visual Asset Vault"
+              description="Centralized storage and management for all your visual assets"
+              icon={Archive}
+            />
+          </AnimatedPage>
+        )
+      case 'mixed-content-generator':
+        return (
+          <AnimatedPage pageKey="mixed-content-generator">
+            <MixedContentGenerator />
+          </AnimatedPage>
+        )
       default:
-        return <ScriptGenerator />
+        return (
+          <AnimatedPage pageKey="script-generator">
+            <ScriptGenerator />
+          </AnimatedPage>
+        )
     }
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-900">
       {/* Sidebar */}
       <SidebarNavigation 
         activeView={activeView} 
@@ -53,8 +140,10 @@ export function MainLayout() {
       />
       
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        {renderContent()}
+      <div className="flex-1 bg-gray-900">
+        <div className="ai-panel-gradient">
+          {renderContent()}
+        </div>
       </div>
     </div>
   )

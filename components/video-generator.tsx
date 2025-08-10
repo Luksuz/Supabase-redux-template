@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
+import { StaggerContainer, StaggerItem, ScaleOnHover } from './animated-page'
+import { motion } from 'framer-motion'
 import { 
   setVideoSettings,
   startVideoGeneration,
@@ -25,7 +27,7 @@ import { getStoredVideosFromLocalStorage } from '@/utils/video-storage-utils'
 // Import modular components
 import { VideoPrerequisites } from './video-generation/VideoPrerequisites'
 import { VideoSettings } from './video-generation/VideoSettings'
-import { UnifiedAnimationSection } from './video-generation/UnifiedAnimationSection'
+
 import { VideoGenerationStatus } from './video-generation/VideoGenerationStatus'
 import { VideoStatusMessage } from './video-generation/VideoStatusMessage'
 import { VideoEmptyState } from './video-generation/VideoEmptyState'
@@ -560,70 +562,87 @@ export function VideoGenerator() {
   const totalSegmentDuration = customSegmentTimings.reduce((sum, timing) => sum + timing.duration, 0)
 
   return (
-    <div className="flex-1 p-6 space-y-6">
+    <StaggerContainer className="flex-1 p-6 space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Video Generator</h1>
-        <p className="text-gray-600">
-          Create professional videos from your selected images and audio using Shotstack with dynamic slide effects, zoom animations, and advanced timing options
-        </p>
-      </div>
+      <StaggerItem>
+        <motion.div 
+          className="space-y-2"
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <h1 className="text-3xl font-bold text-gray-900">Video Generator</h1>
+          <p className="text-gray-600">
+            Create professional videos from your selected images and audio using Shotstack with dynamic slide effects, zoom animations, and advanced timing options
+          </p>
+        </motion.div>
+      </StaggerItem>
 
       {/* Prerequisites Check */}
-      <VideoPrerequisites
-        hasGeneratedImages={hasGeneratedImages}
-        imageSetsCount={selectedImagesOrder.length}
-        audioGeneration={audioGeneration}
-      />
-
-
+      <StaggerItem>
+        <VideoPrerequisites
+          hasGeneratedImages={hasGeneratedImages}
+          imageSetsCount={selectedImagesOrder.length}
+          audioGeneration={audioGeneration}
+        />
+      </StaggerItem>
 
       {/* Video Settings */}
-      <VideoSettings
-        settings={settings}
-        onSettingsChange={handleSettingsChange}
-        hasPrerequisites={hasPrerequisites as boolean}
-        selectedImagesCount={selectedImagesOrder.length}
-        selectedVideosCount={selectedVideosCount}
-        audioGeneration={audioGeneration}
-        isGeneratingVideo={isGeneratingVideo}
-        onGenerateVideo={handleGenerateVideo}
-        customSegmentTimings={customSegmentTimings}
-        onUpdateSegmentTiming={updateSegmentTiming}
-        onDistributeEquallyAcrossSegments={distributeEquallyAcrossSegments}
-        totalSegmentDuration={totalSegmentDuration}
-        subtitleSettings={subtitleSettings}
-        onSubtitleSettingsChange={setSubtitleSettings}
-        orderedSegments={orderedSegments}
-        onMoveSegment={handleMoveSegment}
-        onResetOrder={handleResetOrder}
-        isCustomOrder={isCustomOrder}
-      />
+      <StaggerItem>
+        <VideoSettings
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+          hasPrerequisites={hasPrerequisites as boolean}
+          selectedImagesCount={selectedImagesOrder.length}
+          selectedVideosCount={selectedVideosCount}
+          audioGeneration={audioGeneration}
+          isGeneratingVideo={isGeneratingVideo}
+          onGenerateVideo={handleGenerateVideo}
+          customSegmentTimings={customSegmentTimings}
+          onUpdateSegmentTiming={updateSegmentTiming}
+          onDistributeEquallyAcrossSegments={distributeEquallyAcrossSegments}
+          totalSegmentDuration={totalSegmentDuration}
+          subtitleSettings={subtitleSettings}
+          onSubtitleSettingsChange={setSubtitleSettings}
+          orderedSegments={orderedSegments}
+          onMoveSegment={handleMoveSegment}
+          onResetOrder={handleResetOrder}
+          isCustomOrder={isCustomOrder}
+        />
+      </StaggerItem>
 
       {/* Animation Generator */}
-      <UnifiedAnimationSection
-        hasPrerequisites={hasPrerequisites as boolean}
-      />
+      <StaggerItem>
+        <UnifiedAnimationSection
+          hasPrerequisites={hasPrerequisites as boolean}
+        />
+      </StaggerItem>
 
       {/* Current Generation Status */}
-      <VideoGenerationStatus
-        currentGeneration={currentGeneration}
+      <StaggerItem>
+        <VideoGenerationStatus
+          currentGeneration={currentGeneration}
         onDownloadVideo={handleDownloadVideo}
       />
+      </StaggerItem>
 
       {/* Status Message */}
-      <VideoStatusMessage
-        message={message}
-        messageType={messageType}
-      />
+      <StaggerItem>
+        <VideoStatusMessage
+          message={message}
+          messageType={messageType}
+        />
+      </StaggerItem>
 
       {/* Empty State */}
-      <VideoEmptyState
-        hasPrerequisites={hasPrerequisites as boolean}
-        hasGeneratedImages={hasGeneratedImages}
-        selectedVideosCount={selectedVideosCount}
-        audioGeneration={audioGeneration}
-      />
-    </div>
+      <StaggerItem>
+        <VideoEmptyState
+          hasPrerequisites={hasPrerequisites as boolean}
+          hasGeneratedImages={hasGeneratedImages}
+          selectedVideosCount={selectedVideosCount}
+          audioGeneration={audioGeneration}
+        />
+      </StaggerItem>
+    </StaggerContainer>
   )
 } 

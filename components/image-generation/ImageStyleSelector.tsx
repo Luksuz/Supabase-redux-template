@@ -276,29 +276,6 @@ export function ImageStyleSelector({
           </CardContent>
         </Card>
       )}
-
-      {/* Scene Selection Info */}
-      {selectedScenes.length > 0 && extractedScenes.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-medium text-blue-900 mb-2">
-            Selected Scenes ({selectedScenes.length})
-          </h4>
-          <div className="space-y-2">
-            {selectedScenes.map((sceneIndex) => {
-              const scene = extractedScenes[sceneIndex]
-              if (!scene) return null
-              return (
-                <div key={sceneIndex} className="text-sm text-blue-700 bg-white rounded p-2">
-                  <span className="font-medium">Scene {sceneIndex + 1}:</span> {scene.summary}
-                </div>
-              )
-            })}
-          </div>
-          <p className="text-xs text-blue-600 mt-3">
-            Your selected styles will be applied to all these scenes during generation
-          </p>
-        </div>
-      )}
     </div>
   )
 } 

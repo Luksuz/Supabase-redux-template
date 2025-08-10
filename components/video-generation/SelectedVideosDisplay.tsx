@@ -112,12 +112,12 @@ export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayP
 
   if (selectedVideos.length === 0) {
     return (
-      <Card className="bg-gray-50">
+      <Card className="bg-gray-800 border border-gray-600">
         <CardContent className="pt-6">
           <div className="text-center py-8">
             <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">No Videos Selected</h3>
-            <p className="text-gray-500">
+            <h3 className="text-lg font-medium text-white mb-2">No Videos Selected</h3>
+            <p className="text-gray-300">
               Go to the Text/Image to Video Generator History tab to select videos for your project.
             </p>
           </div>
@@ -127,13 +127,13 @@ export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayP
   }
 
   return (
-    <Card>
+    <Card className="bg-gray-800 border border-gray-600">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Video className="h-5 w-5 text-blue-600" />
+        <CardTitle className="flex items-center gap-2 text-white">
+          <Video className="h-5 w-5 text-blue-400" />
           Selected Videos for Generation
-          <Badge variant="secondary">{selectedVideos.length}</Badge>
-          <Badge variant="outline" className="ml-2">
+          <Badge variant="secondary" className="bg-gray-700 text-gray-300">{selectedVideos.length}</Badge>
+          <Badge variant="outline" className="ml-2 border-gray-600 text-gray-300">
             Total: {calculateTotalDuration()}s
           </Badge>
         </CardTitle>
@@ -144,11 +144,11 @@ export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayP
           .map((video, index) => (
             <div 
               key={video.id} 
-              className="border rounded-lg p-4 bg-white"
+              className="border border-gray-600 rounded-lg p-4 bg-gray-700"
             >
               <div className="flex gap-4">
                 {/* Video Preview */}
-                <div className="w-32 h-18 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                <div className="w-32 h-18 bg-gray-600 rounded overflow-hidden flex-shrink-0">
                   {video.supabaseUrl ? (
                     <video 
                       src={video.supabaseUrl} 
@@ -184,7 +184,7 @@ export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayP
                           Position {index + 1}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-600 line-clamp-2">
+                      <p className="text-sm text-gray-300 line-clamp-2">
                         {video.prompt}
                       </p>
                     </div>
@@ -215,7 +215,7 @@ export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayP
                   {/* Duration and Controls */}
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor={`duration-${video.id}`} className="text-xs">
+                      <Label htmlFor={`duration-${video.id}`} className="text-xs text-gray-300">
                         Duration:
                       </Label>
                       <Input
@@ -223,11 +223,11 @@ export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayP
                         type="number"
                         value={video.duration}
                         onChange={(e) => updateVideoDuration(video.id, parseInt(e.target.value) || 0)}
-                        className="w-16 h-6 text-xs"
+                        className="w-16 h-6 text-xs bg-gray-600 border-gray-500 text-white"
                         min="1"
                         max="60"
                       />
-                      <span className="text-xs text-gray-500">seconds</span>
+                      <span className="text-xs text-gray-400">seconds</span>
                     </div>
 
                     <div className="flex items-center gap-2 ml-auto">
@@ -248,21 +248,21 @@ export function SelectedVideosDisplay({ onVideosChange }: SelectedVideosDisplayP
           ))}
 
         {/* Summary */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4">
           <div className="grid grid-cols-3 gap-4 text-center text-sm">
             <div>
-              <div className="font-medium text-blue-600">{selectedVideos.length}</div>
-              <div className="text-blue-700">Videos</div>
+              <div className="font-medium text-blue-300">{selectedVideos.length}</div>
+              <div className="text-blue-400">Videos</div>
             </div>
             <div>
-              <div className="font-medium text-blue-600">{calculateTotalDuration()}s</div>
-              <div className="text-blue-700">Total Duration</div>
+              <div className="font-medium text-blue-300">{calculateTotalDuration()}s</div>
+              <div className="text-blue-400">Total Duration</div>
             </div>
             <div>
-              <div className="font-medium text-blue-600">
+              <div className="font-medium text-blue-300">
                 {Math.round(calculateTotalDuration() / selectedVideos.length)}s
               </div>
-              <div className="text-blue-700">Avg Duration</div>
+              <div className="text-blue-400">Avg Duration</div>
             </div>
           </div>
         </div>

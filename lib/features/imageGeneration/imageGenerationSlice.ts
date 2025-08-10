@@ -144,6 +144,11 @@ export const imageGenerationSlice = createSlice({
       state.error = null
     },
 
+    // Add an external image set (e.g., from animation batch results)
+    addImageSet: (state, action: PayloadAction<GeneratedImageSet>) => {
+      state.imageSets.push(action.payload)
+    },
+
     failGeneration: (state, action: PayloadAction<string>) => {
       state.isGenerating = false
       state.error = action.payload
@@ -189,6 +194,19 @@ export const imageGenerationSlice = createSlice({
     },
     clearSelectedImagesOrder: (state) => {
       state.selectedImagesOrder = []
+    },
+    
+    // Load from localStorage
+    loadImageSets: (state, action: PayloadAction<GeneratedImageSet[]>) => {
+      state.imageSets = action.payload
+    },
+    
+    loadConfirmedImageSelection: (state, action: PayloadAction<string[]>) => {
+      state.confirmedImageSelection = action.payload
+    },
+    
+    loadSelectedImagesOrder: (state, action: PayloadAction<string[]>) => {
+      state.selectedImagesOrder = action.payload
     }
   }
 })
@@ -208,6 +226,7 @@ export const {
   startGeneration,
   updateGenerationInfo,
   completeGeneration,
+  addImageSet,
   failGeneration,
   clearError,
   clearImageSets,
@@ -216,7 +235,10 @@ export const {
   setConfirmedImageSelection,
   clearConfirmedImageSelection,
   setSelectedImagesOrder,
-  clearSelectedImagesOrder
+  clearSelectedImagesOrder,
+  loadImageSets,
+  loadConfirmedImageSelection,
+  loadSelectedImagesOrder
 } = imageGenerationSlice.actions
 
 export default imageGenerationSlice.reducer

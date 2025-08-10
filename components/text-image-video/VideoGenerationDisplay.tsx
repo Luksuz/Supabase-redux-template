@@ -189,6 +189,11 @@ export function VideoGenerationDisplay({
                           />
                         </div>
                       )}
+                      {video.status === 'completed' && video.imageUrl && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          Source image: <a href={video.imageUrl} target="_blank" rel="noreferrer" className="underline">open</a>
+                        </div>
+                      )}
                       {video.status === 'failed' && video.error && (
                         <p className="text-red-600 text-xs mt-1">{video.error}</p>
                       )}

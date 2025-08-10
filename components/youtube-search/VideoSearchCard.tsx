@@ -267,7 +267,7 @@ export function VideoSearchCard({
                   className={`p-4 rounded-lg border-2 transition-colors ${
                     analysisMode === 'openai'
                       ? 'border-purple-500 bg-purple-50 text-purple-700'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-purple-300'
+                      : 'border-gray-600 bg-gray-800 text-gray-300 hover:border-purple-400'
                   }`}
                 >
                   <div className="flex flex-col items-center gap-3">
@@ -286,7 +286,7 @@ export function VideoSearchCard({
                   className={`p-4 rounded-lg border-2 transition-colors ${
                     analysisMode === 'gemini'
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300'
+                      : 'border-gray-600 bg-gray-800 text-gray-300 hover:border-blue-400'
                   }`}
                 >
                   <div className="flex flex-col items-center gap-3">
@@ -459,7 +459,7 @@ export function VideoSearchCard({
           const subtitleFile = subtitleGeneration.subtitleFiles.find(sf => sf.videoId === videoId)
           
           return (
-            <div key={videoId} className={`bg-white border border-gray-200 rounded-lg p-6 shadow-sm border-l-4 ${isSelected ? 'border-l-green-500 bg-green-50' : 'border-l-red-500'}`}>
+            <div key={videoId} className={`bg-gray-800 border border-gray-600 rounded-lg p-6 shadow-sm border-l-4 ${isSelected ? 'border-l-green-500 bg-green-900/20' : 'border-l-red-500'}`}>
               <div className="flex items-start gap-4">
                 <input
                   type="checkbox"
@@ -468,9 +468,9 @@ export function VideoSearchCard({
                   className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                 />
                 <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 mb-2">{video.snippet.title}</h3>
-                  <p className="text-gray-600 mb-3 line-clamp-3">{video.snippet.description}</p>
-                  <div className="text-sm text-gray-500 mb-2">
+                  <h3 className="font-bold text-white mb-2">{video.snippet.title}</h3>
+                  <p className="text-gray-300 mb-3 line-clamp-3">{video.snippet.description}</p>
+                  <div className="text-sm text-gray-400 mb-2">
                     <div>Channel: {video.snippet.channelTitle}</div>
                     <div>Published: {formatDate(video.snippet.publishedAt)}</div>
                     {video.statistics && (

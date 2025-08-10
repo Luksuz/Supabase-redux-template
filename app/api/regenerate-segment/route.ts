@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔄 Regenerating section ${sectionIndex + 1}: "${currentSection.title}"`);
 
-    if (!currentSection || !title || !theme) {
+    if (!currentSection) {
       return NextResponse.json(
-        { error: "Missing required fields for section regeneration" },
+        { error: "Missing currentSection for regeneration" },
         { status: 400 }
       );
     }
@@ -65,12 +65,15 @@ Avoid these words: ${wordsList.join(', ')}.
     }
 
     // Create the regeneration prompt
+    const safeTitle = title && title.trim() ? title : (currentSection.title || 'Untitled Section')
+    const safeTheme = theme && theme.trim() ? theme : 'No specific theme'
+
     const regenerationPrompt = `
 You are a professional script writer. I need you to regenerate/improve a section of a script based on the following details:
 
 SCRIPT DETAILS:
-- Title: ${title}
-- Theme: ${theme}
+- Title: ${safeTitle}
+- Theme: ${safeTheme}
 - Section ${sectionIndex + 1}: "${currentSection.title}"
 
 CURRENT SECTION DETAILS:

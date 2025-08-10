@@ -401,24 +401,6 @@ export function SingleGenerationTab({
             </div>
           </div>
         )}
-
-        {/* Usage Tips */}
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-purple-600 mt-0.5" />
-            <div className="space-y-2">
-              <h4 className="font-medium text-purple-900">Animation Tips</h4>
-              <ul className="text-sm text-purple-700 space-y-1">
-                <li>• Upload 1-3 reference images for best results</li>
-                <li>• Describe the motion and effects you want to see</li>
-                <li>• Use style options to match your content's aesthetic</li>
-                <li>• Mention camera movements like "zoom in", "pan left", "rotate"</li>
-                <li>• Add effects like "particles", "glow", "blur", "sparkles"</li>
-                <li>• Specify timing like "slow motion", "fast", "smooth"</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </CardContent>
     </Card>
   )

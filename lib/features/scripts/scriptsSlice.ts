@@ -180,6 +180,17 @@ export const scriptsSlice = createSlice({
       state.hasFullScript = false
       state.isGeneratingScript = false
       state.scriptGenerationError = null
+    },
+    
+    // Load from localStorage
+    loadScriptSections: (state, action: PayloadAction<ScriptSection[]>) => {
+      state.scriptSections = action.payload
+      state.hasScriptSections = action.payload.length > 0
+    },
+    
+    loadFullScript: (state, action: PayloadAction<FullScriptData>) => {
+      state.fullScript = action.payload
+      state.hasFullScript = true
     }
   }
 })
@@ -197,7 +208,9 @@ export const {
   clearFullScript,
   setIsGeneratingScript,
   setScriptGenerationError,
-  clearAllNewScriptData
+  clearAllNewScriptData,
+  loadScriptSections,
+  loadFullScript
 } = scriptsSlice.actions
 
 export default scriptsSlice.reducer 

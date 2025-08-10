@@ -8,11 +8,14 @@ fal.config({
 
 // Available FAL AI models for image-to-video
 const FAL_MODELS = {
-  'wan-v2.2-5b': 'fal-ai/wan/v2.2-5b/image-to-video',
-  'svd-xt': 'fal-ai/stable-video-diffusion-xt',
-  'svd-1.1': 'fal-ai/stable-video-diffusion-1.1',
-  'haiper': 'fal-ai/haiper-video-v2/image-to-video',
-  'luma-dream-machine': 'fal-ai/luma-dream-machine/image-to-video'
+  // Text-to-video models
+  'minimax-hailuo-02-pro': 'fal-ai/minimax/hailuo-02/pro/text-to-video',
+  'kling-v2.1-master': 'fal-ai/kling-video/v2.1/master/text-to-video',
+
+  // Image-to-video models
+  'bytedance-seedance-v1-pro': 'fal-ai/bytedance/seedance/v1/pro/image-to-video',
+  'pixverse-v4.5': 'fal-ai/pixverse/v4.5/image-to-video',
+  'wan-v2.2-5b': 'fal-ai/wan/v2.2-5b/image-to-video'
 }
 
 export async function POST(request: NextRequest) {

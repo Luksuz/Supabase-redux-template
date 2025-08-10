@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI, { toFile } from 'openai'
+import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 
 const client = new OpenAI({
@@ -69,22 +70,45 @@ export async function POST(request: NextRequest) {
       throw new Error('No base64 image data returned')
     }
 
-    // Create a data URL from the generated image
-    const animationId = uuidv4()
-    const imageDataUrl = `data:image/png;base64,${imageBase64}`
+    // Upload to Supabase and return public URL
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Supabase environment variables are not configured')
+    }
 
-    console.log(`✅ Animation generated successfully with ID: ${animationId}`)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const animationId = uuidv4()
+    const filePath = `animation-images/${animationId}.png`
+    const buffer = Buffer.from(imageBase64, 'base64')
+
+    const { error: uploadError } = await supabase.storage
+      .from('audio')
+      .upload(filePath, buffer, {
+        contentType: 'image/png',
+        upsert: false
+      })
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError)
+      throw new Error('Failed to upload generated image to Supabase')
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('audio')
+      .getPublicUrl(filePath)
+
+    console.log(`✅ Animation generated and uploaded successfully with ID: ${animationId}`)
 
     return NextResponse.json({
       success: true,
       animationId: animationId,
-      animationUrl: imageDataUrl, // Return the actual generated image
+      animationUrl: publicUrlData.publicUrl,
       prompt: prompt,
       referenceCount: imageFiles.length,
-      animationPreviewFrame: imageBase64,
       duration: 5,
-      format: 'image', // Changed from 'mp4' to 'image'
-      resolution: '1536x1024' // Match the actual image size
+      format: 'image',
+      resolution: '1536x1024'
     })
 
   } catch (error) {

@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔄 Regenerating script segment ${segmentIndex + 1}`);
 
-    if (!segmentContent || !title) {
+    if (!segmentContent) {
       return NextResponse.json(
-        { error: "Missing required fields for segment regeneration" },
+        { error: "Missing segmentContent for regeneration" },
         { status: 400 }
       );
     }
@@ -64,12 +64,15 @@ Avoid these words: ${wordsList.join(', ')}.
     }
 
     // Create the regeneration prompt
+    const safeTitle = (title && title.trim()) ? title : `Script Segment ${segmentIndex + 1}`
+    const safeTheme = (theme && theme.trim()) ? theme : 'No specific theme'
+
     const regenerationPrompt = `
 You are a professional script writer. I need you to rewrite/improve a segment of a script based on the following details:
 
 SCRIPT DETAILS:
-- Title: ${title}
-- Theme: ${theme || "No specific theme"}
+- Title: ${safeTitle}
+- Theme: ${safeTheme}
 - Segment ${segmentIndex + 1} of the script
 
 CURRENT SEGMENT CONTENT:

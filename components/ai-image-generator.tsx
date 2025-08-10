@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { StaggerContainer, StaggerItem, ScaleOnHover } from './animated-page'
+import { motion } from 'framer-motion'
 import { 
   setSelectedModel,
   setAspectRatio, 
@@ -21,8 +23,18 @@ import {
   removeImageSet,
   setSelectedImagesOrder,
   clearSelectedImagesOrder,
-  updateImageInSet
+  updateImageInSet,
+  loadImageSets,
+  loadConfirmedImageSelection,
+  loadSelectedImagesOrder
 } from '@/lib/features/imageGeneration/imageGenerationSlice'
+import { 
+  saveImageSetToLocalStorage,
+  saveSelectedImagesOrderToLocalStorage,
+  getStoredImageSetsFromLocalStorage,
+  getConfirmedImageSelectionFromLocalStorage,
+  getSelectedImagesOrderFromLocalStorage
+} from '@/utils/image-storage-utils'
 import type { ExtractedScene, GeneratedImageSet, ImageProvider } from '@/types/image-generation'
 import { v4 as uuidv4 } from 'uuid'
 import { IMAGE_STYLES, LIGHTING_TONES, MODEL_INFO } from '@/data/image'
@@ -75,6 +87,50 @@ export function AIImageGenerator() {
   const [thumbnailImageStyle, setThumbnailImageStyle] = useState<string>('realistic')
   const [thumbnailLightingTone, setThumbnailLightingTone] = useState<string>('balanced')
   const [thumbnailCustomStyle, setThumbnailCustomStyle] = useState<string>('')
+
+  // Load data from localStorage on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Load image sets from localStorage
+      const storedImageSets = getStoredImageSetsFromLocalStorage()
+      if (storedImageSets.length > 0) {
+        dispatch(loadImageSets(storedImageSets))
+        console.log(`🔄 [AI Image Generator] Loaded ${storedImageSets.length} image sets from localStorage`)
+      }
+
+      // Load confirmed image selection from localStorage
+      const storedConfirmedSelection = getConfirmedImageSelectionFromLocalStorage()
+      if (storedConfirmedSelection.length > 0) {
+        dispatch(loadConfirmedImageSelection(storedConfirmedSelection))
+        console.log(`🔄 [AI Image Generator] Loaded ${storedConfirmedSelection.length} confirmed image selections from localStorage`)
+      }
+
+      // Load selected images order from localStorage
+      const storedImagesOrder = getSelectedImagesOrderFromLocalStorage()
+      if (storedImagesOrder.length > 0) {
+        dispatch(loadSelectedImagesOrder(storedImagesOrder))
+        console.log(`🔄 [AI Image Generator] Loaded ${storedImagesOrder.length} selected images order from localStorage`)
+      }
+    }
+  }, [dispatch])
+
+  // Save imageSets to localStorage whenever they change
+  useEffect(() => {
+    if (imageSets.length > 0) {
+      imageSets.forEach(imageSet => {
+        saveImageSetToLocalStorage(imageSet)
+      })
+      console.log(`💾 [AI Image Generator] Saved ${imageSets.length} image sets to localStorage`)
+    }
+  }, [imageSets])
+
+  // Save selected images order to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedImagesOrder.length > 0) {
+      saveSelectedImagesOrderToLocalStorage(selectedImagesOrder)
+      console.log(`📋 [AI Image Generator] Saved ${selectedImagesOrder.length} selected images order to localStorage`)
+    }
+  }, [selectedImagesOrder])
 
   // Get available script sources (prioritized)
   const fullScriptText = fullScript?.scriptWithMarkdown || ''
@@ -682,21 +738,35 @@ export function AIImageGenerator() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 p-6">
+    <StaggerContainer className="max-w-6xl mx-auto space-y-6 p-6">
       {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">AI Image Generator</h1>
-        <p className="text-gray-600">
-          Extract scenes from scripts and generate images for each scene using multiple AI models with batch processing
-        </p>
-      </div>
+      <StaggerItem>
+        <motion.div 
+          className="text-center space-y-2"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <h1 className="text-3xl font-bold text-gray-900">AI Image Generator</h1>
+          <p className="text-gray-600">
+            Extract scenes from scripts and generate images for each scene using multiple AI models with batch processing
+          </p>
+        </motion.div>
+      </StaggerItem>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="scene-generation" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="scene-generation">Scene Generation</TabsTrigger>
-          <TabsTrigger value="thumbnail-generator">Thumbnail Generator</TabsTrigger>
-        </TabsList>
+      <StaggerItem>
+        <Tabs defaultValue="scene-generation" className="w-full">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="scene-generation">Scene Generation</TabsTrigger>
+              <TabsTrigger value="thumbnail-generator">Thumbnail Generator</TabsTrigger>
+            </TabsList>
+          </motion.div>
 
         {/* Scene Generation Tab */}
         <TabsContent value="scene-generation" className="space-y-6">
@@ -816,6 +886,7 @@ export function AIImageGenerator() {
           />
         </TabsContent>
       </Tabs>
-    </div>
+        </StaggerItem>
+    </StaggerContainer>
   )
 } 

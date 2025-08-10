@@ -9,8 +9,13 @@ const PROVIDERS = {
   },
   fal: {
     name: 'FAL AI',
-    models: ['luma-dream-machine', 'minimax-video-01', 'runway-gen3', 'kling-video', 'haiper-v2'],
+    models: ['hailuo-02-pro', 'kling-v2.1-master'],
     endpoint: '/api/text-to-video/providers/fal'
+  },
+  google: {
+    name: 'Google GenAI (Veo)',
+    models: ['veo-3.0-generate-preview'],
+    endpoint: '/api/text-to-video/providers/google'
   }
 }
 

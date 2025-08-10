@@ -4,11 +4,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { fal } from "@fal-ai/client";
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { GoogleGenAI } from '@google/genai';
 
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 const FAL_API_KEY = process.env.FAL_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
+const GOOGLE_GENAI_API_KEY = process.env.GOOGLE_GENAI_API_KEY;
 const LEONARDO_API_URL = 'https://cloud.leonardo.ai/api/rest/v1';
 
 // Initialize Supabase client
@@ -551,6 +553,40 @@ export async function POST(request: NextRequest) {
         if (i < numberOfImages - 1) {
           console.log('Waiting 10 seconds for Leonardo Phoenix rate limiting...');
           await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+      }
+    } else if (provider === 'google-imagen') {
+      if (!GOOGLE_GENAI_API_KEY) {
+        return NextResponse.json({ error: 'Google GenAI API key is not configured.' }, { status: 500 });
+      }
+      console.log(`Generating ${numberOfImages} image(s) with Google Imagen...`);
+      const ai = new GoogleGenAI({ apiKey: GOOGLE_GENAI_API_KEY });
+
+      for (let i = 0; i < numberOfImages; i++) {
+        try {
+          const result: any = await ai.models.generateImages({
+            model: 'imagen-3.0-generate',
+            prompt,
+          });
+
+          let img = '';
+          if (result?.images?.[0]?.url) {
+            img = result.images[0].url;
+          } else if (result?.images?.[0]?.b64_data) {
+            img = `data:image/png;base64,${result.images[0].b64_data}`;
+          }
+
+          if (img) {
+            imageUrls.push(img);
+            console.log(`✅ Successfully generated Google Imagen image ${i + 1}`);
+          } else {
+            console.warn(`⚠️ Google Imagen returned no image for index ${i + 1}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error generating Google Imagen image ${i + 1}:`, error);
+        }
+        if (i < numberOfImages - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     } else {

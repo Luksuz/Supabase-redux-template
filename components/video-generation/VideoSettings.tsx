@@ -205,7 +205,7 @@ export function VideoSettings({
   return (
     <div className="space-y-6">
       {/* Simplified Video Settings */}
-      <Card className="bg-white shadow-sm border border-gray-200">
+      <Card className="bg-gray-800 shadow-sm border border-gray-600">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -269,14 +269,14 @@ export function VideoSettings({
                       Reset Order
                     </Button>
                   )}
-                  <Badge variant="outline" className="border-gray-300">
+                  <Badge variant="outline" className="border-gray-600">
                     Total: {totalSegmentDuration.toFixed(1)}s / {audioGeneration?.duration?.toFixed(1) || '0'}s
                   </Badge>
                 </div>
               </div>
 
               {isCustomOrder && (
-                <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                <div className="text-xs text-blue-400 bg-blue-900/20 p-2 rounded">
                   ℹ️ Custom order active. Drag segments to reorder or click Reset Order to restore default sequence.
                 </div>
               )}
@@ -290,9 +290,9 @@ export function VideoSettings({
                   const mediaType = segment.type === 'image' ? 'Image' : 'Video'
                   
                   return (
-                    <div key={`${segment.id}-${index}`} className="flex items-center gap-3 p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+                    <div key={`${segment.id}-${index}`} className="flex items-center gap-3 p-3 bg-white border-2 border-gray-600 rounded-lg hover:border-gray-600 transition-colors">
                       {/* Thumbnail */}
-                      <div className="flex-shrink-0 w-8 h-8 rounded overflow-hidden bg-gray-100">
+                      <div className="flex-shrink-0 w-8 h-8 rounded overflow-hidden bg-gray-600">
                         {segment.thumbnail && (
                           <img 
                             src={segment.thumbnail} 
@@ -304,16 +304,16 @@ export function VideoSettings({
                       
                       {/* Position & Type */}
                       <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-800 text-xs">
+                        <Badge variant="secondary" className="bg-gray-600 text-gray-300 text-xs">
                           {index + 1}
                         </Badge>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-400">
                           {mediaTypeIcon}
                         </span>
                       </div>
                       
                       {/* Type Label */}
-                      <div className="flex-shrink-0 w-12 text-sm font-medium text-gray-600">
+                      <div className="flex-shrink-0 w-12 text-sm font-medium text-gray-300">
                         {mediaType}
                       </div>
                       
@@ -330,7 +330,7 @@ export function VideoSettings({
                         />
                       </div>
                       
-                      <div className="flex-shrink-0 text-xs text-gray-500">
+                      <div className="flex-shrink-0 text-xs text-gray-400">
                         seconds
                       </div>
                       
@@ -360,7 +360,7 @@ export function VideoSettings({
                 })}
               </div>
               
-              <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded-lg">
+              <div className="text-xs text-gray-300 bg-blue-900/20 p-3 rounded-lg">
                 <p className="font-medium mb-1">Duration Logic:</p>
                 <ul className="space-y-1">
                   <li>• Videos use their original duration by default</li>
@@ -375,7 +375,7 @@ export function VideoSettings({
       </Card>
 
       {/* Custom Music Upload */}
-      <Card className="bg-white shadow-sm border border-gray-200">
+      <Card className="bg-gray-800 shadow-sm border border-gray-600">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Music className="h-5 w-5 text-purple-600" />
@@ -421,7 +421,7 @@ export function VideoSettings({
             </div>
 
             {uploadingMusic && (
-              <div className="flex items-center gap-2 text-blue-600">
+              <div className="flex items-center gap-2 text-blue-400">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Uploading music files...</span>
               </div>
@@ -437,19 +437,19 @@ export function VideoSettings({
               
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {customMusicFiles.map((file, index) => (
-                  <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                  <div key={file.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg border">
                     <div className="flex items-center gap-3 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
+                        <span className="text-sm font-medium text-gray-300">#{index + 1}</span>
                         <Music className="h-4 w-4 text-purple-500" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">
+                        <div className="text-sm font-medium text-white truncate">
                           {file.name}
                         </div>
                         {file.duration && (
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-gray-400">
                             Duration: {Math.floor(file.duration / 60)}:{(file.duration % 60).toString().padStart(2, '0')}
                           </div>
                         )}
@@ -481,7 +481,7 @@ export function VideoSettings({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveMusic(file.id)}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -491,7 +491,7 @@ export function VideoSettings({
               </div>
 
               {customMusicFiles.length > 1 && (
-                <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+                <div className="text-sm text-blue-400 bg-blue-900/20 p-3 rounded-lg">
                   <strong>Playback Mode:</strong> Files will play in the order shown above, looping the entire sequence throughout the video.
                 </div>
               )}
@@ -503,7 +503,7 @@ export function VideoSettings({
 
 
       {/* Universal Settings Card - Quality and Subtitles */}
-      <Card className="bg-white shadow-sm border border-gray-200">
+      <Card className="bg-gray-800 shadow-sm border border-gray-600">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -656,10 +656,10 @@ export function VideoSettings({
                     step="2"
                     value={subtitleSettings.fontSize}
                     onChange={(e) => onSubtitleSettingsChange({ ...subtitleSettings, fontSize: parseInt(e.target.value) })}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
                     disabled={!hasPrerequisites}
                   />
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-gray-400">
                     <span>12px</span>
                     <span>60px</span>
                   </div>
@@ -675,10 +675,10 @@ export function VideoSettings({
                     step="0.5"
                     value={subtitleSettings.strokeWidth}
                     onChange={(e) => onSubtitleSettingsChange({ ...subtitleSettings, strokeWidth: parseFloat(e.target.value) })}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
                     disabled={!hasPrerequisites}
                   />
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-gray-400">
                     <span>0px</span>
                     <span>8px</span>
                   </div>
@@ -726,7 +726,7 @@ export function VideoSettings({
           <Button
             onClick={onGenerateVideo}
             disabled={isGeneratingVideo || !hasPrerequisites}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600"
             size="lg"
           >
             {isGeneratingVideo ? (

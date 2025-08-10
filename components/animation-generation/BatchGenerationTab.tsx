@@ -4,6 +4,7 @@ import { Button } from '../ui/button'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
+import { useState } from 'react'
 import {
   Play,
   Sparkles,
@@ -13,7 +14,8 @@ import {
   Trash2,
   Download,
   CheckCircle,
-  RotateCcw
+  RotateCcw,
+  CheckSquare
 } from 'lucide-react'
 
 interface ExtractedAnimationScene {
@@ -46,6 +48,8 @@ interface BatchGenerationTabProps {
   onBatchGenerate: () => void
   onClearBatchResults: () => void
   onRegenerateImage: (prompt: string, resultId: string) => void
+  singleResults?: BatchGenerationResult[]
+  onClearSingleResults?: () => void
 }
 
 export function BatchGenerationTab({
@@ -61,8 +65,11 @@ export function BatchGenerationTab({
   batchDelayRemaining,
   onBatchGenerate,
   onClearBatchResults,
-  onRegenerateImage
+  onRegenerateImage,
+  singleResults = [],
+  onClearSingleResults
 }: BatchGenerationTabProps) {
+
   
   const handleTogglePromptSelection = (promptId: string) => {
     setSelectedPrompts(
@@ -271,87 +278,193 @@ export function BatchGenerationTab({
           </div>
         )}
 
-        {/* Batch Results */}
-        {batchResults.length > 0 && (
+        {/* All Results (Single + Batch) */}
+        {(singleResults.length > 0 || batchResults.length > 0) && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-base font-medium">
-                Generated Images ({batchResults.length})
+                All Generated Images ({singleResults.length + batchResults.length})
               </Label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onClearBatchResults}
-                disabled={isBatchGenerating}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear Results
-              </Button>
+              <div className="flex gap-2">
+                {singleResults.length > 0 && onClearSingleResults && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onClearSingleResults}
+                    disabled={isBatchGenerating}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear Single
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onClearBatchResults}
+                  disabled={isBatchGenerating}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear All
+                </Button>
+                {(batchResults.length > 0 || singleResults.length > 0) && (
+                  <div className="text-sm text-green-600 font-medium">
+                    ✅ Results automatically available in Image Generator
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {batchResults.map((result) => (
-                <Card key={result.id} className="overflow-hidden">
-                  <div className="relative">
-                    <img
-                      src={result.url}
-                      alt={result.sceneTitle}
-                      className="w-full h-48 object-cover"
-                    />
-                    {/* Info icon with tooltip */}
-                    <div className="absolute top-2 right-2 group">
-                      <div className="bg-black bg-opacity-60 rounded-full p-2 cursor-help">
-                        <Info className="h-3 w-3 text-white" />
+            {/* Single Generation Results */}
+            {singleResults.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-purple-700">
+                  Single Generation Results ({singleResults.length})
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {singleResults.map((result) => (
+                    <Card key={result.id} className="overflow-hidden border-purple-200">
+                      <div className="relative">
+                        <img
+                          src={result.url}
+                          alt={result.sceneTitle}
+                          className="w-full h-48 object-cover"
+                        />
+
+                        <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                          Single
+                        </div>
+                        {/* Info icon with tooltip */}
+                        <div className="absolute bottom-2 right-2 group">
+                          <div className="bg-black bg-opacity-60 rounded-full p-2 cursor-help">
+                            <Info className="h-3 w-3 text-white" />
+                          </div>
+                          {/* Tooltip */}
+                          <div className="absolute right-0 bottom-8 bg-black text-white text-xs rounded-lg p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 w-80 max-w-xs">
+                            <div className="font-semibold mb-1">Prompt Used:</div>
+                            <div className="break-words">{result.prompt}</div>
+                            {/* Arrow */}
+                            <div className="absolute -bottom-1 right-4 w-2 h-2 bg-black transform rotate-45"></div>
+                          </div>
+                        </div>
                       </div>
-                      {/* Tooltip */}
-                      <div className="absolute right-0 top-8 bg-black text-white text-xs rounded-lg p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 w-80 max-w-xs">
-                        <div className="font-semibold mb-1">Prompt Used:</div>
-                        <div className="break-words">{result.prompt}</div>
-                        {/* Arrow */}
-                        <div className="absolute -top-1 right-4 w-2 h-2 bg-black transform rotate-45"></div>
+                      <CardContent className="p-3 bg-purple-50">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm text-purple-900 mb-1 truncate">{result.sceneTitle}</h4>
+                            <p className="text-xs text-purple-700 line-clamp-2">{result.prompt.substring(0, 80)}...</p>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onRegenerateImage(result.prompt, result.id)}
+                              disabled={isBatchGenerating}
+                              className="h-7 w-7 p-0"
+                              title="Regenerate with same prompt"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const link = document.createElement('a')
+                                link.href = result.url
+                                link.download = `${result.sceneTitle.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.png`
+                                link.target = '_blank'
+                                document.body.appendChild(link)
+                                link.click()
+                                document.body.removeChild(link)
+                              }}
+                              className="h-7 w-7 p-0"
+                              title="Download image"
+                            >
+                              <Download className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Batch Generation Results */}
+            {batchResults.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-green-700">
+                  Batch Generation Results ({batchResults.length})
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {batchResults.map((result) => (
+                    <Card key={result.id} className="overflow-hidden border-green-200">
+                      <div className="relative">
+                        <img
+                          src={result.url}
+                          alt={result.sceneTitle}
+                          className="w-full h-48 object-cover"
+                        />
+
+                        <div className="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
+                          Batch
+                        </div>
+                        {/* Info icon with tooltip */}
+                        <div className="absolute bottom-2 right-2 group">
+                          <div className="bg-black bg-opacity-60 rounded-full p-2 cursor-help">
+                            <Info className="h-3 w-3 text-white" />
+                          </div>
+                          {/* Tooltip */}
+                          <div className="absolute right-0 bottom-8 bg-black text-white text-xs rounded-lg p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 w-80 max-w-xs">
+                            <div className="font-semibold mb-1">Prompt Used:</div>
+                            <div className="break-words">{result.prompt}</div>
+                            {/* Arrow */}
+                            <div className="absolute -bottom-1 right-4 w-2 h-2 bg-black transform rotate-45"></div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  <CardContent className="p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm text-gray-900 mb-1 truncate">{result.sceneTitle}</h4>
-                        <p className="text-xs text-gray-600 line-clamp-2">{result.prompt.substring(0, 80)}...</p>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onRegenerateImage(result.prompt, result.id)}
-                          disabled={isBatchGenerating}
-                          className="h-7 w-7 p-0"
-                          title="Regenerate with same prompt"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const link = document.createElement('a')
-                            link.href = result.url
-                            link.download = `${result.sceneTitle.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.png`
-                            link.target = '_blank'
-                            document.body.appendChild(link)
-                            link.click()
-                            document.body.removeChild(link)
-                          }}
-                          className="h-7 w-7 p-0"
-                          title="Download image"
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      <CardContent className="p-3 bg-green-50">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm text-green-900 mb-1 truncate">{result.sceneTitle}</h4>
+                            <p className="text-xs text-green-700 line-clamp-2">{result.prompt.substring(0, 80)}...</p>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onRegenerateImage(result.prompt, result.id)}
+                              disabled={isBatchGenerating}
+                              className="h-7 w-7 p-0"
+                              title="Regenerate with same prompt"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const link = document.createElement('a')
+                                link.href = result.url
+                                link.download = `${result.sceneTitle.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.png`
+                                link.target = '_blank'
+                                document.body.appendChild(link)
+                                link.click()
+                                document.body.removeChild(link)
+                              }}
+                              className="h-7 w-7 p-0"
+                              title="Download image"
+                            >
+                              <Download className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

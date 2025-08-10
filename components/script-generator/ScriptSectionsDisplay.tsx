@@ -104,6 +104,15 @@ export function ScriptSectionsDisplay({
                   <RefreshCw size={14} className="mr-2" />
                   Edit
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onRegenerateSegment(index)}
+                  className="border-green-300 bg-green-50 hover:bg-green-100 text-green-700"
+                >
+                  <RefreshCw size={14} className="mr-2" />
+                  Regenerate
+                </Button>
               </div>
             </div>
 

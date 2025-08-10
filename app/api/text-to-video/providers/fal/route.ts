@@ -8,11 +8,8 @@ fal.config({
 
 // Available FAL AI models for text-to-video
 const FAL_MODELS = {
-  'luma-dream-machine': 'fal-ai/luma-dream-machine',
-  'minimax-video-01': 'fal-ai/minimax-video-01',
-  'runway-gen3': 'fal-ai/runway-gen3/turbo',
-  'kling-video': 'fal-ai/kling-video/v1/standard/text-to-video',
-  'haiper-v2': 'fal-ai/haiper-video-v2'
+  'hailuo-02-pro': 'fal-ai/minimax/hailuo-02/pro/text-to-video',
+  'kling-v2.1-master': 'fal-ai/kling-video/v2.1/master/text-to-video'
 }
 
 export async function POST(request: NextRequest) {
@@ -61,30 +58,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Add model-specific parameters
-    if (model === 'luma-dream-machine') {
-      input = {
-        ...input,
-        aspect_ratio: aspect_ratio
-      }
-    } else if (model === 'minimax-video-01') {
+    if (model === 'hailuo-02-pro') {
       input = {
         ...input,
         duration: duration
       }
-    } else if (model === 'runway-gen3') {
-      input = {
-        ...input,
-        duration: duration,
-        aspect_ratio: aspect_ratio
-      }
-    } else if (model === 'kling-video') {
-      input = {
-        ...input,
-        duration: duration,
-        aspect_ratio: aspect_ratio,
-        mode: "standard"
-      }
-    } else if (model === 'haiper-v2') {
+    } else if (model === 'kling-v2.1-master') {
       input = {
         ...input,
         duration: duration,
@@ -96,15 +75,10 @@ export async function POST(request: NextRequest) {
     if (seed) {
       input.seed = seed
     }
-    if (fps && model !== 'luma-dream-machine') {
+    if (fps) {
       input.fps = fps
     }
-    if (guidance_scale && ['runway-gen3', 'haiper-v2'].includes(model)) {
-      input.guidance_scale = guidance_scale
-    }
-    if (num_inference_steps && ['runway-gen3'].includes(model)) {
-      input.num_inference_steps = num_inference_steps
-    }
+    // guidance_scale and num_inference_steps are not used for the selected models
 
     console.log('🚀 Starting FAL AI text-to-video generation with model:', selectedModel)
 

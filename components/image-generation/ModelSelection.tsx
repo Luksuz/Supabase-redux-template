@@ -19,7 +19,7 @@ export function ModelSelection({ selectedModel, onModelChange, selectedScenes }:
   return (
     <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex text-black items-center gap-2">
           <Cpu className="h-5 w-5 text-purple-600" />
           AI Model Selection
         </CardTitle>
@@ -41,26 +41,26 @@ export function ModelSelection({ selectedModel, onModelChange, selectedScenes }:
             >
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">{info.name}</h3>
+                  <h3 className="font-semibold text-black">{info.name}</h3>
                   {selectedModel === key && (
-                    <Badge className="bg-purple-600">Selected</Badge>
+                    <Badge className="bg-purple-600 text-black">Selected</Badge>
                   )}
                 </div>
-                <p className="text-sm text-gray-600">{info.description}</p>
+                <p className="text-sm text-black">{info.description}</p>
                 <div className="flex flex-wrap gap-1">
                   {info.features.map((feature, idx) => (
-                    <Badge key={idx} variant="outline" className="text-xs">
+                    <Badge key={idx} variant="outline" className="text-xs text-black border-black">
                       {feature}
                     </Badge>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-black">
                   <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
+                    <Clock className="h-3 w-3 text-black" />
                     Batch size: {info.batchSize}
                   </span>
                   {info.rateLimit && (
-                    <span>{info.rateLimit}</span>
+                    <span className="text-black">{info.rateLimit}</span>
                   )}
                 </div>
               </div>

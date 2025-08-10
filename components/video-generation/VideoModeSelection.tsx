@@ -202,7 +202,7 @@ export function VideoModeSelection({
   const totalIntroVideosDuration = introVideos.reduce((sum, vid) => sum + vid.duration, 0)
 
   return (
-    <Card className="bg-white shadow-sm border border-gray-200">
+    <Card className="bg-gray-800 shadow-sm border border-gray-600">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Video className="h-5 w-5" />
@@ -226,9 +226,9 @@ export function VideoModeSelection({
 
             {/* Traditional Mode */}
             <TabsContent value="traditional" className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-gray-700 rounded-lg">
                 <h4 className="font-medium mb-2">Traditional Video Generation</h4>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-300">
                   Standard video generation with images displayed sequentially based on your timing settings.
                 </p>
               </div>
@@ -236,9 +236,9 @@ export function VideoModeSelection({
 
             {/* Option 1: Loop All Images */}
             <TabsContent value="option1" className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="font-medium mb-2 text-blue-800">Option 1: Loop All Images with Zoom Effects</h4>
-                <p className="text-sm text-blue-700 mb-3">
+              <div className="p-4 bg-blue-900/20 rounded-lg border border-blue-600">
+                <h4 className="font-medium mb-2 text-blue-300">Option 1: Loop All Images with Zoom Effects</h4>
+                <p className="text-sm text-blue-300 mb-3">
                   All selected images will loop throughout the video duration with zoom in/out effects.
                 </p>
                 
@@ -289,7 +289,7 @@ export function VideoModeSelection({
                         step="10"
                         disabled={!hasPrerequisites}
                       />
-                      <span className="text-sm text-gray-500">seconds</span>
+                      <span className="text-sm text-gray-400">seconds</span>
                     </div>
                   </div>
 
@@ -381,7 +381,7 @@ export function VideoModeSelection({
                           return (
                             <div key={imageId} className="relative group">
                               <div className={`aspect-square rounded border-2 overflow-hidden cursor-pointer transition-colors ${
-                                isInIntro ? 'border-purple-500 bg-purple-100' : 'border-gray-200 hover:border-purple-300'
+                                isInIntro ? 'border-purple-400 bg-purple-900/30' : 'border-gray-600 hover:border-purple-400'
                               }`}>
                                 <img
                                   src={imageDetails.url}
@@ -432,7 +432,7 @@ export function VideoModeSelection({
                                 </Badge>
                               </div>
                               
-                              <div className="w-12 h-8 bg-gray-100 rounded overflow-hidden">
+                              <div className="w-12 h-8 bg-gray-600 rounded overflow-hidden">
                                 <img
                                   src={introImage.imageUrl}
                                   alt={`Intro image ${introImage.order}`}
@@ -544,7 +544,7 @@ export function VideoModeSelection({
                                 return (
                                   <div key={video.id} className="relative group">
                                     <div className={`aspect-video rounded border-2 overflow-hidden cursor-pointer transition-colors ${
-                                      isInIntro ? 'border-purple-500 bg-purple-100' : 'border-gray-200 hover:border-purple-300'
+                                      isInIntro ? 'border-purple-400 bg-purple-900/30' : 'border-gray-600 hover:border-purple-400'
                                     }`}>
                                       {false ? ( // StoredVideo doesn't have thumbnail, so always show placeholder
                                         <img
@@ -555,7 +555,7 @@ export function VideoModeSelection({
                                         />
                                       ) : (
                                         <div 
-                                          className="w-full h-full bg-gray-100 flex items-center justify-center"
+                                          className="w-full h-full bg-gray-600 flex items-center justify-center"
                                           onClick={() => isInIntro ? removeFromIntroVideoSequence(video.id) : addToIntroVideoSequence(video.id)}
                                         >
                                           <Video className="h-6 w-6 text-gray-400" />
@@ -604,7 +604,7 @@ export function VideoModeSelection({
                                       </Badge>
                                     </div>
                                     
-                                    <div className="w-16 h-10 bg-gray-100 rounded overflow-hidden">
+                                    <div className="w-16 h-10 bg-gray-600 rounded overflow-hidden">
                                       {introVideo.thumbnailUrl ? (
                                         <img
                                           src={introVideo.thumbnailUrl}
@@ -612,7 +612,7 @@ export function VideoModeSelection({
                                           className="w-full h-full object-cover"
                                         />
                                       ) : (
-                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                        <div className="w-full h-full bg-gray-600 flex items-center justify-center">
                                           <Video className="h-4 w-4 text-gray-400" />
                                         </div>
                                       )}

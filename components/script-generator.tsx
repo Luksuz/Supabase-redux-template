@@ -11,6 +11,8 @@ import {
   setIsGeneratingScript, 
   setScriptGenerationError,
   clearFullScript,
+  loadScriptSections,
+  loadFullScript,
   type ScriptSection,
   type CallToAction,
   type Hook
@@ -26,6 +28,15 @@ import { PromptHistoryModal } from "./script-generator/PromptHistoryModal";
 import { CTAModal } from "./script-generator/CTAModal";
 import { HookModal } from "./script-generator/HookModal";
 import { ResearchPreviewModal } from "./script-generator/ResearchPreviewModal";
+import { LoadCachedDataModal } from "./script-generator/LoadCachedDataModal";
+import { 
+  saveScriptFormDataToLocalStorage,
+  saveScriptSectionsToLocalStorage,
+  saveFullScriptToLocalStorage,
+  type CachedScriptFormData,
+  type CachedScriptSections,
+  type CachedFullScript
+} from "@/utils/script-storage-utils";
 
 interface OpenAIModel {
   id: string;
@@ -89,6 +100,13 @@ const ScriptGenerator: React.FC = () => {
 
   // State for research preview modal
   const [isResearchPreviewOpen, setIsResearchPreviewOpen] = useState(false);
+
+  // State for load cached data modal
+  const [isLoadCachedDataOpen, setIsLoadCachedDataOpen] = useState(false);
+
+  // Track IDs for localStorage persistence
+  const [currentFormDataId, setCurrentFormDataId] = useState<string | null>(null);
+  const [currentSectionsId, setCurrentSectionsId] = useState<string | null>(null);
 
   // State for CTA and Hook modals
   const [ctaModalOpen, setCtaModalOpen] = useState(false);
@@ -269,6 +287,26 @@ const ScriptGenerator: React.FC = () => {
       // Store sections in Redux
       if (data.sections) {
         dispatch(setScriptSections(data.sections));
+        
+        // Save form data to localStorage
+        const formDataId = saveScriptFormDataToLocalStorage({
+          title,
+          targetSections,
+          theme,
+          povSelection,
+          scriptFormat,
+          audience,
+          selectedModel,
+          sectionPrompt,
+          scriptPrompt,
+          additionalPrompt,
+          researchContext
+        });
+        setCurrentFormDataId(formDataId);
+        
+        // Save sections to localStorage
+        const sectionsId = saveScriptSectionsToLocalStorage(data.sections, title, formDataId || undefined);
+        setCurrentSectionsId(sectionsId);
       }
       
     } catch (error) {
@@ -342,13 +380,19 @@ const ScriptGenerator: React.FC = () => {
                     "First 100 chars:", scriptCleaned.substring(0, 100));
         
         // Store in Redux
-        dispatch(setFullScript({
+        const fullScriptData = {
           scriptWithMarkdown: scriptWithMarkdown,
           scriptCleaned: scriptCleaned,
           title: title,
           theme: theme,
-          wordCount: data.wordCount || scriptWordCount
-        }));
+          wordCount: data.wordCount || scriptWordCount,
+          generatedAt: new Date().toISOString()
+        };
+        
+        dispatch(setFullScript(fullScriptData));
+        
+        // Save full script to localStorage
+        saveFullScriptToLocalStorage(fullScriptData, currentFormDataId || undefined, currentSectionsId || undefined);
       }
     } catch (error) {
       console.error("Error generating full script:", error);
@@ -459,12 +503,6 @@ const ScriptGenerator: React.FC = () => {
     try {
       const currentSection = scriptSections[index];
       
-      if (!title || !theme) {
-        console.error(`❌ Cannot regenerate section - missing title or theme`);
-        alert("Please enter a title and theme before regenerating sections.");
-        return;
-      }
-      
       console.log(`🔄 Starting regeneration for section ${index + 1}: "${currentSection.title}"`);
       
       const promptText = window.prompt(
@@ -491,8 +529,8 @@ const ScriptGenerator: React.FC = () => {
           additionalPrompt: regenerationPrompt,
           researchContext,
           forbiddenWords,
-          title,
-          theme,
+          title: title || currentSection.title,
+          theme: theme || '',
           modelName: selectedModel,
           enhancedInstructions: generateEnhancedWritingInstructions(currentSection)
         }),
@@ -639,12 +677,6 @@ const ScriptGenerator: React.FC = () => {
 
   const handleDirectRegeneration = async (segmentIndex: number, segmentContent: string) => {
     console.log(`🔄 Initiating direct regeneration for segment ${segmentIndex + 1}`);
-    
-    if (!title) {
-      console.error(`❌ Cannot regenerate script segment - missing title`);
-      alert("Please enter a title before regenerating script segments.");
-      return;
-    }
     
     const prompt = window.prompt("Enter instructions for rewriting this segment:", `Rewrite segment ${segmentIndex + 1} to make it more engaging and impactful.`);
     
@@ -852,6 +884,58 @@ const ScriptGenerator: React.FC = () => {
     setIsResearchPreviewOpen(true);
   };
 
+  // Handlers for loading cached data
+  const handleOpenLoadCachedData = () => {
+    setIsLoadCachedDataOpen(true);
+  };
+
+  const handleLoadFormData = (formData: CachedScriptFormData) => {
+    setTitle(formData.title);
+    setTargetSections(formData.targetSections);
+    setTheme(formData.theme);
+    setPovSelection(formData.povSelection);
+    setScriptFormat(formData.scriptFormat);
+    setAudience(formData.audience);
+    setSelectedModel(formData.selectedModel);
+    setSectionPrompt(formData.sectionPrompt);
+    setScriptPrompt(formData.scriptPrompt);
+    setAdditionalPrompt(formData.additionalPrompt);
+    setResearchContext(formData.researchContext);
+    setCurrentFormDataId(formData.id);
+    console.log('📋 Loaded form data:', formData.title);
+  };
+
+  const handleLoadSections = (sectionsData: CachedScriptSections) => {
+    dispatch(loadScriptSections(sectionsData.sections));
+    setCurrentSectionsId(sectionsData.id);
+    // Also update the title if it was saved with the sections
+    if (sectionsData.title && sectionsData.title !== 'Untitled Script') {
+      setTitle(sectionsData.title);
+    }
+    console.log('📂 Loaded script sections:', sectionsData.title);
+  };
+
+  const handleLoadFullScript = (scriptData: CachedFullScript) => {
+    const fullScriptData = {
+      scriptWithMarkdown: scriptData.scriptWithMarkdown,
+      scriptCleaned: scriptData.scriptCleaned,
+      title: scriptData.title,
+      theme: scriptData.theme || '',
+      wordCount: scriptData.wordCount || 0,
+      generatedAt: scriptData.generatedAt
+    };
+    
+    dispatch(loadFullScript(fullScriptData));
+    
+    // Also update form fields if available
+    setTitle(scriptData.title);
+    if (scriptData.theme) {
+      setTheme(scriptData.theme);
+    }
+    
+    console.log('📄 Loaded full script:', scriptData.title);
+  };
+
   // Get applied research count for preview
   const getAppliedResearchCount = () => {
     return researchSummaries.youtubeResearchSummaries?.filter((r: any) => r.appliedToScript)?.length || 0;
@@ -895,6 +979,7 @@ const ScriptGenerator: React.FC = () => {
             onGenerateFullScript={handleGenerateFullScript}
             onDownloadDocx={handleDownloadDocx}
             onOpenPromptHistory={handleOpenPromptHistory}
+            onOpenLoadCachedData={handleOpenLoadCachedData}
             models={models}
             isLoading={isLoading}
             isGeneratingScript={isGeneratingScript}
@@ -987,6 +1072,14 @@ const ScriptGenerator: React.FC = () => {
         onClose={() => setIsResearchPreviewOpen(false)}
         researchContext={researchContext || formatResearchForScript()}
         appliedResearchCount={getAppliedResearchCount()}
+      />
+
+      <LoadCachedDataModal
+        isOpen={isLoadCachedDataOpen}
+        onClose={() => setIsLoadCachedDataOpen(false)}
+        onLoadFormData={handleLoadFormData}
+        onLoadSections={handleLoadSections}
+        onLoadFullScript={handleLoadFullScript}
       />
     </div>
   );

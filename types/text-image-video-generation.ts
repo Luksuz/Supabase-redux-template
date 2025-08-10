@@ -1,7 +1,7 @@
 export interface TextToVideoRequest {
   prompt: string
   duration: 5 | 10
-  provider: 'replicate' | 'fal'
+  provider: VideoProvider
   model: string
   // FAL AI specific parameters
   aspect_ratio?: '16:9' | '9:16' | '1:1'
@@ -16,7 +16,7 @@ export interface ImageToVideoRequest {
   image?: string // base64 encoded image (for replicate)
   image_url?: string // URL for FAL AI
   duration: 5 | 10
-  provider: 'replicate' | 'fal'
+  provider: VideoProvider
   model: string
   // FAL AI specific parameters
   fps?: number
@@ -32,7 +32,7 @@ export interface GeneratedVideo {
   imageUrl?: string // URL for image-to-video (FAL AI)
   duration: 5 | 10
   videoUrl: string
-  provider: 'replicate' | 'fal'
+  provider: VideoProvider
   model: string
   generatedAt: string
   status: 'generating' | 'completed' | 'failed'
@@ -93,7 +93,7 @@ export interface TextImageVideoState {
   }
   
   // Settings
-  selectedProvider: 'replicate' | 'fal'
+  selectedProvider: VideoProvider
   selectedModel: string
   defaultDuration: 5 | 10
   batchSize: number
@@ -153,79 +153,63 @@ export const VIDEO_PROVIDERS = {
     batchSize: 3,
     rateLimitPerMinute: 5,
     textToVideoModels: {
-      'luma-dream-machine': {
-        name: 'Luma Dream Machine',
+      'minimax-hailuo-02-pro': {
+        name: 'Minimax Hailuo 02 Pro',
         description: 'High-quality text-to-video generation',
-        maxDuration: 5,
-        supportedDurations: [5],
-        supportedAspectRatios: ['16:9', '9:16', '1:1']
-      },
-      'minimax-video-01': {
-        name: 'Minimax Video v1',
-        description: 'Professional text-to-video model',
-        maxDuration: 6,
-        supportedDurations: [3, 6],
-        supportedAspectRatios: ['16:9', '9:16', '1:1']
-      },
-      'runway-gen3': {
-        name: 'Runway Gen-3 Turbo',
-        description: 'Fast and creative video generation',
         maxDuration: 10,
         supportedDurations: [5, 10],
         supportedAspectRatios: ['16:9', '9:16', '1:1']
       },
-      'kling-video': {
-        name: 'Kling Video v1',
+      'kling-v2.1-master': {  
+        name: 'Kling Video v2.1 Master',
         description: 'High-quality cinematic video generation',
         maxDuration: 10,
         supportedDurations: [5, 10],
         supportedAspectRatios: ['16:9', '9:16', '1:1']
       },
-      'haiper-v2': {
-        name: 'Haiper Video v2',
-        description: 'Realistic text-to-video generation',
-        maxDuration: 4,
-        supportedDurations: [2, 4],
-        supportedAspectRatios: ['16:9', '9:16', '1:1']
-      }
-    },
-    imageToVideoModels: {
       'wan-v2.2-5b': {
         name: 'WAN v2.2-5B',
         description: 'Animate images with detailed motion control',
         maxDuration: 5,
-        supportedDurations: [5],
-        supportedFps: [24, 30]
+        supportedDurations: [5]
+      }
+    },
+    imageToVideoModels: {
+      'bytedance-seedance-v1-pro': {
+        name: 'SeeDance v1 Pro',
+        description: 'High-quality image-to-video animation by ByteDance',
+        maxDuration: 10,
+        supportedDurations: [5, 10]
       },
-      'svd-xt': {
-        name: 'Stable Video Diffusion XT',
-        description: 'Stable and consistent image animation',
-        maxDuration: 4,
-        supportedDurations: [2, 4],
-        supportedFps: [6, 12, 18, 24]
+      'pixverse-v4.5': {
+        name: 'PixVerse v4.5',
+        description: 'Advanced image-to-video generation with smooth motion',
+        maxDuration: 10,
+        supportedDurations: [5, 10]
       },
-      'svd-1.1': {
-        name: 'Stable Video Diffusion 1.1',
-        description: 'Latest stable video diffusion model',
-        maxDuration: 4,
-        supportedDurations: [2, 4],
-        supportedFps: [6, 12, 18, 24]
-      },
-      'haiper': {
-        name: 'Haiper Image-to-Video',
-        description: 'Animate images with natural motion',
-        maxDuration: 4,
-        supportedDurations: [2, 4],
-        supportedAspectRatios: ['16:9', '9:16', '1:1']
-      },
-      'luma-dream-machine': {
-        name: 'Luma Dream Machine I2V',
-        description: 'High-quality image animation',
+      'wan-v2.2-5b': {
+        name: 'WAN v2.2-5B',
+        description: 'Animate images with detailed motion control',
         maxDuration: 5,
-        supportedDurations: [5],
-        supportedAspectRatios: ['16:9', '9:16', '1:1']
+        supportedDurations: [5]
       }
     }
+  },
+  google: {
+    name: 'Google GenAI (Veo)',
+    description: 'Google Veo for text and image to video',
+    batchSize: 1,
+    rateLimitPerMinute: 2,
+    textToVideoModels: {
+      'veo-3.0-generate-preview': {
+        name: 'Veo 3.0 Preview',
+        description: 'Google Veo preview model',
+        maxDuration: 10,
+        supportedDurations: [5, 10],
+        supportedAspectRatios: ['16:9', '9:16', '1:1']
+      }
+    },
+    imageToVideoModels: {}
   }
 } as const
 

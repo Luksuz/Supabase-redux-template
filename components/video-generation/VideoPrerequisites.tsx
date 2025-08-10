@@ -33,28 +33,28 @@ export function VideoPrerequisites({
   const hasVideoContent = hasGeneratedImages || selectedVideosCount > 0
 
   return (
-    <Card className="bg-white shadow-sm border border-gray-200">
+    <Card className="bg-gray-800 shadow-sm border border-gray-600">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <CheckCircle className="h-5 w-5" />
           Prerequisites Status
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-gray-300">
           Ensure all required components are ready for video generation. You need either images OR videos, plus audio.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Images Status */}
         <div className={`p-3 rounded-lg border ${
-          hasGeneratedImages ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'
+          hasGeneratedImages ? 'border-green-600 bg-green-900/20' : 'border-gray-600 bg-gray-700'
         }`}>
           <div className="flex items-center gap-2 mb-2">
             <ImageIcon className={`h-4 w-4 ${
-              hasGeneratedImages ? 'text-green-600' : 'text-gray-400'
+              hasGeneratedImages ? 'text-green-400' : 'text-gray-400'
             }`} />
-            <span className="font-medium">Images</span>
+            <span className="font-medium text-white">Images</span>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-300">
             {imageSetsCount} images processed
             {hasGeneratedImages && (
               <span className="block">
@@ -63,21 +63,21 @@ export function VideoPrerequisites({
             )}
           </p>
           {!hasGeneratedImages && selectedVideosCount === 0 && (
-            <p className="text-xs text-orange-600 mt-1">Need images or videos</p>
+            <p className="text-xs text-orange-400 mt-1">Need images or videos</p>
           )}
         </div>
 
         {/* Videos Status */}
         <div className={`p-3 rounded-lg border ${
-          selectedVideosCount > 0 ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'
+          selectedVideosCount > 0 ? 'border-green-600 bg-green-900/20' : 'border-gray-600 bg-gray-700'
         }`}>
           <div className="flex items-center gap-2 mb-2">
             <Video className={`h-4 w-4 ${
-              selectedVideosCount > 0 ? 'text-green-600' : 'text-gray-400'
+              selectedVideosCount > 0 ? 'text-green-400' : 'text-gray-400'
             }`} />
-            <span className="font-medium">Videos</span>
+            <span className="font-medium text-white">Videos</span>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-300">
             {selectedVideosCount > 0 ? (
               <>
                 {selectedVideosCount} video{selectedVideosCount !== 1 ? 's' : ''} selected
@@ -90,17 +90,17 @@ export function VideoPrerequisites({
             )}
           </p>
           {selectedVideosCount === 0 && !hasGeneratedImages && (
-            <p className="text-xs text-orange-600 mt-1">Select videos from history</p>
+            <p className="text-xs text-orange-400 mt-1">Select videos from history</p>
           )}
         </div>
 
         {/* Audio Status */}
-        <div className={`p-3 rounded-lg border ${audioGeneration?.audioUrl ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}>
+        <div className={`p-3 rounded-lg border ${audioGeneration?.audioUrl ? 'border-green-600 bg-green-900/20' : 'border-orange-600 bg-orange-900/20'}`}>
           <div className="flex items-center gap-2 mb-2">
-            <Volume2 className={`h-4 w-4 ${audioGeneration?.audioUrl ? 'text-green-600' : 'text-orange-600'}`} />
-            <span className="font-medium">Audio</span>
+            <Volume2 className={`h-4 w-4 ${audioGeneration?.audioUrl ? 'text-green-400' : 'text-orange-400'}`} />
+            <span className="font-medium text-white">Audio</span>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-300">
             {audioGeneration?.audioUrl ? (
               audioGeneration.duration ? 
                 `${audioGeneration.duration.toFixed(1)}s audio ready` : 
@@ -108,20 +108,20 @@ export function VideoPrerequisites({
             ) : 'No audio generated'}
           </p>
           {!audioGeneration?.audioUrl && (
-            <p className="text-xs text-orange-600 mt-1">Generate audio first</p>
+            <p className="text-xs text-orange-400 mt-1">Generate audio first</p>
           )}
           {audioGeneration?.audioUrl && !audioGeneration.duration && (
-            <p className="text-xs text-orange-600 mt-1">Duration missing - may need to regenerate audio</p>
+            <p className="text-xs text-orange-400 mt-1">Duration missing - may need to regenerate audio</p>
           )}
         </div>
 
         {/* Subtitles Status */}
-        <div className={`p-3 rounded-lg border ${audioGeneration?.subtitlesUrl ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+        <div className={`p-3 rounded-lg border ${audioGeneration?.subtitlesUrl ? 'border-green-600 bg-green-900/20' : 'border-gray-600 bg-gray-700'}`}>
           <div className="flex items-center gap-2 mb-2">
-            <Subtitles className={`h-4 w-4 ${audioGeneration?.subtitlesUrl ? 'text-green-600' : 'text-gray-400'}`} />
-            <span className="font-medium">Subtitles</span>
+            <Subtitles className={`h-4 w-4 ${audioGeneration?.subtitlesUrl ? 'text-green-400' : 'text-gray-400'}`} />
+            <span className="font-medium text-white">Subtitles</span>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-300">
             {audioGeneration?.subtitlesUrl ? 'Subtitles available' : 'Optional subtitles'}
           </p>
         </div>

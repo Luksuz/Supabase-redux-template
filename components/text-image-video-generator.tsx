@@ -3,6 +3,8 @@
 import { useState, useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { StaggerContainer, StaggerItem, ScaleOnHover } from './animated-page'
+import { motion } from 'framer-motion'
 import { 
   startBatchGeneration,
   updateBatchProgress,
@@ -85,6 +87,25 @@ export function TextImageVideoGenerator() {
     })
   }
 
+  // Helper to upload a single image file to Supabase via API and return its public URL
+  const uploadImageToSupabase = async (file: File, index: number): Promise<string> => {
+    const formData = new FormData()
+    const path = `image-to-video/${uuidv4()}-${index}-${file.name}`
+    formData.append('file', file)
+    formData.append('bucket', 'audio')
+    formData.append('path', path)
+    const res = await fetch('/api/upload-file', {
+      method: 'POST',
+      body: formData
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to upload image')
+    }
+    const data = await res.json()
+    return data.publicUrl as string
+  }
+
   // Process a single batch of videos
   const processVideoBatch = async (
     requests: (TextToVideoRequest | ImageToVideoRequest)[], 
@@ -115,6 +136,7 @@ export function TextImageVideoGenerator() {
           type: 'image' in request ? 'image-to-video' : 'text-to-video',
           prompt: request.prompt,
           imageInput: 'image' in request ? request.image : undefined,
+          imageUrl: 'image' in request ? (request as ImageToVideoRequest).image_url || (request as any).image : undefined,
           duration: request.duration,
           videoUrl: '',
           provider: request.provider,
@@ -325,16 +347,33 @@ export function TextImageVideoGenerator() {
     duration: 5 | 10
   ) => {
     try {
-      // Convert images to base64
-      const base64Images = await Promise.all(images.map(file => fileToBase64(file)))
-      
-      const requests: ImageToVideoRequest[] = prompts.map((prompt, index) => ({
-        prompt,
-        image: base64Images[index] || base64Images[0], // Use first image if not enough images
-        duration,
-        provider: selectedProvider,
-        model: selectedModel
-      }))
+      let requests: ImageToVideoRequest[] = []
+
+      if (selectedProvider === 'fal' || selectedProvider === 'google') {
+        // Upload images to Supabase to obtain public URLs for FAL image_url
+        const imageUrls = await Promise.all(images.map((file, i) => uploadImageToSupabase(file, i)))
+        requests = prompts.map((prompt, index) => {
+          const url = imageUrls[index] || imageUrls[0]
+          return {
+            prompt,
+            image: url, // keep for type detection in downstream code
+            image_url: url,
+            duration,
+            provider: selectedProvider,
+            model: selectedModel
+          }
+        })
+      } else {
+        // Replicate: convert to base64
+        const base64Images = await Promise.all(images.map(file => fileToBase64(file)))
+        requests = prompts.map((prompt, index) => ({
+          prompt,
+          image: base64Images[index] || base64Images[0],
+          duration,
+          provider: selectedProvider,
+          model: selectedModel
+        }))
+      }
 
       await handleGenerateVideos(requests)
     } catch (error) {
@@ -343,26 +382,40 @@ export function TextImageVideoGenerator() {
   }, [selectedProvider, selectedModel])
 
   return (
-    <div className="space-y-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Text & Image to Video Generator
-        </h1>
-        <p className="text-gray-600">
-          Generate videos from text prompts or images using AI. Batch processing with {VIDEO_PROVIDERS[selectedProvider].batchSize} videos per batch.
-        </p>
-        <div className="mt-2 text-sm text-blue-600">
-          Rate limit: {remainingRequests} requests remaining
-        </div>
-      </div>
+    <StaggerContainer className="space-y-8">
+      <StaggerItem>
+        <motion.div 
+          className="text-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Text & Image to Video Generator
+          </h1>
+          <p className="text-gray-600">
+            Generate videos from text prompts or images using AI. Batch processing with {VIDEO_PROVIDERS[selectedProvider].batchSize} videos per batch.
+          </p>
+          <div className="mt-2 text-sm text-blue-600">
+            Rate limit: {remainingRequests} requests remaining
+          </div>
+        </motion.div>
+      </StaggerItem>
 
-      <Tabs defaultValue="text-to-video">
-        <TabsList className="flex w-full justify-center gap-2 mb-6">
-          <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
-          <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
-          <TabsTrigger value="generation">Current Generation</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
+      <StaggerItem>
+        <Tabs defaultValue="text-to-video">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            <TabsList className="flex w-full justify-center gap-2 mb-6">
+              <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
+              <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
+              <TabsTrigger value="generation">Current Generation</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+            </TabsList>
+          </motion.div>
         
         <TabsContent value="text-to-video" className="space-y-6">
           <TextToVideoTab
@@ -400,6 +453,7 @@ export function TextImageVideoGenerator() {
           />
         </TabsContent>
       </Tabs>
-    </div>
+        </StaggerItem>
+    </StaggerContainer>
   )
 } 

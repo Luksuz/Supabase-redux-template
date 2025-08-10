@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
+import { StaggerContainer, StaggerItem, ScaleOnHover } from './animated-page'
+import { motion } from 'framer-motion'
 import { 
   setSelectedVoice, 
   setSelectedModel,
@@ -655,18 +657,28 @@ export function AudioGenerator() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
-        <p className="text-gray-600">Generate high-quality audio from your content using various TTS providers</p>
-      </div>
+    <StaggerContainer className="max-w-6xl mx-auto p-6 space-y-6">
+      <StaggerItem>
+        <motion.div 
+          className="space-y-2"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
+          <p className="text-gray-600">Generate high-quality audio from your content using various TTS providers</p>
+        </motion.div>
+      </StaggerItem>
 
-      <TextInputCard
-        inputText={inputText}
-        onInputTextChange={setInputText}
-      />
+      <StaggerItem>
+        <TextInputCard
+          inputText={inputText}
+          onInputTextChange={setInputText}
+        />
+      </StaggerItem>
 
-      <ProviderSettingsCard
+      <StaggerItem>
+        <ProviderSettingsCard
         contentSummary={contentSummary ? contentSummary.textToProcess : null}
         currentProvider={currentProvider}
         selectedProvider={selectedProvider}
@@ -685,38 +697,47 @@ export function AudioGenerator() {
         onGenerateSubtitlesChange={setGenerateSubtitlesOption}
         onGenerateAudio={handleGenerateAudio}
       />
+      </StaggerItem>
 
-      <AudioProgressDisplay
-        isGeneratingAudio={isGeneratingAudio}
-        audioProgress={audioProgress}
-        batchState={batchState}
-        generationStatusMessage={generationStatusMessage}
-        currentProviderName={currentProvider?.name}
-      />
+      <StaggerItem>
+        <AudioProgressDisplay
+          isGeneratingAudio={isGeneratingAudio}
+          audioProgress={audioProgress}
+          batchState={batchState}
+          generationStatusMessage={generationStatusMessage}
+          currentProviderName={currentProvider?.name}
+        />
+      </StaggerItem>
 
-      <MessageDisplay
-        message={message}
-        messageType={messageType}
-      />
+      <StaggerItem>
+        <MessageDisplay
+          message={message}
+          messageType={messageType}
+        />
+      </StaggerItem>
 
-      <CurrentGenerationCard
-        currentGeneration={currentGeneration as any}
-        selectedAudioType={selectedAudioType}
-        currentProviderName={currentProvider?.name}
-        getVoiceDisplayName={getVoiceDisplayName}
-        providerVoice={providerVoice}
-        onAudioTypeChange={setSelectedAudioType}
-        onDownloadAudio={handleDownloadAudio}
-        onDownloadSubtitles={handleDownloadSubtitles}
-      />
+      <StaggerItem>
+        <CurrentGenerationCard
+          currentGeneration={currentGeneration as any}
+          selectedAudioType={selectedAudioType}
+          currentProviderName={currentProvider?.name}
+          getVoiceDisplayName={getVoiceDisplayName}
+          providerVoice={providerVoice}
+          onAudioTypeChange={setSelectedAudioType}
+          onDownloadAudio={handleDownloadAudio}
+          onDownloadSubtitles={handleDownloadSubtitles}
+        />
+      </StaggerItem>
 
-      <GenerationHistoryCard
+      <StaggerItem>
+        <GenerationHistoryCard
         generationHistory={generationHistory as any}
         historyAudioTypes={historyAudioTypes}
         onSetHistoryAudioType={setHistoryAudioType}
         onDownloadAudio={handleDownloadAudio}
         onDownloadSubtitles={handleDownloadSubtitles}
       />
-    </div>
+        </StaggerItem>
+    </StaggerContainer>
   )
 } 

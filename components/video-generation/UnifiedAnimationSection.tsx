@@ -188,7 +188,7 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
   }
 
   return (
-    <Card className="bg-white shadow-sm border border-gray-200">
+    <Card className="bg-gray-800 shadow-sm border border-gray-600">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Zap className="h-5 w-5 text-purple-600" />
@@ -210,7 +210,7 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
             rows={2}
             className="text-xs"
           />
-          <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+          <div className="text-xs text-blue-300 bg-blue-900/20 p-2 rounded">
             <strong>💡 Tip:</strong> This context will be applied to extracted scene prompts.
           </div>
         </div>
@@ -232,13 +232,13 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
             )}
           </div>
           
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+          <div className="border-2 border-dashed border-gray-600 rounded-lg p-4">
             <div className="text-center">
               <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
               <div className="space-y-1">
                 <Label htmlFor="animation-reference-upload" className="cursor-pointer text-sm">
-                  <div className="font-medium text-gray-900">Upload Reference Images</div>
-                  <div className="text-xs text-gray-500">PNG, JPG up to 10MB each</div>
+                  <div className="font-medium text-white">Upload Reference Images</div>
+                  <div className="text-xs text-gray-400">PNG, JPG up to 10MB each</div>
                 </Label>
                 <Input
                   id="animation-reference-upload"
@@ -256,13 +256,13 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
           {/* Reference Images Preview */}
           {referenceImages.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-gray-700">
+              <Label className="text-xs font-medium text-gray-300">
                 Reference Images ({referenceImages.length})
               </Label>
               <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                 {referenceImages.map((file, index) => (
                   <div key={index} className="relative group">
-                    <div className="aspect-square bg-gray-100 rounded overflow-hidden">
+                    <div className="aspect-square bg-gray-600 rounded overflow-hidden">
                       <img
                         src={URL.createObjectURL(file)}
                         alt={`Reference ${index + 1}`}
@@ -288,7 +288,7 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
         {/* Scene Extraction */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-blue-600" />
+            <FileText className="h-4 w-4 text-blue-400" />
             <Label className="text-sm font-medium">Extract from Script</Label>
           </div>
           
@@ -334,12 +334,12 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
           </div>
 
           {sceneExtractionError && (
-            <div className="bg-red-50 border border-red-200 rounded p-2">
+            <div className="bg-red-900/20 border border-red-600 rounded p-2">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-3 w-3 text-red-600 mt-0.5" />
+                <AlertCircle className="h-3 w-3 text-red-400 mt-0.5" />
                 <div>
-                  <h4 className="font-medium text-red-900 text-xs">Extraction Failed</h4>
-                  <p className="text-xs text-red-700">{sceneExtractionError}</p>
+                  <h4 className="font-medium text-red-300 text-xs">Extraction Failed</h4>
+                  <p className="text-xs text-red-300">{sceneExtractionError}</p>
                 </div>
               </div>
             </div>
@@ -394,11 +394,11 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
             
             <div className="max-h-40 overflow-y-auto space-y-2">
               {allPrompts.map((prompt, index) => (
-                <div key={prompt.id} className="border rounded p-2 bg-gray-50">
+                <div key={prompt.id} className="border border-gray-600 rounded p-2 bg-gray-700">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-1 mb-1">
-                        <h4 className="font-medium text-xs text-gray-900">{prompt.title}</h4>
+                        <h4 className="font-medium text-xs text-white">{prompt.title}</h4>
                         <Badge variant="secondary" className="text-xs">
                           {prompt.effects?.[0] === 'manual' ? '✍️' : '🤖'}
                         </Badge>
@@ -408,7 +408,7 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-gray-700 leading-relaxed">
+                      <p className="text-xs text-gray-300 leading-relaxed">
                         {prompt.prompt}
                       </p>
                     </div>
@@ -443,8 +443,8 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
         {animationPrompt && (
           <div className="space-y-2">
             <Label className="text-sm font-medium">Current Prompt</Label>
-            <div className="bg-blue-50 border border-blue-200 rounded p-2">
-              <p className="text-xs text-blue-900">{animationPrompt}</p>
+            <div className="bg-blue-900/20 border border-blue-600 rounded p-2">
+              <p className="text-xs text-blue-300">{animationPrompt}</p>
             </div>
           </div>
         )}
@@ -471,12 +471,12 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
 
         {/* Results */}
         {animationError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <div className="bg-red-900/20 border border-red-600 rounded-lg p-3">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />
+              <AlertCircle className="h-4 w-4 text-red-400 mt-0.5" />
               <div>
-                <h4 className="font-medium text-red-900 text-sm">Generation Failed</h4>
-                <p className="text-xs text-red-700 mt-1">{animationError}</p>
+                <h4 className="font-medium text-red-300 text-sm">Generation Failed</h4>
+                <p className="text-xs text-red-300 mt-1">{animationError}</p>
               </div>
             </div>
           </div>
@@ -485,11 +485,11 @@ export function UnifiedAnimationSection({ hasPrerequisites }: UnifiedAnimationSe
         {animationResult && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <Label className="text-sm font-medium text-green-900">Generated Animation</Label>
+              <CheckCircle className="h-4 w-4 text-green-400" />
+              <Label className="text-sm font-medium text-green-300">Generated Animation</Label>
             </div>
             
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="bg-gray-700 border border-gray-600 rounded-lg p-3">
               <video
                 src={animationResult}
                 controls

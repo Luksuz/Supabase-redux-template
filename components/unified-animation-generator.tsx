@@ -1,10 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAppSelector } from '../lib/hooks'
+import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { StaggerContainer, StaggerItem, ScaleOnHover } from './animated-page'
+import { motion } from 'framer-motion'
 import { IMAGE_STYLES, LIGHTING_TONES } from '@/data/image'
 import { SingleGenerationTab, SceneExtractionTab, BatchGenerationTab } from './animation-generation'
+import { addVideoToGenerator } from '@/lib/features/textImageVideo/textImageVideoSlice'
+import { 
+  addImageSet, 
+  setConfirmedImageSelection, 
+  setSelectedImagesOrder,
+  updateImageInSet,
+  loadImageSets,
+  loadConfirmedImageSelection,
+  loadSelectedImagesOrder
+} from '@/lib/features/imageGeneration/imageGenerationSlice'
+
 import { Sun, Moon, Zap } from 'lucide-react'
 
 interface ExtractedAnimationScene {
@@ -24,8 +37,10 @@ interface BatchGenerationResult {
 }
 
 export function UnifiedAnimationGenerator() {
+  const dispatch = useAppDispatch()
   // Get script data from Redux
   const { scriptSections, fullScript } = useAppSelector(state => state.scripts)
+  const { imageSets } = useAppSelector(state => state.imageGeneration)
   
   const [animationPrompt, setAnimationPrompt] = useState('')
   const [referenceImages, setReferenceImages] = useState<File[]>([])
@@ -58,9 +73,14 @@ export function UnifiedAnimationGenerator() {
   const [currentBatchIndex, setCurrentBatchIndex] = useState(0)
   const [batchDelayRemaining, setBatchDelayRemaining] = useState(0)
   
+  // Single generation results to merge with batch results
+  const [singleResults, setSingleResults] = useState<BatchGenerationResult[]>([])
+  
   // Edit prompt state
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null)
   const [editingPromptText, setEditingPromptText] = useState('')
+
+
 
   // Initialize script input from Redux
   useEffect(() => {
@@ -138,10 +158,52 @@ export function UnifiedAnimationGenerator() {
       console.log('Animation API response:', data)
       
       if (data.success && data.animationUrl) {
-        setAnimationResult({
+        const result = {
           url: data.animationUrl,
           prompt: getStyledPrompt(animationPrompt)
-        })
+        }
+        
+        setAnimationResult(result)
+        
+        // Also add to single results for batch tab visibility
+        const singleResult: BatchGenerationResult = {
+          id: `single_${Date.now()}`,
+          url: data.animationUrl,
+          prompt: result.prompt,
+          sceneId: 'single',
+          sceneTitle: 'Single Generation'
+        }
+        setSingleResults(prev => [singleResult, ...prev])
+        
+        // Add to the persistent "All Animation Results" set
+        const existingAnimationSet = imageSets.find(set => set.id === 'all-animation-results')
+        
+        if (existingAnimationSet) {
+          // Update existing set by adding new image
+          const updatedSet = {
+            ...existingAnimationSet,
+            finalPrompts: [...existingAnimationSet.finalPrompts, result.prompt],
+            imageUrls: [...existingAnimationSet.imageUrls, data.animationUrl],
+            generatedAt: new Date().toISOString() // Update timestamp
+          }
+          dispatch(addImageSet(updatedSet))
+        } else {
+          // Create new "All Animation Results" set
+          const animationSet = {
+            id: 'all-animation-results',
+            originalPrompt: 'All Animation Results',
+            finalPrompts: [result.prompt],
+            imageUrls: [data.animationUrl],
+            imageData: [],
+            provider: 'minimax' as const,
+            generatedAt: new Date().toISOString(),
+            aspectRatio: '16:9' as const,
+            imageStyle: undefined
+          }
+          dispatch(addImageSet(animationSet))
+        }
+        
+        console.log('✅ Single generation result added to unified results and saved to image generator')
       } else {
         throw new Error(data.error || 'Failed to generate animation')
       }
@@ -174,6 +236,8 @@ export function UnifiedAnimationGenerator() {
     setSelectedImageStyle('realistic')
     setSelectedLightingTone('balanced')
     setCustomStylePrompt('')
+    // Also clear single results
+    setSingleResults([])
   }
 
   // Scene extraction functions
@@ -296,7 +360,7 @@ export function UnifiedAnimationGenerator() {
     return finalPrompt
   }
 
-  // Batch generation function with frontend progress tracking
+  // Batch generation function with frontend progress tracking and Redux persistence
   const handleBatchGenerate = async () => {
     if (selectedPrompts.length === 0 || referenceImages.length === 0) return
     
@@ -309,6 +373,10 @@ export function UnifiedAnimationGenerator() {
       setBatchProgress({ current: 0, total: promptsToGenerate.length })
       setCurrentBatchIndex(0)
       setBatchDelayRemaining(0)
+
+      // Create a Redux image set for this batch generation
+      const batchId = `anim-batch-${Date.now()}`
+      const allBatchResults: BatchGenerationResult[] = []
 
       // Process in batches of 10 with 1 minute delay between batches
       const batchSize = 10
@@ -360,6 +428,7 @@ export function UnifiedAnimationGenerator() {
               // Update progress and results immediately
               setBatchResults(prev => [...prev, result])
               setBatchProgress(prev => ({ ...prev, current: prev.current + 1 }))
+              allBatchResults.push(result)
               
               console.log(`✅ Generated ${prompt.title} (${i + promptIndex + 1}/${promptsToGenerate.length})`)
               return result
@@ -394,7 +463,41 @@ export function UnifiedAnimationGenerator() {
         }
       }
 
-      const totalGenerated = batchResults.length
+      // Save all results to the "All Animation Results" set
+      if (allBatchResults.length > 0) {
+        const existingAnimationSet = imageSets.find(set => set.id === 'all-animation-results')
+        const newImageUrls = allBatchResults.map(r => r.url)
+        const newPrompts = allBatchResults.map(r => r.prompt)
+        
+        if (existingAnimationSet) {
+          // Update existing set by adding new images
+          const updatedSet = {
+            ...existingAnimationSet,
+            finalPrompts: [...existingAnimationSet.finalPrompts, ...newPrompts],
+            imageUrls: [...existingAnimationSet.imageUrls, ...newImageUrls],
+            generatedAt: new Date().toISOString()
+          }
+          dispatch(addImageSet(updatedSet))
+        } else {
+          // Create new "All Animation Results" set
+          const animationSet = {
+            id: 'all-animation-results',
+            originalPrompt: 'All Animation Results',
+            finalPrompts: newPrompts,
+            imageUrls: newImageUrls,
+            imageData: [],
+            provider: 'minimax' as const,
+            generatedAt: new Date().toISOString(),
+            aspectRatio: '16:9' as const,
+            imageStyle: undefined
+          }
+          dispatch(addImageSet(animationSet))
+        }
+        
+        console.log(`💾 Added ${allBatchResults.length} batch results to "All Animation Results" set`)
+      }
+
+      const totalGenerated = allBatchResults.length
       console.log(`🎉 Batch generation completed! Generated ${totalGenerated}/${promptsToGenerate.length} images.`)
       
     } catch (error: any) {
@@ -407,11 +510,29 @@ export function UnifiedAnimationGenerator() {
     }
   }
 
+  // Helper function to get all results (batch + single)
+  const getAllResults = () => {
+    return [...singleResults, ...batchResults]
+  }
+
   const handleClearBatchResults = () => {
     setBatchResults([])
     setBatchProgress({ current: 0, total: 0 })
     setBatchError(null)
   }
+
+  const handleClearSingleResults = () => {
+    setSingleResults([])
+  }
+
+  const handleClearAllResults = () => {
+    setBatchResults([])
+    setSingleResults([])
+    setBatchProgress({ current: 0, total: 0 })
+    setBatchError(null)
+  }
+
+
 
   // Regenerate a single image
   const handleRegenerateImage = async (prompt: string, resultId: string) => {
@@ -441,12 +562,42 @@ export function UnifiedAnimationGenerator() {
       const data = await response.json()
       
       if (data.success && data.animationUrl) {
-        // Update the result with new image URL
-        setBatchResults(prev => prev.map(result => 
-          result.id === resultId 
-            ? { ...result, url: data.animationUrl, id: `${result.sceneId}_${Date.now()}` }
-            : result
-        ))
+        const allResults = getAllResults()
+        const oldResult = allResults.find(r => r.id === resultId)
+        const newResult = {
+          ...oldResult!,
+          url: data.animationUrl,
+          id: `${oldResult!.sceneId}_${Date.now()}`
+        }
+        
+        // Update the result with new image URL in local state
+        // Check if it's a batch result or single result
+        const isBatchResult = batchResults.find(r => r.id === resultId)
+        const isSingleResult = singleResults.find(r => r.id === resultId)
+        
+        if (isBatchResult) {
+          setBatchResults(prev => prev.map(result => 
+            result.id === resultId ? newResult : result
+          ))
+        } else if (isSingleResult) {
+          setSingleResults(prev => prev.map(result => 
+            result.id === resultId ? newResult : result
+          ))
+        }
+        
+        // If there are any Redux image sets that contain this image, update them too
+        // This ensures regenerated images are also updated in the persistent Redux state
+        imageSets.forEach(imageSet => {
+          const imageIndex = imageSet.imageUrls.findIndex(url => url === oldResult?.url)
+          if (imageIndex !== -1) {
+            dispatch(updateImageInSet({
+              setId: imageSet.id,
+              imageIndex: imageIndex,
+              newImageUrl: data.animationUrl
+            }))
+          }
+        })
+        
         console.log(`✅ Regenerated image successfully`)
       } else {
         throw new Error('Failed to regenerate image')
@@ -459,22 +610,36 @@ export function UnifiedAnimationGenerator() {
   }
 
   return (
-    <div className="flex-1 p-6 space-y-6">
+    <StaggerContainer className="flex-1 p-6 space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Animation Generator</h1>
-        <p className="text-gray-600">
-          Create animations from reference images with AI-powered motion and effects
-        </p>
-      </div>
+      <StaggerItem>
+        <motion.div 
+          className="space-y-2"
+          initial={{ opacity: 0, y: -25 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        >
+          <h1 className="text-3xl font-bold text-gray-900">Animation Generator</h1>
+          <p className="text-gray-600">
+            Create animations from reference images with AI-powered motion and effects
+          </p>
+        </motion.div>
+      </StaggerItem>
 
       {/* Tabs Interface */}
-      <Tabs defaultValue="single" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="single">Single Generation</TabsTrigger>
-          <TabsTrigger value="extract">Extract & Manage</TabsTrigger>
-          <TabsTrigger value="batch">Batch Generation</TabsTrigger>
-        </TabsList>
+      <StaggerItem>
+        <Tabs defaultValue="single" className="w-full">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="single">Single Generation</TabsTrigger>
+              <TabsTrigger value="extract">Extract & Manage</TabsTrigger>
+              <TabsTrigger value="batch">Batch Generation</TabsTrigger>
+            </TabsList>
+          </motion.div>
 
         {/* Single Generation Tab */}
         <TabsContent value="single">
@@ -536,16 +701,20 @@ export function UnifiedAnimationGenerator() {
             referenceImages={referenceImages}
             isBatchGenerating={isBatchGenerating}
             batchProgress={batchProgress}
-            batchResults={batchResults}
+            batchResults={getAllResults()}
             batchError={batchError}
             currentBatchIndex={currentBatchIndex}
             batchDelayRemaining={batchDelayRemaining}
             onBatchGenerate={handleBatchGenerate}
-            onClearBatchResults={handleClearBatchResults}
+            onClearBatchResults={handleClearAllResults}
             onRegenerateImage={handleRegenerateImage}
+
+            singleResults={singleResults}
+            onClearSingleResults={handleClearSingleResults}
           />
         </TabsContent>
       </Tabs>
-    </div>
+        </StaggerItem>
+    </StaggerContainer>
   )
 }

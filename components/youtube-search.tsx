@@ -4,6 +4,8 @@ import React, { useState } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { StaggerContainer, StaggerItem, ScaleOnHover } from './animated-page'
+import { motion } from 'framer-motion'
 import { Loader2, LogOut, FileText, Brain, Clock, Sparkles, Edit, Trash2, Save, X } from 'lucide-react'
 import { useSelector, useDispatch } from 'react-redux'
 import { AppDispatch, RootState } from '@/lib/store'
@@ -68,12 +70,12 @@ const CurrentResearchTab = ({
 }: any) => {
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
-        <h3 className="text-xl font-bold text-green-900 mb-4">Current Research Results</h3>
+      <div className="bg-gradient-to-r from-green-900/20 to-emerald-900/20 p-6 rounded-lg border border-green-600">
+        <h3 className="text-xl font-bold text-green-200 mb-4">Current Research Results</h3>
         {researchSummaries.youtubeResearchSummaries?.length > 0 ? (
           <div className="space-y-4">
             {researchSummaries.youtubeResearchSummaries.map((summary: any, index: number) => (
-              <div key={summary.id || index} className="bg-white border border-green-200 rounded-lg p-4">
+              <div key={summary.id || index} className="bg-gray-800 border border-green-600 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
                     {editingResearch?.id === summary.id && editingResearch?.field === 'query' ? (
@@ -122,7 +124,7 @@ const CurrentResearchTab = ({
                           onClick={() => onStartEditing(summary.id, 'query', summary.query)}
                           size="sm"
                           variant="outline"
-                          className="border-green-300 text-green-700 hover:bg-green-50"
+                          className="border-green-600 text-green-300 hover:bg-green-900/20"
                         >
                           Edit
                         </Button>
@@ -130,7 +132,7 @@ const CurrentResearchTab = ({
                           onClick={() => onSaveToHistory(summary)}
                           size="sm"
                           variant="outline"
-                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                          className="border-blue-600 text-blue-300 hover:bg-blue-900/20"
                         >
                           Save to History
                         </Button>
@@ -146,7 +148,7 @@ const CurrentResearchTab = ({
                   </div>
                 </div>
                 
-                <div className="text-sm text-green-700 space-y-2">
+                <div className="text-sm text-green-300 space-y-2">
                   <div>
                     <strong>Analysis Type:</strong> {summary.analysisType || 'Research'}
                     {summary.timestamp && (
@@ -217,8 +219,8 @@ const CurrentResearchTab = ({
                   )}
                   
                   {summary.appliedToScript && (
-                    <div className="bg-purple-50 border border-purple-200 rounded p-2 mt-2">
-                      <span className="text-purple-700 font-medium">✓ Applied to Script</span>
+                    <div className="bg-purple-900/20 border border-purple-600 rounded p-2 mt-2">
+                      <span className="text-purple-300 font-medium">✓ Applied to Script</span>
                     </div>
                   )}
                 </div>
@@ -226,7 +228,7 @@ const CurrentResearchTab = ({
             ))}
           </div>
         ) : (
-          <p className="text-green-700">No research results yet. Use the AI Research tab to start researching.</p>
+          <p className="text-green-300">No research results yet. Use the AI Research tab to start researching.</p>
         )}
       </div>
     </div>
@@ -246,15 +248,15 @@ const ResearchHistoryTab = ({
 }: any) => {
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-lg border border-purple-200">
+      <div className="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 p-6 rounded-lg border border-purple-600"> 
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-purple-900">Research History ({researchHistory.length})</h3>
+          <h3 className="text-xl font-bold text-purple-200">Research History ({researchHistory.length})</h3>
           {researchHistory.length > 0 && (
             <Button
               onClick={onClearHistory}
               variant="outline"
               size="sm"
-              className="border-purple-300 text-purple-700 hover:bg-purple-50"
+              className="border-purple-600 text-purple-300 hover:bg-purple-900/20"
             >
               Clear All History
             </Button>
@@ -263,7 +265,7 @@ const ResearchHistoryTab = ({
         {researchHistory.length > 0 ? (
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {researchHistory.map((item: any, index: number) => (
-              <div key={item.historyId || index} className="bg-white border border-purple-200 rounded-lg p-4">
+              <div key={item.historyId || index} className="bg-gray-800 border border-purple-600 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
                     {editingResearch?.id === item.historyId && editingResearch?.field === 'query' ? (
@@ -312,7 +314,7 @@ const ResearchHistoryTab = ({
                           onClick={() => onStartEditing(item.historyId, 'query', item.query)}
                           size="sm"
                           variant="outline"
-                          className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                          className="border-purple-600 text-purple-300 hover:bg-purple-900/20"
                         >
                           Edit
                         </Button>
@@ -327,7 +329,7 @@ const ResearchHistoryTab = ({
                           onClick={() => onDeleteFromHistory(item.historyId)}
                           size="sm"
                           variant="outline"
-                          className="border-red-300 text-red-700 hover:bg-red-50"
+                          className="border-red-600 text-red-300 hover:bg-red-900/20"
                         >
                           Delete
                         </Button>
@@ -336,7 +338,7 @@ const ResearchHistoryTab = ({
                   </div>
                 </div>
                 
-                <div className="text-sm text-purple-700 space-y-2">
+                <div className="text-sm text-purple-300 space-y-2">
                   <div>
                     <strong>Analysis Type:</strong> {item.analysisType || 'Research'}
                     <span className="text-purple-600 ml-2">
@@ -416,8 +418,8 @@ const ResearchHistoryTab = ({
                   )}
                   
                   {item.appliedToScript && (
-                    <div className="bg-green-50 border border-green-200 rounded p-2 mt-2">
-                      <span className="text-green-700 font-medium">✓ Applied to Script</span>
+                    <div className="bg-green-900/20 border border-green-600 rounded p-2 mt-2">
+                      <span className="text-green-300 font-medium">✓ Applied to Script</span>
                     </div>
                   )}
                 </div>
@@ -425,7 +427,7 @@ const ResearchHistoryTab = ({
             ))}
           </div>
         ) : (
-          <p className="text-purple-700">No research history yet. Save research from the Current Research tab to build your history.</p>
+          <p className="text-purple-300">No research history yet. Save research from the Current Research tab to build your history.</p>
         )}
       </div>
     </div>
@@ -869,30 +871,43 @@ export default function YouTubeSearch() {
   }
   
   return (
-    <div className="flex-1 p-6 bg-white overflow-auto">
+    <StaggerContainer className="flex-1 p-6 bg-gray-900 overflow-auto">
       <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">YouTube Research Assistant</h1>
-            <p className="text-gray-600">
-              Search for videos, generate subtitles, analyze transcripts, and conduct comprehensive research with AI-powered insights.
-            </p>
-          </div>
-          <div className="ml-4">
-            <YouTubeAuthButton />
-          </div>
-        </div>
+        <StaggerItem>
+          <motion.div 
+            className="flex justify-between items-start mb-6"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">YouTube Research Assistant</h1>
+              <p className="text-gray-300">
+                Search for videos, generate subtitles, analyze transcripts, and conduct comprehensive research with AI-powered insights.
+              </p>
+            </div>
+            <div className="ml-4">
+              <YouTubeAuthButton />
+            </div>
+          </motion.div>
+        </StaggerItem>
 
         {/* Tab Navigation */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+        <StaggerItem>
+          <motion.div 
+            className="mb-6"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            <div className="border-b border-gray-600">
+              <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('youtube')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'youtube'
-                    ? 'border-red-500 text-red-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-red-500 text-red-400'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -904,8 +919,8 @@ export default function YouTubeSearch() {
                 onClick={() => setActiveTab('research')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'research'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-blue-500 text-blue-400'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -917,8 +932,8 @@ export default function YouTubeSearch() {
                 onClick={() => setActiveTab('current-research')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'current-research'
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-green-500 text-green-400'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -930,8 +945,8 @@ export default function YouTubeSearch() {
                 onClick={() => setActiveTab('history')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'history'
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-purple-500 text-purple-400'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -941,10 +956,12 @@ export default function YouTubeSearch() {
               </button>
             </nav>
           </div>
-        </div>
+          </motion.div>
+        </StaggerItem>
 
         {/* Tab Content */}
-        <div className="mt-6">
+        <StaggerItem>
+          <div className="mt-6">
           {activeTab === 'youtube' && (
             <VideoSearchCard
               searchForm={searchForm}
@@ -1009,8 +1026,9 @@ export default function YouTubeSearch() {
               onUpdateEdit={updateEditingResearch}
             />
           )}
-        </div>
+          </div>
+        </StaggerItem>
       </div>
-    </div>
+    </StaggerContainer>
   )
 } 

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Prepare the image data URL
     let imageDataUrl = image
     if (!image.startsWith('data:')) {
-      imageDataUrl = `data:image/jpeg;base64,${image}`
+      imageDataUrl = `data:application/octet-stream;base64,${image}`
     }
 
     // Prepare input for Replicate
@@ -55,11 +55,13 @@ export async function POST(request: NextRequest) {
       duration: duration
     }
 
+    console.log('🚀 Replicate input:', input)
+
     console.log('🚀 Starting Replicate image-to-video generation...')
 
     // Start the generation using ByteDance SeeDance Lite
     const output = await replicate.run("bytedance/seedance-1-lite", { input })
-
+    console.log('🚀 Replicate output:', output)
     console.log('✅ Replicate generation completed')
 
     // Handle the output - could be a URL or FileOutput object  

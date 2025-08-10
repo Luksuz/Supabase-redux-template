@@ -414,20 +414,20 @@ export function ResearchSearchCard({
           </p>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {availableLinks.map((link: any, index: number) => (
-              <div key={index} className="bg-white border border-green-200 rounded p-3">
+              <div key={index} className="bg-gray-800 border border-green-600 rounded p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <h5 className="font-medium text-green-900 truncate">
+                    <h5 className="font-medium text-green-200 truncate">
                       {link.title}
                     </h5>
-                    <p className="text-xs text-green-600 truncate">
+                    <p className="text-xs text-green-400 truncate">
                       {link.source} • {link.date}
                     </p>
                     <a 
                       href={link.url} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:text-blue-800 underline truncate block mt-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 underline truncate block mt-1"
                     >
                       {link.url}
                     </a>

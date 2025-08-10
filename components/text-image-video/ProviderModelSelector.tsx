@@ -112,9 +112,9 @@ export function ProviderModelSelector({ mode, className }: ProviderModelSelector
               {Object.entries(availableModels).map(([key, model]) => (
                 <SelectItem key={key} value={key}>
                   <div className="flex flex-col">
-                    <span className="font-medium">{model.name}</span>
+                    <span className="font-medium">{(model as any).name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {model.description}
+                      {(model as any).description}
                     </span>
                   </div>
                 </SelectItem>

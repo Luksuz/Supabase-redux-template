@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Mic, Video, Activity, Settings, Search, Zap } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, Crown, Mic, Video, Activity, Settings, Search, Zap, Music, Brain, Package, Archive, Layers } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ScaleOnHover, StaggerContainer, StaggerItem } from './animated-page'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'music-manager' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator' | 'reinforced-learning' | 'content-repackager' | 'visual-asset-vault' | 'mixed-content-generator'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -38,10 +40,22 @@ export function SidebarNavigation({
       description: 'Research & analyze YouTube videos'
     },
     {
+      id: 'reinforced-learning' as NavigationView,
+      label: 'Reinforced Learning',
+      icon: Brain,
+      description: 'Coming soon'
+    },
+    {
       id: 'script-generator' as NavigationView,
       label: 'Script Generator',
       icon: FileText,
       description: 'Generate AI-powered scripts'
+    },
+    {
+      id: 'content-repackager' as NavigationView,
+      label: 'Content Repackager',
+      icon: Package,
+      description: 'Coming soon'
     },
     {
       id: 'image-generator' as NavigationView,
@@ -56,6 +70,18 @@ export function SidebarNavigation({
       description: 'Create animations from reference images'
     },
     {
+      id: 'visual-asset-vault' as NavigationView,
+      label: 'Visual Asset Vault',
+      icon: Archive,
+      description: 'Coming soon'
+    },
+    {
+      id: 'mixed-content-generator' as NavigationView,
+      label: 'Mixed Content Generator',
+      icon: Layers,
+      description: 'Organize all content for videos'
+    },
+    {
       id: 'text-image-video-generator' as NavigationView,
       label: 'Text & Image to Video Generator',
       icon: VideoIcon,
@@ -66,6 +92,12 @@ export function SidebarNavigation({
       label: 'Audio Generator',
       icon: Mic,
       description: 'Generate voiceovers'
+    },
+    {
+      id: 'music-manager' as NavigationView,
+      label: 'Music',
+      icon: Music,
+      description: 'Upload and manage background music'
     },
     {
       id: 'video-generator' as NavigationView,
@@ -88,61 +120,109 @@ export function SidebarNavigation({
   ]
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col min-h-screen">
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-900">Content Studio</h1>
-        <p className="text-sm text-gray-600 mt-1">AI-powered content creation</p>
-      </div>
+      <motion.div 
+        className="p-6 border-b border-gray-700"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
+        <motion.h1 
+          className="text-xl font-bold text-white"
+          animate={{ 
+            backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"]
+          }}
+          transition={{ 
+            duration: 3, 
+            repeat: Infinity, 
+            ease: "linear" 
+          }}
+          style={{
+            background: "linear-gradient(90deg, #3b82f6, #9333ea, #ec4899, #3b82f6)",
+            backgroundSize: "200% auto",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text"
+          }}
+        >
+          🌙 Project Moon AI Generator
+        </motion.h1>
+        <motion.p 
+          className="text-sm text-gray-300 mt-1"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+        >
+          AI-powered content creation
+        </motion.p>
+      </motion.div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
-        {navigationItems.map((item) => {
+      <StaggerContainer className="flex-1 p-4 space-y-2">
+        {navigationItems.map((item, index) => {
           const Icon = item.icon
           const isActive = activeView === item.id
           
           return (
-            <button
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                isActive 
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <Icon className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
-              <div className="flex-1">
-                <div className="font-medium">{item.label}</div>
-                <div className="text-xs text-gray-500">{item.description}</div>
-              </div>
-              
-              {/* Progress indicators and warnings */}
-              {item.id === 'script-generator' && (hasGeneratedScripts || hasFullScript) && (
-                <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded">
-                  {hasFullScript ? `Full script: "${fullScript?.title}"` : `${scripts.length} scripts generated`}
-                </div>
-              )}
-              
-              {item.id === 'youtube-search' && hasYouTubeResearch && (
-                <div className="mt-2 text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                  {appliedResearchCount > 0 
-                    ? `${appliedResearchCount} research applied to script`
-                    : 'Research data available'
-                  }
-                </div>
-              )}
-            </button>
+            <StaggerItem key={item.id}>
+              <ScaleOnHover scale={1.02}>
+                <motion.button
+                  onClick={() => onViewChange(item.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                    isActive 
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' 
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                  whileHover={{ x: 4 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                >
+                  <motion.div
+                    animate={isActive ? { rotate: [0, 10, 0] } : {}}
+                    transition={{ duration: 0.5, ease: "easeInOut" }}
+                  >
+                    <Icon className={`h-5 w-5 ${isActive ? 'text-blue-200' : 'text-gray-400'}`} />
+                  </motion.div>
+                  <div className="flex-1">
+                    <div className="font-medium">{item.label}</div>
+                    <div className={`text-xs ${isActive ? 'text-blue-100' : 'text-gray-500'}`}>{item.description}</div>
+                  </div>
+                  
+                  {/* Progress indicators with animations */}
+                  <AnimatePresence>
+                    {item.id === 'script-generator' && (hasGeneratedScripts || hasFullScript) && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="mt-2 text-xs text-green-300 bg-green-900/30 p-2 rounded border border-green-800"
+                      >
+                        {hasFullScript ? `Full script: "${fullScript?.title}"` : `${scripts.length} scripts generated`}
+                      </motion.div>
+                    )}
+                    
+                    {item.id === 'youtube-search' && hasYouTubeResearch && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="mt-2 text-xs text-blue-300 bg-blue-900/30 p-2 rounded border border-blue-800"
+                      >
+                        {appliedResearchCount > 0 
+                          ? `${appliedResearchCount} research applied to script`
+                          : 'Research data available'
+                        }
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              </ScaleOnHover>
+            </StaggerItem>
           )
         })}
-      </nav>
+      </StaggerContainer>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="text-xs text-gray-500">
-          <div>User: {user.email || 'Not logged in'}</div>
-        </div>
-      </div>
+
     </div>
   )
 } 
