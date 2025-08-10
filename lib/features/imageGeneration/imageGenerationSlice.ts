@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { ImageGenerationState, GeneratedImageSet, ExtractedScene, ImageProvider } from '../../../types/image-generation'
+import { ImageGenerationState, GeneratedImageSet, ExtractedScene, ImageProvider, MixedContentItem } from '../../../types/image-generation'
 
 const initialState: ImageGenerationState = {
   currentGeneration: null,
@@ -21,7 +21,9 @@ const initialState: ImageGenerationState = {
   remainingFluxRequests: 10, // 10 per minute for flux
   // Image selection for video generation
   confirmedImageSelection: [],
-  selectedImagesOrder: []
+  selectedImagesOrder: [],
+  // Mixed content sequence from mixed content generator
+  mixedContentSequence: []
 }
 
 export const imageGenerationSlice = createSlice({
@@ -207,6 +209,15 @@ export const imageGenerationSlice = createSlice({
     
     loadSelectedImagesOrder: (state, action: PayloadAction<string[]>) => {
       state.selectedImagesOrder = action.payload
+    },
+
+    // Mixed content sequence management
+    setMixedContentSequence: (state, action: PayloadAction<MixedContentItem[]>) => {
+      state.mixedContentSequence = action.payload.sort((a, b) => a.order - b.order)
+    },
+
+    clearMixedContentSequence: (state) => {
+      state.mixedContentSequence = []
     }
   }
 })
@@ -238,7 +249,9 @@ export const {
   clearSelectedImagesOrder,
   loadImageSets,
   loadConfirmedImageSelection,
-  loadSelectedImagesOrder
+  loadSelectedImagesOrder,
+  setMixedContentSequence,
+  clearMixedContentSequence
 } = imageGenerationSlice.actions
 
 export default imageGenerationSlice.reducer

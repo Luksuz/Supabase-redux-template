@@ -1,11 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useAppSelector } from '../../lib/hooks'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
+import { Checkbox } from '../ui/checkbox'
+import { Separator } from '../ui/separator'
 import { ProviderModelSelector } from './ProviderModelSelector'
 import { 
   Plus, 
@@ -16,7 +19,10 @@ import {
   Zap,
   RefreshCw,
   Upload,
-  X
+  X,
+  Grid,
+  CheckSquare,
+  Square
 } from 'lucide-react'
 
 interface ImageToVideoTabProps {
@@ -32,10 +38,17 @@ export function ImageToVideoTab({
   onGenerate,
   onDurationChange
 }: ImageToVideoTabProps) {
+  // Get generated images from Redux
+  const { imageSets } = useAppSelector(state => state.imageGeneration)
+  
   const [prompts, setPrompts] = useState<string[]>([''])
   const [images, setImages] = useState<File[]>([])
   const [duration, setDuration] = useState<5 | 10>(defaultDuration)
   const [dragActive, setDragActive] = useState(false)
+  
+  // State for generated images selection
+  const [selectedImageUrls, setSelectedImageUrls] = useState<string[]>([])
+  const [generatedImagePrompt, setGeneratedImagePrompt] = useState<string>('')
 
   const updatePrompt = (index: number, value: string) => {
     const newPrompts = [...prompts]
@@ -60,6 +73,49 @@ export function ImageToVideoTab({
 
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index))
+  }
+
+  // Generated images handling
+  const toggleImageSelection = (imageUrl: string) => {
+    setSelectedImageUrls(prev => 
+      prev.includes(imageUrl) 
+        ? prev.filter(url => url !== imageUrl)
+        : [...prev, imageUrl]
+    )
+  }
+
+  const selectAllImages = () => {
+    const allImageUrls = imageSets.flatMap(set => set.imageUrls)
+    setSelectedImageUrls(allImageUrls)
+  }
+
+  const clearImageSelection = () => {
+    setSelectedImageUrls([])
+  }
+
+  const handleGenerateFromSelected = async () => {
+    if (selectedImageUrls.length === 0 || !generatedImagePrompt.trim()) return
+
+    // Convert selected image URLs to files (we'll need to modify the onGenerate function to handle URLs)
+    try {
+      const imageFiles: File[] = []
+      for (const imageUrl of selectedImageUrls) {
+        const response = await fetch(imageUrl)
+        const blob = await response.blob()
+        const file = new File([blob], `generated-image-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        imageFiles.push(file)
+      }
+
+      const prompts = selectedImageUrls.map(() => generatedImagePrompt.trim())
+      onDurationChange(duration)
+      await onGenerate(prompts, imageFiles, duration)
+      
+      // Clear selection after generation
+      setSelectedImageUrls([])
+      setGeneratedImagePrompt('')
+    } catch (error) {
+      console.error('Error converting images to files:', error)
+    }
   }
 
   const handleGenerate = async () => {
@@ -132,7 +188,7 @@ export function ImageToVideoTab({
         <CardContent>
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+              dragActive ? 'border-blue-500 bg-blue-900/20' : 'border-gray-600'
             }`}
             onDragOver={(e) => {
               e.preventDefault()
@@ -186,6 +242,149 @@ export function ImageToVideoTab({
         </CardContent>
       </Card>
 
+      {/* Generated Images Section */}
+      {imageSets.length > 0 && (
+        <>
+          <Separator />
+          
+          <Card className="bg-green-900/20 border-green-600">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg text-white">
+                <Grid className="h-4 w-4 text-green-400" />
+                Generated Images ({imageSets.reduce((total, set) => total + set.imageUrls.length, 0)} available)
+              </CardTitle>
+              <CardDescription className="text-gray-300">
+                Select images from your previous generations to create videos
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Selection Controls */}
+              <div className="flex items-center justify-between">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllImages}
+                    disabled={isGenerating}
+                    className="gap-2"
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    Select All ({imageSets.reduce((total, set) => total + set.imageUrls.length, 0)})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearImageSelection}
+                    disabled={isGenerating || selectedImageUrls.length === 0}
+                    className="gap-2"
+                  >
+                    <Square className="h-4 w-4" />
+                    Clear Selection
+                  </Button>
+                </div>
+                <Badge variant="secondary" className="bg-green-900/40 text-green-300">
+                  {selectedImageUrls.length} selected
+                </Badge>
+              </div>
+
+              {/* Images Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 max-h-96 overflow-y-auto">
+                {imageSets.map((set, setIndex) => 
+                  set.imageUrls.map((imageUrl, imageIndex) => {
+                    const isSelected = selectedImageUrls.includes(imageUrl)
+                    return (
+                      <div
+                        key={`${set.id}-${imageIndex}`}
+                        className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                          isSelected 
+                            ? 'border-green-500 bg-green-900/20' 
+                            : 'border-gray-600 hover:border-green-400'
+                        }`}
+                        onClick={() => toggleImageSelection(imageUrl)}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`Generated image ${setIndex}-${imageIndex}`}
+                          className="w-full h-20 object-cover"
+                        />
+                        
+                        {/* Selection indicator */}
+                        <div className="absolute top-1 right-1">
+                          <Checkbox
+                            checked={isSelected}
+                            className="bg-gray-700 border-gray-600"
+                            onClick={(e) => e.stopPropagation()}
+                            onCheckedChange={() => toggleImageSelection(imageUrl)}
+                          />
+                        </div>
+                        
+                        {/* Set info */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 text-white text-xs p-1">
+                          Set {setIndex + 1} - {imageIndex + 1}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Prompt for selected images */}
+              {selectedImageUrls.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-white">
+                    Video Prompt for Selected Images
+                  </Label>
+                  <Input
+                    placeholder="Describe how the selected images should animate..."
+                    value={generatedImagePrompt}
+                    onChange={(e) => setGeneratedImagePrompt(e.target.value)}
+                    disabled={isGenerating}
+                    className="bg-gray-700 text-white border-gray-600"
+                  />
+                </div>
+              )}
+
+              {/* Generate button for selected images */}
+              {selectedImageUrls.length > 0 && generatedImagePrompt.trim() && (
+                <div className="flex items-center justify-between p-4 bg-green-900/30 rounded-lg border border-green-600">
+                  <div className="space-y-1">
+                    <div className="flex gap-2">
+                      <Badge variant="secondary" className="bg-green-900/40 text-green-300">
+                        {selectedImageUrls.length} Images
+                      </Badge>
+                      <Badge variant="secondary" className="bg-green-900/40 text-green-300">
+                        {duration}s Each
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-green-300">
+                      Generate {selectedImageUrls.length} videos from selected images
+                    </p>
+                  </div>
+                  
+                  <Button
+                    onClick={handleGenerateFromSelected}
+                    disabled={isGenerating}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="h-4 w-4 mr-2" />
+                        Generate {selectedImageUrls.length} Videos
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       {/* Prompts */}
       <Card>
         <CardHeader>
@@ -237,7 +436,7 @@ export function ImageToVideoTab({
 
       {/* Generation Summary */}
       {validPrompts.length > 0 && images.length > 0 && (
-        <Card className="bg-purple-50 border-purple-200">
+        <Card className="bg-purple-900/20 border-purple-600">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -246,7 +445,7 @@ export function ImageToVideoTab({
                   <Badge variant="secondary">{images.length} Images</Badge>
                   <Badge variant="secondary">{duration}s Each</Badge>
                 </div>
-                <p className="text-sm text-purple-700">
+                <p className="text-sm text-purple-300">
                   Each prompt will be paired with images (reusing first image if needed)
                 </p>
               </div>

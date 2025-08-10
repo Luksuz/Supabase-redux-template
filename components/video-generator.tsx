@@ -39,14 +39,18 @@ export function VideoGenerator() {
   const { id: userId } = useAppSelector(state => state.user)
   
   // Use Redux states from imageGeneration, audio, video, and textImageVideo slices
-  const { imageSets, selectedImagesOrder } = useAppSelector(state => state.imageGeneration)
+  const { imageSets, selectedImagesOrder, mixedContentSequence } = useAppSelector(state => state.imageGeneration)
   const { currentGeneration: audioGeneration } = useAppSelector(state => state.audio)
   const { 
     currentGeneration, 
     isGeneratingVideo,
     settings
   } = useAppSelector(state => state.video)
-  const { selectedVideosForGenerator: selectedVideosForGeneration } = useAppSelector(state => state.textImageVideo)
+  const { 
+    selectedVideosForGenerator: selectedVideosForGeneration,
+    currentBatch: videoBatch,
+    videoHistory
+  } = useAppSelector(state => state.textImageVideo)
   
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
@@ -73,74 +77,146 @@ export function VideoGenerator() {
   const [selectedVideos, setSelectedVideos] = useState<any[]>([])
   
   useEffect(() => {
+    // Get videos from localStorage (uploaded videos)
     const storedVideos = getStoredVideosFromLocalStorage()
-    const selectedVideosList = storedVideos.filter(video => selectedVideosForGeneration.includes(video.id))
+    
+    // Also get videos from Redux state (current batch and history)
+    const reduxVideos: any[] = []
+    
+    // Add current batch videos
+    if (videoBatch) {
+      videoBatch.videos.forEach(video => {
+        reduxVideos.push({
+          id: video.id,
+          videoUrl: video.videoUrl,
+          prompt: video.prompt,
+          duration: video.duration,
+          type: video.type,
+          source: 'current-batch'
+        })
+      })
+    }
+    
+    // Add history videos
+    videoHistory.forEach(video => {
+      reduxVideos.push({
+        id: video.id,
+        videoUrl: video.videoUrl,
+        prompt: video.prompt,
+        duration: video.duration,
+        type: video.type,
+        source: 'history'
+      })
+    })
+    
+    // Combine stored videos and Redux videos, prioritizing stored videos
+    const allVideos = [...storedVideos, ...reduxVideos]
+    const uniqueVideos = allVideos.filter((video, index, arr) => 
+      arr.findIndex(v => v.id === video.id) === index
+    )
+    
+    const selectedVideosList = uniqueVideos.filter(video => selectedVideosForGeneration.includes(video.id))
+    
     setSelectedVideos(selectedVideosList)
     setSelectedVideosCount(selectedVideosList.length)
-  }, [selectedVideosForGeneration])
+  }, [selectedVideosForGeneration, videoBatch, videoHistory])
 
   // Initialize segments and timings when content changes
   useEffect(() => {
-    const totalImages = selectedImagesOrder.length
-    const totalVideos = selectedVideos.length
-    const totalSegments = totalImages + totalVideos
-
-    if (totalSegments > 0) {
-      // Build ordered segments list (default order: images first, then videos)
-      const newOrderedSegments: SegmentItem[] = []
+    // Prioritize mixed content sequence if available
+    if (mixedContentSequence.length > 0) {
+      console.log('🚀 Using mixed content sequence from mixed content generator:', mixedContentSequence.length, 'items')
       
-      // Add image segments - resolve IDs to actual URLs
-      selectedImagesOrder.forEach((imageId, index) => {
-        // Resolve image ID to actual URL using the same logic as getOrderedImageUrls
-        const [setId, imageIndex] = imageId.split(':')
-        const imageSet = imageSets.find(set => set.id === setId)
-        
-        if (imageSet && imageSet.imageUrls[parseInt(imageIndex)]) {
-          const actualImageUrl = imageSet.imageUrls[parseInt(imageIndex)]
-          console.log(`🔗 Resolved image ID "${imageId}" to URL: ${actualImageUrl.substring(0, 50)}...`)
-          newOrderedSegments.push({
-            id: `image-${index}`,
-            type: 'image',
-            url: actualImageUrl, // Use actual URL instead of ID
-            duration: 0, // Will be calculated below
-            originalIndex: index,
-            thumbnail: actualImageUrl
-          })
-        } else {
-          console.warn(`❌ Could not resolve image ID: ${imageId}`)
-        }
-      })
+      // Convert MixedContentItem[] to SegmentItem[]
+      const newOrderedSegments: SegmentItem[] = mixedContentSequence.map((item, index) => ({
+        id: `mixed-${item.type}-${index}`,
+        type: item.type === 'animation' ? 'image' : item.type, // Treat animations as images
+        url: item.url,
+        duration: item.duration || (item.type === 'video' ? 3 : 0), // Default video duration or 0 for images
+        originalIndex: index,
+        thumbnail: item.thumbnail
+      }))
+
+      console.log(`🔧 Built ${newOrderedSegments.length} segments from mixed content sequence`)
       
-      // Add video segments
-      selectedVideos.forEach((video, index) => {
-        newOrderedSegments.push({
-          id: `video-${index}`,
-          type: 'video',
-          url: video.supabaseUrl || video.video_url || '',
-          duration: video.duration || 3,
-          originalIndex: index,
-          thumbnail: video.thumbnail_url || video.supabaseUrl || video.video_url
-        })
-      })
-
-      console.log(`🔧 Built ${newOrderedSegments.length} segments (${newOrderedSegments.filter(s => s.type === 'image').length} images, ${newOrderedSegments.filter(s => s.type === 'video').length} videos)`)
-
-      // Only update if not using custom order or if segments changed significantly
-      if (!isCustomOrder || orderedSegments.length !== newOrderedSegments.length) {
-        setOrderedSegments(newOrderedSegments)
-        setIsCustomOrder(false)
-      }
+      setOrderedSegments(newOrderedSegments)
+      setIsCustomOrder(true) // Mark as custom since it came from mixed content generator
 
       // Calculate durations based on audio
       if (audioGeneration?.duration) {
-        updateSegmentTimingsFromOrder(isCustomOrder ? orderedSegments : newOrderedSegments)
+        updateSegmentTimingsFromOrder(newOrderedSegments)
       }
     } else {
-      setOrderedSegments([])
-      setCustomSegmentTimings([])
-      setIsCustomOrder(false)
+      // Fallback to old system if no mixed content sequence
+      const totalImages = selectedImagesOrder.length
+      const totalVideos = selectedVideos.length
+      const totalSegments = totalImages + totalVideos
+
+      if (totalSegments > 0) {
+        console.log('📋 Using fallback system: building segments from separate image/video orders')
+        
+        // Build ordered segments list (default order: images first, then videos)
+        const newOrderedSegments: SegmentItem[] = []
+        
+        // Add image segments - resolve IDs to actual URLs
+        selectedImagesOrder.forEach((imageId, index) => {
+          // Resolve image ID to actual URL using the same logic as getOrderedImageUrls
+          const [setId, imageIndex] = imageId.split(':')
+          const imageSet = imageSets.find(set => set.id === setId)
+          
+          if (imageSet && imageSet.imageUrls[parseInt(imageIndex)]) {
+            const actualImageUrl = imageSet.imageUrls[parseInt(imageIndex)]
+            console.log(`🔗 Resolved image ID "${imageId}" to URL: ${actualImageUrl.substring(0, 50)}...`)
+            newOrderedSegments.push({
+              id: `image-${index}`,
+              type: 'image',
+              url: actualImageUrl, // Use actual URL instead of ID
+              duration: 0, // Will be calculated below
+              originalIndex: index,
+              thumbnail: actualImageUrl
+            })
+          } else {
+            console.warn(`❌ Could not resolve image ID: ${imageId}`)
+          }
+        })
+        
+        // Add video segments
+        selectedVideos.forEach((video, index) => {
+          // Handle different video URL property names
+          const videoUrl = video.supabaseUrl || video.video_url || video.videoUrl || ''
+          const thumbnailUrl = video.thumbnail_url || video.supabaseUrl || video.video_url || video.videoUrl || ''
+          
+          console.log(`🎬 Adding video segment ${index + 1}: ${video.prompt?.substring(0, 30)}... URL: ${videoUrl.substring(0, 50)}...`)
+          
+          newOrderedSegments.push({
+            id: `video-${index}`,
+            type: 'video',
+            url: videoUrl,
+            duration: video.duration || 3,
+            originalIndex: index,
+            thumbnail: thumbnailUrl
+          })
+        })
+
+        console.log(`🔧 Built ${newOrderedSegments.length} segments (${newOrderedSegments.filter(s => s.type === 'image').length} images, ${newOrderedSegments.filter(s => s.type === 'video').length} videos)`)
+
+        // Only update if not using custom order or if segments changed significantly
+        if (!isCustomOrder || orderedSegments.length !== newOrderedSegments.length) {
+          setOrderedSegments(newOrderedSegments)
+          setIsCustomOrder(false)
+        }
+
+        // Calculate durations based on audio
+        if (audioGeneration?.duration) {
+          updateSegmentTimingsFromOrder(isCustomOrder ? orderedSegments : newOrderedSegments)
+        }
+      } else {
+        setOrderedSegments([])
+        setCustomSegmentTimings([])
+        setIsCustomOrder(false)
+      }
     }
-  }, [selectedImagesOrder, selectedVideos, audioGeneration?.duration, imageSets])
+  }, [mixedContentSequence, selectedImagesOrder, selectedVideos, audioGeneration?.duration, imageSets])
 
   // Function to update segment timings based on current order
   const updateSegmentTimingsFromOrder = (segments: SegmentItem[]) => {
@@ -246,9 +322,9 @@ export function VideoGenerator() {
 
   // Debug logging for image generation state
   useEffect(() => {
-    console.log('🖼️ Image generation state:', { 
+    console.log('🖼️ Video Generator - Image generation state:', { 
       imageSetsCount: imageSets.length, 
-      selectedImagesOrder: selectedImagesOrder.length,
+      selectedImagesOrderLength: selectedImagesOrder.length,
       totalImages: getOrderedImageUrls().length,
       hasGeneratedImages 
     })
@@ -464,7 +540,8 @@ export function VideoGenerator() {
         dustOverlay: settings.dustOverlay || false,
         // Custom music
         useCustomMusic: settings.useCustomMusic || false,
-        customMusicFiles: settings.customMusicFiles || []
+        customMusicFiles: settings.customMusicFiles || [],
+        selectedMusicTrack: settings.selectedMusicTrack
       }
 
       console.log('🎬 Starting video generation with:', requestBody)
@@ -571,7 +648,7 @@ export function VideoGenerator() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          <h1 className="text-3xl font-bold text-gray-900">Video Generator</h1>
+          <h1 className="text-3xl text-white font-bold text-gray-900">Video Generator</h1>
           <p className="text-gray-600">
             Create professional videos from your selected images and audio using Shotstack with dynamic slide effects, zoom animations, and advanced timing options
           </p>
@@ -611,12 +688,7 @@ export function VideoGenerator() {
         />
       </StaggerItem>
 
-      {/* Animation Generator */}
-      <StaggerItem>
-        <UnifiedAnimationSection
-          hasPrerequisites={hasPrerequisites as boolean}
-        />
-      </StaggerItem>
+
 
       {/* Current Generation Status */}
       <StaggerItem>

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fal } from "@fal-ai/client"
+import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
 
 // Configure FAL AI
 fal.config({
@@ -9,7 +11,7 @@ fal.config({
 // Available FAL AI models for image-to-video
 const FAL_MODELS = {
   // Text-to-video models
-  'minimax-hailuo-02-pro': 'fal-ai/minimax/hailuo-02/pro/text-to-video',
+  'minimax-hailuo-02-pro': 'fal-ai/minimax/hailuo-02/standard/text-to-video',
   'kling-v2.1-master': 'fal-ai/kling-video/v2.1/master/text-to-video',
 
   // Image-to-video models
@@ -131,9 +133,57 @@ export async function POST(request: NextRequest) {
       throw new Error('No video URL returned from FAL AI')
     }
 
+    // Upload video to Supabase storage for persistence
+    let finalVideoUrl = videoUrl
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
+      
+      if (supabaseUrl && supabaseServiceKey) {
+        console.log('📁 Uploading FAL image-to-video to Supabase storage...')
+        
+        // Download video from FAL URL
+        const videoResponse = await fetch(videoUrl)
+        if (!videoResponse.ok) {
+          throw new Error('Failed to download video from FAL')
+        }
+        
+        const videoBuffer = await videoResponse.arrayBuffer()
+        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+        
+        // Generate unique filename
+        const fileId = crypto.randomUUID()
+        const destination = `generated-videos/fal-i2v-${model}/${fileId}.mp4`
+        
+        // Upload to Supabase
+        const { error: uploadError } = await supabase.storage
+          .from('audio')
+          .upload(destination, videoBuffer, { 
+            contentType: 'video/mp4', 
+            upsert: false 
+          })
+        
+        if (uploadError) {
+          console.error('Supabase upload error:', uploadError)
+          // Continue with original URL if upload fails
+        } else {
+          // Get public URL
+          const { data: publicUrlData } = supabase.storage
+            .from('audio')
+            .getPublicUrl(destination)
+          
+          finalVideoUrl = publicUrlData.publicUrl
+          console.log('✅ Image-to-video uploaded to Supabase successfully')
+        }
+      }
+    } catch (uploadError) {
+      console.error('Failed to upload video to Supabase:', uploadError)
+      // Continue with original URL if upload fails
+    }
+
     return NextResponse.json({
       success: true,
-      videoUrl: videoUrl,
+      videoUrl: finalVideoUrl,
       provider: 'fal',
       model: model,
       requestId: result.requestId,

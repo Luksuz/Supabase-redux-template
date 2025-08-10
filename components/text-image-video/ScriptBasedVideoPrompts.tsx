@@ -264,7 +264,7 @@ export function ScriptBasedVideoPrompts({
 
             {/* Custom Scene Form */}
             {showCustomScene && (
-              <Card className="border-blue-200 bg-blue-50/30">
+              <Card className="border-blue-600 bg-blue-900/20">
                 <CardContent className="pt-4 space-y-3">
                   <div className="flex items-center gap-2 mb-3">
                     <Plus className="h-4 w-4 text-blue-600" />
@@ -376,7 +376,7 @@ export function ScriptBasedVideoPrompts({
                           </div>
                         </div>
                       ) : (
-                        <div className="text-sm text-gray-700 bg-blue-50 p-3 rounded border-l-4 border-blue-400">
+                        <div className="text-sm text-gray-300 bg-blue-900/20 p-3 rounded border-l-4 border-blue-400">
                           {scene.videoPrompt}
                         </div>
                       )}

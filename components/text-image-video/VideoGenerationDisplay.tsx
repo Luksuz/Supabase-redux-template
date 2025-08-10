@@ -50,11 +50,11 @@ export function VideoGenerationDisplay({
   const getStatusColor = (status: 'generating' | 'completed' | 'failed') => {
     switch (status) {
       case 'generating':
-        return 'bg-blue-50 border-blue-200'
+        return 'bg-blue-900/20 border-blue-600'
       case 'completed':
-        return 'bg-green-50 border-green-200'
+        return 'bg-green-900/20 border-green-600'
       case 'failed':
-        return 'bg-red-50 border-red-200'
+        return 'bg-red-900/20 border-red-600'
     }
   }
 
@@ -138,10 +138,10 @@ export function VideoGenerationDisplay({
 
             {/* Generation Info */}
             {generationInfo && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-3">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-blue-800">{generationInfo}</span>
+                  <Clock className="h-4 w-4 text-blue-400" />
+                  <span className="text-sm text-blue-300">{generationInfo}</span>
                 </div>
               </div>
             )}
@@ -208,7 +208,7 @@ export function VideoGenerationDisplay({
 
       {/* Batch Summary */}
       {currentBatch && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-blue-900/20 border-blue-600">
           <CardContent className="pt-6">
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>

@@ -268,9 +268,9 @@ export function VideoModeSelection({
 
             {/* Option 2: Intro + Loop */}
             <TabsContent value="option2" className="space-y-4">
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <h4 className="font-medium mb-2 text-purple-800">Option 2: Intro Sequence + Loop Last Image</h4>
-                <p className="text-sm text-purple-700 mb-3">
+              <div className="p-4 bg-purple-900/20 rounded-lg border border-purple-600">
+                <h4 className="font-medium mb-2 text-purple-300">Option 2: Intro Sequence + Loop Last Image</h4>
+                <p className="text-sm text-purple-300 mb-3">
                   Show selected images in the first minute, then loop the last image with zoom effects for the remaining duration.
                 </p>
 
@@ -332,8 +332,8 @@ export function VideoModeSelection({
 
                 {/* Intro Configuration - Images or Videos */}
                 {(selectedImagesCount > 0 || selectedVideosCount > 0) && (
-                  <div className="space-y-4 border-t border-purple-200 pt-4">
-                    <h5 className="font-medium text-purple-800">Configure Intro Sequence</h5>
+                  <div className="space-y-4 border-t border-purple-600 pt-4">
+                    <h5 className="font-medium text-purple-300">Configure Intro Sequence</h5>
                     
                     <Tabs defaultValue={selectedImagesCount > 0 ? "images" : "videos"} className="w-full">
                       {(selectedImagesCount > 0 && selectedVideosCount > 0) ? (
@@ -362,7 +362,7 @@ export function VideoModeSelection({
                                 <Clock className="h-4 w-4 mr-1" />
                                 Equal Duration
                               </Button>
-                              <Badge variant="outline" className="border-purple-300 text-purple-700">
+                              <Badge variant="outline" className="border-purple-300 text-purple-300">
                                 Total: {totalIntroDuration.toFixed(1)}s / {settings.introDuration}s
                               </Badge>
                             </div>
@@ -425,9 +425,9 @@ export function VideoModeSelection({
                           {[...introImages]
                             .sort((a, b) => a.order - b.order)
                             .map((introImage, index) => (
-                            <div key={introImage.imageId} className="flex items-center gap-3 p-2 bg-purple-50 rounded border">
+                            <div key={introImage.imageId} className="flex items-center gap-3 p-2 bg-purple-900/20 rounded border">
                               <div className="flex-shrink-0">
-                                <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                                <Badge variant="secondary" className="bg-purple-900/40 text-purple-300">
                                   {introImage.order}
                                 </Badge>
                               </div>
@@ -528,7 +528,7 @@ export function VideoModeSelection({
                                 <Clock className="h-4 w-4 mr-1" />
                                 Equal Duration
                               </Button>
-                              <Badge variant="outline" className="border-purple-300 text-purple-700">
+                              <Badge variant="outline" className="border-purple-300 text-purple-300">
                                 Total: {totalIntroVideosDuration.toFixed(1)}s / {settings.introDuration}s
                               </Badge>
                             </div>
@@ -597,9 +597,9 @@ export function VideoModeSelection({
                                 {[...introVideos]
                                   .sort((a, b) => a.order - b.order)
                                   .map((introVideo, index) => (
-                                  <div key={introVideo.videoId} className="flex items-center gap-3 p-2 bg-purple-50 rounded border">
+                                  <div key={introVideo.videoId} className="flex items-center gap-3 p-2 bg-purple-900/20 rounded border">
                                     <div className="flex-shrink-0">
-                                      <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                                      <Badge variant="secondary" className="bg-purple-900/40 text-purple-300">
                                         {introVideo.order}
                                       </Badge>
                                     </div>

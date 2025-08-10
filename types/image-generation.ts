@@ -8,7 +8,6 @@ export type ImageProvider =
   | 'gpt-image-1'
   | 'leonardo-phoenix'
   | 'ideogram-v3'
-  | 'google-imagen'
   // | 'minimax-image-01';
 
 export interface GenerateImageRequestBody {
@@ -48,6 +47,18 @@ export interface ExtractedScene {
   error?: string
 }
 
+export interface MixedContentItem {
+  id: string
+  type: 'animation' | 'image' | 'video'
+  title: string
+  url: string
+  thumbnail: string
+  order: number
+  source: string
+  duration?: number
+  prompt?: string
+}
+
 export interface ImageGenerationState {
   currentGeneration: GeneratedImageSet | null
   imageSets: GeneratedImageSet[]
@@ -69,4 +80,6 @@ export interface ImageGenerationState {
   // Image selection for video generation
   confirmedImageSelection: string[]
   selectedImagesOrder: string[]
+  // Mixed content sequence from mixed content generator
+  mixedContentSequence: MixedContentItem[]
 } 

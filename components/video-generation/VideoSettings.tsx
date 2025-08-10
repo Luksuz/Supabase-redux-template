@@ -8,7 +8,7 @@ import { Label } from '../ui/label'
 import { Checkbox } from '../ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Badge } from '../ui/badge'
-import { Settings, Palette, AlertCircle, Loader2, VideoIcon, Upload, Music, Trash2, Play, Pause, Clock, MoveUp, MoveDown, RotateCcw, GripVertical } from 'lucide-react'
+import { Settings, Palette, AlertCircle, Loader2, VideoIcon, Clock, MoveUp, MoveDown, RotateCcw, GripVertical } from 'lucide-react'
 import type { SegmentTiming, IntroImageConfig, IntroVideoConfig } from '@/types/video-generation'
 
 // Type for segment items that can be reordered
@@ -79,128 +79,9 @@ export function VideoSettings({
   onResetOrder,
   isCustomOrder
 }: VideoSettingsProps) {
-  const [uploadingMusic, setUploadingMusic] = useState(false)
-  const [customMusicFiles, setCustomMusicFiles] = useState<Array<{
-    id: string
-    name: string
-    url: string
-    duration?: number
-  }>>(settings.customMusicFiles || [])
-  const [playingAudio, setPlayingAudio] = useState<string | null>(null)
 
-  const handleMusicUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
 
-    setUploadingMusic(true)
-    const uploadedFiles: Array<{
-      id: string
-      name: string
-      url: string
-      duration?: number
-    }> = []
 
-    try {
-      for (const file of Array.from(files)) {
-        // Validate file type
-        if (!file.type.startsWith('audio/')) {
-          alert(`${file.name} is not a valid audio file`)
-          continue
-        }
-
-        // Create FormData for upload
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('bucket', 'audio')
-        formData.append('path', `custom-music/${Date.now()}-${file.name}`)
-
-        // Upload to Supabase
-        const response = await fetch('/api/upload-file', {
-          method: 'POST',
-          body: formData
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`)
-        }
-
-        const { publicUrl } = await response.json()
-
-        // Get audio duration
-        const audio = new Audio()
-        const duration = await new Promise<number>((resolve) => {
-          audio.addEventListener('loadedmetadata', () => {
-            resolve(audio.duration)
-          })
-          audio.src = URL.createObjectURL(file)
-        })
-
-        uploadedFiles.push({
-          id: `music-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: file.name,
-          url: publicUrl,
-          duration: Math.round(duration)
-        })
-      }
-
-      const updatedMusicFiles = [...customMusicFiles, ...uploadedFiles]
-      setCustomMusicFiles(updatedMusicFiles)
-      onSettingsChange({ 
-        ...settings, 
-        customMusicFiles: updatedMusicFiles,
-        useCustomMusic: updatedMusicFiles.length > 0
-      })
-
-      alert(`Successfully uploaded ${uploadedFiles.length} music file(s)`)
-    } catch (error) {
-      console.error('Music upload error:', error)
-      alert(`Failed to upload music: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setUploadingMusic(false)
-      // Reset file input
-      event.target.value = ''
-    }
-  }
-
-  const handleRemoveMusic = (musicId: string) => {
-    const updatedFiles = customMusicFiles.filter(file => file.id !== musicId)
-    setCustomMusicFiles(updatedFiles)
-    onSettingsChange({ 
-      ...settings, 
-      customMusicFiles: updatedFiles,
-      useCustomMusic: updatedFiles.length > 0
-    })
-  }
-
-  const handlePlayPause = (url: string, musicId: string) => {
-    if (playingAudio === musicId) {
-      // Pause current audio
-      const audio = document.getElementById(`audio-${musicId}`) as HTMLAudioElement
-      if (audio) {
-        audio.pause()
-      }
-      setPlayingAudio(null)
-    } else {
-      // Stop any currently playing audio
-      if (playingAudio) {
-        const currentAudio = document.getElementById(`audio-${playingAudio}`) as HTMLAudioElement
-        if (currentAudio) {
-          currentAudio.pause()
-          currentAudio.currentTime = 0
-        }
-      }
-      
-      // Play new audio
-      const audio = document.getElementById(`audio-${musicId}`) as HTMLAudioElement
-      if (audio) {
-        audio.play()
-        setPlayingAudio(musicId)
-        
-        // Reset when audio ends
-        audio.onended = () => setPlayingAudio(null)
-      }
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -290,7 +171,7 @@ export function VideoSettings({
                   const mediaType = segment.type === 'image' ? 'Image' : 'Video'
                   
                   return (
-                    <div key={`${segment.id}-${index}`} className="flex items-center gap-3 p-3 bg-white border-2 border-gray-600 rounded-lg hover:border-gray-600 transition-colors">
+                    <div key={`${segment.id}-${index}`} className="flex items-center gap-3 p-3 bg-gray-700 border-2 border-gray-600 rounded-lg hover:border-gray-500 transition-colors">
                       {/* Thumbnail */}
                       <div className="flex-shrink-0 w-8 h-8 rounded overflow-hidden bg-gray-600">
                         {segment.thumbnail && (
@@ -374,131 +255,7 @@ export function VideoSettings({
         </CardContent>
       </Card>
 
-      {/* Custom Music Upload */}
-      <Card className="bg-gray-800 shadow-sm border border-gray-600">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Music className="h-5 w-5 text-purple-600" />
-            Custom Background Music
-          </CardTitle>
-          <CardDescription>
-            Upload your own music files to use as background audio. Single file loops continuously, multiple files play in sequence and loop.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Upload Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Label htmlFor="music-upload" className="text-sm font-medium">
-                  Upload Audio Files (MP3, WAV, M4A)
-                </Label>
-                <Input
-                  id="music-upload"
-                  type="file"
-                  accept="audio/*"
-                  multiple
-                  onChange={handleMusicUpload}
-                  disabled={uploadingMusic || !hasPrerequisites}
-                  className="mt-2"
-                />
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="use-custom-music"
-                  checked={settings.useCustomMusic && customMusicFiles.length > 0}
-                  onCheckedChange={(checked) => onSettingsChange({ 
-                    ...settings, 
-                    useCustomMusic: checked && customMusicFiles.length > 0
-                  })}
-                  disabled={!hasPrerequisites || customMusicFiles.length === 0}
-                />
-                <Label htmlFor="use-custom-music" className="text-sm">
-                  Use custom music
-                </Label>
-              </div>
-            </div>
 
-            {uploadingMusic && (
-              <div className="flex items-center gap-2 text-blue-400">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Uploading music files...</span>
-              </div>
-            )}
-          </div>
-
-          {/* Music Files List */}
-          {customMusicFiles.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">
-                Uploaded Music Files ({customMusicFiles.length})
-              </Label>
-              
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {customMusicFiles.map((file, index) => (
-                  <div key={file.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg border">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-300">#{index + 1}</span>
-                        <Music className="h-4 w-4 text-purple-500" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-white truncate">
-                          {file.name}
-                        </div>
-                        {file.duration && (
-                          <div className="text-xs text-gray-400">
-                            Duration: {Math.floor(file.duration / 60)}:{(file.duration % 60).toString().padStart(2, '0')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {/* Hidden audio element for playback */}
-                      <audio
-                        id={`audio-${file.id}`}
-                        src={file.url}
-                        preload="none"
-                      />
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handlePlayPause(file.url, file.id)}
-                        className="h-8 w-8 p-0"
-                      >
-                        {playingAudio === file.id ? (
-                          <Pause className="h-4 w-4" />
-                        ) : (
-                          <Play className="h-4 w-4" />
-                        )}
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveMusic(file.id)}
-                        className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {customMusicFiles.length > 1 && (
-                <div className="text-sm text-blue-400 bg-blue-900/20 p-3 rounded-lg">
-                  <strong>Playback Mode:</strong> Files will play in the order shown above, looping the entire sequence throughout the video.
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
 
 
@@ -544,6 +301,24 @@ export function VideoSettings({
                 />
                 <Label htmlFor="include-subtitles-universal" className="text-sm">
                   Include subtitles {!audioGeneration?.subtitlesUrl && '(not available)'}
+                </Label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Background Music</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="use-uploaded-music"
+                  checked={settings.useCustomMusic || false}
+                  onCheckedChange={(checked) => onSettingsChange({ 
+                    ...settings, 
+                    useCustomMusic: checked as boolean 
+                  })}
+                  disabled={!hasPrerequisites}
+                />
+                <Label htmlFor="use-uploaded-music" className="text-sm">
+                  Use uploaded music files
                 </Label>
               </div>
             </div>

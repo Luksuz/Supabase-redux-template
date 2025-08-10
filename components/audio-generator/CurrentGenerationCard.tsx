@@ -41,13 +41,13 @@ export function CurrentGenerationCard({
   if (!currentGeneration) return null
 
   return (
-    <Card className="bg-white shadow-sm border border-gray-200">
+    <Card className="bg-gray-800 shadow-sm border border-gray-600">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <PlayCircle className="h-5 w-5" />
           Current Generation
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-gray-300">
           Generated on {new Date(currentGeneration.generatedAt).toLocaleString()}
         </CardDescription>
       </CardHeader>
@@ -55,24 +55,24 @@ export function CurrentGenerationCard({
         {/* Generation Details */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
-            <span className="text-gray-500">Provider:</span>
-            <p className="font-medium">{currentProviderName}</p>
+            <span className="text-gray-400">Provider:</span>
+            <p className="font-medium text-white">{currentProviderName}</p>
           </div>
           <div>
-            <span className="text-gray-500">Voice:</span>
-            <p className="font-medium">{getVoiceDisplayName(providerVoice)}</p>
+            <span className="text-gray-400">Voice:</span>
+            <p className="font-medium text-white">{getVoiceDisplayName(providerVoice)}</p>
           </div>
           <div>
-            <span className="text-gray-500">Duration:</span>
-            <p className="font-medium">
+            <span className="text-gray-400">Duration:</span>
+            <p className="font-medium text-white">
               {currentGeneration.duration ? `${currentGeneration.duration.toFixed(1)}s` : 'N/A'}
             </p>
           </div>
           <div>
-            <span className="text-gray-500">Status:</span>
+            <span className="text-gray-400">Status:</span>
             <Badge 
               variant={currentGeneration.status === 'completed' ? 'default' : 'secondary'}
-              className={currentGeneration.status === 'completed' ? 'bg-green-100 text-green-800' : ''}
+              className={currentGeneration.status === 'completed' ? 'bg-green-900/40 text-green-300' : ''}
             >
               {currentGeneration.status}
             </Badge>
@@ -81,16 +81,16 @@ export function CurrentGenerationCard({
 
         {/* Audio Player */}
         {currentGeneration.audioUrl && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="p-4 bg-green-900/20 border border-green-600 rounded-lg">
             <div className="flex items-center gap-2 mb-3">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span className="font-medium text-green-800">Audio Generated Successfully!</span>
+              <CheckCircle className="h-5 w-5 text-green-400" />
+              <span className="font-medium text-green-300">Audio Generated Successfully!</span>
             </div>
             
             {/* Audio Type Toggle */}
-            <div className="mb-4 p-3 bg-white border rounded-lg">
+            <div className="mb-4 p-3 bg-gray-700 border border-gray-600 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium text-gray-700">Audio Quality Selection</h4>
+                <h4 className="text-sm font-medium text-gray-300">Audio Quality Selection</h4>
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -101,9 +101,9 @@ export function CurrentGenerationCard({
                       onChange={(e) => onAudioTypeChange(e.target.value as 'original')}
                       className="text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm text-gray-300">
                       Original Quality
-                      <span className="text-xs text-green-600 ml-1 font-medium">(Best for Video)</span>
+                      <span className="text-xs text-green-400 ml-1 font-medium">(Best for Video)</span>
                     </span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -116,9 +116,9 @@ export function CurrentGenerationCard({
                       className="text-blue-600 focus:ring-blue-500"
                       disabled={!currentGeneration.compressedAudioUrl}
                     />
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm text-gray-300">
                       Compressed
-                      <span className="text-xs text-blue-600 ml-1 font-medium">(60-80% smaller)</span>
+                      <span className="text-xs text-blue-400 ml-1 font-medium">(60-80% smaller)</span>
                     </span>
                   </label>
                 </div>
@@ -126,17 +126,17 @@ export function CurrentGenerationCard({
               
               {/* Quality Indicators */}
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className={`p-2 rounded border ${selectedAudioType === 'original' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-                  <div className="font-medium text-gray-700">Original Quality</div>
-                  <div className="text-gray-500 mt-1">
+                <div className={`p-2 rounded border ${selectedAudioType === 'original' ? 'bg-blue-900/20 border-blue-600' : 'bg-gray-700 border-gray-600'}`}>
+                  <div className="font-medium text-gray-300">Original Quality</div>
+                  <div className="text-gray-400 mt-1">
                     • Full quality audio<br/>
                     • Perfect for video generation<br/>
                     • Larger file size
                   </div>
                 </div>
-                <div className={`p-2 rounded border ${selectedAudioType === 'compressed' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-                  <div className="font-medium text-gray-700">Compressed</div>
-                  <div className="text-gray-500 mt-1">
+                <div className={`p-2 rounded border ${selectedAudioType === 'compressed' ? 'bg-blue-900/20 border-blue-600' : 'bg-gray-700 border-gray-600'}`}>
+                  <div className="font-medium text-gray-300">Compressed</div>
+                  <div className="text-gray-400 mt-1">
                     • 16kHz, 32kbps mono<br/>
                     • Great for subtitles/transcription<br/>
                     • 60-80% smaller file size
@@ -148,8 +148,8 @@ export function CurrentGenerationCard({
             {/* Audio Player */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Volume2 className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">
+                <Volume2 className="h-4 w-4 text-gray-400" />
+                <span className="text-sm font-medium text-gray-300">
                   Now Playing: {selectedAudioType === 'original' ? 'Original Quality' : 'Compressed'} Audio
                 </span>
               </div>
@@ -218,8 +218,8 @@ export function CurrentGenerationCard({
         {currentGeneration.subtitlesUrl && (
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center gap-2 mb-3">
-              <Subtitles className="h-5 w-5 text-blue-600" />
-              <span className="font-medium text-blue-800">Subtitles Generated</span>
+              <Subtitles className="h-5 w-5 text-blue-400" />
+              <span className="font-medium text-blue-300">Subtitles Generated</span>
             </div>
             <div className="flex gap-2">
               <Button 
@@ -233,10 +233,10 @@ export function CurrentGenerationCard({
             </div>
             {currentGeneration.subtitlesContent && (
               <details className="mt-3">
-                <summary className="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">
+                <summary className="cursor-pointer text-sm font-medium text-blue-400 hover:text-blue-300">
                   View Subtitles Content
                 </summary>
-                <pre className="mt-2 p-2 bg-white border rounded text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
+                <pre className="mt-2 p-2 bg-gray-700 border border-gray-600 rounded text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
                   {currentGeneration.subtitlesContent}
                 </pre>
               </details>
@@ -247,10 +247,10 @@ export function CurrentGenerationCard({
         {currentGeneration.status === 'error' && currentGeneration.error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
             <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <span className="font-medium text-red-800">Generation Error:</span>
+              <AlertCircle className="h-5 w-5 text-red-400" />
+              <span className="font-medium text-red-300">Generation Error:</span>
             </div>
-            <p className="text-red-700 mt-1">{currentGeneration.error}</p>
+            <p className="text-red-300 mt-1">{currentGeneration.error}</p>
           </div>
         )}
       </CardContent>

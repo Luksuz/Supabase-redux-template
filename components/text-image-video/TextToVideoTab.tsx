@@ -395,7 +395,7 @@ Medium shot of 30-year-old man in black jacket dancing in rain on city street"
 
       {/* Generation Summary */}
       {validPrompts.length > 0 && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-blue-900/20 border-blue-600">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>

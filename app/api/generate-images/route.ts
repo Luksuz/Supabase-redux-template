@@ -555,40 +555,7 @@ export async function POST(request: NextRequest) {
           await new Promise(resolve => setTimeout(resolve, 10000));
         }
       }
-    } else if (provider === 'google-imagen') {
-      if (!GOOGLE_GENAI_API_KEY) {
-        return NextResponse.json({ error: 'Google GenAI API key is not configured.' }, { status: 500 });
-      }
-      console.log(`Generating ${numberOfImages} image(s) with Google Imagen...`);
-      const ai = new GoogleGenAI({ apiKey: GOOGLE_GENAI_API_KEY });
 
-      for (let i = 0; i < numberOfImages; i++) {
-        try {
-          const result: any = await ai.models.generateImages({
-            model: 'imagen-3.0-generate',
-            prompt,
-          });
-
-          let img = '';
-          if (result?.images?.[0]?.url) {
-            img = result.images[0].url;
-          } else if (result?.images?.[0]?.b64_data) {
-            img = `data:image/png;base64,${result.images[0].b64_data}`;
-          }
-
-          if (img) {
-            imageUrls.push(img);
-            console.log(`✅ Successfully generated Google Imagen image ${i + 1}`);
-          } else {
-            console.warn(`⚠️ Google Imagen returned no image for index ${i + 1}`);
-          }
-        } catch (error) {
-          console.error(`❌ Error generating Google Imagen image ${i + 1}:`, error);
-        }
-        if (i < numberOfImages - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
     } else {
       // Flux models using fal.ai
       console.log(`Generating ${numberOfImages} image(s) with ${provider}...`);

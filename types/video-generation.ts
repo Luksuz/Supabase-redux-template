@@ -30,7 +30,7 @@ export interface CreateVideoRequestBody {
   videoUrls?: string[] // Add video URLs for mixed content
   // Ordered content arrays that preserve exact reordering sequence
   orderedContentUrls?: string[]
-  orderedContentTypes?: ('image' | 'video')[]
+  orderedContentTypes?: ('image' | 'video' | 'animation')[]
   audioUrl: string
   compressedAudioUrl?: string
   subtitlesUrl?: string
@@ -54,6 +54,7 @@ export interface CreateVideoRequestBody {
   // Custom music properties
   useCustomMusic?: boolean
   customMusicFiles?: CustomMusicFile[]
+  selectedMusicTrack?: SelectedMusicTrack
 }
 
 export interface CreateVideoResponse {
@@ -93,6 +94,16 @@ export interface VideoRecord {
   }
 }
 
+export interface SelectedMusicTrack {
+  id: string
+  title: string
+  artist: string
+  duration: number
+  preview_url: string
+  download_url?: string
+  license_type: string
+}
+
 export interface VideoGenerationSettings {
   useSegmentedTiming: boolean
   useScriptBasedTiming: boolean
@@ -107,4 +118,5 @@ export interface VideoGenerationSettings {
   // Custom music properties
   useCustomMusic: boolean
   customMusicFiles: CustomMusicFile[]
+  selectedMusicTrack?: SelectedMusicTrack
 } 

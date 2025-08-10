@@ -222,8 +222,33 @@ export function TextImageVideoGenerator() {
             model: data.model
           }
 
-          // Upload to Supabase storage in the background
-          uploadVideoToSupabaseBackground(videoUrl, updatedVideo)
+          // Only upload to Supabase if the URL is not already a Supabase URL
+          // (since our API routes now upload directly to Supabase)
+          if (!videoUrl.includes('supabase')) {
+            console.log('📁 Video URL is external, uploading to Supabase...')
+            uploadVideoToSupabaseBackground(videoUrl, updatedVideo)
+          } else {
+            console.log('✅ Video already stored in Supabase, saving metadata to localStorage...')
+            // Save directly to localStorage since it's already in Supabase
+            const storedVideo = {
+              id: video.id,
+              originalUrl: videoUrl,
+              supabaseUrl: videoUrl,
+              filename: `generated-videos/${video.id}.mp4`,
+              uploadedAt: new Date().toISOString(),
+              type: video.type,
+              prompt: video.prompt,
+              duration: video.duration,
+              metadata: {
+                type: video.type,
+                prompt: video.prompt,
+                duration: video.duration,
+                generatedAt: video.generatedAt,
+                originalImageUrl: video.imageInput
+              }
+            }
+            saveVideoToLocalStorage(storedVideo)
+          }
 
           dispatch(updateVideoInBatch({
             videoId,
@@ -390,7 +415,7 @@ export function TextImageVideoGenerator() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl text-white font-bold text-gray-900 mb-2">
             Text & Image to Video Generator
           </h1>
           <p className="text-gray-600">

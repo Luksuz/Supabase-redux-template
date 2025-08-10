@@ -2,215 +2,189 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CreateVideoRequestBody, CreateVideoResponse } from '@/types/video-generation';
 import { createClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
 // Shotstack API settings from environment variables
-const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY || 'ovtvkcufDaBDRJnsTLHkMB3eLG6ytwlRoUAPAHPq';
-const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT || 'https://api.shotstack.io/edit/v1';
-
-// Dust overlay URL
-const DUST_OVERLAY_URL = 'https://byktarizdjtreqwudqmv.supabase.co/storage/v1/object/public/video-generator/overlay.webm';
+const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY
+const SHOTSTACK_ENDPOINT = process.env.SHOTSTACK_ENDPOINT
 
 /**
- * Checks if a URL is accessible by making a HEAD request
- * @param url URL to check
- * @returns boolean indicating if the URL is accessible
+ * Apply text transformation to SRT content based on textTransform setting
  */
-async function isUrlAccessible(url: string): Promise<boolean> {
+function applyTextTransform(srt: string, textTransform: 'none' | 'uppercase'): string {
+  if (textTransform === 'none') {
+    return srt; // No transformation
+  }
+
+  console.log(`🔄 Applying text transform: ${textTransform}`);
+  
   try {
-    const response = await fetch(url, { method: 'HEAD' });
-    return response.ok;
+    const lines = srt.split('\n');
+    const transformedLines = lines.map(line => {
+      const trimmedLine = line.trim();
+      
+      // Skip index lines (pure numbers)
+      if (trimmedLine.match(/^\d+$/)) {
+        return line;
+      }
+      
+      // Skip timestamp lines (contains -->)
+      if (trimmedLine.includes('-->')) {
+        return line;
+      }
+      
+      // Skip empty lines
+      if (trimmedLine === '') {
+        return line;
+      }
+      
+      // Transform text lines
+      switch (textTransform) {
+        case 'uppercase':
+          return trimmedLine.toUpperCase();
+        default:
+          return line;
+      }
+    });
+    
+    console.log(`✅ Text transform ${textTransform} applied successfully`);
+    return transformedLines.join('\n');
+    
   } catch (error) {
-    console.warn(`Failed to access URL: ${url}`, error);
-    return false;
+    console.error('❌ Error applying text transform:', error);
+    return srt; // Return original on error
   }
 }
 
 /**
- * Get audio duration from URL using ffprobe
+ * Process subtitle file (simplified version without file upload)
+ */
+async function processSubtitleFile(
+  subtitlesUrl: string, 
+  textTransform: string
+): Promise<string> {
+  // For now, just return the original URL
+  // Text transformation could be handled client-side or in a separate service
+  console.log(`📝 Using original subtitles URL: ${subtitlesUrl}`);
+  return subtitlesUrl;
+}
+
+/**
+ * Get audio duration from URL by fetching audio metadata
  * @param audioUrl URL of the audio file
  * @returns Promise<number> duration in seconds, or null if unable to determine
  */
 async function getAudioDuration(audioUrl: string): Promise<number | null> {
   try {
-    const { spawn } = require('child_process');
-    
-    console.log(`🎵 Getting audio duration using ffprobe for: ${audioUrl}`);
-    
-    return new Promise((resolve, reject) => {
-      const ffprobe = spawn('ffprobe', [
-        '-v', 'quiet',
-        '-show_entries', 'format=duration',
-        '-of', 'csv=p=0',
-        audioUrl
-      ]);
-
-      let output = '';
-      let errorOutput = '';
-
-      ffprobe.stdout.on('data', (data: Buffer) => {
-        output += data.toString();
-      });
-
-      ffprobe.stderr.on('data', (data: Buffer) => {
-        errorOutput += data.toString();
-      });
-
-      ffprobe.on('close', (code: number) => {
-        if (code === 0) {
-          const duration = parseFloat(output.trim());
-          if (!isNaN(duration) && duration > 0) {
-            console.log(`✅ Audio duration detected: ${duration.toFixed(2)} seconds`);
-            resolve(duration);
-          } else {
-            console.warn(`⚠️ Invalid duration from ffprobe: ${output.trim()}`);
-            resolve(null);
-          }
-        } else {
-          console.error(`❌ ffprobe failed with code ${code}:`, errorOutput);
-          resolve(null);
-        }
-      });
-
-      ffprobe.on('error', (error: Error) => {
-        console.error(`❌ ffprobe spawn error:`, error.message);
-        resolve(null);
-      });
-
-      // Set timeout to avoid hanging
-      setTimeout(() => {
-        ffprobe.kill();
-        console.warn(`⏰ ffprobe timeout for ${audioUrl}`);
-        resolve(null);
-      }, 10000); // 10 second timeout
-    });
+    // For now, we'll return a default duration since we don't have ffprobe on the server
+    // In a production environment, you'd want to implement proper audio duration detection
+    console.log(`Getting audio duration for: ${audioUrl}`)
+    return 300; // Default to 5 minutes
   } catch (error) {
-    console.error('❌ Error in getAudioDuration:', error);
+    console.error('Error getting audio duration:', error);
     return null;
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    // Map font family names to Shotstack-compatible names
+    const getShotstackFontFamily = (fontFamily: string): string => {
+      const fontMap: Record<string, string> = {
+        'Arapey Regular': 'serif', // Fallback to serif
+        'Clear Sans': 'sans-serif', // Fallback to sans-serif
+        'Didact Gothic': 'Didact Gothic',
+        'Montserrat ExtraBold': 'Montserrat',
+        'Montserrat SemiBold': 'Montserrat',
+        'OpenSans Bold': 'Open Sans',
+        'Permanent Marker': 'Permanent Marker',
+        'Roboto': 'Roboto',
+        'Sue Ellen Francisco': 'cursive', // Fallback to cursive
+        'UniNeue': 'sans-serif', // Fallback to sans-serif
+        'WorkSans Light': 'Work Sans'
+      }
+      
+      return fontMap[fontFamily] || 'Montserrat'
+    }
+
+    // Get the user from the authenticated session
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    const authenticatedUserId = user.id;
+    console.log(`🔐 Authenticated user: ${authenticatedUserId}`);
+
     const body: CreateVideoRequestBody = await request.json();
     const { 
-      imageUrls, 
-      videoUrls = [], // Add video URLs support
-      // New ordered content arrays that preserve reordering
+      imageUrls,
       orderedContentUrls,
       orderedContentTypes,
       audioUrl, 
-      compressedAudioUrl, 
+      compressedAudioUrl,
+      audioDuration, 
       subtitlesUrl, 
-      userId, 
       thumbnailUrl, 
-      segmentTimings, 
-      includeOverlay,
-      quality = 'low',
-      enableOverlay = true,
-      enableZoom = true,
-      enableSubtitles = true,
-      // Add subtitle styling properties from frontend
-      fontFamily = 'Roboto',
-      fontColor = '#ffffff',
-      fontSize = 24,
-      strokeWidth = 2,
-      fontWeight = '1000',
-      textTransform = 'none',
-      audioDuration,
-      // Simplified video effects
-      zoomEffect = false,
-      dustOverlay = false,
-      // Custom music properties
-      useCustomMusic = false,
-      customMusicFiles = []
+      segmentTimings,
+      selectedMusicTrack,
+      customMusicFiles,
+      useCustomMusic,
+      // Subtitle styling properties
+      fontFamily,
+      fontSize,
+      fontColor,
+      fontWeight,
+      strokeWidth,
+      textTransform,
+      // Other properties
+      enableOverlay,
+      zoomEffect,
+      dustOverlay
     } = body;
-    
     console.log(`🖼️ Image URLs: ${imageUrls?.length || 0} images`);
-    console.log(`🎬 Video URLs: ${videoUrls?.length || 0} videos`);
     console.log(`🔄 Ordered Content: ${orderedContentUrls ? orderedContentUrls.length + ' items (reordered)' : 'Using legacy mode'}`);
     console.log(`🎵 Audio URL: ${audioUrl}`);
     console.log(`🗜️ Compressed Audio URL: ${compressedAudioUrl}`);
+    console.log(`⏱️ Audio Duration: ${audioDuration ? `${audioDuration}s` : 'not provided'}`);
     console.log(`📝 Subtitles URL: ${subtitlesUrl}`);
-    console.log(`👤 User ID: ${userId}`);
+    console.log(`👤 User ID: ${authenticatedUserId}`);
     console.log(`📷 Thumbnail URL: ${thumbnailUrl}`);
     console.log(`⏱️ Segment Timings: ${segmentTimings ? segmentTimings.length + ' segments' : 'No custom timing'}`);
-    console.log(`✨ Include Overlay: ${includeOverlay ? 'YES' : 'NO'}`);
-    console.log(`🎬 Quality: ${quality}`);
-    console.log(`🌟 Enable Overlay: ${enableOverlay}`);
-    console.log(`🔍 Enable Zoom: ${enableZoom}`);
-    console.log(`📄 Enable Subtitles: ${enableSubtitles}`);
-    console.log(`🎨 Font Family: ${fontFamily}`);
-    console.log(`🎨 Font Color: ${fontColor}`);
-    console.log(`🎨 Font Size: ${fontSize}px`);
-    console.log(`🎨 Stroke Width: ${strokeWidth}px`);
-    console.log(`🎨 Font Weight: ${fontWeight}`);
-    console.log(`🎨 Text Transform: ${textTransform}`);
+    console.log(`🎶 Selected Music Track: ${selectedMusicTrack ? `${selectedMusicTrack.title} by ${selectedMusicTrack.artist}` : 'None'}`);
+    console.log(`🎵 Custom Music Files: ${customMusicFiles?.length || 0} files`);
+    console.log(`🎤 Use Custom Music: ${useCustomMusic ? 'YES' : 'NO'}`);
+    console.log(`✨ Enable Overlay: ${enableOverlay ? 'YES' : 'NO'}`);
     console.log(`🔍 Zoom Effect: ${zoomEffect ? 'YES' : 'NO'}`);
-    console.log(`✨ Dust Overlay: ${dustOverlay ? 'YES' : 'NO'}`);
-    console.log(`🎶 Custom Music: ${useCustomMusic ? 'YES' : 'NO'}`);
-    if (useCustomMusic) {
-      console.log(`🎵 Music Files: ${customMusicFiles?.length || 0}`);
-    }
-    
-    // Log ordered content details if available
-    if (orderedContentUrls && orderedContentTypes) {
-      console.log(`🎯 Ordered sequence:`, orderedContentTypes.map((type, i) => `${i+1}. ${type}`).join(', '));
-    }
+    console.log(`💨 Dust Overlay: ${dustOverlay ? 'YES' : 'NO'}`);
+    console.log(`📋 Text Transform: ${textTransform || 'none'}`);
+    console.log(`🎨 Font Color: ${fontColor || '#ffffff'}`);
+    console.log(`📝 Font Family: ${fontFamily || 'Montserrat ExtraBold'}`);
+    console.log(`📏 Font Size: ${fontSize || 24}px`);
 
-    // Calculate total content count - prioritize ordered content if available
-    let totalImages, totalVideos, totalContent;
     
-    if (orderedContentUrls && orderedContentTypes) {
-      // Use ordered content arrays when available (preserves reordering)
-      totalContent = orderedContentUrls.length;
-      totalImages = orderedContentTypes.filter(type => type === 'image').length;
-      totalVideos = orderedContentTypes.filter(type => type === 'video').length;
-      console.log(`📊 Using ordered content: ${totalContent} total (${totalImages} images, ${totalVideos} videos)`);
-    } else {
-      // Fallback to legacy arrays for backward compatibility
-      totalImages = imageUrls?.length || 0;
-      totalVideos = videoUrls?.length || 0;
-      totalContent = totalImages + totalVideos;
-      console.log(`📊 Using legacy content arrays: ${totalContent} total (${totalImages} images, ${totalVideos} videos)`);
-    }
-    
-    console.log(`📋 Mixed content video creation request:
-      - Images: ${totalImages}
-      - Videos: ${totalVideos}
-      - Total content pieces: ${totalContent}
+    console.log(`📋 Video creation request:
+      - Images: ${imageUrls?.length || 0}
       - Audio URL: ${audioUrl ? 'YES' : 'NO'}
-      - Compressed Audio URL: ${compressedAudioUrl ? 'YES' : 'NO'}
+      - Audio Duration: ${audioDuration ? `${audioDuration}s` : 'not provided'}
       - Subtitles URL: ${subtitlesUrl ? 'YES' : 'NO'}
-      - Segment timings: ${segmentTimings ? 'YES (custom durations)' : 'NO (equal timing)'}
-      - Include Overlay: ${includeOverlay ? 'YES' : 'NO'}
-      - Enable Overlay: ${enableOverlay}
-      - Enable Zoom: ${enableZoom}
-      - Enable Subtitles: ${enableSubtitles}
-      - Quality: ${quality}
-      - Zoom Effect: ${zoomEffect}
-      - Dust Overlay: ${dustOverlay}
-      - Custom Music: ${useCustomMusic}
-      - Subtitle Styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke, ${fontWeight}, ${textTransform}
-      - User ID: ${userId}
+      - Custom Music: ${useCustomMusic ? 'YES' : 'NO'}
+      - Selected Music Track: ${selectedMusicTrack ? 'YES' : 'NO'}
+      - Custom Music Files: ${customMusicFiles?.length || 0}
+      - Enable Overlay: ${enableOverlay ? 'YES' : 'NO'}
+      - Segment timings: ${segmentTimings ? 'YES (segmented video)' : 'NO (traditional video)'}
+      - User ID: ${authenticatedUserId}
     `);
 
     // Validate inputs
-    if (totalContent === 0) {
-      return NextResponse.json<CreateVideoResponse>({ error: 'At least one image or video is required.' }, { status: 400 });
+    if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+      return NextResponse.json<CreateVideoResponse>({ error: 'Image URLs are required.' }, { status: 400 });
     }
     if (!audioUrl) {
       return NextResponse.json<CreateVideoResponse>({ error: 'Audio URL is required.' }, { status: 400 });
-    }
-    if (!userId) {
-      return NextResponse.json<CreateVideoResponse>({ error: 'User ID is required.' }, { status: 400 });
-    }
-
-    // Validate arrays
-    if (imageUrls && (!Array.isArray(imageUrls))) {
-      return NextResponse.json<CreateVideoResponse>({ error: 'Image URLs must be an array.' }, { status: 400 });
-    }
-    if (videoUrls && (!Array.isArray(videoUrls))) {
-      return NextResponse.json<CreateVideoResponse>({ error: 'Video URLs must be an array.' }, { status: 400 });
     }
 
     // Validate segment timings if provided
@@ -218,224 +192,238 @@ export async function POST(request: NextRequest) {
       if (!Array.isArray(segmentTimings) || segmentTimings.length === 0) {
         return NextResponse.json<CreateVideoResponse>({ error: 'Segment timings must be a non-empty array when provided.' }, { status: 400 });
       }
-      if (segmentTimings.length !== totalContent) {
-        return NextResponse.json<CreateVideoResponse>({ 
-          error: `Number of segment timings (${segmentTimings.length}) must match total content count (${totalContent}: ${totalImages} images + ${totalVideos} videos).` 
-        }, { status: 400 });
-      }
     }
 
     // Generate a unique ID for this video
     const videoId = uuidv4();
-    console.log(`Starting video creation with ID: ${videoId} for user: ${userId}`);
+    console.log(`Starting video creation with ID: ${videoId} for user: ${authenticatedUserId}`);
 
     // Determine video creation mode and calculate durations
     let totalDuration: number;
     let imageDuration: number;
     let isSegmentedVideo = false;
 
-    // Get total audio duration first
-    if (audioDuration && audioDuration > 0) {
-      totalDuration = audioDuration;
-      console.log(`✅ Using provided audio duration: ${totalDuration.toFixed(2)} seconds`);
-    } else {
-      console.warn('⚠️ No audio duration provided, using fallback duration of 300 seconds');
-      totalDuration = 300;
-    }
-
     if (segmentTimings && segmentTimings.length > 0) {
-      // Mixed content with custom segment timing: use precise timing from segment timings
+      // Segmented video: use precise timing from segment timings
       isSegmentedVideo = true;
       totalDuration = segmentTimings.reduce((sum, timing) => sum + timing.duration, 0);
       imageDuration = 0; // Not used for segmented videos
       
-      console.log(`Mixed content video with custom timing:
+      console.log(`Segmented video configuration:
         - Total duration: ${totalDuration.toFixed(2)} seconds
-        - Total content pieces: ${totalContent} (${totalImages} images + ${totalVideos} videos)
         - Number of segments: ${segmentTimings.length}
         - Individual durations: ${segmentTimings.map(t => t.duration.toFixed(2)).join(', ')}s`);
     } else {
-      // Traditional mode: distribute content equally across entire video duration
-      imageDuration = totalDuration / totalContent;
-      
-      console.log(`Mixed content video with equal timing:
-        - Total duration: ${totalDuration.toFixed(1)} seconds
-        - Total content pieces: ${totalContent} (${totalImages} images + ${totalVideos} videos)
-        - Each content piece duration: ${imageDuration.toFixed(1)} seconds`);
-    }
-    
-    // Check if the dust overlay is accessible and if overlay is enabled
-    const shouldIncludeOverlay = (includeOverlay || enableOverlay || dustOverlay);
-    let isOverlayAvailable = false;
-    
-    if (shouldIncludeOverlay) {
-      isOverlayAvailable = await isUrlAccessible(DUST_OVERLAY_URL);
-      console.log(`Dust overlay availability check: ${isOverlayAvailable ? 'Available and enabled' : 'Not available'}`);
-    } else {
-      console.log(`Dust overlay disabled by user settings`);
-    }
+      // Traditional video: use voiceover duration and distribute evenly
+      console.log('Using traditional video timing with audio duration...');
 
+      const audioDurationValue = audioDuration || await getAudioDuration(audioUrl);
+      totalDuration = audioDurationValue || 300;
+
+      // Calculate image duration based on total content count
+      const totalContentCount = orderedContentUrls ? orderedContentUrls.length : imageUrls.length;
+      imageDuration = totalContentCount > 0 ? totalDuration / totalContentCount : 0;
+
+      console.log(`Traditional video configuration:
+        - Total duration (voiceover): ${totalDuration.toFixed(1)} seconds
+        - Total content items: ${totalContentCount}
+        - Per-item duration: ${imageDuration.toFixed(2)} seconds`);
+    }
+    
     // Initialize tracks array
     let tracks = [];
 
-    // Track for subtitles (captions) - Add this first if it exists and is enabled
-    if (subtitlesUrl && enableSubtitles) {
+    // Track for dust overlay (if dustOverlay is enabled)
+    if (dustOverlay) {
+        console.log(`✨ Adding dust overlay effect`);
+        const dustOverlayUrl = 'https://byktarizdjtreqwudqmv.supabase.co/storage/v1/object/public/video-generator/overlay.webm';
+        
+        const overlayTrack = {
+            clips: [{
+                asset: {
+                    type: 'video',
+                    src: dustOverlayUrl,
+                    volume: 0
+                },
+                start: 0,
+                length: totalDuration,
+                fit: 'cover',
+                opacity: 0.15
+            }]
+        };
+        tracks.push(overlayTrack);
+    }
+
+    // Track for subtitles (captions) - Add after overlay if it exists
+    if (subtitlesUrl) {
       console.log(`Adding subtitles to video: ${subtitlesUrl}`);
-      console.log(`Subtitle styling: ${fontFamily}, ${fontColor}, ${fontSize}px, ${strokeWidth}px stroke, ${fontWeight}, ${textTransform}`);
+      const transformedSubtitlesUrl = await processSubtitleFile(subtitlesUrl, textTransform || 'uppercase');
+      const resolvedFontColor = fontColor || '#ffffff';
+      console.log(`🎨 Resolved font color for Shotstack: ${resolvedFontColor}`);
       
       const captionTrack = {
         clips: [
           {
             asset: {
               type: "caption",
-              src: subtitlesUrl,
+              src: transformedSubtitlesUrl,
               font: {
-                family: fontFamily,
-                size: fontSize,
-                color: fontColor,
-                weight: fontWeight,
+                family: getShotstackFontFamily(fontFamily || 'Montserrat ExtraBold'),
+                size: fontSize || 24,
+                color: resolvedFontColor,
+                weight: fontWeight || '700',
+                stroke: "#000000",
+                strokeWidth: strokeWidth || 2
               },
-              stroke: {
-                color: "#000000",
-                width: strokeWidth
+              background: {
+                color: "#ffffff",
+                opacity: 0,
+                padding: 12,
+              },
+              // Default margin positioning
+              margin: {
+                top: 0.75,
+                left: 0,
+                right: 0
               }
             },
             start: 0,
-            length: totalDuration,
-            position: "bottom",
-            offset: {
-              y: 0.05
-            }
+            length: totalDuration
           }
         ]
       };
       tracks.push(captionTrack);
-    } else if (subtitlesUrl && !enableSubtitles) {
-      console.log(`Subtitles available but disabled by user: ${subtitlesUrl}`);
-    } else if (!subtitlesUrl && enableSubtitles) {
-      console.log(`Subtitles enabled but no subtitles URL provided`);
     }
 
-    // Track for mixed content (images and videos) - Create timeline respecting custom order
-    console.log(`🎬 Creating mixed content video with ${totalImages} images and ${totalVideos} videos:`);
-    
-    const mediaClips: any[] = [];
-    let currentTime = 0;
-    
-    if (orderedContentUrls && orderedContentTypes) {
-      // Use ordered content arrays to preserve exact reordering sequence
-      console.log(`🔄 Processing content using ordered arrays (preserves custom reordering)`);
-      
-      orderedContentUrls.forEach((url, index) => {
-        const assetType = orderedContentTypes[index];
-        const duration = isSegmentedVideo && segmentTimings ? segmentTimings[index].duration : imageDuration;
+    // Track for media content - Create slideshow with timing based on mode
+    if (isSegmentedVideo && segmentTimings) {
+      // Segmented video: use precise timing
+      console.log(`🎬 Creating segmented video with ${imageUrls.length} precisely timed media assets:`);
+      let currentTime = 0;
+      const mediaClips = imageUrls.map((url, index) => {
+        const duration = segmentTimings[index].duration;
+        const assetType = orderedContentTypes && orderedContentTypes[index] ? orderedContentTypes[index] : 'image';
         const startTime = currentTime;
         
-        console.log(`   Processing ${assetType} at position ${index + 1}: ${url.substring(0, 50)}...`);
-        
-        // Verify the URL format (should be actual URL, not ID:index format)
-        if (url.includes(':') && !url.startsWith('http')) {
-          console.warn(`⚠️ WARNING: Asset URL appears to be in ID format: ${url}`);
-        }
+        console.log(`   Segment ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s (${assetType})`);
         
         const clip = {
           asset: {
-            type: assetType,
+            type: assetType === 'animation' ? 'image' : assetType, // Map animation to image
             src: url
           },
           start: startTime,
           length: duration,
-          ...(assetType === 'image' && zoomEffect && { effect: index % 2 === 0 ? "zoomIn" : "zoomOut" }),
-          fit: "cover"
+          fit: "cover",
+          ...(zoomEffect && (assetType === 'image' || assetType === 'animation') && { effect: index % 2 === 0 ? "zoomIn" : "zoomOut" })
         };
         
-        mediaClips.push(clip);
-        console.log(`   ✅ ${assetType.charAt(0).toUpperCase() + assetType.slice(1)} ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
-        console.log(`   🎯 Asset URL: ${url}`);
-        
         currentTime += duration;
+        return clip;
       });
+
+      const mediaTrack = {
+        clips: mediaClips
+      };
+      tracks.push(mediaTrack);
     } else {
-      // Fallback to legacy processing for backward compatibility
-      console.log(`🔄 Processing content using legacy arrays (images first, then videos)`);
+      // Traditional video: equal timing for all media assets
+      const urlsToProcess = orderedContentUrls || imageUrls;
+      const typesToProcess = orderedContentTypes || imageUrls.map(() => 'image');
       
-      const allUrls = [...(imageUrls || []), ...(videoUrls || [])];
-      const imageUrlSet = new Set(imageUrls || []);
-      
-      allUrls.forEach((url, index) => {
-        const isImage = imageUrlSet.has(url);
-        const assetType = isImage ? 'image' : 'video';
-        const duration = isSegmentedVideo && segmentTimings ? segmentTimings[index].duration : imageDuration;
-        const startTime = currentTime;
+      console.log(`🎬 Creating traditional slideshow with ${urlsToProcess.length} media assets:`);
+      let runningTime = 0;
+      const mediaClips = urlsToProcess.map((url, index) => {
+        const assetType = typesToProcess[index] || 'image';
+        const startTime = runningTime;
+        runningTime += imageDuration;
         
-        console.log(`   Processing ${assetType} at position ${index + 1}: ${url.substring(0, 50)}...`);
+        console.log(`   Asset ${index + 1}: ${assetType} display, ${imageDuration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
         
-        // Verify the URL format (should be actual URL, not ID:index format)
-        if (url.includes(':') && !url.startsWith('http')) {
-          console.warn(`⚠️ WARNING: Legacy path - Asset URL appears to be in ID format: ${url}`);
-        }
-        
-        const clip = {
+        return {
           asset: {
-            type: assetType,
+            type: assetType === 'animation' ? 'image' : assetType, // Map animation to image
             src: url
           },
           start: startTime,
-          length: duration,
-          ...(isImage && zoomEffect && { effect: index % 2 === 0 ? "zoomIn" : "zoomOut" }),
-          fit: "cover"
+          length: imageDuration,
+          fit: "cover",
+          ...(zoomEffect && (assetType === 'image' || assetType === 'animation') && { effect: index % 2 === 0 ? "zoomIn" : "zoomOut" })
         };
-        
-        mediaClips.push(clip);
-        console.log(`   ✅ ${assetType.charAt(0).toUpperCase() + assetType.slice(1)} ${index + 1}: ${duration.toFixed(2)}s at ${startTime.toFixed(2)}s`);
-        
-        currentTime += duration;
       });
+
+      const mediaTrack = {
+        clips: mediaClips
+      };
+      tracks.push(mediaTrack);
     }
 
-    const mediaTrack = {
-      clips: mediaClips
-    };
-    tracks.push(mediaTrack);
-
-    // Handle audio tracks - custom music or default audio
-    if (useCustomMusic && customMusicFiles && customMusicFiles.length > 0) {
-        console.log(`🎶 Using custom music: ${customMusicFiles.length} file(s)`);
+    // Track for main audio (voiceover) - Always add if audioUrl is present
+    const audioUrlToUse = audioUrl || compressedAudioUrl;
+    if (audioUrlToUse) {
+        console.log(`🎤 Adding primary voiceover audio: ${audioUrl ? 'original' : 'compressed'} - ${audioUrlToUse}`);
         
-        if (customMusicFiles.length === 1) {
-            // Single file - loop continuously
-            const musicFile = customMusicFiles[0];
-            console.log(`🔄 Looping single music file: ${musicFile.name}`);
+        const voiceoverTrack = {
+            clips: [{
+                asset: {
+                    type: "audio",
+                    src: audioUrlToUse,
+                    volume: 1.0 // Full volume for speech - this is the primary audio
+                },
+                start: 0,
+                length: totalDuration
+            }]
+        };
+        tracks.push(voiceoverTrack);
+    } else {
+        console.warn('⚠️ No voiceover audio URL provided for video generation');
+    }
+
+    // Track for background music (if useCustomMusic is enabled)
+    if (useCustomMusic && (selectedMusicTrack || (customMusicFiles && customMusicFiles.length > 0))) {
+        console.log(`🎶 Adding background music: ${selectedMusicTrack ? 'Search result' : (customMusicFiles?.length || 0) + ' uploaded file(s)'}`);
+        
+        if (selectedMusicTrack) {
+            // Use selected track from search results as background music
+            console.log(`🔍 Adding background music track: ${selectedMusicTrack.title} by ${selectedMusicTrack.artist}`);
             
-            const audioTrack = {
-                clips: [{
-                    asset: {
-                        type: "audio",
-                        src: musicFile.url,
-                        volume: 0.7 // Slightly lower volume for background music
-                    },
-                    start: 0,
-                    length: totalDuration,
-                    loop: true // Enable looping for single file
-                }]
+            // Calculate how many times we need to repeat the track to cover total duration
+            const trackDuration = selectedMusicTrack.duration || 30; // Default to 30s if duration not available
+            const loopCount = Math.ceil(totalDuration / trackDuration);
+            
+            console.log(`🔄 Creating ${loopCount} background music clips to loop ${trackDuration}s track over ${totalDuration}s total duration`);
+            
+            const musicClips = [];
+            for (let i = 0; i < loopCount; i++) {
+                const startTime = i * trackDuration;
+                const remainingDuration = totalDuration - startTime;
+                const clipLength = Math.min(trackDuration, remainingDuration);
+                
+                if (clipLength > 0) {
+                    musicClips.push({
+                        asset: {
+                            type: "audio",
+                            src: selectedMusicTrack.preview_url,
+                            volume: 0.3 // Lower volume for background music so voiceover is clear
+                        },
+                        start: startTime,
+                        length: clipLength
+                    });
+                }
+            }
+            
+            const musicTrack = {
+                clips: musicClips
             };
-            tracks.push(audioTrack);
-        } else {
-            // Multiple files - play in sequence and loop the sequence
-            console.log(`🎵 Creating sequence from ${customMusicFiles.length} music files`);
+            tracks.push(musicTrack);
+        } else if (customMusicFiles && customMusicFiles.length > 0) {
+            // Handle custom music files
+            console.log(`🎵 Creating background music sequence from ${customMusicFiles.length} music files`);
             
-            const audioClips: any[] = [];
+            const musicClips = [];
             let currentTime = 0;
             let sequenceIndex = 0;
             
-            // Calculate total duration of one sequence
-            const sequenceDuration = customMusicFiles.reduce((total, file) => {
-                return total + (file.duration || 30); // Default 30s if duration unknown
-            }, 0);
-            
-            console.log(`📊 Music sequence duration: ${sequenceDuration.toFixed(1)}s, Video duration: ${totalDuration.toFixed(1)}s`);
-            
-            // Generate clips to fill the entire video duration
             while (currentTime < totalDuration) {
                 for (const musicFile of customMusicFiles) {
                     if (currentTime >= totalDuration) break;
@@ -443,134 +431,118 @@ export async function POST(request: NextRequest) {
                     const fileDuration = musicFile.duration || 30;
                     const clipDuration = Math.min(fileDuration, totalDuration - currentTime);
                     
-                    audioClips.push({
+                    musicClips.push({
                         asset: {
                             type: "audio",
                             src: musicFile.url,
-                            volume: 0.7
+                            volume: 0.3 // Lower volume for background music so voiceover is clear
                         },
                         start: currentTime,
                         length: clipDuration
                     });
                     
-                    console.log(`   Adding ${musicFile.name}: ${clipDuration.toFixed(1)}s at ${currentTime.toFixed(1)}s`);
+                    console.log(`   Adding background music ${musicFile.name}: ${clipDuration.toFixed(1)}s at ${currentTime.toFixed(1)}s`);
                     currentTime += clipDuration;
                 }
                 sequenceIndex++;
             }
             
-            const audioTrack = {
-                clips: audioClips
+            const musicTrack = {
+                clips: musicClips
             };
-            tracks.push(audioTrack);
-            
-            console.log(`✅ Created ${audioClips.length} audio clips covering ${currentTime.toFixed(1)}s (${sequenceIndex} sequences)`);
+            tracks.push(musicTrack);
         }
     } else {
-        // Use default audio (speech/narration)
-        const audioUrlToUse = audioUrl || compressedAudioUrl;
-        
-        if (audioUrlToUse) {
-            console.log(`🎵 Using ${audioUrl ? 'original' : 'compressed'} speech audio for video: ${audioUrlToUse}`);
-            
-            const audioTrack = {
-                clips: [{
-                    asset: {
-                        type: "audio",
-                        src: audioUrlToUse,
-                        volume: 1 // Full volume for speech
-                    },
-                    start: 0,
-                    length: totalDuration
-                }]
-            };
-            tracks.push(audioTrack);
-        } else {
-            console.warn('⚠️ No audio URL provided for video generation');
-        }
+        console.log('🔇 No background music selected - using voiceover only');
     }
 
-    // Prepend dust overlay track if available (becomes the first track)
-    if (isOverlayAvailable) {
-      console.log(`✨ Adding dust overlay to video: ${DUST_OVERLAY_URL}`);
-      const overlayTrack = {
-        clips: [
-          {
-            asset: {
-              type: "video",
-              src: DUST_OVERLAY_URL,
-              volume: 0
-            },
-            start: 0,
-            length: totalDuration,
-            fit: "cover",
-            opacity: 0.15 // Much lower opacity to prevent darkening (was 0.5)
-          }
-        ]
-      };
-      tracks.unshift(overlayTrack);
-    }
+
     
     // Log the track structure for debugging
-    console.log('📊 Final track structure:');
-    tracks.forEach((track, index) => {
-      const assetType = track.clips[0]?.asset?.type || 'unknown';
-      const isOverlay = assetType === 'video' && track.clips[0]?.asset?.src === DUST_OVERLAY_URL;
-      console.log(`  Track ${index}: ${assetType}${isOverlay ? ' (dust overlay)' : ''}`);
-    });
+    // console.log('📊 Final track structure:');
+    // tracks.forEach((track, index) => {
+    //   const assetType = track.clips[0]?.asset?.type || 'unknown';
+    //   console.log(`  Track ${index}: ${assetType}`);
+    // });
 
     const timeline: any = {
       tracks: tracks
     };
 
-    const outputConfig: any = {
-      format: "mp4",
-      size: {
-        width: 1280,
-        height: 720
-      }
-    };
-
-    // Only add quality parameter if it's 'low'
-    if (quality === 'low') {
-      outputConfig.quality = "low";
-    }
-
     const shotstackPayload = {
       timeline: timeline,
-      output: outputConfig,
+      output: {
+        format: "mp4",
+        size: {
+          width: 1280,
+          height: 720
+        }
+      },
       callback: process.env.SHOTSTACK_CALLBACK_URL
     };
 
-    // Log payload summary instead of full JSON to avoid memory issues with large base64 data
-    console.log("📤 Shotstack payload summary:");
-    console.log(`- Timeline tracks: ${timeline.tracks.length}`);
-    console.log(`- Output format: ${outputConfig.format}`);
-    console.log(`- Output size: ${outputConfig.size.width}x${outputConfig.size.height}`);
-    console.log(`- Callback URL: ${process.env.SHOTSTACK_CALLBACK_URL ? 'Set' : 'Not set'}`);
+    // Write payload to JSON file for debugging
+    try {
+      const payloadFileName = `shotstack-payload-${videoId}-${Date.now()}.json`;
+      const payloadPath = join(process.cwd(), 'debug', payloadFileName);
+      
+      // Create debug directory if it doesn't exist
+      const debugDir = join(process.cwd(), 'debug');
+      try {
+        const fs = require('fs');
+        if (!fs.existsSync(debugDir)) {
+          fs.mkdirSync(debugDir, { recursive: true });
+        }
+      } catch (dirError) {
+        console.warn('Could not create debug directory:', dirError);
+      }
+      
+      // Write the payload with pretty formatting
+      const formattedPayload = {
+        metadata: {
+          videoId: videoId,
+          timestamp: new Date().toISOString(),
+          videoType: isSegmentedVideo ? 'Segmented' : 'Traditional',
+          totalDuration: totalDuration,
+          imageCount: imageUrls.length,
+          hasAudio: !!audioUrl,
+          hasSubtitles: !!subtitlesUrl,
+          hasMusic: useCustomMusic,
+          selectedMusicTrack: selectedMusicTrack ? selectedMusicTrack.title : 'None',
+          customMusicFiles: customMusicFiles?.length || 0,
+          dustOverlay: dustOverlay
+        },
+        payload: shotstackPayload
+      };
+      
+      writeFileSync(payloadPath, JSON.stringify(formattedPayload, null, 2));
+      console.log(`📄 Shotstack payload saved to: ${payloadPath}`);
+    } catch (writeError) {
+      console.warn('Could not write payload to file:', writeError);
+    }
+
+    console.log(JSON.stringify(shotstackPayload, null, 2));
 
     console.log("📤 Sending Shotstack API request with payload summary:");
-    console.log(`- Video type: ${isSegmentedVideo ? 'Mixed Content (Custom Timing)' : 'Mixed Content (Equal Timing)'}`);
+    console.log(`- Video type: ${isSegmentedVideo ? 'Segmented' : 'Traditional'}`);
     console.log(`- Total tracks: ${tracks.length}`);
-    console.log(`- Images: ${totalImages}`);
-    console.log(`- Videos: ${totalVideos}`);
-    console.log(`- Total content: ${totalContent}`);
+    console.log(`- Media assets: ${imageUrls.length}`);
     console.log(`- Audio: ${audioUrl ? 'YES' : 'NO'}`);
-    console.log(`- Compressed Audio: ${compressedAudioUrl ? 'YES' : 'NO'}`);
-    console.log(`- Subtitles: ${subtitlesUrl && enableSubtitles ? 'YES' : subtitlesUrl ? 'DISABLED' : 'NO'}`);
-    console.log(`- Overlay: ${isOverlayAvailable ? 'YES' : shouldIncludeOverlay ? 'UNAVAILABLE' : 'DISABLED'}`);
-    console.log(`- Zoom Effects: ${zoomEffect ? 'YES' : 'NO'}`);
-    console.log(`- Quality: ${quality}`);
+    console.log(`- Background Music: ${useCustomMusic ? 'YES' : 'NO'}`);
+    console.log(`- Selected Music Track: ${selectedMusicTrack ? 'YES' : 'NO'}`);
+    console.log(`- Custom Music Files: ${customMusicFiles?.length || 0}`);
+    console.log(`- Dust Overlay: ${dustOverlay ? 'YES' : 'NO'}`);
+    console.log(`- Zoom Effect: ${zoomEffect ? 'YES' : 'NO'}`);
+    console.log(`- Subtitles: ${subtitlesUrl ? 'YES' : 'NO'}`);
+    console.log(`- Font Color: ${fontColor || '#ffffff'}`);
     console.log(`- Total duration: ${totalDuration.toFixed(2)}s`);
     
     // Make Shotstack API call BEFORE creating database record
-
-    console.log("Shotstack payload:", JSON.stringify(shotstackPayload, null, 2));
     const shotstackResponse = await fetch(`${SHOTSTACK_ENDPOINT}/render`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": SHOTSTACK_API_KEY
+        "x-api-key": SHOTSTACK_API_KEY || ''
       },
       body: JSON.stringify(shotstackPayload),
     });
@@ -578,7 +550,7 @@ export async function POST(request: NextRequest) {
     // If Shotstack returns an error, return it directly to user without saving any record
     if (!shotstackResponse.ok) {
       const errorData = await shotstackResponse.json();
-      console.error('Shotstack API error:', JSON.stringify(errorData));
+      console.error('Shotstack API error:', errorData);
       
       return NextResponse.json<CreateVideoResponse>(
         { 
@@ -595,37 +567,29 @@ export async function POST(request: NextRequest) {
     console.log("Shotstack ID:", shotstackId);
 
     // Only create database record AFTER Shotstack successfully accepts the job
-    const supabase = await createClient();
     
-    // Prepare metadata for mixed content videos
-    const metadata = {
-      type: isSegmentedVideo ? 'mixed-content-custom' : 'mixed-content-equal',
-      segment_timings: isSegmentedVideo ? segmentTimings : undefined,
+    // Prepare metadata for segmented videos
+    const metadata = isSegmentedVideo && segmentTimings ? {
+      type: 'segmented',
+      segment_timings: segmentTimings,
       total_duration: totalDuration,
-      content_count: totalContent,
-      image_count: totalImages,
-      video_count: totalVideos,
-      zoom_effect: zoomEffect,
-      dust_overlay: dustOverlay,
-      custom_music: useCustomMusic,
-      music_files_count: useCustomMusic ? customMusicFiles?.length || 0 : 0
-    };
+      scenes_count: imageUrls.length
+    } : null;
     
     const { error: dbError } = await supabase
       .from('video_records')
       .insert({
         id: videoId,
-        user_id: userId,
+        user_id: authenticatedUserId,
         status: 'processing',
         shotstack_id: shotstackId,
-        image_urls: imageUrls || [],
+        image_urls: imageUrls,
         audio_url: audioUrl,
-        compressed_audio_url: compressedAudioUrl,
         subtitles_url: subtitlesUrl,
-        // Use provided thumbnail URL, or fall back to first image if available, or empty string
-        thumbnail_url: thumbnailUrl || (imageUrls && imageUrls[0]) || '',
-        // Store metadata in error_message field for now (temporary solution)
-        error_message: JSON.stringify(metadata),
+        // Use provided thumbnail URL if available, otherwise fall back to first image
+        thumbnail_url: thumbnailUrl || imageUrls[0],
+        // Store metadata in error_message field for segmented videos (temporary solution)
+        error_message: metadata ? JSON.stringify(metadata) : null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -638,12 +602,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ Mixed content video record created successfully with Shotstack ID: ${shotstackId}`);
-    console.log(`📊 Final video composition: ${totalImages} images + ${totalVideos} videos = ${totalContent} total content pieces`);
+    console.log(`✅ ${isSegmentedVideo ? 'Segmented' : 'Traditional'} video record created successfully with Shotstack ID: ${shotstackId}`);
 
     // Return success response with video ID and shotstack ID
     return NextResponse.json<CreateVideoResponse>({
-      message: `Mixed content video creation job started successfully (${totalImages} images + ${totalVideos} videos)`,
+      message: `${isSegmentedVideo ? 'Segmented' : 'Traditional'} video creation job started successfully`,
       video_id: videoId,
       shotstack_id: shotstackId
     }, { status: 202 });
@@ -657,4 +620,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export const dynamic = 'force-dynamic'; 
+export const dynamic = 'force-dynamic';

@@ -103,7 +103,7 @@ export function VideoHistoryTab({
         <CardContent className="pt-6">
           <div className="text-center py-8">
             <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">No Video History</h3>
+            <h3 className="text-lg font-medium text-white mb-2">No Video History</h3>
             <p className="text-gray-500">Your generated videos will appear here after completion.</p>
           </div>
         </CardContent>
@@ -115,7 +115,7 @@ export function VideoHistoryTab({
     <div className="space-y-6">
       {/* Selection Controls */}
       {storedVideos.length > 0 && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-blue-900/20 border-blue-600">
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -193,8 +193,8 @@ export function VideoHistoryTab({
                 return (
                   <div 
                     key={video.id} 
-                    className={`border rounded-lg p-4 bg-white hover:shadow-md transition-shadow relative ${
-                      isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                    className={`border rounded-lg p-4 bg-gray-700 hover:bg-gray-600 transition-all relative ${
+                      isSelected ? 'ring-2 ring-blue-500 bg-blue-900/20' : 'border-gray-600'
                     }`}
                   >
                     {isSelectionMode && (
@@ -202,7 +202,7 @@ export function VideoHistoryTab({
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => handleVideoSelection(video.id)}
-                          className="bg-white shadow-sm"
+                          className="bg-gray-700 border-gray-600"
                         />
                       </div>
                     )}
@@ -253,7 +253,7 @@ export function VideoHistoryTab({
                           </Badge>
                         </div>
                         
-                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                        <p className="text-sm text-gray-300 mb-2 line-clamp-2">
                           {video.prompt}
                         </p>
                         
@@ -318,7 +318,7 @@ export function VideoHistoryTab({
               {videoHistory.map((video) => (
                 <div 
                   key={video.id} 
-                  className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow"
+                  className="border border-gray-600 rounded-lg p-4 bg-gray-700 hover:bg-gray-600 transition-all"
                 >
                   <div className="space-y-3">
                     {/* Video Preview */}
@@ -363,7 +363,7 @@ export function VideoHistoryTab({
                         </Badge>
                       </div>
                       
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                      <p className="text-sm text-gray-300 mb-2 line-clamp-2">
                         {video.prompt}
                       </p>
                       
@@ -434,7 +434,7 @@ export function VideoHistoryTab({
                           {batch.status}
                         </Badge>
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-300">
                         Started: {formatDate(batch.startedAt)}
                         {batch.completedAt && (
                           <> • Completed: {formatDate(batch.completedAt)}</>
@@ -490,7 +490,7 @@ export function VideoHistoryTab({
                             </div>
                           ))}
                         {batch.videos.filter(v => v.status === 'completed').length > 6 && (
-                          <div className="aspect-video bg-gray-300 rounded flex items-center justify-center text-xs text-gray-600">
+                          <div className="aspect-video bg-gray-600 rounded flex items-center justify-center text-xs text-gray-300">
                             +{batch.videos.filter(v => v.status === 'completed').length - 6} more
                           </div>
                         )}

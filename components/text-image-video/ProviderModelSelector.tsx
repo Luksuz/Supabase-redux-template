@@ -50,20 +50,20 @@ export function ProviderModelSelector({ mode, className }: ProviderModelSelector
   const currentModelInfo = getCurrentModelInfo()
 
   return (
-    <Card className={className}>
+    <Card className={`bg-gray-800 border-gray-600 ${className}`}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <Layers className="h-5 w-5" />
           Provider & Model Selection
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-gray-300">
           Choose your video generation provider and model for {mode.replace('-', '-to-')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Provider Selection */}
         <div className="space-y-2">
-          <Label htmlFor="provider-select">Provider</Label>
+          <Label htmlFor="provider-select" className="text-gray-300">Provider</Label>
           <Select 
             value={selectedProvider} 
             onValueChange={handleProviderChange}
@@ -100,7 +100,7 @@ export function ProviderModelSelector({ mode, className }: ProviderModelSelector
 
         {/* Model Selection */}
         <div className="space-y-2">
-          <Label htmlFor="model-select">Model</Label>
+          <Label htmlFor="model-select" className="text-gray-300">Model</Label>
           <Select 
             value={selectedModel} 
             onValueChange={handleModelChange}
@@ -125,23 +125,23 @@ export function ProviderModelSelector({ mode, className }: ProviderModelSelector
 
         {/* Model Information */}
         {currentModelInfo && (
-          <div className="mt-4 p-3 bg-muted/50 rounded-lg space-y-3">
-            <div className="text-sm font-medium text-muted-foreground">
+          <div className="mt-4 p-3 bg-gray-700 rounded-lg space-y-3">
+            <div className="text-sm font-medium text-gray-300">
               Model Details
             </div>
             
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Duration:</span>
+                <Clock className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-400">Duration:</span>
                 <Badge variant="secondary" className="text-xs">
                   {currentModelInfo.supportedDurations?.join('s, ')}s
                 </Badge>
               </div>
               
               <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Max:</span>
+                <Zap className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-400">Max:</span>
                 <Badge variant="secondary" className="text-xs">
                   {currentModelInfo.maxDuration}s
                 </Badge>
@@ -151,8 +151,8 @@ export function ProviderModelSelector({ mode, className }: ProviderModelSelector
             {/* Additional model-specific info */}
             {currentModelInfo.supportedAspectRatios && (
               <div className="flex items-center gap-2 text-sm">
-                <RatioIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Aspect Ratios:</span>
+                <RatioIcon className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-400">Aspect Ratios:</span>
                 <div className="flex gap-1">
                   {currentModelInfo.supportedAspectRatios.map((ratio: string) => (
                     <Badge key={ratio} variant="outline" className="text-xs">
@@ -165,7 +165,7 @@ export function ProviderModelSelector({ mode, className }: ProviderModelSelector
 
             {currentModelInfo.supportedFps && (
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">FPS:</span>
+                <span className="text-gray-400">FPS:</span>
                 <div className="flex gap-1">
                   {currentModelInfo.supportedFps.map((fps: number) => (
                     <Badge key={fps} variant="outline" className="text-xs">
@@ -179,7 +179,7 @@ export function ProviderModelSelector({ mode, className }: ProviderModelSelector
         )}
 
         {/* Provider-specific notes */}
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-gray-400">
           {selectedProvider === 'replicate' && (
             <p>💡 Replicate: Stable performance, good for batch processing</p>
           )}

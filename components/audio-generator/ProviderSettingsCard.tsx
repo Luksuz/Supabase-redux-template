@@ -60,20 +60,20 @@ export function ProviderSettingsCard({
   if (!contentSummary) return null
 
   return (
-    <Card className="bg-white shadow-sm border border-gray-200">
+    <Card className="bg-gray-800 shadow-sm border border-gray-600">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <Volume2 className="h-5 w-5" />
           Audio Generation Settings
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-gray-300">
           Configure TTS provider, voice, and model options
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Provider Selection */}
         <div className="space-y-2">
-          <Label>TTS Provider</Label>
+          <Label className="text-gray-300">TTS Provider</Label>
           <Select value={selectedProvider} onValueChange={onProviderChange}>
             <SelectTrigger>
               <SelectValue />
@@ -93,9 +93,9 @@ export function ProviderSettingsCard({
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             {/* Voice Selection */}
             <div className="space-y-2">
-              <Label>Voice</Label>
+              <Label className="text-gray-300">Voice</Label>
               {isLoadingApiVoices ? (
-                <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 p-2 text-sm text-gray-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading voices...
                 </div>
@@ -126,7 +126,7 @@ export function ProviderSettingsCard({
                               <div className="w-full border-t border-gray-300" />
                             </div>
                             <div className="relative flex justify-center text-xs uppercase">
-                              <span className="bg-white px-2 text-gray-500">Custom Voices</span>
+                              <span className="bg-gray-800 px-2 text-gray-400">Custom Voices</span>
                             </div>
                           </div>
                         )
@@ -151,7 +151,7 @@ export function ProviderSettingsCard({
             {/* Model Selection */}
             {currentProvider.models && (
               <div className="space-y-2">
-                <Label>Model</Label>
+                <Label className="text-gray-300">Model</Label>
                 <Select value={providerModel} onValueChange={onModelChange}>
                   <SelectTrigger>
                     <SelectValue />
@@ -170,7 +170,7 @@ export function ProviderSettingsCard({
             {/* Language Selection for ElevenLabs only */}
             {selectedProvider === 'elevenlabs' && currentProvider.languages && (
               <div className="space-y-2">
-                <Label>Language</Label>
+                <Label className="text-gray-300">Language</Label>
                 <Select value={languageCode} onValueChange={onLanguageChange}>
                   <SelectTrigger>
                     <SelectValue />
@@ -189,15 +189,15 @@ export function ProviderSettingsCard({
         )}
 
         {/* Subtitles Generation Option */}
-        <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <div className="p-4 bg-gray-700 border border-gray-600 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Subtitles className="h-5 w-5 text-blue-600" />
               <div>
-                <Label htmlFor="generateSubtitles" className="text-sm font-medium text-gray-900">
+                <Label htmlFor="generateSubtitles" className="text-sm font-medium text-white">
                   Generate Subtitles
                 </Label>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-400 mt-1">
                   Automatically create SRT subtitles using OpenAI Whisper
                 </p>
               </div>
@@ -211,8 +211,8 @@ export function ProviderSettingsCard({
           {generateSubtitlesOption && (
             <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
               <div className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="text-xs text-blue-800">
+                <CheckCircle className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-blue-300">
                   <p className="font-medium">Subtitles will be generated automatically:</p>
                   <ul className="mt-1 space-y-1 list-disc list-inside text-blue-700">
                     <li>Uses OpenAI Whisper for accurate transcription</li>

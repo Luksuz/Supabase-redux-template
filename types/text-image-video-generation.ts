@@ -153,7 +153,7 @@ export const VIDEO_PROVIDERS = {
     batchSize: 3,
     rateLimitPerMinute: 5,
     textToVideoModels: {
-      'minimax-hailuo-02-pro': {
+      'hailuo-02-pro': {
         name: 'Minimax Hailuo 02 Pro',
         description: 'High-quality text-to-video generation',
         maxDuration: 10,
@@ -166,12 +166,6 @@ export const VIDEO_PROVIDERS = {
         maxDuration: 10,
         supportedDurations: [5, 10],
         supportedAspectRatios: ['16:9', '9:16', '1:1']
-      },
-      'wan-v2.2-5b': {
-        name: 'WAN v2.2-5B',
-        description: 'Animate images with detailed motion control',
-        maxDuration: 5,
-        supportedDurations: [5]
       }
     },
     imageToVideoModels: {

@@ -217,7 +217,7 @@ export function GeneratedImageDisplay({
                 size="sm" 
                 onClick={() => setShowPreviewModal(true)}
                 disabled={selectedImagesOrder.length === 0}
-                className="bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100"
+                className="bg-blue-900/20 border-blue-600 text-blue-300 hover:bg-blue-900/30"
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Preview Order ({selectedImagesOrder.length})
@@ -284,10 +284,10 @@ export function GeneratedImageDisplay({
 
       {/* Selection Order Display */}
       {showImageSelection && selectedImagesOrder.length > 0 && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-blue-900/20 border-blue-600">
           <CardHeader>
-            <CardTitle className="text-lg">Video Generation Order ({selectedImagesOrder.length} images)</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-lg text-white">Video Generation Order ({selectedImagesOrder.length} images)</CardTitle>
+            <CardDescription className="text-gray-300">
               Images will appear in this order in your video. Use the preview button to review and reorder.
             </CardDescription>
           </CardHeader>
@@ -302,7 +302,7 @@ export function GeneratedImageDisplay({
                 if (!imageUrl) return null
                 
                 return (
-                  <div key={imageId} className="flex items-center gap-1 bg-white rounded-lg border p-2">
+                  <div key={imageId} className="flex items-center gap-1 bg-gray-700 rounded-lg border border-gray-600 p-2">
                     <div className="w-12 h-12 rounded overflow-hidden">
                       <img 
                         src={imageUrl} 
@@ -314,7 +314,7 @@ export function GeneratedImageDisplay({
                         style={{ userSelect: 'none', pointerEvents: 'none' }}
                       />
                     </div>
-                    <div className="text-sm font-medium">#{orderIndex + 1}</div>
+                    <div className="text-sm font-medium text-white">#{orderIndex + 1}</div>
                   </div>
                 )
               })}
@@ -391,7 +391,7 @@ export function GeneratedImageDisplay({
                             id={`image-${imageSet.id}-${imageIndex}`}
                             checked={isSelected}
                             onCheckedChange={() => onToggleImageSelection(imageSet.id, imageIndex)}
-                            className="bg-white/90 border-2"
+                            className="bg-gray-700 border-2"
                           />
                           {orderNumber && (
                             <div className="bg-blue-600 text-white text-xs font-bold px-1.5 py-0.5 rounded">
@@ -405,7 +405,7 @@ export function GeneratedImageDisplay({
                     <div 
                       className={`aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 transition-colors ${
                         showImageSelection && isSelected
-                          ? 'border-blue-500 bg-blue-50' 
+                          ? 'border-blue-500 bg-blue-900/20' 
                           : showImageSelection 
                           ? 'border-gray-300 hover:border-blue-300' 
                           : 'border-transparent hover:border-blue-300 cursor-pointer'
@@ -485,7 +485,7 @@ export function GeneratedImageDisplay({
                     </div>
                     
                     {/* Image info badge */}
-                    <div className={`absolute ${showImageSelection ? 'bottom-2 right-2' : 'top-2 right-2'} bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-md`}>
+                    <div className={`absolute ${showImageSelection ? 'bottom-2 right-2' : 'top-2 right-2'} bg-gray-800/90 text-white text-xs px-2 py-1 rounded-md`}>
                       {imageIndex + 1}/{imageSet.imageUrls.length}
                     </div>
                     

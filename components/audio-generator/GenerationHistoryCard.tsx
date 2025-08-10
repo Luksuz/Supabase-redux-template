@@ -35,13 +35,13 @@ export function GenerationHistoryCard({
   if (generationHistory.length === 0) return null
 
   return (
-    <Card className="bg-white shadow-sm border border-gray-200">
+    <Card className="bg-gray-800 shadow-sm border border-gray-600">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <Volume2 className="h-5 w-5" />
           Generation History
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-gray-300">
           Previous audio generations
         </CardDescription>
       </CardHeader>
@@ -51,9 +51,9 @@ export function GenerationHistoryCard({
             const historyAudioType = historyAudioTypes[generation.id] || 'original';
             
             return (
-              <div key={generation.id} className="p-4 bg-gray-50 rounded-lg border">
+              <div key={generation.id} className="p-4 bg-gray-700 rounded-lg border">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="font-medium text-sm">
+                  <span className="font-medium text-sm text-white">
                     {new Date(generation.generatedAt).toLocaleString()}
                   </span>
                   <div className="flex gap-2">
@@ -68,9 +68,9 @@ export function GenerationHistoryCard({
 
                 {/* Audio Type Toggle for History */}
                 {generation.audioUrl && (
-                  <div className="mb-3 p-2 bg-white border rounded">
+                  <div className="mb-3 p-2 bg-gray-700 border border-gray-600 rounded">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-gray-600">Audio Quality:</span>
+                      <span className="font-medium text-gray-300">Audio Quality:</span>
                       <div className="flex items-center gap-2">
                         <label className="flex items-center gap-1 cursor-pointer">
                           <input
@@ -81,7 +81,7 @@ export function GenerationHistoryCard({
                             onChange={(e) => onSetHistoryAudioType(generation.id, e.target.value as 'original')}
                             className="text-blue-600 focus:ring-blue-500 w-3 h-3"
                           />
-                          <span className="text-xs text-gray-700">Original</span>
+                          <span className="text-xs text-gray-300">Original</span>
                         </label>
                         <label className="flex items-center gap-1 cursor-pointer">
                           <input
@@ -93,7 +93,7 @@ export function GenerationHistoryCard({
                             className="text-blue-600 focus:ring-blue-500 w-3 h-3"
                             disabled={!generation.compressedAudioUrl}
                           />
-                          <span className="text-xs text-gray-700">Compressed</span>
+                          <span className="text-xs text-gray-300">Compressed</span>
                         </label>
                       </div>
                     </div>
