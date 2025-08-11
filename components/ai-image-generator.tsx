@@ -3,15 +3,21 @@
 import { useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../lib/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { 
+import {
   setSelectedModel,
   setAspectRatio, 
   setNumberOfScenesToExtract,
+  setRecraftStyle,
+  setIdeogramStyle,
+  setNegativePrompt,
+  setLeonardoStyleUUID,
   startSceneExtraction,
   completeSceneExtraction,
   failSceneExtraction,
   updateScenePrompt,
   addCustomScene,
+  updateBatchProgress,
+  addExtractedScene,
   startGeneration,
   updateGenerationInfo,
   completeGeneration,
@@ -49,7 +55,12 @@ export function AIImageGenerator() {
     isExtractingScenes,
     sceneExtractionError,
     numberOfScenesToExtract,
-    selectedImagesOrder
+    selectedImagesOrder,
+    batchProgress,
+    recraftStyle,
+    ideogramStyle,
+    negativePrompt,
+    leonardoStyleUUID
   } = useAppSelector(state => state.imageGeneration)
   
   // Get script from Redux state
@@ -58,11 +69,13 @@ export function AIImageGenerator() {
   // Local state
   const [selectedScenes, setSelectedScenes] = useState<number[]>([])
   const [scriptInput, setScriptInput] = useState('')
-  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+  const [imageBatchProgress, setImageBatchProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
   const [downloadingZip, setDownloadingZip] = useState<string | null>(null)
   const [showImageSelection, setShowImageSelection] = useState(false)
   const [selectedImageStyle, setSelectedImageStyle] = useState<string>('realistic')
   const [regeneratingImages, setRegeneratingImages] = useState<Set<string>>(new Set())
+  const [imageStylePrompt, setImageStylePrompt] = useState('')
+  const [customImageStyles, setCustomImageStyles] = useState<Array<{value: string, label: string, prefix: string}>>([])
 
   // Thumbnail generator state
   const [thumbnailPrompt, setThumbnailPrompt] = useState('')
@@ -120,25 +133,123 @@ export function AIImageGenerator() {
     dispatch(startSceneExtraction({ numberOfScenes: numberOfScenesToExtract }))
 
     try {
-      const response = await fetch('/api/extract-scenes', {
+      // Step 1: Create script summary
+      console.log('🔄 Step 1: Creating script summary...')
+      dispatch(updateBatchProgress({ phase: 'summary' }))
+      
+      let scriptSummary = ''
+      try {
+        const summaryResponse = await fetch('/api/create-script-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            script: scriptToUse,
+            userId: 'user-123'
+          })
+        })
+        const summaryData = await summaryResponse.json()
+        scriptSummary = summaryData.summary || ''
+        console.log('✅ Script summary created')
+      } catch (error) {
+        console.warn('⚠️ Failed to create script summary, proceeding without it:', error)
+      }
+
+      // Step 2: Split script into chunks
+      console.log('🔄 Step 2: Splitting script into chunks...')
+      dispatch(updateBatchProgress({ phase: 'splitting' }))
+      
+      const splitResponse = await fetch('/api/split-script', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           script: scriptToUse,
           numberOfScenes: numberOfScenesToExtract,
           userId: 'user-123'
-        }),
+        })
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to extract scenes')
+      if (!splitResponse.ok) {
+        const errorData = await splitResponse.json()
+        throw new Error(errorData.error || 'Failed to split script')
       }
 
-      const data = await response.json()
-      dispatch(completeSceneExtraction({ scenes: data.scenes }))
+      const splitData = await splitResponse.json()
+      const chunks = splitData.chunks
+      console.log(`✅ Script split into ${chunks.length} chunks`)
+
+      // Step 3: Process chunks in batches
+      console.log('🔄 Step 3: Processing scene prompts...')
+      dispatch(updateBatchProgress({ 
+        phase: 'processing',
+        total: chunks.length,
+        totalBatches: Math.ceil(chunks.length / 5)
+      }))
+      
+      const batchSize = 5
+      const totalBatches = Math.ceil(chunks.length / batchSize)
+      const extractedScenes = []
+
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const startIndex = batchIndex * batchSize
+        const endIndex = Math.min(startIndex + batchSize, chunks.length)
+        const batchChunks = chunks.slice(startIndex, endIndex)
+        
+        console.log(`Processing batch ${batchIndex + 1}/${totalBatches} (scenes ${startIndex + 1}-${endIndex})`)
+        dispatch(updateBatchProgress({ 
+          currentBatch: batchIndex + 1,
+          current: startIndex
+        }))
+
+        // Process batch in parallel
+        const batchPromises = batchChunks.map(async (chunk: any) => {
+          try {
+            const response = await fetch('/api/extract-single-scene', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chunkText: chunk.text,
+                chunkIndex: chunk.index,
+                scriptSummary,
+                imageStylePrompt,
+                userId: 'user-123'
+              })
+            })
+            
+            const data = await response.json()
+            return data.scene
+          } catch (error) {
+            console.error(`Error processing chunk ${chunk.index}:`, error)
+            return {
+              chunkIndex: chunk.index,
+              originalText: chunk.text,
+              imagePrompt: `A scene from the story, section ${chunk.index + 1}`,
+              summary: `Scene ${chunk.index + 1}`,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+          }
+        })
+
+        // Wait for batch to complete
+        const batchResults = await Promise.all(batchPromises)
+        
+        // Add each scene to Redux as it's completed
+        batchResults.forEach(scene => {
+          dispatch(addExtractedScene(scene))
+          dispatch(updateBatchProgress({ current: extractedScenes.length + 1 }))
+        })
+        
+        extractedScenes.push(...batchResults)
+        
+        // Delay between batches to avoid rate limiting
+        if (batchIndex < totalBatches - 1) {
+          console.log('⏳ Waiting 1 second before next batch...')
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+      }
+
+      console.log(`✅ Completed processing ${extractedScenes.length} scenes`)
+      dispatch(completeSceneExtraction({ scenes: extractedScenes }))
+      
     } catch (error) {
       console.error('Error extracting scenes:', error)
       dispatch(failSceneExtraction(
@@ -165,7 +276,9 @@ export function AIImageGenerator() {
   const applyImageStyle = (basePrompt: string) => {
     if (!selectedImageStyle || selectedImageStyle === 'none') return basePrompt
     
-    const selectedStyle = IMAGE_STYLES.find(style => style.value === selectedImageStyle)
+    // Check both built-in and custom styles
+    const allStyles = [...IMAGE_STYLES, ...customImageStyles]
+    const selectedStyle = allStyles.find(style => style.value === selectedImageStyle)
     if (!selectedStyle || !selectedStyle.prefix) return basePrompt
     
     return `${selectedStyle.prefix}${basePrompt}`
@@ -176,7 +289,7 @@ export function AIImageGenerator() {
     const batchSize = MODEL_INFO[selectedModel].batchSize
     const batchPrompts = prompts.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize)
     
-    setBatchProgress({ 
+    setImageBatchProgress({ 
       current: batchIndex * batchSize, 
       total: prompts.length, 
       currentBatch: batchIndex + 1, 
@@ -200,6 +313,10 @@ export function AIImageGenerator() {
               numberOfImages: 1,
               minimaxAspectRatio: aspectRatio,
               userId: 'user-123',
+              ...(selectedModel === 'recraft-v3' && { recraftStyle }),
+              ...(selectedModel === 'ideogram-v3' && { ideogramStyle }),
+              ...((selectedModel === 'stable-diffusion-v35-large' || selectedModel === 'stable-diffusion-v35-medium') && { negativePrompt }),
+              ...(selectedModel === 'leonardo-phoenix' && { leonardoStyleUUID })
             }),
           })
 
@@ -222,7 +339,7 @@ export function AIImageGenerator() {
       const imageUrls = results.flat()
 
       // Update progress for the entire batch
-      setBatchProgress(prev => ({ 
+      setImageBatchProgress(prev => ({ 
         ...prev, 
         current: prev.current + batchPrompts.length 
       }))
@@ -253,7 +370,7 @@ export function AIImageGenerator() {
     }))
 
     // Reset batch progress
-    setBatchProgress({ current: 0, total: selectedPrompts.length, currentBatch: 0, totalBatches })
+    setImageBatchProgress({ current: 0, total: selectedPrompts.length, currentBatch: 0, totalBatches })
 
     try {
       dispatch(updateGenerationInfo(`Starting batch processing: ${selectedPrompts.length} images in ${totalBatches} batches...`))
@@ -301,7 +418,7 @@ export function AIImageGenerator() {
       if (allImageUrls.length > 0) {
         dispatch(completeGeneration({ imageUrls: allImageUrls }))
         setSelectedScenes([])
-        setBatchProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+        setImageBatchProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
       } else {
         throw new Error('No images were successfully generated')
       }
@@ -311,7 +428,7 @@ export function AIImageGenerator() {
       dispatch(failGeneration(
         error instanceof Error ? error.message : 'Failed to generate images from scenes'
       ))
-      setBatchProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+      setImageBatchProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
     }
   }
 
@@ -539,6 +656,10 @@ export function AIImageGenerator() {
           numberOfImages: 1,
           minimaxAspectRatio: imageSet.aspectRatio || aspectRatio,
           userId: 'user-123',
+          ...(imageSet.provider === 'recraft-v3' && { recraftStyle }),
+          ...(imageSet.provider === 'ideogram-v3' && { ideogramStyle }),
+          ...((imageSet.provider === 'stable-diffusion-v35-large' || imageSet.provider === 'stable-diffusion-v35-medium') && { negativePrompt }),
+          ...(imageSet.provider === 'leonardo-phoenix' && { leonardoStyleUUID })
         }),
       })
 
@@ -732,6 +853,9 @@ export function AIImageGenerator() {
             onUpdateScenePrompt={handleUpdateScenePrompt}
             onAddCustomScene={handleAddCustomScene}
             scriptSourceInfo={scriptSourceInfo}
+            imageStylePrompt={imageStylePrompt}
+            onImageStylePromptChange={setImageStylePrompt}
+            batchProgress={batchProgress}
           />
 
           {/* Image Style Selector */}
@@ -745,6 +869,17 @@ export function AIImageGenerator() {
               extractedScenes={extractedScenes}
               isGenerating={isGenerating}
               isExtractingScenes={isExtractingScenes}
+              customStyles={customImageStyles}
+              onCustomStylesChange={setCustomImageStyles}
+              selectedModel={selectedModel}
+              recraftStyle={recraftStyle}
+              onRecraftStyleChange={(style) => dispatch(setRecraftStyle(style))}
+              ideogramStyle={ideogramStyle}
+              onIdeogramStyleChange={(style) => dispatch(setIdeogramStyle(style))}
+              negativePrompt={negativePrompt}
+              onNegativePromptChange={(prompt) => dispatch(setNegativePrompt(prompt))}
+              leonardoStyleUUID={leonardoStyleUUID}
+              onLeonardoStyleUUIDChange={(uuid) => dispatch(setLeonardoStyleUUID(uuid))}
             />
           )}
 
@@ -766,7 +901,7 @@ export function AIImageGenerator() {
             isGenerating={isGenerating}
             error={error}
             generationInfo={generationInfo}
-            batchProgress={batchProgress}
+            batchProgress={imageBatchProgress}
             selectedImagesOrder={selectedImagesOrder}
             showImageSelection={showImageSelection}
             downloadingZip={downloadingZip}

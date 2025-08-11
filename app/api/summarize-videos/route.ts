@@ -8,7 +8,7 @@ const VideoSummarySchema = z.object({
   title: z.string().describe("The video title"),
   keyPoints: z.array(z.string()).describe("Main points with specific quotes and dramatic elements (3-5 points)"),
   mainTopic: z.string().describe("The primary topic or theme of the video"),
-  timestamp: z.string().optional().describe("Most important timestamp if applicable"),
+  timestamp: z.string().nullable().describe("Most important timestamp if applicable"),
   narrativeElements: z.array(z.string()).describe("Story elements, characters, conflicts, or narrative structures with specific details"),
   emotionalTone: z.string().describe("The overall emotional tone or mood of the content"),
   dramaticElements: z.array(z.string()).describe("Key dramatic moments, conflicts, or tensions identified"),

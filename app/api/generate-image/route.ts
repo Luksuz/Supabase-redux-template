@@ -105,7 +105,7 @@ const getImageDimensions = (aspectRatio: '16:9' | '1:1' | '9:16') => {
 };
 
 // Generate image using flux models via fal.ai
-async function generateFluxImage(provider: string, prompt: string, dimensions: { width: number; height: number }): Promise<string> {
+async function generateFluxImage(provider: string, prompt: string, dimensions: { width: number; height: number }, recraftStyle?: string, ideogramStyle?: string, negativePrompt?: string): Promise<string> {
   let modelEndpoint: string;
   
   switch (provider) {
@@ -131,17 +131,27 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
       throw new Error(`Unsupported flux model: ${provider}`);
   }
 
+  const baseInput = {
+    prompt,
+    image_size: dimensions,
+    num_inference_steps: 28,
+    guidance_scale: 3.5,
+    num_images: 1,
+    enable_safety_checker: false,
+    // Add mode for Ideogram v3 (turbo mode)
+    ...(provider === 'ideogram-v3' && { mode: 'turbo' }),
+    // Add style for Recraft V3
+    ...(provider === 'recraft-v3' && recraftStyle && { style: recraftStyle }),
+    // Add style for Ideogram V3
+    ...(provider === 'ideogram-v3' && ideogramStyle && { style: ideogramStyle }),
+    // Add negative prompt for Stable Diffusion models
+    ...((provider === 'stable-diffusion-v35-large' || provider === 'stable-diffusion-v35-medium') && negativePrompt && { negative_prompt: negativePrompt })
+  };
+
+  console.log(`🎨 Generating ${provider} image with input:`, JSON.stringify(baseInput, null, 2));
+
   const result = await fal.subscribe(modelEndpoint, {
-    input: {
-      prompt,
-      image_size: dimensions,
-      num_inference_steps: 28,
-      guidance_scale: 3.5,
-      num_images: 1,
-      enable_safety_checker: false,
-      // Add mode for Ideogram v3 (turbo mode)
-      ...(provider === 'ideogram-v3' && { mode: 'turbo' })
-    },
+    input: baseInput,
   });
 
   // Extract image URL from fal.ai response
@@ -273,7 +283,7 @@ async function pollForGenerationCompletion(generationId: string): Promise<Leonar
 }
 
 // Generate image using Leonardo Phoenix
-async function generateLeonardoPhoenixImage(prompt: string, width: number, height: number, contrast: number = 3.5): Promise<string> {
+async function generateLeonardoPhoenixImage(prompt: string, width: number, height: number, contrast: number = 3.5, styleUUID?: string): Promise<string> {
   const generationPayload = {
     modelId: "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3", // Leonardo Phoenix 1.0 model
     prompt: prompt,
@@ -282,7 +292,7 @@ async function generateLeonardoPhoenixImage(prompt: string, width: number, heigh
     width: width,
     height: height,
     alchemy: true,
-    styleUUID: "111dc692-d470-4eec-b791-3475abac4c46", // Dynamic style
+    styleUUID: styleUUID || "111dc692-d470-4eec-b791-3475abac4c46", // Use provided styleUUID or default to Dynamic
     enhancePrompt: false,
   };
 
@@ -334,7 +344,11 @@ export async function POST(request: NextRequest) {
     provider: bodyProvider, 
     prompt, 
     aspectRatio = '16:9', 
-    userId 
+    userId,
+    recraftStyle,
+    ideogramStyle,
+    negativePrompt,
+    leonardoStyleUUID
   } = body;
   let provider = bodyProvider;
 
@@ -376,7 +390,7 @@ export async function POST(request: NextRequest) {
       case 'ideogram-v3':
       // case 'minimax-image-01':
         if (!FAL_API_KEY) throw new Error('FAL_API_KEY is not set');
-        imageUrl = await generateFluxImage(provider, prompt, { width, height });
+        imageUrl = await generateFluxImage(provider, prompt, { width, height }, recraftStyle, ideogramStyle, negativePrompt);
         break;
 
       case 'gpt-image-1':
@@ -393,7 +407,7 @@ export async function POST(request: NextRequest) {
       
       case 'leonardo-phoenix':
         if (!LEONARDO_API_KEY) throw new Error('LEONARDO_API_KEY is not set');
-        imageUrl = await generateLeonardoPhoenixImage(prompt, width, height);
+        imageUrl = await generateLeonardoPhoenixImage(prompt, width, height, 3.5, leonardoStyleUUID);
         break;
 
       default:

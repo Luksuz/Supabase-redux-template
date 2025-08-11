@@ -63,7 +63,7 @@ const ScriptGenerator: React.FC = () => {
 
   // Store form values in state
   const [title, setTitle] = useState("");
-  const [targetSections, setTargetSections] = useState(3); // Replace word count with target sections
+  const [targetWordCount, setTargetWordCount] = useState(2250); // Word count parameter (default 3 sections * 750 words)
   const [theme, setTheme] = useState("");
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [sectionPrompt, setSectionPrompt] = useState(""); // New: separate prompt for section generation
@@ -187,7 +187,7 @@ const ScriptGenerator: React.FC = () => {
   useEffect(() => {
     // Load saved values from localStorage on initial component mount
     const savedTitle = localStorage.getItem('scriptGenerator.title');
-    const savedWordCount = localStorage.getItem('scriptGenerator.wordCount');
+    const savedWordCount = localStorage.getItem('scriptGenerator.targetWordCount');
     const savedTheme = localStorage.getItem('scriptGenerator.theme');
     const savedAdditionalPrompt = localStorage.getItem('scriptGenerator.additionalPrompt');
     const savedForbiddenWords = localStorage.getItem('scriptGenerator.forbiddenWords');
@@ -196,7 +196,7 @@ const ScriptGenerator: React.FC = () => {
     const savedAudience = localStorage.getItem('scriptGenerator.audience');
     
     if (savedTitle) setTitle(savedTitle);
-    if (savedWordCount) setTargetSections(parseInt(savedWordCount) >= 3000 ? 4 : 3); // Convert old word count to sections
+    if (savedWordCount) setTargetWordCount(parseInt(savedWordCount));
     if (savedTheme) setTheme(savedTheme);
     if (savedAdditionalPrompt) setAdditionalPrompt(savedAdditionalPrompt);
     if (savedForbiddenWords) setForbiddenWords(savedForbiddenWords);
@@ -231,14 +231,14 @@ const ScriptGenerator: React.FC = () => {
   // Save form values to localStorage when they change
   useEffect(() => {
     localStorage.setItem('scriptGenerator.title', title);
-    localStorage.setItem('scriptGenerator.targetSections', targetSections.toString());
+    localStorage.setItem('scriptGenerator.targetWordCount', targetWordCount.toString());
     localStorage.setItem('scriptGenerator.theme', theme);
     localStorage.setItem('scriptGenerator.additionalPrompt', additionalPrompt);
     localStorage.setItem('scriptGenerator.forbiddenWords', forbiddenWords);
     localStorage.setItem('scriptGenerator.povSelection', povSelection);
     localStorage.setItem('scriptGenerator.scriptFormat', scriptFormat);
     localStorage.setItem('scriptGenerator.audience', audience);
-  }, [title, targetSections, theme, additionalPrompt, forbiddenWords, povSelection, scriptFormat, audience]);
+  }, [title, targetWordCount, theme, additionalPrompt, forbiddenWords, povSelection, scriptFormat, audience]);
 
   // Calculate word count when full script changes
   const updateScriptWordCount = (script: string) => {
@@ -266,6 +266,9 @@ const ScriptGenerator: React.FC = () => {
       setIsLoading(true);
       dispatch(clearFullScript());
       
+      // Calculate target sections from word count
+      const targetSections = Math.max(1, Math.round(targetWordCount / 750));
+      
       const response = await fetch("/api/generate-script", {
         method: "POST",
         headers: {
@@ -274,6 +277,7 @@ const ScriptGenerator: React.FC = () => {
         body: JSON.stringify({ 
           title, 
           targetSections, 
+          targetWordCount,
           theme, 
           additionalPrompt,
           sectionPrompt, 
@@ -429,6 +433,9 @@ const ScriptGenerator: React.FC = () => {
     }
 
     try {
+      // Calculate target sections from word count
+      const targetSections = Math.max(1, Math.round(targetWordCount / 750));
+      
       // Reset progress
       setSequentialProgress({
         currentSection: 0,
@@ -463,6 +470,7 @@ const ScriptGenerator: React.FC = () => {
           body: JSON.stringify({
             sectionIndex: i,
             totalSections: targetSections,
+            targetWordCount,
             title,
             theme,
             additionalPrompt,
@@ -954,7 +962,7 @@ const ScriptGenerator: React.FC = () => {
     if (prompt.title) setTitle(prompt.title);
     if (prompt.theme) setTheme(prompt.theme);
     if (prompt.audience) setAudience(prompt.audience);
-    if (prompt.additional_context) setAdditionalPrompt(prompt.additional_context);
+    if (prompt.additional_context) setScriptPrompt(prompt.additional_context); // Apply to Script Writing Instructions instead
     if (prompt.POV) setPovSelection(prompt.POV);
     if (prompt.format) setScriptFormat(prompt.format);
     
@@ -1158,18 +1166,18 @@ const ScriptGenerator: React.FC = () => {
               </div>
 
           <div className="space-y-2">
-              <Label htmlFor="targetSections">Number of Sections</Label>
+              <Label htmlFor="targetWordCount">Target Word Count</Label>
               <Input
-                id="targetSections"
+                id="targetWordCount"
                 type="number"
-                min={2}
-                max={8}
-                step={1}
-                value={targetSections}
-                onChange={(e) => setTargetSections(Number(e.target.value))}
+                min={750}
+                max={6000}
+                step={750}
+                value={targetWordCount}
+                onChange={(e) => setTargetWordCount(Number(e.target.value))}
               />
               <p className="text-xs text-muted-foreground">
-                Create {targetSections} logical sections with natural story divisions
+                Will create {Math.max(1, Math.round(targetWordCount / 750))} sections (~750 words each)
             </p>
             </div>
 
@@ -1241,6 +1249,7 @@ const ScriptGenerator: React.FC = () => {
                       <li>• Each section builds on previous ones (max 3 for context)</li>
                       <li>• Better story consistency and flow</li>
                       <li>• Full script automatically generated at the end</li>
+                      <li>• {Math.max(1, Math.round(targetWordCount / 750))} sections will be created</li>
                     </ul>
                   </div>
                 </div>
@@ -1386,8 +1395,8 @@ const ScriptGenerator: React.FC = () => {
                 : isLoading 
                 ? "Generating Sections..." 
                 : useSequentialGeneration 
-                ? "Generate Sections Sequentially" 
-                : "Generate Sections"
+                ? `Generate ${Math.max(1, Math.round(targetWordCount / 750))} Sections Sequentially` 
+                : `Generate ${Math.max(1, Math.round(targetWordCount / 750))} Sections`
               }
                   </Button>
                 

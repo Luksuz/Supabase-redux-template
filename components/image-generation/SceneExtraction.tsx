@@ -10,8 +10,17 @@ import { Slider } from '../ui/slider'
 import { Checkbox } from '../ui/checkbox'
 import { ScrollArea } from '../ui/scroll-area'
 import { Input } from '../ui/input'
-import { FileText, Sparkles, RefreshCw, Trash2, Edit3, Save, X, Plus } from 'lucide-react'
+import { FileText, Sparkles, RefreshCw, Trash2, Edit3, Save, X, Plus, Clock } from 'lucide-react'
 import type { ExtractedScene } from '@/types/image-generation'
+
+interface BatchProgress {
+  current: number
+  total: number
+  isProcessing: boolean
+  currentBatch: number
+  totalBatches: number
+  phase: 'idle' | 'summary' | 'splitting' | 'processing'
+}
 
 interface SceneExtractionProps {
   scriptInput: string
@@ -32,6 +41,9 @@ interface SceneExtractionProps {
     count: number
     type: string
   }
+  imageStylePrompt?: string
+  onImageStylePromptChange?: (value: string) => void
+  batchProgress?: BatchProgress
 }
 
 export function SceneExtraction({
@@ -48,7 +60,10 @@ export function SceneExtraction({
   onClearError,
   onUpdateScenePrompt,
   onAddCustomScene,
-  scriptSourceInfo
+  scriptSourceInfo,
+  imageStylePrompt = '',
+  onImageStylePromptChange,
+  batchProgress
 }: SceneExtractionProps) {
   const [editingScene, setEditingScene] = useState<number | null>(null)
   const [editPrompt, setEditPrompt] = useState('')
@@ -131,6 +146,24 @@ export function SceneExtraction({
           </p>
         </div>
 
+        {/* Image Style Prompt */}
+        {onImageStylePromptChange && (
+          <div className="space-y-2">
+            <Label htmlFor="image-style-prompt">Image Generation Style Instructions (Optional)</Label>
+            <Textarea
+              id="image-style-prompt"
+              placeholder="e.g., 'Use a dark, cinematic style with dramatic lighting and muted colors' or 'Create bright, cartoon-style images with vibrant colors'..."
+              value={imageStylePrompt}
+              onChange={(e) => onImageStylePromptChange(e.target.value)}
+              disabled={isExtractingScenes}
+              className="min-h-[80px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              These style instructions will be applied to all extracted scene prompts to ensure visual consistency.
+            </p>
+          </div>
+        )}
+
         {/* Number of Scenes Slider */}
         <div className="space-y-3">
           <div className="flex justify-between items-center">
@@ -141,14 +174,14 @@ export function SceneExtraction({
             value={[numberOfScenesToExtract]}
             onValueChange={(value) => onNumberOfScenesChange(value[0])}
             min={1}
-            max={200}
+            max={500}
             step={1}
             disabled={isExtractingScenes}
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>1 scene</span>
-            <span>100 scenes</span>
+            <span>500 scenes</span>
           </div>
         </div>
 
@@ -162,7 +195,10 @@ export function SceneExtraction({
           {isExtractingScenes ? (
             <>
               <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-              Extracting {numberOfScenesToExtract} Scenes...
+              {batchProgress?.phase === 'summary' && 'Creating Script Summary...'}
+              {batchProgress?.phase === 'splitting' && 'Splitting Script...'}
+              {batchProgress?.phase === 'processing' && `Processing Scenes ${batchProgress.current}/${batchProgress.total}...`}
+              {!batchProgress?.phase && `Extracting ${numberOfScenesToExtract} Scenes...`}
             </>
           ) : (
             <>
@@ -171,6 +207,58 @@ export function SceneExtraction({
             </>
           )}
         </Button>
+
+        {/* Batch Progress Display */}
+        {isExtractingScenes && batchProgress?.isProcessing && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="pt-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">
+                      Batch Processing Progress
+                    </span>
+                  </div>
+                  <span className="text-sm text-blue-600">
+                    {batchProgress.phase === 'processing' 
+                      ? `Batch ${batchProgress.currentBatch}/${batchProgress.totalBatches}`
+                      : batchProgress.phase.charAt(0).toUpperCase() + batchProgress.phase.slice(1)
+                    }
+                  </span>
+                </div>
+                
+                {batchProgress.phase === 'processing' && batchProgress.total > 0 && (
+                  <>
+                    <div className="w-full bg-blue-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${(batchProgress.current / batchProgress.total) * 100}%` 
+                        }}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between text-xs text-blue-700">
+                      <span>
+                        {batchProgress.current} of {batchProgress.total} scenes processed
+                      </span>
+                      <span>
+                        {Math.round((batchProgress.current / batchProgress.total) * 100)}% complete
+                      </span>
+                    </div>
+                  </>
+                )}
+                
+                <p className="text-xs text-blue-700">
+                  {batchProgress.phase === 'summary' && 'Analyzing script to maintain character consistency across scenes...'}
+                  {batchProgress.phase === 'splitting' && 'Dividing script into logical scene chunks...'}
+                  {batchProgress.phase === 'processing' && 'Generating detailed image prompts for each scene...'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Scene Extraction Error */}
         {sceneExtractionError && (
@@ -193,7 +281,7 @@ export function SceneExtraction({
         {(extractedScenes.length > 0 || showCustomScene) && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <Label>Image Prompts ({extractedScenes.length})</Label>
+              <Label>Image Prompts ({extractedScenes.length}){batchProgress?.isProcessing && batchProgress.current < batchProgress.total ? ` - ${batchProgress.current}/${batchProgress.total} processed` : ''}</Label>
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline" 

@@ -11,11 +11,25 @@ const initialState: ImageGenerationState = {
   selectedModel: 'minimax',
   aspectRatio: '16:9',
   numberOfImages: 1,
+  // Model-specific settings
+  recraftStyle: 'realistic_image',
+  ideogramStyle: 'AUTO',
+  negativePrompt: '',
+  leonardoStyleUUID: '111dc692-d470-4eec-b791-3475abac4c46', // Dynamic (default)
   // Scene extraction
   extractedScenes: [],
   isExtractingScenes: false,
   sceneExtractionError: null,
   numberOfScenesToExtract: 5,
+  // Batch processing progress
+  batchProgress: {
+    current: 0,
+    total: 0,
+    isProcessing: false,
+    currentBatch: 0,
+    totalBatches: 0,
+    phase: 'idle' // 'idle', 'summary', 'splitting', 'processing'
+  },
   // Rate limiting for flux models
   lastFluxRequest: null,
   remainingFluxRequests: 10, // 10 per minute for flux
@@ -41,6 +55,22 @@ export const imageGenerationSlice = createSlice({
     setAspectRatio: (state, action: PayloadAction<'16:9' | '1:1' | '9:16'>) => {
       state.aspectRatio = action.payload
     },
+
+    setRecraftStyle: (state, action: PayloadAction<string>) => {
+      state.recraftStyle = action.payload
+    },
+
+    setIdeogramStyle: (state, action: PayloadAction<string>) => {
+      state.ideogramStyle = action.payload
+    },
+
+    setNegativePrompt: (state, action: PayloadAction<string>) => {
+      state.negativePrompt = action.payload
+    },
+
+    setLeonardoStyleUUID: (state, action: PayloadAction<string>) => {
+      state.leonardoStyleUUID = action.payload
+    },
     
     setNumberOfImages: (state, action: PayloadAction<number>) => {
       const maxImages = state.selectedModel === 'minimax' ? 10 : Math.min(10, state.remainingFluxRequests)
@@ -48,7 +78,7 @@ export const imageGenerationSlice = createSlice({
     },
 
     setNumberOfScenesToExtract: (state, action: PayloadAction<number>) => {
-      state.numberOfScenesToExtract = Math.max(1, Math.min(100, action.payload))
+      state.numberOfScenesToExtract = Math.max(1, Math.min(500, action.payload))
     },
 
     // Rate limiting for flux models
@@ -70,17 +100,41 @@ export const imageGenerationSlice = createSlice({
       state.isExtractingScenes = true
       state.sceneExtractionError = null
       state.extractedScenes = []
+      state.batchProgress = {
+        current: 0,
+        total: action.payload.numberOfScenes,
+        isProcessing: true,
+        currentBatch: 0,
+        totalBatches: 0,
+        phase: 'summary'
+      }
     },
 
     completeSceneExtraction: (state, action: PayloadAction<{ scenes: ExtractedScene[] }>) => {
       state.isExtractingScenes = false
       state.extractedScenes = action.payload.scenes
       state.sceneExtractionError = null
+      state.batchProgress = {
+        current: 0,
+        total: 0,
+        isProcessing: false,
+        currentBatch: 0,
+        totalBatches: 0,
+        phase: 'idle'
+      }
     },
 
     failSceneExtraction: (state, action: PayloadAction<string>) => {
       state.isExtractingScenes = false
       state.sceneExtractionError = action.payload
+      state.batchProgress = {
+        current: 0,
+        total: 0,
+        isProcessing: false,
+        currentBatch: 0,
+        totalBatches: 0,
+        phase: 'idle'
+      }
     },
 
     clearExtractedScenes: (state) => {
@@ -96,6 +150,21 @@ export const imageGenerationSlice = createSlice({
     },
 
     addCustomScene: (state, action: PayloadAction<ExtractedScene>) => {
+      state.extractedScenes.push(action.payload)
+    },
+
+    // Batch processing actions
+    updateBatchProgress: (state, action: PayloadAction<{
+      current?: number
+      total?: number
+      currentBatch?: number
+      totalBatches?: number
+      phase?: 'idle' | 'summary' | 'splitting' | 'processing'
+    }>) => {
+      state.batchProgress = { ...state.batchProgress, ...action.payload }
+    },
+
+    addExtractedScene: (state, action: PayloadAction<ExtractedScene>) => {
       state.extractedScenes.push(action.payload)
     },
 
@@ -198,6 +267,10 @@ export const {
   setAspectRatio,
   setNumberOfImages,
   setNumberOfScenesToExtract,
+  setRecraftStyle,
+  setIdeogramStyle,
+  setNegativePrompt,
+  setLeonardoStyleUUID,
   updateFluxRateLimit,
   startSceneExtraction,
   completeSceneExtraction,
@@ -205,6 +278,8 @@ export const {
   clearExtractedScenes,
   updateScenePrompt,
   addCustomScene,
+  updateBatchProgress,
+  addExtractedScene,
   startGeneration,
   updateGenerationInfo,
   completeGeneration,
