@@ -69,6 +69,37 @@ interface ResearchSummary {
   timestamp: string
 }
 
+interface ChannelAnalysisResult {
+  channelInfo: {
+    snippet: {
+      title: string
+      description: string
+      thumbnails: any
+    }
+    statistics: {
+      subscriberCount: string
+      videoCount: string
+      viewCount: string
+    }
+  }
+  totalVideos: number
+  analyzedVideos: number
+  top10Videos: {
+    id: string
+    title: string
+    description: string
+    publishedAt: string
+    viewCount: string
+    likeCount: string
+    commentCount: string
+    duration: string
+    thumbnails: any
+  }[]
+  titleSuggestions: string[]
+  analysis: string
+  userPrompt?: string
+}
+
 // Enhanced Research Tab Component (Google + Perplexity + Firecrawl)
 const ResearchTab = ({ 
   researchSummaries,
@@ -1290,10 +1321,15 @@ export default function YouTubeSearch() {
   
   // Custom YouTube link analysis state
   const [customYouTubeLink, setCustomYouTubeLink] = React.useState('')
-  const [customLinkAnalysisType, setCustomLinkAnalysisType] = React.useState<'transcript' | 'gemini'>('gemini')
+  const [customLinkAnalysisType, setCustomLinkAnalysisType] = React.useState<'transcript' | 'gemini' | 'channel'>('gemini')
   const [analyzingCustomLink, setAnalyzingCustomLink] = React.useState(false)
   const [customTranscript, setCustomTranscript] = React.useState('')
   const [customAnalysisQuery, setCustomAnalysisQuery] = React.useState('Comprehensive analysis of this video content')
+  
+  // Channel analysis state
+  const [channelAnalysisResult, setChannelAnalysisResult] = React.useState<ChannelAnalysisResult | null>(null)
+  const [channelAnalysisPrompt, setChannelAnalysisPrompt] = React.useState('')
+  const [analyzingChannel, setAnalyzingChannel] = React.useState(false)
 
   // Research History Management Functions
   const deleteFromHistory = (historyId: string) => {
@@ -1652,8 +1688,59 @@ export default function YouTubeSearch() {
     return null
   }
 
+  // Channel analysis function
+  const handleAnalyzeChannel = async () => {
+    if (!customYouTubeLink.trim()) {
+      alert('Please enter a YouTube channel URL')
+      return
+    }
+
+    setAnalyzingChannel(true)
+    setChannelAnalysisResult(null)
+
+    try {
+      console.log('🔍 Starting channel analysis for:', customYouTubeLink)
+      
+      const response = await fetch('/api/youtube/analyze-channel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          channelUrl: customYouTubeLink.trim(),
+          userPrompt: channelAnalysisPrompt.trim() || undefined
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze channel')
+      }
+
+      if (data.success) {
+        setChannelAnalysisResult(data.data)
+        console.log('✅ Channel analysis completed:', data.data)
+      } else {
+        throw new Error('Invalid response format')
+      }
+
+    } catch (error) {
+      console.error('💥 Channel analysis error:', error)
+      alert(`Failed to analyze channel: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setAnalyzingChannel(false)
+    }
+  }
+
   // Custom YouTube link analysis function
   const handleAnalyzeCustomLink = async () => {
+    // Handle channel analysis separately
+    if (customLinkAnalysisType === 'channel') {
+      await handleAnalyzeChannel()
+      return
+    }
+
     // Validation based on analysis type
     if (customLinkAnalysisType === 'gemini') {
       if (!customYouTubeLink.trim()) {
@@ -2223,20 +2310,25 @@ export default function YouTubeSearch() {
               <div className="space-y-4">
                 <div>
                   <label htmlFor="customYouTubeLink" className="block text-sm font-medium text-gray-700 mb-2">
-                    YouTube Video URL {customLinkAnalysisType === 'gemini' ? '(Required)' : '(Optional)'}:
+                    YouTube {customLinkAnalysisType === 'channel' ? 'Channel' : 'Video'} URL {customLinkAnalysisType === 'gemini' || customLinkAnalysisType === 'channel' ? '(Required)' : '(Optional)'}:
                   </label>
                   <input
                     type="text"
                     id="customYouTubeLink"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
+                    placeholder={customLinkAnalysisType === 'channel' 
+                      ? "https://www.youtube.com/@channelname or https://www.youtube.com/channel/UC..."
+                      : "https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
+                    }
                     value={customYouTubeLink}
                     onChange={(e) => setCustomYouTubeLink(e.target.value)}
-                    disabled={analyzingCustomLink}
+                    disabled={analyzingCustomLink || analyzingChannel}
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {customLinkAnalysisType === 'gemini' 
                       ? 'Enter a YouTube video URL for Gemini to analyze directly from the video'
+                      : customLinkAnalysisType === 'channel'
+                      ? 'Enter a YouTube channel URL to analyze all videos and suggest top-performing title patterns'
                       : 'Optional: Enter a YouTube URL for reference (you will provide the transcript below)'
                     }
                   </p>
@@ -2304,20 +2396,41 @@ export default function YouTubeSearch() {
                   </div>
                 )}
 
+                {/* Channel Analysis Prompt */}
+                {customLinkAnalysisType === 'channel' && (
+                  <div>
+                    <label htmlFor="channelAnalysisPrompt" className="block text-sm font-medium text-gray-700 mb-2">
+                      Custom Prompt for Title Suggestions (Optional):
+                    </label>
+                    <textarea
+                      id="channelAnalysisPrompt"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 'Generate clickbait titles for tech reviews' or 'Focus on educational content for beginners'"
+                      value={channelAnalysisPrompt}
+                      onChange={(e) => setChannelAnalysisPrompt(e.target.value)}
+                      disabled={analyzingChannel}
+                      rows={3}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Optional: Provide specific guidance for the AI when generating new title suggestions based on the top-performing videos.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Analysis Type:
                     </label>
-                    <div className="flex gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <label className="flex items-center">
                         <input
                           type="radio"
                           name="customAnalysisType"
                           value="gemini"
                           checked={customLinkAnalysisType === 'gemini'}
-                          onChange={(e) => setCustomLinkAnalysisType(e.target.value as 'gemini' | 'transcript')}
-                          disabled={analyzingCustomLink}
+                          onChange={(e) => setCustomLinkAnalysisType(e.target.value as 'gemini' | 'transcript' | 'channel')}
+                          disabled={analyzingCustomLink || analyzingChannel}
                           className="mr-2"
                         />
                         <span className="text-sm text-gray-600">Gemini AI Analysis</span>
@@ -2328,11 +2441,23 @@ export default function YouTubeSearch() {
                           name="customAnalysisType"
                           value="transcript"
                           checked={customLinkAnalysisType === 'transcript'}
-                          onChange={(e) => setCustomLinkAnalysisType(e.target.value as 'gemini' | 'transcript')}
-                          disabled={analyzingCustomLink}
+                          onChange={(e) => setCustomLinkAnalysisType(e.target.value as 'gemini' | 'transcript' | 'channel')}
+                          disabled={analyzingCustomLink || analyzingChannel}
                           className="mr-2"
                         />
                         <span className="text-sm text-gray-600">Transcript Analysis</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="customAnalysisType"
+                          value="channel"
+                          checked={customLinkAnalysisType === 'channel'}
+                          onChange={(e) => setCustomLinkAnalysisType(e.target.value as 'gemini' | 'transcript' | 'channel')}
+                          disabled={analyzingCustomLink || analyzingChannel}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-gray-600">Channel Analysis</span>
                       </label>
                     </div>
                   </div>
@@ -2340,19 +2465,20 @@ export default function YouTubeSearch() {
                   <button
                     onClick={handleAnalyzeCustomLink}
                     disabled={
-                      analyzingCustomLink || 
+                      analyzingCustomLink || analyzingChannel ||
                       (customLinkAnalysisType === 'gemini' && !customYouTubeLink.trim()) ||
-                      (customLinkAnalysisType === 'transcript' && (!customTranscript.trim() || !customAnalysisQuery.trim()))
+                      (customLinkAnalysisType === 'transcript' && (!customTranscript.trim() || !customAnalysisQuery.trim())) ||
+                      (customLinkAnalysisType === 'channel' && !customYouTubeLink.trim())
                     }
                     className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors ml-auto"
                   >
-                    {analyzingCustomLink ? (
+                    {(analyzingCustomLink || analyzingChannel) ? (
                       <span className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Analyzing...
+                        {customLinkAnalysisType === 'channel' ? 'Analyzing Channel...' : 'Analyzing...'}
                       </span>
                     ) : (
-                      'Analyze Video'
+                      customLinkAnalysisType === 'channel' ? 'Analyze Channel' : 'Analyze Video'
                     )}
                   </button>
                 </div>
@@ -2374,8 +2500,170 @@ export default function YouTubeSearch() {
                     </p>
                   </div>
                 )}
+
+                {customLinkAnalysisType === 'channel' && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-md p-3">
+                    <p className="text-sm text-purple-800">
+                      <strong>Channel Analysis:</strong> Analyze all videos from a YouTube channel, sort them by view count, 
+                      and get AI-generated title suggestions based on the top 10 performing videos. Perfect for understanding 
+                      what content resonates with the audience.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Channel Analysis Results */}
+            {channelAnalysisResult && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="text-xl font-semibold text-gray-800">📊 Channel Analysis Results</h3>
+                  <button
+                    onClick={() => setChannelAnalysisResult(null)}
+                    className="text-gray-400 hover:text-gray-600 ml-auto"
+                    title="Close results"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Channel Info */}
+                {channelAnalysisResult.channelInfo && (
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 mb-6">
+                    <div className="flex items-start gap-4">
+                      {channelAnalysisResult.channelInfo.snippet.thumbnails?.default && (
+                        <img 
+                          src={channelAnalysisResult.channelInfo.snippet.thumbnails.default.url}
+                          alt={channelAnalysisResult.channelInfo.snippet.title}
+                          className="w-16 h-16 rounded-full border-2 border-white shadow-sm"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-lg text-gray-800">
+                          {channelAnalysisResult.channelInfo.snippet.title}
+                        </h4>
+                        <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
+                          <div className="text-center">
+                            <div className="font-semibold text-purple-600">
+                              {parseInt(channelAnalysisResult.channelInfo.statistics.subscriberCount).toLocaleString()}
+                            </div>
+                            <div className="text-gray-600">Subscribers</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-semibold text-blue-600">
+                              {parseInt(channelAnalysisResult.channelInfo.statistics.videoCount).toLocaleString()}
+                            </div>
+                            <div className="text-gray-600">Videos</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-semibold text-green-600">
+                              {parseInt(channelAnalysisResult.channelInfo.statistics.viewCount).toLocaleString()}
+                            </div>
+                            <div className="text-gray-600">Total Views</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Top Performing Videos */}
+                  <div>
+                    <h4 className="font-semibold text-lg text-gray-800 mb-3 flex items-center gap-2">
+                      🏆 Top 10 Performing Videos
+                    </h4>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {channelAnalysisResult.top10Videos.map((video, index) => (
+                        <div key={video.id} className="bg-gray-50 rounded-lg p-3 border">
+                          <div className="flex items-start gap-3">
+                            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-medium text-sm text-gray-800 line-clamp-2 mb-1">
+                                {video.title}
+                              </h5>
+                              <div className="flex items-center gap-4 text-xs text-gray-600">
+                                <span className="flex items-center gap-1">
+                                  👁️ {parseInt(video.viewCount).toLocaleString()}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  👍 {parseInt(video.likeCount || '0').toLocaleString()}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  📅 {new Date(video.publishedAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* AI-Generated Title Suggestions */}
+                  <div>
+                    <h4 className="font-semibold text-lg text-gray-800 mb-3 flex items-center gap-2">
+                      🤖 AI Title Suggestions
+                    </h4>
+                    
+                    {/* Analysis Summary */}
+                    {channelAnalysisResult.analysis && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                        <h5 className="font-medium text-blue-800 mb-2">Pattern Analysis</h5>
+                        <p className="text-sm text-blue-700">{channelAnalysisResult.analysis}</p>
+                      </div>
+                    )}
+
+                    {/* Title Suggestions */}
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {channelAnalysisResult.titleSuggestions.map((suggestion, index) => (
+                        <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <span className="bg-green-100 text-green-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-medium">
+                              {index + 1}
+                            </span>
+                            <p className="text-sm text-gray-800 flex-1">{suggestion}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {channelAnalysisResult.titleSuggestions.length === 0 && (
+                        <div className="text-center text-gray-500 py-4">
+                          No title suggestions generated
+                        </div>
+                      )}
+                    </div>
+
+                    {/* User Prompt Display */}
+                    {channelAnalysisResult.userPrompt && (
+                      <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <h5 className="font-medium text-yellow-800 mb-1">Custom Prompt Used:</h5>
+                        <p className="text-sm text-yellow-700">{channelAnalysisResult.userPrompt}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Analysis Stats */}
+                <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center text-sm">
+                    <div>
+                      <div className="font-semibold text-gray-800">{channelAnalysisResult.totalVideos}</div>
+                      <div className="text-gray-600">Total Videos Found</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-800">{channelAnalysisResult.analyzedVideos}</div>
+                      <div className="text-gray-600">Videos Analyzed</div>
+                    </div>
+                    <div className="md:col-span-1 col-span-2">
+                      <div className="font-semibold text-gray-800">{channelAnalysisResult.titleSuggestions.length}</div>
+                      <div className="text-gray-600">Title Suggestions</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Error Display */}
             {error && (
