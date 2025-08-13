@@ -13,8 +13,11 @@ import { AIVoice } from '@/app/api/ai-voices/route'
 
 // Available TTS providers
 const TTS_PROVIDERS = [
-  { id: 'minimax', name: 'Minimax' },
-  { id: 'elevenlabs', name: 'ElevenLabs' }
+  { id: 'minimax', name: 'MiniMax' },
+  { id: 'elevenlabs', name: 'ElevenLabs' },
+  { id: 'fishaudio', name: 'Fish Audio' },
+  { id: 'voicemaker', name: 'VoiceMaker' },
+  { id: 'google-tts', name: 'Google TTS' }
 ]
 
 interface VoiceFormData {
@@ -67,16 +70,16 @@ const VoiceForm = ({ formData, setFormData, onSubmit, isSubmitting, editingVoice
     </div>
 
     <div className="space-y-2">
-      <Label htmlFor="voice_id">Voice ID</Label>
+      <Label htmlFor="voice_id">Voice ID / Name</Label>
       <Input
         id="voice_id"
         value={formData.voice_id}
         onChange={(e) => setFormData({ ...formData, voice_id: e.target.value })}
-        placeholder="e.g., voice-xyz-123 or custom-voice-id"
+        placeholder="e.g., ElevenLabs voice ID, Google voice name (en-US-Wavenet-D)"
         required
       />
-      <p className="text-xs text-gray-500">
-        Provider-specific voice identifier (e.g., ElevenLabs voice ID, Google voice name)
+      <p className="text-xs text-gray-400">
+        Provider-specific voice identifier
       </p>
     </div>
 
@@ -273,23 +276,23 @@ export function VoiceManagement() {
   }, {} as Record<string, AIVoice[]>)
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6 bg-gray-900 text-white rounded-lg">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Voice Management</h1>
-        <p className="text-gray-600">
+        <h1 className="text-3xl font-bold">Voice Management</h1>
+        <p className="text-gray-300">
           Manage custom AI voices for different TTS providers
         </p>
       </div>
 
       {/* Controls */}
-      <Card className="bg-white shadow-sm border border-gray-200">
+      <Card className="bg-gray-800 shadow-sm border border-gray-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Custom Voices
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-gray-300">
             Add, edit, and manage custom voices for audio generation
           </CardDescription>
         </CardHeader>
@@ -297,8 +300,8 @@ export function VoiceManagement() {
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             {/* Filter */}
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <Label htmlFor="filter">Filter by Provider:</Label>
+              <Filter className="h-4 w-4 text-gray-400" />
+              <Label htmlFor="filter" className="text-gray-200">Filter by Provider:</Label>
               <Select value={filterProvider} onValueChange={setFilterProvider}>
                 <SelectTrigger className="w-48">
                   <SelectValue />
@@ -345,8 +348,8 @@ export function VoiceManagement() {
           {message.type && (
             <div className={`mt-4 p-3 rounded-lg border ${
               message.type === 'success' 
-                ? 'border-green-200 bg-green-50 text-green-800' 
-                : 'border-red-200 bg-red-50 text-red-800'
+                ? 'border-green-800 bg-green-900/30 text-green-200' 
+                : 'border-red-800 bg-red-900/30 text-red-200'
             }`}>
               <div className="flex items-center gap-2">
                 {message.type === 'success' ? (
@@ -364,18 +367,18 @@ export function VoiceManagement() {
       {/* Voices List */}
       <div className="space-y-6">
         {isLoading ? (
-          <Card className="bg-white shadow-sm border border-gray-200">
+          <Card className="bg-gray-800 shadow-sm border border-gray-700">
             <CardContent className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
               Loading voices...
             </CardContent>
           </Card>
         ) : filteredVoices.length === 0 ? (
-          <Card className="bg-white shadow-sm border border-gray-200">
+          <Card className="bg-gray-800 shadow-sm border border-gray-700">
             <CardContent className="text-center py-8">
               <Volume2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Custom Voices</h3>
-              <p className="text-gray-500 mb-4">
+              <h3 className="text-lg font-medium mb-2">No Custom Voices</h3>
+              <p className="text-gray-300 mb-4">
                 {filterProvider === 'all' 
                   ? 'No custom voices have been added yet.'
                   : `No custom voices found for ${getProviderName(filterProvider)}.`
@@ -389,7 +392,7 @@ export function VoiceManagement() {
           </Card>
         ) : (
           Object.entries(groupedVoices).map(([provider, providerVoices]) => (
-            <Card key={provider} className="bg-white shadow-sm border border-gray-200">
+            <Card key={provider} className="bg-gray-800 shadow-sm border border-gray-700">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Volume2 className="h-5 w-5" />
@@ -400,11 +403,11 @@ export function VoiceManagement() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {providerVoices.map((voice) => (
-                    <div key={voice.id} className="p-4 border border-gray-200 rounded-lg">
+                    <div key={voice.id} className="p-4 border border-gray-600 rounded-lg">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-gray-900 truncate">{voice.name}</h4>
-                          <p className="text-sm text-gray-500 truncate">ID: {voice.voice_id}</p>
+                          <h4 className="font-medium truncate">{voice.name}</h4>
+                          <p className="text-sm text-gray-300 truncate">ID: {voice.voice_id}</p>
                         </div>
                         <div className="flex gap-1 ml-2">
                           <Button

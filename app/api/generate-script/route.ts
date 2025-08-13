@@ -66,15 +66,11 @@ async function handleNewScriptGeneration(body: any) {
     model = new ChatAnthropic({
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       modelName: modelName,
-      temperature: 0.7,
-      maxTokens: 8000,
     });
   } else {
     model = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
       modelName: modelName,
-      temperature: 0.7,
-      maxTokens: 8000,
     });
   }
 
@@ -338,7 +334,6 @@ async function handleImageScriptGeneration(body: any) {
             ],
           }
         ],
-        max_tokens: maxTokens,
       })
 
       const script = response.choices[0]?.message?.content?.trim()

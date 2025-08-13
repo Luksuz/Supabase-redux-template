@@ -29,6 +29,9 @@ import { CTAModal } from "./script-generator/CTAModal";
 import { HookModal } from "./script-generator/HookModal";
 import { ResearchPreviewModal } from "./script-generator/ResearchPreviewModal";
 import { LoadCachedDataModal } from "./script-generator/LoadCachedDataModal";
+import { PepeScriptGenerator } from "./script-variations/pepe/index";
+import { InvestigationForm } from "./script-variations/investigation";
+// True-crime uses the same UI as original; only the full-script route differs
 import { 
   saveScriptFormDataToLocalStorage,
   saveScriptSectionsToLocalStorage,
@@ -90,6 +93,7 @@ const ScriptGenerator: React.FC = () => {
   const [povSelection, setPovSelection] = useState<string>("3rd Person");
   const [scriptFormat, setScriptFormat] = useState<string>("Story");
   const [audience, setAudience] = useState<string>("");
+  const [promptVariant, setPromptVariant] = useState<'original' | 'pepe' | 'investigation' | 'true-crime'>('original');
   
   // State for prompt history sidebar
   const [isPromptHistoryOpen, setIsPromptHistoryOpen] = useState(false);
@@ -256,25 +260,48 @@ const ScriptGenerator: React.FC = () => {
       setIsLoading(true);
       dispatch(clearFullScript());
       
-      const response = await fetch("/api/generate-script", {
+      // Route based on selected prompt variant
+      const endpoint = promptVariant === 'pepe' 
+        ? "/api/script-outline-variations/pepe" 
+        : "/api/generate-script";
+
+      const body = promptVariant === 'pepe'
+        ? {
+            title,
+            wordCount: Math.max(800, targetSections * 800),
+            themeId: '',
+            additionalPrompt: additionalPrompt,
+            emotionalTone: '',
+            targetAudience: audience,
+            forbiddenWords,
+            selectedModel,
+            uploadedStyle: '',
+            ctas: [],
+            inspirationalTranscript,
+            researchData: researchContext ? { analysis: { context: researchContext }, searchResults: [] } : null,
+            generateQuote: false
+          }
+        : {
+            title, 
+            targetSections, 
+            theme, 
+            additionalPrompt,
+            sectionPrompt, 
+            researchContext,
+            inspirationalTranscript, 
+            forbiddenWords,
+            modelName: selectedModel,
+            povSelection,
+            scriptFormat,
+            audience
+          };
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          title, 
-          targetSections, 
-          theme, 
-          additionalPrompt,
-          sectionPrompt, 
-          researchContext,
-          inspirationalTranscript, 
-          forbiddenWords,
-          modelName: selectedModel,
-          povSelection,
-          scriptFormat,
-          audience
-        }),
+        body: JSON.stringify(body),
       });
       
       if (!response.ok) {
@@ -322,26 +349,46 @@ const ScriptGenerator: React.FC = () => {
     try {
       dispatch(setIsGeneratingScript(true));
       
-      const response = await fetch("/api/generate-full-script", {
+      const fullScriptEndpoint = promptVariant === 'true-crime'
+        ? "/api/full-script-variations/true-crime"
+        : promptVariant === 'pepe'
+          ? "/api/full-script-variations/pepe"
+          : "/api/generate-full-script";
+
+      const response = await fetch(fullScriptEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           title, 
-          theme, 
-          sections: sections.map(section => ({
-            ...section,
-            writingInstructions: generateEnhancedWritingInstructions(section)
-          })),
-          additionalPrompt,
-          scriptPrompt,
-          researchContext,
-          forbiddenWords,
-          modelName: selectedModel,
-          povSelection,
-          scriptFormat,
-          audience
+          ...(promptVariant === 'true-crime' || promptVariant === 'pepe'
+            ? {
+                sections: sections.map(section => ({
+                  ...section,
+                })),
+                selectedModel: selectedModel,
+                audience,
+                povSelection,
+                forbiddenWords,
+                additionalPrompt,
+                researchContext
+              }
+            : {
+                theme, 
+                sections: sections.map(section => ({
+                  ...section,
+                  writingInstructions: generateEnhancedWritingInstructions(section)
+                })),
+                additionalPrompt,
+                scriptPrompt,
+                researchContext,
+                forbiddenWords,
+                modelName: selectedModel,
+                povSelection,
+                scriptFormat,
+                audience
+              })
         }),
       });
 
@@ -950,7 +997,65 @@ const ScriptGenerator: React.FC = () => {
         </TabsList>
         
         <TabsContent value="form">
-          <ScriptGeneratorForm
+          {/* Variant selector */}
+          <div className="mb-4 flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Generator:</span>
+            <select
+              className="border rounded px-2 py-1 text-sm bg-background"
+              value={promptVariant}
+              onChange={(e) => setPromptVariant(e.target.value as any)}
+            >
+              <option value="original">NEW Scriot</option>
+              <option value="pepe">Philosophy niche</option>
+              <option value="investigation">Investigation Niche</option>
+              <option value="true-crime">True Crime Niche</option>
+            </select>
+          </div>
+
+          {promptVariant === 'pepe' ? (
+            <PepeScriptGenerator />
+          ) : promptVariant === 'investigation' ? (
+            <InvestigationForm />
+          ) : promptVariant === 'true-crime' ? (
+            <ScriptGeneratorForm
+              title={title}
+              targetSections={targetSections}
+              theme={theme}
+              povSelection={povSelection}
+              scriptFormat={scriptFormat}
+              audience={audience}
+              selectedModel={selectedModel}
+              sectionPrompt={sectionPrompt}
+              scriptPrompt={scriptPrompt}
+              additionalPrompt={additionalPrompt}
+              researchContext={researchContext}
+              onTitleChange={setTitle}
+              onTargetSectionsChange={setTargetSections}
+              onThemeChange={setTheme}
+              onPovSelectionChange={setPovSelection}
+              onScriptFormatChange={setScriptFormat}
+              onAudienceChange={setAudience}
+              onModelChange={setSelectedModel}
+              onSectionPromptChange={setSectionPrompt}
+              onScriptPromptChange={setScriptPrompt}
+              onAdditionalPromptChange={setAdditionalPrompt}
+              onResearchContextChange={setResearchContext}
+              onClearResearch={() => setResearchContext("")}
+              onPreviewResearch={handlePreviewResearch}
+              onGenerateOutline={handleGenerateOutline}
+              onGenerateFullScript={handleGenerateFullScript}
+              onDownloadDocx={handleDownloadDocx}
+              onOpenPromptHistory={handleOpenPromptHistory}
+              onOpenLoadCachedData={handleOpenLoadCachedData}
+              models={models}
+              isLoading={isLoading}
+              isGeneratingScript={isGeneratingScript}
+              hasScriptSections={hasScriptSections}
+              hasFullScript={hasFullScript}
+              scriptGenerationError={scriptGenerationError}
+            />
+          ) : (
+            <ScriptGeneratorForm
             title={title}
             targetSections={targetSections}
             theme={theme}
@@ -986,7 +1091,8 @@ const ScriptGenerator: React.FC = () => {
             hasScriptSections={hasScriptSections}
             hasFullScript={hasFullScript}
             scriptGenerationError={scriptGenerationError}
-          />
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="advanced">

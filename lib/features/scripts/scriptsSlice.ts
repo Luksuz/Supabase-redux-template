@@ -214,3 +214,37 @@ export const {
 } = scriptsSlice.actions
 
 export default scriptsSlice.reducer 
+
+// Theme options used by multiple UIs (kept minimal for now)
+export const THEME_OPTIONS = [
+  {
+    id: 'intimate-philosophical',
+    name: 'Intimate Philosophical',
+    description: 'Conversational wisdom with psychological insight',
+    instructions: {
+      hook: 'gentle curiosity and reflective openings',
+      tone: 'calm, intimate, thoughtful',
+      clarity: 'simple language for complex truths',
+      narrativeFlow: 'layered insights from simple to profound',
+      balance: 'empathetic yet grounded',
+      engagement: 'invite reflection, not hype',
+      format: 'flowing paragraphs, no bullet-y cadence',
+      overall: 'guide toward understanding with care'
+    }
+  },
+  {
+    id: 'breaking-free',
+    name: 'Breaking Free',
+    description: 'Evidence-based persuasion challenging assumptions',
+    instructions: {
+      hook: 'compelling observation that reframes a belief',
+      tone: 'confident, urgent but balanced',
+      clarity: 'direct, precise, non-sensational',
+      narrativeFlow: 'progressive revelations with logic',
+      balance: 'challenge + empowerment',
+      engagement: 'rhetorical questions used sparingly',
+      format: 'clear progression with strong transitions',
+      overall: 'present alternatives and agency'
+    }
+  }
+];

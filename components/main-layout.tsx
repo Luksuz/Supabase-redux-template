@@ -18,7 +18,7 @@ import { ComingSoon } from './coming-soon'
 import { MixedContentGenerator } from './mixed-content-generator'
 import { Brain, Package, Archive } from 'lucide-react'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'music-manager' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator' | 'reinforced-learning' | 'content-repackager' | 'visual-asset-vault' | 'mixed-content-generator'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'music-manager' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator' | 'mixed-content-generator'
 
 export function MainLayout() {
   // Start with script generator as the default view
@@ -86,36 +86,7 @@ export function MainLayout() {
             <TextImageVideoGenerator />
           </AnimatedPage>
         )
-      case 'reinforced-learning':
-        return (
-          <AnimatedPage pageKey="reinforced-learning">
-            <ComingSoon 
-              title="Reinforced Learning"
-              description="Advanced AI learning algorithms for optimized content generation"
-              icon={Brain}
-            />
-          </AnimatedPage>
-        )
-      case 'content-repackager':
-        return (
-          <AnimatedPage pageKey="content-repackager">
-            <ComingSoon 
-              title="Content Repackager"
-              description="Transform and repurpose your existing content into new formats"
-              icon={Package}
-            />
-          </AnimatedPage>
-        )
-      case 'visual-asset-vault':
-        return (
-          <AnimatedPage pageKey="visual-asset-vault">
-            <ComingSoon 
-              title="Visual Asset Vault"
-              description="Centralized storage and management for all your visual assets"
-              icon={Archive}
-            />
-          </AnimatedPage>
-        )
+      
       case 'mixed-content-generator':
         return (
           <AnimatedPage pageKey="mixed-content-generator">

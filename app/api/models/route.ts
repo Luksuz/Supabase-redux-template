@@ -10,11 +10,14 @@ export async function GET() {
     const models = await openai.models.list();
     
     const popularModels = [
-      { id: 'gpt-4o-mini', owned_by: 'openai' },
+      { id: 'gpt-5', owned_by: 'openai' },
+      { id: 'gpt-5-mini', owned_by: 'openai' },
+      { id: 'gpt-5-nano', owned_by: 'openai' },
       { id: 'gpt-4o', owned_by: 'openai' },
+      { id: 'gpt-4o-mini', owned_by: 'openai' },
+      { id: 'gpt-4.1', owned_by: 'openai' },
       { id: 'gpt-4.1-mini', owned_by: 'openai' },
       { id: 'gpt-4.1-nano', owned_by: 'openai' },
-      { id: 'gpt-4.1', owned_by: 'openai' },
     ];
 
     const anthropicModels = [

@@ -92,40 +92,40 @@ export function VideoSearchCard({
   const isSearchFormValid = searchForm.searchQuery.trim() || searchForm.channelUrl.trim()
 
   return (
-    <div>
+    <div className="bg-black text-white p-4 rounded-lg">
       {/* Search Form */}
-      <div className="bg-gray-50 p-6 rounded-lg mb-6">
+      <div className="bg-gray-900 p-6 rounded-lg mb-6 border border-gray-700">
         <div className="space-y-4">
           <div>
-            <label htmlFor="searchQuery" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="searchQuery" className="block text-sm font-medium text-gray-200 mb-2">
               Search Query (optional):
             </label>
             <input
               type="text"
               id="searchQuery"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
               placeholder="Enter keywords to search for..."
               value={searchForm.searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-400 mt-1">
               Leave empty to get all recent videos from a channel, or enter keywords to search for specific content.
             </p>
           </div>
 
           <div>
-            <label htmlFor="channelUrl" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="channelUrl" className="block text-sm font-medium text-gray-200 mb-2">
               Channel URL or Channel ID (optional):
             </label>
             <input
               type="text"
               id="channelUrl"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
               placeholder="https://www.youtube.com/@channelname or UC_x5XG1OV2P6uZZ5FSM9Ttw"
               value={searchForm.channelUrl}
               onChange={(e) => onChannelUrlChange(e.target.value)}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-400 mt-1">
               Leave empty to search all of YouTube, or specify a channel to search within that channel only.<br />
               Supported formats: @handle, /channel/ID, /c/name, /user/name, or just the channel ID
             </p>
@@ -133,13 +133,13 @@ export function VideoSearchCard({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="maxResults" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="maxResults" className="block text-sm font-medium text-gray-200 mb-2">
                 Number of Results:
               </label>
               <input
                 type="number"
                 id="maxResults"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 min="1"
                 max="50"
                 value={searchForm.maxResults}
@@ -148,12 +148,12 @@ export function VideoSearchCard({
             </div>
 
             <div>
-              <label htmlFor="sortOrder" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="sortOrder" className="block text-sm font-medium text-gray-200 mb-2">
                 Sort Order:
               </label>
               <select
                 id="sortOrder"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 value={searchForm.sortOrder}
                 onChange={(e) => onSortOrderChange(e.target.value)}
               >
@@ -165,12 +165,12 @@ export function VideoSearchCard({
             </div>
 
             <div>
-              <label htmlFor="minDuration" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="minDuration" className="block text-sm font-medium text-gray-200 mb-2">
                 Minimum Duration:
               </label>
               <select
                 id="minDuration"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 value={searchForm.minDuration}
                 onChange={(e) => onMinDurationChange(parseInt(e.target.value))}
               >
@@ -184,7 +184,7 @@ export function VideoSearchCard({
                 <option value={1800}>30 minutes</option>
                 <option value={3600}>1 hour</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Filter out videos shorter than the selected duration
               </p>
             </div>
@@ -222,7 +222,7 @@ export function VideoSearchCard({
       {/* Search Results */}
       {searchResults.searchInfo && searchResults.videos.length > 0 && (
         <>
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4">
+          <div className="bg-green-950 border border-green-800 text-green-200 px-4 py-3 rounded-md mb-4">
             Found {searchResults.videos.length} videos for {getSearchInfoText()}
             <br />
             Requested: {searchResults.searchInfo.maxResults} results
@@ -243,7 +243,7 @@ export function VideoSearchCard({
           </div>
 
           {/* Selection Controls */}
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-md mb-4">
+          <div className="bg-blue-950 border border-blue-800 p-4 rounded-md mb-4 text-blue-100">
             <div className="flex justify-between items-center mb-3">
               <div>
                 <button
@@ -252,7 +252,7 @@ export function VideoSearchCard({
                 >
                   {searchResults.selectedVideos.length === searchResults.videos.length ? 'Deselect All' : 'Select All'}
                 </button>
-                <span className="ml-4 text-blue-700">
+                 <span className="ml-4 text-blue-200">
                   {searchResults.selectedVideos.length} of {searchResults.videos.length} videos selected
                 </span>
               </div>
@@ -260,13 +260,13 @@ export function VideoSearchCard({
             
             {/* Enhanced Analysis Mode Selection */}
             <div className="mb-4">
-              <h5 className="text-sm font-medium text-blue-800 mb-3">Choose Analysis Approach for Selected Videos</h5>
+               <h5 className="text-sm font-medium text-blue-200 mb-3">Choose Analysis Approach for Selected Videos</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                 <button
                   onClick={() => onAnalysisModeChange('openai')}
                   className={`p-4 rounded-lg border-2 transition-colors ${
                     analysisMode === 'openai'
-                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      ? 'border-purple-500 bg-purple-900/30 text-purple-200'
                       : 'border-gray-600 bg-gray-800 text-gray-300 hover:border-purple-400'
                   }`}
                 >
@@ -285,7 +285,7 @@ export function VideoSearchCard({
                   onClick={() => onAnalysisModeChange('gemini')}
                   className={`p-4 rounded-lg border-2 transition-colors ${
                     analysisMode === 'gemini'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-blue-500 bg-blue-900/30 text-blue-200'
                       : 'border-gray-600 bg-gray-800 text-gray-300 hover:border-blue-400'
                   }`}
                 >

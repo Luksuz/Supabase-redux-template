@@ -80,8 +80,6 @@ Script to analyze: "${script}"`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Extract ${numberOfScenes} animation scenes from this script and return them as a JSON array. Focus on creating dynamic, visually engaging animation prompts.` }
       ],
-      temperature: 0.8,
-      max_tokens: 4000,
     });
 
     const response = completion.choices[0]?.message?.content;

@@ -151,8 +151,6 @@ Focus on visual elements that would be important for image generation and stock 
           }
         }
       },
-      max_tokens: 300,
-      temperature: 0.7,
     })
 
     const responseContent = response.choices[0]?.message?.content?.trim()
@@ -330,8 +328,6 @@ A dramatic battlefield scene at dusk, castle walls silhouetted against a darkeni
           }
         }
       },
-      max_tokens: 200,
-      temperature: 0.7,
     })
 
     const responseContent = response.choices[0]?.message?.content?.trim()

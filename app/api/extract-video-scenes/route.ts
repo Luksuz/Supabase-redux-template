@@ -113,8 +113,6 @@ ${chunkText}
 Generate a detailed video prompt that captures the essence of this scene while maintaining story consistency.`
             }
           ],
-          max_tokens: 200, // Increased for highly detailed prompts with character descriptions
-          temperature: 0.7, // Balanced creativity
         });
 
         let promptText = promptResponse.choices[0]?.message.content?.trim() || 
@@ -197,8 +195,6 @@ Focus on visual elements that would be important for video generation.`
           content: `Analyze this script and provide the structured summary:\n\n${script}`
         }
       ],
-      max_tokens: 300,
-      temperature: 0.3, // Lower temperature for consistent analysis
     });
 
     const content = response.choices[0]?.message.content?.trim();

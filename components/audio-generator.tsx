@@ -39,6 +39,10 @@ interface TTSProvider {
 }
 
 const TTS_PROVIDERS: Record<string, TTSProvider> = {
+  'google-tts': {
+    name: "Google TTS",
+    voices: [],
+  },
   minimax: {
     name: "MiniMax",
     voices: [],
@@ -228,21 +232,26 @@ export function AudioGenerator() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ language: languageCode || 'en-US' })
         }
+      } else if (provider === 'google-tts') {
+        apiUrl = '/api/list-google-voices';
       } else {
         console.warn(`No API voice fetching available for provider: ${provider}`);
         setIsLoadingApiVoices(false);
         return;
       }
       
-      console.log(`📡 Making API call to: ${apiUrl}`)
+      console.log(`📡 Making API call to: ${apiUrl}`, requestConfig)
       const response = await fetch(apiUrl, requestConfig)
       console.log(`📥 API response status: ${response.status}`)
       
       if (response.ok) {
         const data = await response.json()
-        console.log(`📊 API response data:`, data)
-        setApiVoices(data.voices || [])
-        console.log(`✅ Loaded ${data.voices?.length || 0} voices for ${provider}`)
+        const voices = (data as any).voices || []
+        console.log(`📊 API response sample (first 3):`, voices.slice(0,3))
+        const normalized = voices.map((v: any) => ({ id: v.id || v.voice_id || v.VoiceId, name: v.name || v.voice_name || v.VoiceWebname }))
+        console.log(`🧭 Normalized voices sample (first 3):`, normalized.slice(0,3))
+        setApiVoices(voices)
+        console.log(`✅ Loaded ${voices.length} voices for ${provider}`)
       } else {
         const errorText = await response.text()
         console.error(`❌ Failed to fetch ${provider} voices: ${response.status} - ${errorText}`)
@@ -271,7 +280,7 @@ export function AudioGenerator() {
 
   // Fetch voices when provider changes to supported providers
   useEffect(() => {
-    const apiProviders = ['elevenlabs', 'minimax', 'fishaudio', 'voicemaker']
+    const apiProviders = ['elevenlabs', 'minimax', 'fishaudio', 'voicemaker', 'google-tts']
     if (apiProviders.includes(selectedProvider)) {
       console.log(`🔄 Provider changed to ${selectedProvider}, fetching voices...`)
       fetchApiVoices(selectedProvider)
@@ -586,7 +595,7 @@ export function AudioGenerator() {
     
     let standardVoices: any[] = []
     
-    const apiProviders = ['elevenlabs', 'minimax', 'fishaudio', 'voicemaker']
+    const apiProviders = ['elevenlabs', 'minimax', 'fishaudio', 'voicemaker', 'google-tts']
     if (apiProviders.includes(selectedProvider)) {
       const dynamicVoices = apiVoices || []
       const voiceMap = new Map()
@@ -598,26 +607,28 @@ export function AudioGenerator() {
       })
       
       dynamicVoices.forEach(voice => {
+        const id = voice.id || voice.voice_id || voice.VoiceId;
+        const name = voice.name || voice.voice_name || voice.VoiceWebname || id;
+        if (!id) return;
+        
         if (selectedProvider === 'voicemaker') {
-          const voiceId = voice.VoiceId || voice.id
-          const voiceName = voice.VoiceWebname || voice.name || voiceId
           const gender = voice.VoiceGender ? ` (${voice.VoiceGender})` : ''
           const engine = voice.Engine ? ` - ${voice.Engine}` : ''
-          
-          if (voiceId) {
-            voiceMap.set(voiceId, {
-              id: voiceId,
-              name: `${voiceName}${gender}${engine}`,
-              isCustom: false,
-              gender: voice.VoiceGender,
-              engine: voice.Engine,
-              language: voice.Language
-            })
-          }
+          voiceMap.set(id, {
+            id,
+            name: `${name}${gender}${engine}`,
+            isCustom: false,
+            gender: voice.VoiceGender,
+            engine: voice.Engine,
+            language: voice.Language
+          })
+        } else if (selectedProvider === 'google-tts') {
+          const languages = voice.languageCodes || voice.LanguageCodes || [];
+          const gender = voice.ssmlGender || voice.SsmlGender || '';
+          const suffix = languages.length || gender ? ` ${languages.length ? `(${languages.join(', ')})` : ''}${gender ? ` - ${gender}` : ''}` : ''
+          voiceMap.set(id, { id, name: `${name}${suffix}`.trim(), isCustom: false })
         } else {
-          if (voice.id) {
-            voiceMap.set(voice.id, { ...voice, isCustom: false })
-          }
+          voiceMap.set(id, { id, name, isCustom: false, ...voice })
         }
       })
       

@@ -8,7 +8,7 @@ import { ImageIcon, FileText, Key, Volume2, VideoIcon, BarChart3, ChevronRight, 
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScaleOnHover, StaggerContainer, StaggerItem } from './animated-page'
 
-type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'music-manager' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator' | 'reinforced-learning' | 'content-repackager' | 'visual-asset-vault' | 'mixed-content-generator'
+type NavigationView = 'script-generator' | 'image-generator' | 'audio-generator' | 'music-manager' | 'video-generator' | 'video-status' | 'admin-dashboard' | 'youtube-search' | 'text-image-video-generator' | 'animation-generator' | 'mixed-content-generator'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -40,22 +40,10 @@ export function SidebarNavigation({
       description: 'Research & analyze YouTube videos'
     },
     {
-      id: 'reinforced-learning' as NavigationView,
-      label: 'Reinforced Learning',
-      icon: Brain,
-      description: 'Coming soon'
-    },
-    {
       id: 'script-generator' as NavigationView,
       label: 'Script Generator',
       icon: FileText,
       description: 'Generate AI-powered scripts'
-    },
-    {
-      id: 'content-repackager' as NavigationView,
-      label: 'Content Repackager',
-      icon: Package,
-      description: 'Coming soon'
     },
     {
       id: 'image-generator' as NavigationView,
@@ -68,12 +56,6 @@ export function SidebarNavigation({
       label: 'Animation Generator',
       icon: Zap,
       description: 'Create animations from reference images'
-    },
-    {
-      id: 'visual-asset-vault' as NavigationView,
-      label: 'Visual Asset Vault',
-      icon: Archive,
-      description: 'Coming soon'
     },
     {
       id: 'mixed-content-generator' as NavigationView,

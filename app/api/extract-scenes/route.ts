@@ -95,8 +95,7 @@ Be extremely specific about gender, age, and physical details to ensure accurate
               `
             }
           ],
-          temperature: 0.3, // Lower temperature for more consistent, detailed output
-          max_tokens: 300, // Increased for more detailed prompts
+      
         });
 
         let promptText = promptResponse.choices[0]?.message.content?.trim() || 

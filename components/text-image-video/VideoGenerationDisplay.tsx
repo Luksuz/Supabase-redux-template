@@ -60,12 +60,12 @@ export function VideoGenerationDisplay({
 
   if (!isGenerating && !currentBatch && !error) {
     return (
-      <Card className="bg-gray-50">
+      <Card className="bg-gray-900 border border-gray-700">
         <CardContent className="pt-6">
           <div className="text-center py-8">
-            <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">No Generation in Progress</h3>
-            <p className="text-gray-500">Start generating videos from the Text to Video or Image to Video tabs.</p>
+            <Video className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-white mb-2">No Generation in Progress</h3>
+            <p className="text-gray-300">Start generating videos from the Text to Video or Image to Video tabs.</p>
           </div>
         </CardContent>
       </Card>

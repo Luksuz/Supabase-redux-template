@@ -51,12 +51,25 @@ export async function synthesizeGoogleTts(
   audioEncoding: 'MP3' | 'LINEAR16' | 'OGG_OPUS' = 'MP3'
 ): Promise<Buffer> {
   try {
-    // Extract language code from voice name (e.g., "en-US-Wavenet-D" -> "en-US")
-    const languageCodeMatch = voiceName.match(/^([a-z]{2}-[A-Z]{2})/);
-    if (!languageCodeMatch) {
+    // Extract language code from voice name (supports 2-3 letter language codes)
+    // Examples:
+    //  - en-US-Wavenet-D           -> en-US
+    //  - cmn-CN-Chirp3-HD-Achird   -> cmn-CN
+    //  - pt-BR-Polyglot-V2         -> pt-BR
+    let languageCode = '';
+    const tolerantMatch = voiceName.match(/^([a-z]{2,3}-[A-Z]{2})/);
+    if (tolerantMatch) {
+      languageCode = tolerantMatch[1];
+    } else {
+      // Fallback: take first two dash-separated parts if possible
+      const parts = voiceName.split('-');
+      if (parts.length >= 2 && parts[0] && parts[1]) {
+        languageCode = `${parts[0]}-${parts[1]}`;
+      }
+    }
+    if (!languageCode) {
       throw new Error(`Cannot extract language code from voice name: ${voiceName}`);
     }
-    const languageCode = languageCodeMatch[1];
     
     console.log(`🇬☁️ Google TTS: Using voice=${voiceName}, extracted language=${languageCode}`);
     

@@ -103,7 +103,7 @@ export function AdminDashboard() {
   const [showCreateUser, setShowCreateUser] = useState(false)
   
   // Admin section navigation
-  const [currentSection, setCurrentSection] = useState<'users' | 'voices' | 'prompts'>('users')
+  const [currentSection, setCurrentSection] = useState<'users' | 'voices'>('users')
   
   // Edit user form
   const [editForm, setEditForm] = useState({
@@ -468,9 +468,7 @@ export function AdminDashboard() {
   }
 
   useEffect(() => {
-    if (user.isAdmin && currentSection === 'prompts') {
-      fetchPrompts()
-    }
+    // Prompts section removed
   }, [user.isAdmin, currentSection])
 
   // Format date
@@ -523,7 +521,7 @@ export function AdminDashboard() {
 
         {/* Navigation Tabs */}
         <StaggerItem>
-          <Card className="bg-white shadow-sm border border-gray-200">
+          <Card className="bg-gray-900 shadow-sm border border-gray-700">
           <CardContent className="pt-6">
             <div className="flex gap-2">
               <Button
@@ -542,14 +540,7 @@ export function AdminDashboard() {
                 <Volume2 className="h-4 w-4" />
                 Voice Management
               </Button>
-              <Button
-                variant={currentSection === 'prompts' ? 'default' : 'outline'}
-                onClick={() => setCurrentSection('prompts')}
-                className="flex items-center gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                Prompts
-              </Button>
+              
             </div>
           </CardContent>
         </Card>
@@ -557,7 +548,7 @@ export function AdminDashboard() {
 
         {/* User Management Section */}
         {currentSection === 'users' && (
-          <Card className="bg-white shadow-sm border border-gray-200">
+          <Card className="bg-gray-900 shadow-sm border border-gray-700 text-white">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
@@ -581,7 +572,7 @@ export function AdminDashboard() {
                   </Button>
                 </div>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-gray-300">
                 Comprehensive user management with video tracking and admin controls
               </CardDescription>
             </CardHeader>
@@ -789,203 +780,7 @@ export function AdminDashboard() {
           <VoiceManagement />
         )}
 
-        {/* Prompts Management Section */}
-        {currentSection === 'prompts' && (
-          <Card className="bg-white shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Prompts Management ({prompts.length} total)
-                <div className="ml-auto flex gap-2">
-                  <Button
-                    onClick={() => setShowCreatePrompt(!showCreatePrompt)}
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    {showCreatePrompt ? 'Cancel' : 'Add Prompt'}
-                  </Button>
-                  <Button 
-                    onClick={fetchPrompts} 
-                    size="sm" 
-                    variant="outline"
-                    disabled={loadingPrompts}
-                  >
-                    <RefreshCw className={`h-4 w-4 ${loadingPrompts ? 'animate-spin' : ''}`} />
-                  </Button>
-                </div>
-              </CardTitle>
-              <CardDescription>
-                Manage script generation prompt templates for users
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Create Prompt Form */}
-              {showCreatePrompt && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
-                  <h4 className="font-medium text-blue-900">Create New Prompt Template</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Prompt Name *</Label>
-                      <Input
-                        value={promptForm.promptTitle}
-                        onChange={(e) => setPromptForm(prev => ({ ...prev, promptTitle: e.target.value }))}
-                        placeholder="Enter prompt name"
-                      />
-                    </div>
-                    <div>
-                      <Label>Script Title</Label>
-                      <Input
-                        value={promptForm.title}
-                        onChange={(e) => setPromptForm(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="Script title"
-                      />
-                    </div>
-                    <div>
-                      <Label>Theme</Label>
-                      <Input
-                        value={promptForm.theme}
-                        onChange={(e) => setPromptForm(prev => ({ ...prev, theme: e.target.value }))}
-                        placeholder="Script theme"
-                      />
-                    </div>
-                    <div>
-                      <Label>Target Audience</Label>
-                      <Input
-                        value={promptForm.audience}
-                        onChange={(e) => setPromptForm(prev => ({ ...prev, audience: e.target.value }))}
-                        placeholder="Target audience"
-                      />
-                    </div>
-                    <div>
-                      <Label>POV</Label>
-                      <select
-                        value={promptForm.pov}
-                        onChange={(e) => setPromptForm(prev => ({ ...prev, pov: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      >
-                        <option value="1st Person">1st Person</option>
-                        <option value="3rd Person">3rd Person</option>
-                      </select>
-                    </div>
-                    <div>
-                      <Label>Format</Label>
-                      <select
-                        value={promptForm.format}
-                        onChange={(e) => setPromptForm(prev => ({ ...prev, format: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      >
-                        <option value="Story">Story</option>
-                        <option value="Facts">Facts</option>
-                        <option value="Documentary">Documentary</option>
-                        <option value="Tutorial">Tutorial</option>
-                        <option value="Interview">Interview</option>
-                        <option value="Presentation">Presentation</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <Label>Additional Context</Label>
-                    <textarea
-                      value={promptForm.additionalContext}
-                      onChange={(e) => setPromptForm(prev => ({ ...prev, additionalContext: e.target.value }))}
-                      placeholder="Additional instructions or context"
-                      className="w-full p-2 border border-gray-300 rounded-md min-h-[80px]"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button onClick={handleCreatePrompt} size="sm">
-                      <Save className="h-4 w-4 mr-1" />
-                      Create Prompt
-                    </Button>
-                    <Button onClick={() => setShowCreatePrompt(false)} variant="outline" size="sm">
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Prompts List */}
-              {loadingPrompts ? (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-500">Loading prompts...</p>
-                </div>
-              ) : prompts.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-500">No prompts found</p>
-                  <p className="text-xs text-gray-400 mt-1">Create your first prompt template to get started</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {prompts.map((prompt) => (
-                    <div key={prompt.id} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-lg">{prompt.prompt || 'Untitled Prompt'}</h4>
-                          <p className="text-sm text-gray-500">
-                            Created: {formatDate(prompt.created_at)}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => handleEditPrompt(prompt)}
-                            size="sm"
-                            variant="outline"
-                          >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            onClick={() => handleDeletePrompt(prompt.id)}
-                            size="sm"
-                            variant="destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-600">Title:</span>
-                          <p>{prompt.title || 'Not specified'}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-600">Theme:</span>
-                          <p>{prompt.theme || 'Not specified'}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-600">POV:</span>
-                          <p>{prompt.POV || 'Not specified'}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-600">Format:</span>
-                          <p>{prompt.format || 'Not specified'}</p>
-                        </div>
-                      </div>
-                      
-                      {prompt.audience && (
-                        <div>
-                          <span className="font-medium text-gray-600 text-sm">Audience:</span>
-                          <p className="text-sm">{prompt.audience}</p>
-                        </div>
-                      )}
-                      
-                      {prompt.additional_context && (
-                        <div>
-                          <span className="font-medium text-gray-600 text-sm">Additional Context:</span>
-                          <p className="text-sm bg-gray-50 p-2 rounded mt-1">{prompt.additional_context}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+        
 
         {/* Edit User Modal */}
         {editingUser && (

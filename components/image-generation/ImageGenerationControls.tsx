@@ -35,7 +35,7 @@ export function ImageGenerationControls({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 bg-gray-900 text-white p-4 rounded-lg">
       <Button 
         className="w-full" 
         onClick={onGenerateFromScenes}

@@ -307,17 +307,17 @@ export function ResearchSearchCard({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-black text-white p-4 rounded-lg">
       {/* Research Input Section */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-        <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+      <div className="bg-gray-900 p-6 rounded-lg border border-gray-700">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <Globe className="h-6 w-6" />
           AI Research Assistant
         </h3>
         
         <div className="space-y-4">
           {/* Research Method */}
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
             <div className="flex items-center gap-2">
               <Brain className="h-4 w-4 text-purple-600" />
               <div>
@@ -328,7 +328,7 @@ export function ResearchSearchCard({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-blue-800 mb-2">
+            <label className="block text-sm font-medium text-gray-200 mb-2">
               Research Query
             </label>
             <input
@@ -336,12 +336,12 @@ export function ResearchSearchCard({
               value={researchQuery}
               onChange={(e) => setResearchQuery(e.target.value)}
               placeholder="What would you like to research? (e.g., 'AI in healthcare', 'climate change solutions')"
-              className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-3 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-blue-800 mb-2">
+            <label className="block text-sm font-medium text-gray-200 mb-2">
               Research Context (Optional)
             </label>
             <textarea
@@ -349,7 +349,7 @@ export function ResearchSearchCard({
               onChange={(e) => setResearchContext(e.target.value)}
               placeholder="Provide additional context for your research (e.g., 'Focus on recent developments', 'Looking for business applications', etc.)"
               rows={3}
-              className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-3 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           
