@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAppDispatch } from '@/lib/hooks'
-import { setScriptSections } from '@/lib/features/scripts/scriptsSlice'
+import { useAppDispatch, useAppSelector } from '@/lib/hooks'
+import { setScriptSections, setFullScript, type ScriptSection } from '@/lib/features/scripts/scriptsSlice'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,7 @@ const PRESET_OPTIONS = [
 
 export function OptionsGenerator() {
   const dispatch = useAppDispatch();
+  const scriptSections = useAppSelector(state => state.scripts.scriptSections) as ScriptSection[]
   const [models, setModels] = useState<OpenAIModel[]>([]);
   const [selectedModel, setSelectedModel] = useState('gpt-5');
 
@@ -29,7 +30,8 @@ export function OptionsGenerator() {
   const [additionalData, setAdditionalData] = useState('');
   const [forbiddenWords, setForbiddenWords] = useState('');
   const [desiredWordCount, setDesiredWordCount] = useState<number>(1000);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -43,9 +45,9 @@ export function OptionsGenerator() {
     fetchModels();
   }, []);
 
-  const handleGenerate = async () => {
+  const handleGenerateOutline = async () => {
     if (!selectedOption && !title.trim()) return;
-    setIsGenerating(true);
+    setIsGeneratingOutline(true);
     try {
       const response = await fetch('/api/script-outline-variations/pepe', {
         method: 'POST',
@@ -71,9 +73,48 @@ export function OptionsGenerator() {
       console.error('Options generator failed:', e);
       alert('Generation failed. Check console for details.');
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingOutline(false);
     }
   };
+
+  const handleGenerateFullScript = async () => {
+    if (!scriptSections || scriptSections.length === 0) return;
+    setIsGeneratingScript(true)
+    try {
+      const response = await fetch('/api/full-script-variations/pepe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim() || selectedOption,
+          sections: scriptSections,
+          selectedModel,
+          emotionalTone: '',
+          targetAudience: '',
+          forbiddenWords,
+          additionalPrompt: additionalData,
+        })
+      })
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(err)
+      }
+      const data = await response.json()
+      if (data.scriptWithMarkdown) {
+        dispatch(setFullScript({
+          scriptWithMarkdown: data.scriptWithMarkdown,
+          scriptCleaned: data.scriptWithMarkdown,
+          title: (title.trim() || selectedOption) || 'Script',
+          theme: 'Philosophy',
+          wordCount: data.wordCount || 0
+        }))
+      }
+    } catch (e) {
+      console.error('Full script generation failed:', e)
+      alert('Full script generation failed. Check console for details.')
+    } finally {
+      setIsGeneratingScript(false)
+    }
+  }
 
   return (
     <Card>
@@ -143,9 +184,14 @@ export function OptionsGenerator() {
           />
         </div>
 
-        <Button onClick={handleGenerate} disabled={isGenerating || (!selectedOption && !title.trim())} className="w-full">
-          {isGenerating ? 'Generating...' : 'Generate'}
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button onClick={handleGenerateOutline} disabled={isGeneratingOutline || (!selectedOption && !title.trim())} className="w-full sm:flex-1">
+            {isGeneratingOutline ? 'Generating Outline...' : 'Generate Outline'}
+          </Button>
+          <Button onClick={handleGenerateFullScript} disabled={isGeneratingScript || scriptSections.length === 0} variant="secondary" className="w-full sm:flex-1">
+            {isGeneratingScript ? 'Generating Script...' : 'Generate Full Script'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

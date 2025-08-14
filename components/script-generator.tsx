@@ -29,6 +29,7 @@ import { CTAModal } from "./script-generator/CTAModal";
 import { HookModal } from "./script-generator/HookModal";
 import { ResearchPreviewModal } from "./script-generator/ResearchPreviewModal";
 import { LoadCachedDataModal } from "./script-generator/LoadCachedDataModal";
+import { Button } from "./ui/button";
 import { PepeScriptGenerator } from "./script-variations/pepe/index";
 import { InvestigationForm } from "./script-variations/investigation";
 import { OptionsGenerator } from "./script-variations/options";
@@ -272,9 +273,15 @@ const ScriptGenerator: React.FC = () => {
       dispatch(clearFullScript());
       
       // Route based on selected prompt variant
-      const endpoint = promptVariant === 'pepe' 
-        ? "/api/script-outline-variations/pepe" 
-        : "/api/generate-script";
+      // Route outline generation based on selected variant
+      let endpoint = "/api/generate-script";
+      if (promptVariant === 'pepe' || promptVariant === 'options' || promptVariant === 'philosophy-2') {
+        endpoint = "/api/script-outline-variations/pepe";
+      } else if (promptVariant === 'true-crime') {
+        endpoint = "/api/script-outline-variations/true-crime";
+      } else if (promptVariant === 'investigation' || promptVariant === 'investigation-2') {
+        endpoint = "/api/script-outline-variations/investigation";
+      }
 
       const body = promptVariant === 'pepe'
         ? {
@@ -361,11 +368,11 @@ const ScriptGenerator: React.FC = () => {
     try {
       dispatch(setIsGeneratingScript(true));
       
-      const fullScriptEndpoint = promptVariant === 'true-crime'
-        ? "/api/full-script-variations/true-crime"
-        : promptVariant === 'pepe'
-          ? "/api/full-script-variations/pepe"
-          : "/api/generate-full-script";
+      const fullScriptEndpoint =
+        promptVariant === 'true-crime' ? "/api/full-script-variations/true-crime" :
+        (promptVariant === 'pepe' || promptVariant === 'options' || promptVariant === 'philosophy-2') ? "/api/full-script-variations/pepe" :
+        (promptVariant === 'investigation' || promptVariant === 'investigation-2') ? "/api/full-script-variations/investigation" :
+        "/api/generate-full-script";
 
       const response = await fetch(fullScriptEndpoint, {
         method: "POST",

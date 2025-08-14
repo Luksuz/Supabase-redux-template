@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAppDispatch, useAppSelector } from '@/lib/hooks'
 import { setScriptSections, setFullScript, type ScriptSection } from '@/lib/features/scripts/scriptsSlice'
+import { Button as ShadButton } from '@/components/ui/button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -122,12 +123,12 @@ export function Investigation2Form() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button onClick={handleGenerateOutline} disabled={isGeneratingOutline} className="bg-purple-600 hover:bg-purple-700">
+            <ShadButton onClick={handleGenerateOutline} disabled={isGeneratingOutline} className="bg-purple-600 hover:bg-purple-700">
               {isGeneratingOutline ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating Outline</>) : 'Generate Outline'}
-            </Button>
-            <Button onClick={handleGenerateScript} disabled={isGeneratingScript} className="bg-blue-600 hover:bg-blue-700">
+            </ShadButton>
+            <ShadButton onClick={handleGenerateScript} disabled={isGeneratingScript} className="bg-blue-600 hover:bg-blue-700">
               {isGeneratingScript ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating Script</>) : 'Generate Script'}
-            </Button>
+            </ShadButton>
           </div>
         </CardContent>
       </Card>
