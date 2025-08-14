@@ -38,7 +38,8 @@ export async function POST(request: Request) {
       modelName = "gpt-4o-mini",
       povSelection = "3rd Person",
       scriptFormat = "Story",
-      audience = ""
+      audience = "",
+      inspirationalTranscript
     } = requestData;
     
     console.log("Received request for script generation:");
@@ -99,6 +100,16 @@ SCRIPT GENERATION INSTRUCTIONS:
 ${scriptPrompt.trim()}
 `;
     }
+    // Add inspirational transcript for STYLE ONLY if provided
+    if (inspirationalTranscript && typeof inspirationalTranscript === 'string' && inspirationalTranscript.trim()) {
+      additionalInstructions += `
+STYLE REFERENCE (DO NOT COPY CONTENT):
+The following transcript is provided strictly for tone, pacing, and style reference. Do NOT use its content or topics. The script must remain about "${title}" and its theme.
+
+${inspirationalTranscript.slice(0, 5000).trim()}
+`;
+    }
+
     
     // Add general additional prompt if provided
     if (additionalPrompt && additionalPrompt.trim()) {

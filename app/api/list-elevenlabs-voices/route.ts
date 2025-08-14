@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
-const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
+const elevenLabsApiKey = process.env.VOICES_ELEVENLABS_API_KEY;
 let elevenlabs: ElevenLabsClient | null = null;
 
 if (elevenLabsApiKey) {

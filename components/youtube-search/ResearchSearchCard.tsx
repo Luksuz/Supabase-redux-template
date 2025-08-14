@@ -307,9 +307,9 @@ export function ResearchSearchCard({
   }
 
   return (
-    <div className="space-y-6 bg-black text-white p-4 rounded-lg">
+    <div className="space-y-6">
       {/* Research Input Section */}
-      <div className="bg-gray-900 p-6 rounded-lg border border-gray-700">
+      <div className="bg-gray-900 text-white p-6 rounded-lg border border-gray-700">
         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <Globe className="h-6 w-6" />
           AI Research Assistant
@@ -319,16 +319,16 @@ export function ResearchSearchCard({
           {/* Research Method */}
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
             <div className="flex items-center gap-2">
-              <Brain className="h-4 w-4 text-purple-600" />
+              <Brain className="h-4 w-4 text-purple-400" />
               <div>
-                <div className="font-medium text-purple-800">Perplexity AI Research</div>
-                <div className="text-xs text-purple-600">Intelligent web search with automatic link scraping</div>
+                <div className="font-medium text-purple-300">Perplexity AI Research</div>
+                <div className="text-xs text-purple-400">Intelligent web search with automatic link scraping</div>
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-gray-100 mb-2">
               Research Query
             </label>
             <input
@@ -336,12 +336,12 @@ export function ResearchSearchCard({
               value={researchQuery}
               onChange={(e) => setResearchQuery(e.target.value)}
               placeholder="What would you like to research? (e.g., 'AI in healthcare', 'climate change solutions')"
-              className="w-full px-4 py-3 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-3 border border-gray-600 bg-gray-700 text-white placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-200 mb-2">
+            <label className="block text-sm font-medium text-gray-100 mb-2">
               Research Context (Optional)
             </label>
             <textarea
@@ -349,14 +349,14 @@ export function ResearchSearchCard({
               onChange={(e) => setResearchContext(e.target.value)}
               placeholder="Provide additional context for your research (e.g., 'Focus on recent developments', 'Looking for business applications', etc.)"
               rows={3}
-              className="w-full px-4 py-3 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-3 border border-gray-600 bg-gray-700 text-white placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           
           <button
             onClick={handleResearch}
             disabled={!researchQuery.trim() || isResearching}
-            className="w-full font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white"
+            className="w-full font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white"
           >
             {isResearching ? (
               <>
@@ -371,10 +371,10 @@ export function ResearchSearchCard({
             )}
           </button>
 
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+          <div className="bg-purple-900/20 border border-purple-700 rounded-lg p-3">
             <div className="flex items-start gap-2">
-              <Brain className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-purple-800">
+              <Brain className="h-4 w-4 text-purple-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-purple-300">
                 <p className="font-medium">Perplexity AI Research</p>
                 <p className="mt-1">
                   Uses advanced AI to search the web, filter out social media links, and provide scraping capabilities for deep content analysis.
@@ -387,10 +387,10 @@ export function ResearchSearchCard({
 
       {/* Filtering Stats Notice */}
       {filteringStats && filteringStats.filteredOut > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="bg-amber-900/20 border border-amber-700 rounded-lg p-4">
           <div className="flex items-start gap-2">
-            <Zap className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-amber-800">
+            <Zap className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-amber-300">
               <p className="font-medium">Links Filtered for Scraping</p>
               <p className="mt-1">
                 Found {filteringStats.totalFound} links, {filteringStats.availableForScraping} available for scraping. 
@@ -404,12 +404,12 @@ export function ResearchSearchCard({
 
       {/* Available Links for Scraping */}
       {availableLinks.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <h4 className="text-lg font-bold text-green-900 mb-3 flex items-center gap-2">
+        <div className="bg-green-900/20 border border-green-700 rounded-lg p-4">
+          <h4 className="text-lg font-bold text-green-200 mb-3 flex items-center gap-2">
             <ExternalLink className="h-5 w-5" />
             Available Links for Deep Analysis ({availableLinks.length})
           </h4>
-          <p className="text-sm text-green-700 mb-4">
+          <p className="text-sm text-green-300 mb-4">
             These links can be scraped for detailed content analysis. Click "Scrape Content" to extract full article text.
           </p>
           <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -435,7 +435,7 @@ export function ResearchSearchCard({
                   <button
                     onClick={() => handleScrapeLink(link.url)}
                     disabled={scrapingLinks.has(link.url)}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs font-medium py-2 px-3 rounded transition-colors flex items-center gap-1 flex-shrink-0"
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white text-xs font-medium py-2 px-3 rounded transition-colors flex items-center gap-1 flex-shrink-0"
                   >
                     {scrapingLinks.has(link.url) ? (
                       <>

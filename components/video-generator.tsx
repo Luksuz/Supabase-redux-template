@@ -481,8 +481,8 @@ export function VideoGenerator() {
       if (totalContent === 0) {
         showMessage('Please select images or videos first.', 'error')
         dispatch(setIsGeneratingVideo(false))
-        return
-      }
+      return
+    }
 
       // Build content arrays that preserve the exact reordered sequence
       const orderedContentUrls = orderedSegments.map(segment => segment.url)
@@ -528,12 +528,12 @@ export function VideoGenerator() {
         thumbnailUrl: orderedSegments[0]?.thumbnail || imageUrls[0] || videoUrls[0] || '', // Use first segment's thumbnail
         segmentTimings: segmentTimings,
         includeOverlay: settings.includeOverlay || false,
-        fontFamily: subtitleSettings.fontFamily,
-        fontColor: subtitleSettings.fontColor,
+          fontFamily: subtitleSettings.fontFamily,
+          fontColor: subtitleSettings.fontColor,
         fontSize: subtitleSettings.fontSize,
-        strokeWidth: subtitleSettings.strokeWidth,
+          strokeWidth: subtitleSettings.strokeWidth,
         fontWeight: subtitleSettings.fontWeight,
-        textTransform: subtitleSettings.textTransform,
+          textTransform: subtitleSettings.textTransform,
         audioDuration: audioGeneration?.duration ?? undefined,
         // Simplified video effects
         zoomEffect: settings.zoomEffect || false,
@@ -649,9 +649,9 @@ export function VideoGenerator() {
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
           <h1 className="text-3xl text-white font-bold text-gray-900">Video Generator</h1>
-          <p className="text-gray-600">
+        <p className="text-gray-600">
             Create professional videos from your selected images and audio using Shotstack with dynamic slide effects, zoom animations, and advanced timing options
-          </p>
+        </p>
         </motion.div>
       </StaggerItem>
 

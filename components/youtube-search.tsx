@@ -841,7 +841,7 @@ export default function YouTubeSearch() {
   const YouTubeAuthButton = () => {
     if (status === 'loading') {
       return (
-        <Button variant="outline" size="sm" disabled>
+        <Button variant="outline" size="sm" disabled className="border-gray-600 bg-gray-800 text-gray-400">
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           Loading...
         </Button>
@@ -852,19 +852,29 @@ export default function YouTubeSearch() {
       return (
         <div className="flex items-center gap-2">
           <div className="text-sm">
-            <div className="text-green-600 font-medium">✓ Authenticated</div>
-            <div className="text-gray-500 text-xs">{session?.user?.email}</div>
+            <div className="text-green-400 font-medium">✓ Authenticated</div>
+            <div className="text-gray-300 text-xs">{session?.user?.email}</div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => signOut()}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => signOut()}
+            className="flex items-center gap-2 border-red-600 bg-transparent hover:bg-red-900/20 text-red-300 hover:text-red-200"
+          >
             <LogOut className="h-4 w-4" />
-            Sign Out
+            <span className="hidden sm:inline">Sign Out</span>
           </Button>
         </div>
       )
     }
 
     return (
-      <Button variant="outline" size="sm" onClick={() => signIn('google')}>
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={() => signIn('google')}
+        className="flex items-center gap-2 border-blue-600 bg-transparent hover:bg-blue-900/20 text-blue-300 hover:text-blue-200"
+      >
         Sign in for Enhanced Features
       </Button>
     )

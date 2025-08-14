@@ -31,6 +31,8 @@ import { ResearchPreviewModal } from "./script-generator/ResearchPreviewModal";
 import { LoadCachedDataModal } from "./script-generator/LoadCachedDataModal";
 import { PepeScriptGenerator } from "./script-variations/pepe/index";
 import { InvestigationForm } from "./script-variations/investigation";
+import { OptionsGenerator } from "./script-variations/options";
+import { Investigation2Form } from "./script-variations/investigation-2";
 // True-crime uses the same UI as original; only the full-script route differs
 import { 
   saveScriptFormDataToLocalStorage,
@@ -65,7 +67,8 @@ const ScriptGenerator: React.FC = () => {
 
   // Store form values in state
   const [title, setTitle] = useState("");
-  const [targetSections, setTargetSections] = useState(3);
+  // Use this as desired word count in UI; backend will convert words -> sections
+  const [targetSections, setTargetSections] = useState(2400);
   const [theme, setTheme] = useState("");
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [sectionPrompt, setSectionPrompt] = useState("");
@@ -93,7 +96,15 @@ const ScriptGenerator: React.FC = () => {
   const [povSelection, setPovSelection] = useState<string>("3rd Person");
   const [scriptFormat, setScriptFormat] = useState<string>("Story");
   const [audience, setAudience] = useState<string>("");
-  const [promptVariant, setPromptVariant] = useState<'original' | 'pepe' | 'investigation' | 'true-crime'>('original');
+  const [promptVariant, setPromptVariant] = useState<'original' | 'pepe' | 'investigation' | 'true-crime' | 'options' | 'investigation-2' | 'philosophy-2'>('original');
+  const [presetTopic, setPresetTopic] = useState<string>("");
+  const PRESET_TOPICS = [
+    "Energy Control",
+    "The truth about life, death & the afterlife",
+    "Conspiracy Controlling Reality",
+    "Escaping Simulation",
+    "Time Loops, Alternate Realities"
+  ];
   
   // State for prompt history sidebar
   const [isPromptHistoryOpen, setIsPromptHistoryOpen] = useState(false);
@@ -191,7 +202,7 @@ const ScriptGenerator: React.FC = () => {
     const savedAudience = localStorage.getItem('scriptGenerator.audience');
     
     if (savedTitle) setTitle(savedTitle);
-    if (savedWordCount) setTargetSections(parseInt(savedWordCount) >= 3000 ? 4 : 3);
+    if (savedWordCount) setTargetSections(parseInt(savedWordCount));
     if (savedTheme) setTheme(savedTheme);
     if (savedAdditionalPrompt) setAdditionalPrompt(savedAdditionalPrompt);
     if (savedForbiddenWords) setForbiddenWords(savedForbiddenWords);
@@ -283,7 +294,8 @@ const ScriptGenerator: React.FC = () => {
           }
         : {
             title, 
-            targetSections, 
+            // Map desired word count to number of sections (~750 words per section)
+            targetSections: Math.max(1, Math.ceil((targetSections || 1500) / 750)), 
             theme, 
             additionalPrompt,
             sectionPrompt, 
@@ -991,10 +1003,12 @@ const ScriptGenerator: React.FC = () => {
   return (
     <div className="space-y-8">
       <Tabs defaultValue="form">
-        <TabsList className="mb-4">
-          <TabsTrigger value="form">Basic Settings</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced Options</TabsTrigger>
-        </TabsList>
+        {promptVariant === 'original' && (
+          <TabsList className="mb-4">
+            <TabsTrigger value="form">Basic Settings</TabsTrigger>
+            <TabsTrigger value="advanced">Advanced Options</TabsTrigger>
+          </TabsList>
+        )}
         
         <TabsContent value="form">
           {/* Variant selector */}
@@ -1005,12 +1019,15 @@ const ScriptGenerator: React.FC = () => {
               value={promptVariant}
               onChange={(e) => setPromptVariant(e.target.value as any)}
             >
-              <option value="original">NEW Scriot</option>
+              <option value="original">NEW Script</option>
               <option value="pepe">Philosophy niche</option>
               <option value="investigation">Investigation Niche</option>
               <option value="true-crime">True Crime Niche</option>
+              <option value="philosophy-2">Philosophy Niche 2</option>
+              <option value="investigation-2">Investigation Niche 2</option>
             </select>
           </div>
+
 
           {promptVariant === 'pepe' ? (
             <PepeScriptGenerator />
@@ -1054,6 +1071,10 @@ const ScriptGenerator: React.FC = () => {
               hasFullScript={hasFullScript}
               scriptGenerationError={scriptGenerationError}
             />
+          ) : (promptVariant === 'options' || promptVariant === 'philosophy-2') ? (
+            <OptionsGenerator />
+          ) : promptVariant === 'investigation-2' ? (
+            <Investigation2Form />
           ) : (
             <ScriptGeneratorForm
             title={title}
@@ -1095,15 +1116,17 @@ const ScriptGenerator: React.FC = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="advanced">
-          <AdvancedOptionsTab
-            inspirationalTranscript={inspirationalTranscript}
-            forbiddenWords={forbiddenWords}
-            onInspirationalTranscriptChange={setInspirationalTranscript}
-            onForbiddenWordsChange={setForbiddenWords}
-            onFileUpload={handleFileUpload}
-          />
-        </TabsContent>
+        {promptVariant === 'original' && (
+          <TabsContent value="advanced">
+            <AdvancedOptionsTab
+              inspirationalTranscript={inspirationalTranscript}
+              forbiddenWords={forbiddenWords}
+              onInspirationalTranscriptChange={setInspirationalTranscript}
+              onForbiddenWordsChange={setForbiddenWords}
+              onFileUpload={handleFileUpload}
+            />
+          </TabsContent>
+        )}
       </Tabs>
 
       <ScriptSectionsDisplay

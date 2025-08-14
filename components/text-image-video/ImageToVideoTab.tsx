@@ -98,6 +98,9 @@ export function ImageToVideoTab({
 
     // Convert selected image URLs to files (we'll need to modify the onGenerate function to handle URLs)
     try {
+      // Immediate user notification
+      alert('✅ Generation started! You can track progress under the "Current Generation" tab.')
+
       const imageFiles: File[] = []
       for (const imageUrl of selectedImageUrls) {
         const response = await fetch(imageUrl)
@@ -121,6 +124,9 @@ export function ImageToVideoTab({
   const handleGenerate = async () => {
     const validPrompts = prompts.filter(p => p.trim().length > 0)
     if (validPrompts.length === 0 || images.length === 0) return
+
+    // Immediate user notification
+    alert('✅ Generation started! You can track progress under the "Current Generation" tab.')
 
     onDurationChange(duration)
     await onGenerate(validPrompts, images, duration)

@@ -24,7 +24,7 @@ export function GoogleAuthButton() {
         variant="outline" 
         size="sm" 
         disabled
-        className="border-gray-300 bg-white text-gray-400"
+        className="border-gray-600 bg-gray-800 text-gray-400"
       >
         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
         Loading...
@@ -35,14 +35,14 @@ export function GoogleAuthButton() {
   if (status === 'authenticated') {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600 hidden sm:block">
+        <span className="text-sm text-gray-300 hidden sm:block">
           {session?.user?.email}
         </span>
         <Button 
           variant="outline" 
           size="sm" 
           onClick={handleSignOut}
-          className="flex items-center gap-2 border-red-300 bg-white hover:bg-red-50 text-red-600 hover:text-red-700"
+          className="flex items-center gap-2 border-red-600 bg-transparent hover:bg-red-900/20 text-red-300 hover:text-red-200"
         >
           <LogOut className="h-4 w-4" />
           <span className="hidden sm:inline">Sign Out</span>
@@ -56,7 +56,7 @@ export function GoogleAuthButton() {
       variant="outline" 
       size="sm" 
       onClick={handleSignIn}
-      className="flex items-center gap-2 border-blue-300 bg-white hover:bg-blue-50 text-blue-600 hover:text-blue-700 shadow-sm transition-all duration-200 hover:shadow-md"
+      className="flex items-center gap-2 border-blue-600 bg-transparent hover:bg-blue-900/20 text-blue-300 hover:text-blue-200 shadow-sm transition-all duration-200 hover:shadow-md"
     >
       <GoogleLogo size={16} />
       <span className="hidden sm:inline font-medium">Sign in with Google</span>

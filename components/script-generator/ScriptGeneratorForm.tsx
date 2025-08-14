@@ -165,18 +165,17 @@ export function ScriptGeneratorForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="targetSections">Number of Sections</Label>
+          <Label htmlFor="targetSections">Desired Word Count</Label>
           <Input
             id="targetSections"
             type="number"
-            min={2}
-            max={8}
-            step={1}
+            min={750}
+            step={250}
             value={targetSections}
             onChange={(e) => onTargetSectionsChange(Number(e.target.value))}
           />
           <p className="text-xs text-muted-foreground">
-            Create {targetSections} logical sections with natural story divisions
+            The outline will be split into approximately 1 section per 750 words
           </p>
         </div>
 

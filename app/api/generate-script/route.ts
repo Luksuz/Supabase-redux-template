@@ -50,7 +50,7 @@ async function handleNewScriptGeneration(body: any) {
     povSelection = "3rd Person",
     scriptFormat = "Story",
     audience = "",
-    targetSections = 3 // Instead of word count, use target number of logical sections
+    targetSections = 3 // Note: frontend may pass desired word count; we'll normalize below
   } = body;
   
   if (!title) {
@@ -162,7 +162,12 @@ STORY STRUCTURE GUIDELINES:
 
 Each section should serve a specific narrative purpose and contribute to the complete story arc.`;
 
-  const userPrompt = `Create a complete ${targetSections}-part script outline for "${title}".
+  // Normalize: if frontend passed a large number (assumed desired words), convert to sections (~750 words per section)
+  const normalizedSections = typeof targetSections === 'number' && targetSections > 20
+    ? Math.max(1, Math.ceil(targetSections / 750))
+    : targetSections;
+
+  const userPrompt = `Create a complete ${normalizedSections}-part script outline for "${title}".
 
 STORY REQUIREMENTS:
 - Title: ${title}
@@ -172,7 +177,7 @@ STORY REQUIREMENTS:
 - Target Audience: ${audience || "General audience"}
 
 STRUCTURAL REQUIREMENTS:
-1. Create exactly ${targetSections} sections that naturally divide the complete story
+  1. Create exactly ${normalizedSections} sections that naturally divide the complete story
 2. Each section must have a clear narrative purpose (setup, development, climax, resolution)
 3. The final section MUST provide a satisfying conclusion to the story
 4. Maintain consistent character names, locations, and details throughout

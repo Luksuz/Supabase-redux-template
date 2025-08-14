@@ -108,6 +108,9 @@ export function TextToVideoTab({
     const validPrompts = prompts.filter(p => p.trim().length > 0)
     if (validPrompts.length === 0) return
 
+    // Immediate user notification
+    alert('✅ Generation started! You can track progress under the "Current Generation" tab.')
+
     onDurationChange(duration)
     await onGenerate(validPrompts, duration)
   }
@@ -219,6 +222,9 @@ export function TextToVideoTab({
   const handleGenerateFromScript = async (videoPrompts: string[]) => {
     if (videoPrompts.length === 0) return
     
+    // Immediate user notification
+    alert('✅ Generation started! You can track progress under the "Current Generation" tab.')
+
     onDurationChange(duration)
     await onGenerate(videoPrompts, duration)
   }

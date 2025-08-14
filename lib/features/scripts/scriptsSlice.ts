@@ -195,7 +195,7 @@ export const scriptsSlice = createSlice({
   }
 })
 
-export const { 
+export const {
   setPrompt,
   setScripts, 
   updateScript,

@@ -97,35 +97,35 @@ export function VideoSearchCard({
       <div className="bg-gray-900 p-6 rounded-lg mb-6 border border-gray-700">
         <div className="space-y-4">
           <div>
-            <label htmlFor="searchQuery" className="block text-sm font-medium text-gray-200 mb-2">
+            <label htmlFor="searchQuery" className="block text-sm font-medium text-gray-100 mb-2">
               Search Query (optional):
             </label>
             <input
               type="text"
               id="searchQuery"
-              className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              className="w-full px-3 py-2 border border-gray-600 bg-gray-800 text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
               placeholder="Enter keywords to search for..."
               value={searchForm.searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
             />
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-300 mt-1">
               Leave empty to get all recent videos from a channel, or enter keywords to search for specific content.
             </p>
           </div>
 
           <div>
-            <label htmlFor="channelUrl" className="block text-sm font-medium text-gray-200 mb-2">
+            <label htmlFor="channelUrl" className="block text-sm font-medium text-gray-100 mb-2">
               Channel URL or Channel ID (optional):
             </label>
             <input
               type="text"
               id="channelUrl"
-              className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              className="w-full px-3 py-2 border border-gray-600 bg-gray-800 text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
               placeholder="https://www.youtube.com/@channelname or UC_x5XG1OV2P6uZZ5FSM9Ttw"
               value={searchForm.channelUrl}
               onChange={(e) => onChannelUrlChange(e.target.value)}
             />
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-300 mt-1">
               Leave empty to search all of YouTube, or specify a channel to search within that channel only.<br />
               Supported formats: @handle, /channel/ID, /c/name, /user/name, or just the channel ID
             </p>
@@ -133,13 +133,13 @@ export function VideoSearchCard({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="maxResults" className="block text-sm font-medium text-gray-200 mb-2">
+              <label htmlFor="maxResults" className="block text-sm font-medium text-gray-100 mb-2">
                 Number of Results:
               </label>
               <input
                 type="number"
                 id="maxResults"
-                className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 min="1"
                 max="50"
                 value={searchForm.maxResults}
@@ -148,12 +148,12 @@ export function VideoSearchCard({
             </div>
 
             <div>
-              <label htmlFor="sortOrder" className="block text-sm font-medium text-gray-200 mb-2">
+              <label htmlFor="sortOrder" className="block text-sm font-medium text-gray-100 mb-2">
                 Sort Order:
               </label>
               <select
                 id="sortOrder"
-                className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 value={searchForm.sortOrder}
                 onChange={(e) => onSortOrderChange(e.target.value)}
               >
@@ -165,12 +165,12 @@ export function VideoSearchCard({
             </div>
 
             <div>
-              <label htmlFor="minDuration" className="block text-sm font-medium text-gray-200 mb-2">
+              <label htmlFor="minDuration" className="block text-sm font-medium text-gray-100 mb-2">
                 Minimum Duration:
               </label>
               <select
                 id="minDuration"
-                className="w-full px-3 py-2 border border-gray-700 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 value={searchForm.minDuration}
                 onChange={(e) => onMinDurationChange(parseInt(e.target.value))}
               >
@@ -184,7 +184,7 @@ export function VideoSearchCard({
                 <option value={1800}>30 minutes</option>
                 <option value={3600}>1 hour</option>
               </select>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-300 mt-1">
                 Filter out videos shorter than the selected duration
               </p>
             </div>
@@ -193,13 +193,13 @@ export function VideoSearchCard({
           <button
             onClick={onSearch}
             disabled={searchResults.searchLoading || !isSearchFormValid}
-            className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-md transition-colors"
+            className="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white font-medium py-2 px-6 rounded-md transition-colors"
           >
             {searchResults.searchLoading ? 'Searching...' : 'Search Videos'}
           </button>
           
           {!isSearchFormValid && (
-            <p className="text-sm text-red-600 mt-2">
+            <p className="text-sm text-red-500 mt-2">
               Please enter either a search query or a channel URL (or both).
             </p>
           )}
@@ -222,12 +222,12 @@ export function VideoSearchCard({
       {/* Search Results */}
       {searchResults.searchInfo && searchResults.videos.length > 0 && (
         <>
-          <div className="bg-green-950 border border-green-800 text-green-200 px-4 py-3 rounded-md mb-4">
+          <div className="bg-green-900/20 border border-green-700 text-green-200 px-4 py-3 rounded-md mb-4">
             Found {searchResults.videos.length} videos for {getSearchInfoText()}
             <br />
             Requested: {searchResults.searchInfo.maxResults} results
             {searchResults.searchInfo.filteredShortVideos !== undefined && searchResults.searchInfo.filteredShortVideos > 0 && (
-              <div className="text-sm text-green-600 mt-1">
+              <div className="text-sm text-green-400 mt-1">
                 ⚡ Filtered out {searchResults.searchInfo.filteredShortVideos} short videos 
                 {searchResults.searchInfo.minDuration && searchResults.searchInfo.minDuration > 0 ? (
                   ` (less than ${
@@ -243,7 +243,7 @@ export function VideoSearchCard({
           </div>
 
           {/* Selection Controls */}
-          <div className="bg-blue-950 border border-blue-800 p-4 rounded-md mb-4 text-blue-100">
+          <div className="bg-blue-900/20 border border-blue-700 p-4 rounded-md mb-4 text-blue-100">
             <div className="flex justify-between items-center mb-3">
               <div>
                 <button
@@ -349,19 +349,19 @@ export function VideoSearchCard({
             
             {/* Progress information for batch analysis */}
             {isAnalyzingBatch && (
-              <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+              <div className="mt-3 p-3 bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg border border-purple-700">
                 <div className="flex items-center gap-2 mb-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                  <span className="text-sm font-medium text-purple-800">
+                  <Loader2 className="h-4 w-4 animate-spin text-purple-300" />
+                  <span className="text-sm font-medium text-purple-200">
                     {analysisMode === 'openai' ? 'Analyzing Transcripts' : 'Analyzing Videos'} with AI
                   </span>
                 </div>
-                <div className="text-xs text-purple-600">
+                <div className="text-xs text-purple-300">
                   Progress: {batchAnalysisProgress.completed} of {batchAnalysisProgress.total} videos completed
                 </div>
-                <div className="w-full bg-purple-200 rounded-full h-2 mt-2">
+                <div className="w-full bg-purple-900 rounded-full h-2 mt-2">
                   <div 
-                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-purple-500 h-2 rounded-full transition-all duration-300"
                     style={{ 
                       width: `${batchAnalysisProgress.total > 0 ? (batchAnalysisProgress.completed / batchAnalysisProgress.total) * 100 : 0}%` 
                     }}
@@ -371,7 +371,7 @@ export function VideoSearchCard({
             )}
 
             {searchResults.selectedVideos.length === 0 && (
-              <p className="text-sm text-blue-600 mt-2">
+            <p className="text-sm text-blue-400 mt-2">
                 Please select at least one video to perform analysis.
               </p>
             )}
@@ -379,24 +379,24 @@ export function VideoSearchCard({
           
           {/* Overall Progress Bar */}
           {subtitleGeneration.generatingSubtitles && subtitleGeneration.totalVideosProcessing > 0 && (
-            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="mt-3 p-3 bg-green-900/20 border border-green-700 rounded-lg">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-green-800">
+                <span className="text-sm font-medium text-green-200">
                   Processing Videos ({subtitleGeneration.completedVideosCount}/{subtitleGeneration.totalVideosProcessing})
                 </span>
-                <span className="text-sm text-green-600">
+                <span className="text-sm text-green-400">
                   {Math.round((subtitleGeneration.completedVideosCount / subtitleGeneration.totalVideosProcessing) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-green-200 rounded-full h-3">
+              <div className="w-full bg-green-900 rounded-full h-3">
                 <div 
-                  className="bg-green-600 h-3 rounded-full transition-all duration-500"
+                  className="bg-green-500 h-3 rounded-full transition-all duration-500"
                   style={{ 
                     width: `${(subtitleGeneration.completedVideosCount / subtitleGeneration.totalVideosProcessing) * 100}%` 
                   }}
                 ></div>
               </div>
-              <p className="text-xs text-green-700 mt-1">
+              <p className="text-xs text-green-300 mt-1">
                 Videos are being processed in parallel. Each completed video will update this progress bar.
               </p>
             </div>
@@ -404,24 +404,24 @@ export function VideoSearchCard({
 
           {/* Analysis Progress Bar */}
           {isAnalyzingBatch && batchAnalysisProgress.total > 0 && (
-            <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+            <div className="mt-3 p-3 bg-indigo-900/20 border border-indigo-700 rounded-lg">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-indigo-800">
+                <span className="text-sm font-medium text-indigo-200">
                   Analyzing Videos ({batchAnalysisProgress.completed}/{batchAnalysisProgress.total})
                 </span>
-                <span className="text-sm text-indigo-600">
+                <span className="text-sm text-indigo-400">
                   {Math.round((batchAnalysisProgress.completed / batchAnalysisProgress.total) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-indigo-200 rounded-full h-3">
+              <div className="w-full bg-indigo-900 rounded-full h-3">
                 <div 
-                  className="bg-indigo-600 h-3 rounded-full transition-all duration-500"
+                  className="bg-indigo-500 h-3 rounded-full transition-all duration-500"
                   style={{ 
                     width: `${(batchAnalysisProgress.completed / batchAnalysisProgress.total) * 100}%` 
                   }}
                 ></div>
               </div>
-              <p className="text-xs text-indigo-700 mt-1">
+              <p className="text-xs text-indigo-300 mt-1">
                 {analysisMode === 'openai' 
                   ? 'Analyzing transcripts with OpenAI for detailed insights and timestamps.'
                   : 'Analyzing videos directly with Gemini AI for comprehensive insights.'
@@ -431,19 +431,19 @@ export function VideoSearchCard({
           )}
           
           {searchResults.selectedVideos.length === 0 && (
-            <p className="text-sm text-blue-600 mt-2">
+            <p className="text-sm text-blue-400 mt-2">
               Please select at least one video to generate subtitles, create summaries, or perform analysis.
             </p>
           )}
           
           {searchResults.selectedVideos.length > 10 && (
-            <p className="text-sm text-orange-600 mt-2">
+            <p className="text-sm text-orange-400 mt-2">
               ⚠️ You have selected {searchResults.selectedVideos.length} videos. Only the first 10 videos will be processed for subtitle generation due to processing limitations.
             </p>
           )}
           
           {analysisMode === 'openai' && searchResults.selectedVideos.length > 0 && getVideosWithSubtitlesCount() === 0 && (
-            <p className="text-sm text-purple-600 mt-2">
+            <p className="text-sm text-purple-400 mt-2">
               Generate subtitles first to enable OpenAI transcript analysis.
             </p>
           )}

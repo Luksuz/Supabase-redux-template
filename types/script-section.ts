@@ -5,7 +5,8 @@ export const scriptSectionSchema = z.object({
   writingInstructions: z.string(),
   // Required for structured outputs (no optional fields)
   image_generation_prompt: z.string(),
-  wordCount: z.number().optional()
+  // Make nullable instead of optional to satisfy OpenAI structured outputs
+  wordCount: z.number().nullable()
 });
 
 export const scriptSectionsResponseSchema = z.object({

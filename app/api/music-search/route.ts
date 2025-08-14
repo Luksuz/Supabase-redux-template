@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStoryblocksSearchUrl, isStoryblocksConfigured } from '@/lib/storyblocks-utils';
 
 export async function POST(request: NextRequest) {
+  console.log('Music search route called');
+  console.log('Storyblocks configured:', isStoryblocksConfigured());
   if (!isStoryblocksConfigured()) {
     return NextResponse.json({ error: 'Storyblocks API not configured.' }, { status: 500 });
   }
@@ -12,6 +14,8 @@ export async function POST(request: NextRequest) {
     if (!keywords) {
       return NextResponse.json({ error: 'Keywords are required for music search.' }, { status: 400 });
     }
+
+    console.log('Keywords:', keywords);
     
     const searchParams = {
         keywords,
@@ -21,8 +25,10 @@ export async function POST(request: NextRequest) {
     };
     
     const url = getStoryblocksSearchUrl(searchParams);
+    console.log('Storyblocks search URL:', url);
 
     const storyblocksResponse = await fetch(url);
+    console.log('Storyblocks response:', storyblocksResponse);
 
     console.log('Storyblocks response:', storyblocksResponse)
     if (!storyblocksResponse.ok) {

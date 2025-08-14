@@ -51,6 +51,7 @@
     "dotenv": "^16.5.0",
     "framer-motion": "^12.23.12",
     "googleapis": "^149.0.0",
+    "json-schema-to-zod": "^2.6.1",
     "jszip": "^3.10.1",
     "langchain": "^0.3.30",
     "lucide-react": "^0.511.0",
