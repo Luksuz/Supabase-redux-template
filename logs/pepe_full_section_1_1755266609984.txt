@@ -1,0 +1,32 @@
+Write this section for the video script titled "test":
+
+SECTION TITLE: Do You Hear Your Own Voice When You Think?
+WRITING INSTRUCTIONS:
+Purpose and scope: Craft a 150–170 word opening that feels like a whispered invitation, not a lecture. Begin with a concrete moment: you catching yourself narrating while washing a mug or walking home—an image close enough to feel borrowed from the viewer’s day. Ask one or two precise questions: “Is the voice in your head yours, or a collage of teachers, parents, and podcasts?” Keep the tempo unhurried, sentences varied, with one short, honest line that lands softly. Credibility without overload: name one real phenomenon to signal substance—e.g., the simple “articulatory suppression” trick psychologists use (silently repeat a syllable and watch memory falter), but leave the deeper explanation for section 2. Promise a grounded exploration: the origin of inner speech, what the brain is actually doing, when self-talk helps or harms, and a few small experiments viewers can run today. No hype, no grand claims. Emphasize curiosity over certainty, positioning the video as a gentle mapping of familiar terrain. Emotional pacing: begin warm and intimate, then shift to quiet intrigue by the last two lines. End with a clean curiosity gap that naturally hands off to section 2: a hint that we’ll test whether we can change the tone of that inner voice—and what changes in behavior when we do. Avoid buzzwords; keep language simple and vivid, with one sensory detail (steam from the sink, scuffed sidewalk) anchoring the scene. Respect the audience’s experience: acknowledge that not everyone “hears” verbal thoughts; some think in images or shapes—signal inclusion without derailing the hook.
+
+CONTEXT:
+- Emotional tone: balanced
+- Audience: general
+- Forbidden words: none
+- Previous section title: 
+- Next section title: The Quiet Mechanics of Inner Speech—and How to Use It
+
+GENERAL REQUIREMENTS:
+- Avoid AI-ish repetition and formulaic phrasing
+- Vary sentence structure and rhythm
+- Integrate concrete examples and evidence when useful
+- Flow naturally from the previous content; set up the next
+- Do not include headers, "Section" markers, or meta commentary
+
+
+---
+
+Steam curls from the sink as I wash a chipped mug. Without noticing, I’m narrating: rinse, stack, don’t drop it. Later, walking home, the scuffed sidewalk taps a beat under the same quiet play-by-play. Is the voice in your head yours, or a collage of teachers, parents, and podcasts? Maybe you don’t hear a voice at all; for you, thought shows up as images, maps, shapes, a felt push.
+
+Sometimes it’s kind.
+
+To anchor this in something simple: psychologists use a trick called articulatory suppression—silently repeat a syllable, and watch your memory for a list falter. We’ll come back to why that happens.
+
+This isn’t a sermon, just a slow map: where inner speech comes from, what the brain is up to when it unfolds, when self-talk steadies you and when it trips you, plus a few small experiments you can run today.
+
+Next, we’ll test whether we can change the tone of that voice—and notice what your behavior does when the tone shifts.

@@ -1,3 +1,7 @@
+=== OUTLINE GENERATION PROMPT ===
+Generated at: 2025-08-15T14:02:30.492Z
+Filename: batch_1_of_1_test
+
 You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Your goal is to educate and engage through natural human communication, not AI-generated content patterns.
 
 TITLE: "test"
@@ -128,3 +132,5 @@ CRITICAL WORD COUNT ENFORCEMENT:
 
 
 Return the response as a JSON object with a "sections" array containing 2 section objects.
+
+=== END OF PROMPT ===
