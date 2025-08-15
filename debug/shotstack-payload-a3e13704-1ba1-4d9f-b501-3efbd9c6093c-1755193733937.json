@@ -1,0 +1,138 @@
+{
+  "metadata": {
+    "videoId": "a3e13704-1ba1-4d9f-b501-3efbd9c6093c",
+    "timestamp": "2025-08-14T17:48:53.937Z",
+    "videoType": "Traditional",
+    "totalDuration": 131.04,
+    "imageCount": 7,
+    "hasAudio": true,
+    "hasSubtitles": true,
+    "hasMusic": false,
+    "musicVolume": "N/A",
+    "muteStockVideo": true,
+    "overlayEffects": "none"
+  },
+  "payload": {
+    "timeline": {
+      "tracks": [
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "caption",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio//storage/v1/object/public/audio/subtitles/subtitles_1755193696932.srt",
+                "font": {
+                  "family": "Montserrat",
+                  "size": 20,
+                  "color": "#ffffff",
+                  "weight": "700",
+                  "stroke": "#000000",
+                  "strokeWidth": 2
+                },
+                "background": {
+                  "color": "#ffffff",
+                  "opacity": 0,
+                  "padding": 12
+                },
+                "margin": {
+                  "top": 0.75,
+                  "left": 0.05,
+                  "right": 0.05
+                }
+              },
+              "start": 0,
+              "length": 131.04
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1755193644862-u1jo41lai-chunk-1-1755193714032.jpg"
+              },
+              "start": 0,
+              "length": 18.72,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1755193644862-u1jo41lai-chunk-2-1755193714138.jpg"
+              },
+              "start": 18.72,
+              "length": 18.72,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1755193644862-u1jo41lai-chunk-3-1755193714099.jpg"
+              },
+              "start": 37.44,
+              "length": 18.72,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1755193644862-u1jo41lai-chunk-4-1755193714054.jpg"
+              },
+              "start": 56.16,
+              "length": 18.72,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1755193644862-u1jo41lai-chunk-5-1755193714132.jpg"
+              },
+              "start": 74.88,
+              "length": 18.72,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1755193644862-u1jo41lai-chunk-6-1755193714113.jpg"
+              },
+              "start": 93.6,
+              "length": 18.72,
+              "fit": "cover"
+            },
+            {
+              "asset": {
+                "type": "image",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/gen-1755193644862-u1jo41lai-chunk-7-1755193715033.jpg"
+              },
+              "start": 112.32,
+              "length": 18.72,
+              "fit": "cover"
+            }
+          ]
+        },
+        {
+          "clips": [
+            {
+              "asset": {
+                "type": "audio",
+                "src": "https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/voiceover/joined/original-1755193689089.wav",
+                "volume": 1
+              },
+              "start": 0,
+              "length": 131.04
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "format": "mp4",
+      "size": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  }
+}

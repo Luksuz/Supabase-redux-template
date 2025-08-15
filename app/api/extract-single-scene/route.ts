@@ -74,23 +74,23 @@ IMPORTANT: Use the script summary above to maintain consistent character descrip
           }
         ],
         temperature: 0.3,
-        max_tokens: 300,
+        max_tokens: 3000,
       });
 
       let promptText = promptResponse.choices[0]?.message.content?.trim() || 
-        `A detailed scene depicting: ${chunkText.substring(0, 100)}...`;
+        `A detailed scene depicting: ${chunkText.substring(0, 1000)}...`;
 
       // Ensure prompt is under 200 words and 1000 characters for detailed descriptions
       const words = promptText.split(' ');
-      if (words.length > 200) {
-        promptText = words.slice(0, 200).join(' ');
+      if (words.length > 20000) {
+        promptText = words.slice(0, 2000).join(' ');
       }
       
       // Hard limit to 1000 characters for detailed prompts
-      if (promptText.length > 1000) {
-        promptText = promptText.substring(0, 1000).trim();
+      if (promptText.length > 10000) {
+        promptText = promptText.substring(0, 10000).trim();
         const lastSpace = promptText.lastIndexOf(' ');
-        if (lastSpace > 900) {
+        if (lastSpace > 9000) {
           promptText = promptText.substring(0, lastSpace);
         }
       }

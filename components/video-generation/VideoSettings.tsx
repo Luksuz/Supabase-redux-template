@@ -648,11 +648,6 @@ export function VideoSettings({
                     </div>
                   )}
                 </div>
-
-                <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
-                  <strong>How it works:</strong> Each segment gets a randomized duration between 80% and 120% 
-                  of the equal time distribution, while maintaining the total video duration.
-                </div>
               </div>
             )}
           </CardContent>

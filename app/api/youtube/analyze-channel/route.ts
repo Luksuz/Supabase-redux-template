@@ -350,9 +350,11 @@ Return your response in the following JSON format:
           }
         ],
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 2000
       })
     })
+
+    console.log('🔍 OpenAI API response:', response)
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status}`)
@@ -497,6 +499,7 @@ export async function POST(request: NextRequest) {
       if (channelResponse.ok) {
         const channelData = await channelResponse.json()
         channelInfo = channelData.items?.[0] || null
+        console.log('🔍 Channel info:', channelInfo)
       }
     } catch (error) {
       console.error('Error fetching channel info:', error)

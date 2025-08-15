@@ -1,0 +1,99 @@
+{
+  "id": "4a4cf859-1c66-47d1-8b4f-a083c2c89bfa",
+  "model": "sonar-pro",
+  "created": 1755241628,
+  "usage": {
+    "prompt_tokens": 95,
+    "completion_tokens": 321,
+    "total_tokens": 416,
+    "search_context_size": "high",
+    "cost": {
+      "input_tokens_cost": 0.000285,
+      "output_tokens_cost": 0.004815,
+      "request_cost": 0.014,
+      "total_cost": 0.0191
+    }
+  },
+  "citations": [
+    "https://dictionary.cambridge.org/us/dictionary/english/test",
+    "https://www.merriam-webster.com/dictionary/test",
+    "https://www.dictionary.com/browse/test",
+    "https://fast.com",
+    "https://link.springer.com/journal/11749",
+    "https://implicit.harvard.edu/implicit/takeatest.html",
+    "https://fiber.google.com/speedtest/",
+    "https://www.speedtest.net",
+    "https://zoom.us/test"
+  ],
+  "search_results": [
+    {
+      "title": "TEST | definition in the Cambridge English Dictionary",
+      "url": "https://dictionary.cambridge.org/us/dictionary/english/test",
+      "date": "2025-01-01",
+      "last_updated": "2025-07-01"
+    },
+    {
+      "title": "TEST Definition & Meaning - Merriam-Webster",
+      "url": "https://www.merriam-webster.com/dictionary/test",
+      "date": "2024-09-23",
+      "last_updated": "2024-11-19"
+    },
+    {
+      "title": "TEST Definition & Meaning - Dictionary.com",
+      "url": "https://www.dictionary.com/browse/test",
+      "date": "2025-08-12",
+      "last_updated": null
+    },
+    {
+      "title": "Fast.com: Internet Speed Test",
+      "url": "https://fast.com",
+      "date": "2005-10-01",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "TEST",
+      "url": "https://link.springer.com/journal/11749",
+      "date": null,
+      "last_updated": "2024-02-08"
+    },
+    {
+      "title": "Take a Test",
+      "url": "https://implicit.harvard.edu/implicit/takeatest.html",
+      "date": null,
+      "last_updated": "2025-07-02"
+    },
+    {
+      "title": "Internet Speed Test | Check Broadband Speed - Google Fiber",
+      "url": "https://fiber.google.com/speedtest/",
+      "date": "2024-05-27",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "Speedtest by Ookla - The Global Broadband Speed Test",
+      "url": "https://www.speedtest.net",
+      "date": "2020-09-01",
+      "last_updated": "2025-06-16"
+    },
+    {
+      "title": "Join a Test Meeting | Zoom",
+      "url": "https://zoom.us/test",
+      "date": "2025-01-01",
+      "last_updated": "2025-06-16"
+    }
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "A **test** is a method of assessing knowledge, ability, performance, or characteristics through questions, practical activities, or trials[1][2][3]. The term is widely used in education, science, medicine, technology, and other fields to evaluate or measure specific attributes or outcomes.\n\nKey contexts and meanings include:\n- **Educational assessment:** A test can be a set of questions or exercises designed to measure a person's knowledge, skills, or proficiency in a subject (e.g., a math test, driving test)[1][2][3].\n- **Scientific or medical procedure:** In science and medicine, a test refers to a procedure or reaction used to identify, diagnose, or characterize a substance or condition (e.g., blood test, drug test)[1][2].\n- **Trial or experiment:** The word can also mean putting something or someone through a trial to determine quality, performance, or reliability (e.g., testing a new product, testing equipment)[2][3].\n- **Technology:** In computing and networking, a test might refer to checking system performance, such as an internet speed test[4][7][8].\n- **Research:** In statistics and probability, a test can refer to a formal procedure for evaluating hypotheses or analyzing data[5].\n\nAs a verb, **to test** means to examine, evaluate, or try out something or someone to determine their qualities, abilities, or performance[1][2][3].\n\nThe word \"test\" is highly versatile and context-dependent, so its specific meaning is shaped by the field in which it is used."
+      },
+      "delta": {
+        "role": "assistant",
+        "content": ""
+      }
+    }
+  ]
+}

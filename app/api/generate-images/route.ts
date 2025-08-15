@@ -114,8 +114,13 @@ const getImageDimensions = (aspectRatio: '16:9' | '1:1' | '9:16', provider: stri
   }
 };
 
-// Generate image using flux models via fal.ai
-async function generateFluxImage(provider: string, prompt: string, dimensions: { width: number; height: number }): Promise<string> {
+// Generate image using fal.ai models with optional style/negative prompts when supported
+async function generateFalImage(
+  provider: string,
+  prompt: string,
+  dimensions: { width: number; height: number },
+  options?: { recraftStyle?: string; ideogramStyle?: string; negativePrompt?: string }
+): Promise<string> {
   let modelEndpoint: string;
   
   switch (provider) {
@@ -123,6 +128,8 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
       modelEndpoint = 'fal-ai/flux/dev';
       break;
     case 'recraft-v3':
+      prompt = prompt.slice(0, 900);
+      console.log('🔍 Recraft prompt length:', prompt.length);
       modelEndpoint = 'fal-ai/recraft-v3';
       break;
     case 'stable-diffusion-v35-large':
@@ -141,18 +148,34 @@ async function generateFluxImage(provider: string, prompt: string, dimensions: {
       throw new Error(`Unsupported flux model: ${provider}`);
   }
 
-  const result = await fal.subscribe(modelEndpoint, {
-    input: {
-      prompt,
-      image_size: dimensions,
-      num_inference_steps: 28,
-      guidance_scale: 3.5,
-      num_images: 1,
-      enable_safety_checker: false
-    },
-  });
+  // Base input shared across most fal models
+  const input: Record<string, any> = {
+    prompt,
+    image_size: dimensions,
+    num_inference_steps: 28,
+    guidance_scale: 3.5,
+    num_images: 1,
+    enable_safety_checker: false
+  };
+
+  // Apply negative prompt if supported (stable-diffusion family)
+  if ((provider.startsWith('stable-diffusion')) && options?.negativePrompt) {
+    input.negative_prompt = options.negativePrompt;
+  }
+
+  // Apply style enums for supported models
+  if (provider === 'recraft-v3' && options?.recraftStyle) {
+    input.style = options.recraftStyle; // Recraft style enum
+  }
+  if (provider === 'ideogram-v3' && options?.ideogramStyle) {
+    input.style = options.ideogramStyle; // Ideogram style enum
+  }
+
+  console.log('🔍 Flux input:', JSON.stringify(input));
+  const result = await fal.subscribe(modelEndpoint, { input });
 
   // Extract image URL from fal.ai response
+  // console.log(JSON.stringify(result))
   if (result.data?.images?.[0]?.url) {
     return result.data.images[0].url;
   } else if (result.data?.image?.url) {
@@ -280,8 +303,14 @@ async function pollForGenerationCompletion(generationId: string): Promise<Leonar
   throw new Error('Image generation timed out or polling failed.');
 }
 
-// Generate image using Leonardo Phoenix
-async function generateLeonardoPhoenixImage(prompt: string, width: number, height: number, contrast: number = 3.5): Promise<string> {
+// Generate image using Leonardo Phoenix (supports style UUID)
+async function generateLeonardoPhoenixImage(
+  prompt: string,
+  width: number,
+  height: number,
+  contrast: number = 3.5,
+  styleUUID?: string
+): Promise<string> {
   const generationPayload = {
     modelId: "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3", // Leonardo Phoenix 1.0 model
     prompt: prompt,
@@ -290,11 +319,14 @@ async function generateLeonardoPhoenixImage(prompt: string, width: number, heigh
     width: width,
     height: height,
     alchemy: true,
-    styleUUID: "111dc692-d470-4eec-b791-3475abac4c46", // Dynamic style
+    styleUUID: styleUUID || "111dc692-d470-4eec-b791-3475abac4c46", // Use provided or default Dynamic style
     enhancePrompt: false,
   };
 
       console.log('🚀 Starting Leonardo Phoenix image generation...');
+      if (generationPayload.styleUUID) {
+        console.log(`🎨 Using Leonardo style UUID: ${generationPayload.styleUUID}`);
+      }
   
     const generationResponse = await fetch(`${LEONARDO_API_URL}/generations`, {
     method: 'POST',
@@ -585,7 +617,13 @@ export async function POST(request: NextRequest) {
         console.log(`Generating Leonardo Phoenix image ${i + 1} of ${numberOfImages}...`);
         
         try {
-          const imageUrl = await generateLeonardoPhoenixImage(prompt, dimensions.width, dimensions.height, 3.5);
+          const imageUrl = await generateLeonardoPhoenixImage(
+            prompt,
+            dimensions.width,
+            dimensions.height,
+            3.5,
+            body.leonardoStyleUUID
+          );
           imageUrls.push(imageUrl);
           console.log(`✅ Successfully generated Leonardo Phoenix image ${i + 1}`);
         } catch (error) {
@@ -622,7 +660,7 @@ export async function POST(request: NextRequest) {
       
       console.log(`✅ Google Imagen batch complete: ${validImageUrls.length}/${numberOfImages} images generated successfully`);
     } else {
-      // Flux models using fal.ai
+      // Flux/fal.ai models
       console.log(`Generating ${numberOfImages} image(s) with ${provider}...`);
       
       const dimensions = getImageDimensions(minimaxAspectRatio, provider);
@@ -635,11 +673,15 @@ export async function POST(request: NextRequest) {
         console.log(`Generating flux image ${i + 1} of ${numberOfImages}...`);
         
         try {
-          const imageUrl = await generateFluxImage(provider, prompt, dimensions);
+          const imageUrl = await generateFalImage(provider, prompt, dimensions, {
+            recraftStyle: body.recraftStyle,
+            ideogramStyle: body.ideogramStyle,
+            negativePrompt: body.negativePrompt,
+          });
           imageUrls.push(imageUrl);
           console.log(`✅ Successfully generated flux image ${i + 1}`);
         } catch (error) {
-          console.error(`❌ Error generating flux image ${i + 1}:`, error);
+          console.error(`❌ Error generating flux image ${i + 1}:`, JSON.stringify(error));
         }
         
         // Rate limiting: Wait 6 seconds between requests (10 per minute)

@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Upload, RefreshCw, History, Plus, Edit, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Select,
   SelectContent,
@@ -92,19 +91,8 @@ const ScriptGenerator: React.FC = () => {
   const [scriptFormat, setScriptFormat] = useState<string>("Story");
   const [audience, setAudience] = useState<string>("");
   
-  // State for sequential generation
-  const [useSequentialGeneration, setUseSequentialGeneration] = useState<boolean>(false);
-  const [sequentialProgress, setSequentialProgress] = useState<{
-    currentSection: number;
-    totalSections: number;
-    isGenerating: boolean;
-    generatedSections: ScriptSection[];
-  }>({
-    currentSection: 0,
-    totalSections: 0,
-    isGenerating: false,
-    generatedSections: []
-  });
+  // Full script generation mode (async or sequential)
+  const [fullScriptMode, setFullScriptMode] = useState<'async' | 'sequential'>('async');
   
   // State for script segmentation
   const [segmentMode, setSegmentMode] = useState<'sentences' | 'full'>('sentences');
@@ -336,7 +324,8 @@ const ScriptGenerator: React.FC = () => {
           modelName: selectedModel,
           povSelection,
           scriptFormat,
-          audience
+          audience,
+          generationMode: fullScriptMode
         }),
       });
 
@@ -425,112 +414,7 @@ const ScriptGenerator: React.FC = () => {
     await generateFullScriptDirectly(scriptSections);
   };
 
-  // Sequential generation function
-  const handleSequentialGeneration = async () => {
-    if (!title) {
-      dispatch(setScriptGenerationError("Title is required for sequential generation"));
-      return;
-    }
-
-    try {
-      // Calculate target sections from word count
-      const targetSections = Math.max(1, Math.round(targetWordCount / 750));
-      
-      // Reset progress
-      setSequentialProgress({
-        currentSection: 0,
-        totalSections: targetSections,
-        isGenerating: true,
-        generatedSections: []
-      });
-
-      // Clear existing sections
-      dispatch(setScriptSections([]));
-      dispatch(clearFullScript());
-
-      const generatedSections: ScriptSection[] = [];
-
-      // Generate sections sequentially
-      for (let i = 0; i < targetSections; i++) {
-        setSequentialProgress(prev => ({
-          ...prev,
-          currentSection: i + 1
-        }));
-
-        console.log(`🔄 Generating section ${i + 1}/${targetSections}`);
-
-        // Prepare context from previous sections (max 3)
-        const contextSections = generatedSections.slice(Math.max(0, generatedSections.length - 3));
-        
-        const response = await fetch("/api/generate-sequential-section", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sectionIndex: i,
-            totalSections: targetSections,
-            targetWordCount,
-            title,
-            theme,
-            additionalPrompt,
-            sectionPrompt,
-            researchContext,
-            inspirationalTranscript,
-            forbiddenWords,
-            modelName: selectedModel,
-            povSelection,
-            scriptFormat,
-            audience,
-            previousSections: contextSections // Context from previous sections
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to generate section ${i + 1}`);
-        }
-
-        const data = await response.json();
-        
-        if (data.section) {
-          generatedSections.push(data.section);
-          // Update Redux with new sections as we generate them
-          dispatch(setScriptSections([...generatedSections]));
-          
-          // Update progress state to show completed sections
-          setSequentialProgress(prev => ({
-            ...prev,
-            generatedSections: [...generatedSections]
-          }));
-          
-          console.log(`✅ Generated section ${i + 1}: ${data.section.title}`);
-        } else {
-          throw new Error(`Invalid response for section ${i + 1}`);
-        }
-      }
-
-      setSequentialProgress(prev => ({
-        ...prev,
-        isGenerating: false,
-        generatedSections
-      }));
-
-      console.log(`✅ Sequential generation complete: ${generatedSections.length} sections generated`);
-
-      // Automatically generate the full script after all sections are complete
-      console.log("🚀 Starting automatic full script generation...");
-      await generateFullScriptDirectly(generatedSections);
-
-    } catch (error) {
-      console.error("Error in sequential generation:", error);
-      dispatch(setScriptGenerationError((error as Error).message));
-      setSequentialProgress(prev => ({
-        ...prev,
-        isGenerating: false
-      }));
-    }
-  };
+  // Removed per-section sequential generation; server handles sequential full script
 
   const handleUpdateSection = (index: number, updatedSection: ScriptSection) => {
     dispatch(updateScriptSection({ index, section: updatedSection }));
@@ -1222,39 +1106,34 @@ const ScriptGenerator: React.FC = () => {
             </Select>
       </div>
 
-          {/* Sequential Generation Option */}
+          {/* Full Script Generation Mode */}
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="sequential-generation"
-                checked={useSequentialGeneration}
-                onCheckedChange={(checked) => setUseSequentialGeneration(checked as boolean)}
-              />
-              <Label htmlFor="sequential-generation" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Sequential Generation
-              </Label>
+            <Label>Full Script Generation Mode</Label>
+            <div className="flex gap-3 text-sm">
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="radio"
+                  name="fullScriptMode"
+                  value="async"
+                  checked={fullScriptMode === 'async'}
+                  onChange={() => setFullScriptMode('async')}
+                />
+                Async (faster)
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="radio"
+                  name="fullScriptMode"
+                  value="sequential"
+                  checked={fullScriptMode === 'sequential'}
+                  onChange={() => setFullScriptMode('sequential')}
+                />
+                Sequential (uses last 3 sections as context)
+              </label>
             </div>
             <p className="text-xs text-muted-foreground">
-              Generate sections one by one with context from previous sections for better story continuity
+              Sequential mode improves continuity by feeding the last 3 generated sections into the next one.
             </p>
-            
-            {useSequentialGeneration && (
-              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 w-4 h-4 bg-amber-400 rounded-full mt-0.5" />
-                  <div className="text-xs text-amber-800">
-                    <p className="font-medium mb-1">Sequential Mode Active</p>
-                    <ul className="space-y-1">
-                      <li>• Sections generated one at a time with context</li>
-                      <li>• Each section builds on previous ones (max 3 for context)</li>
-                      <li>• Better story consistency and flow</li>
-                      <li>• Full script automatically generated at the end</li>
-                      <li>• {Math.max(1, Math.round(targetWordCount / 750))} sections will be created</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="space-y-2">
@@ -1385,91 +1264,39 @@ const ScriptGenerator: React.FC = () => {
           </div>
                 
           <div className="flex flex-col sm:flex-row gap-3">
-                  <Button
+            <Button
               className="flex-1" 
-              onClick={useSequentialGeneration ? handleSequentialGeneration : handleGenerateOutline}
-              disabled={isLoading || isGeneratingScript || sequentialProgress.isGenerating || !title}
+              onClick={handleGenerateOutline}
+              disabled={isLoading || isGeneratingScript || !title}
             >
-              {sequentialProgress.isGenerating 
-                ? `Generating Section ${sequentialProgress.currentSection}/${sequentialProgress.totalSections}...`
-                : isLoading 
+              {isLoading 
                 ? "Generating Sections..." 
-                : useSequentialGeneration 
-                ? `Generate ${Math.max(1, Math.round(targetWordCount / 750))} Sections Sequentially` 
-                : `Generate ${Math.max(1, Math.round(targetWordCount / 750))} Sections`
-              }
-                  </Button>
-                
-            {hasScriptSections && !useSequentialGeneration && (
-                  <Button
+                : `Generate ${Math.max(1, Math.round(targetWordCount / 750))} Sections`}
+            </Button>
+
+            {hasScriptSections && (
+              <Button
                 className="flex-1" 
                 onClick={handleGenerateFullScript}
-                disabled={isLoading || isGeneratingScript || sequentialProgress.isGenerating}
+                disabled={isLoading || isGeneratingScript}
                 variant="secondary"
               >
                 {isGeneratingScript ? "Generating Script..." : "Generate Full Script"}
-                  </Button>
+              </Button>
             )}
 
             {fullScript && (
-                  <Button
-                    variant="outline"
+              <Button
+                variant="outline"
                 onClick={handleDownloadDocx}
                 className="flex-1 gap-2"
-                disabled={sequentialProgress.isGenerating}
-                  >
+              >
                 <Download size={16} />
                 Download DOCX
-                  </Button>
+              </Button>
             )}
           </div>
-
-          {/* Sequential Generation Progress */}
-          {sequentialProgress.isGenerating && (
-            <div className="space-y-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
-                  <span className="text-sm font-medium text-blue-800">
-                    Sequential Generation in Progress
-                  </span>
-                </div>
-                <span className="text-sm text-blue-600">
-                  {sequentialProgress.currentSection}/{sequentialProgress.totalSections}
-                </span>
-              </div>
-              
-              <div className="w-full bg-blue-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ 
-                    width: `${(sequentialProgress.currentSection / sequentialProgress.totalSections) * 100}%` 
-                  }}
-                />
-              </div>
-              
-              <p className="text-xs text-blue-700">
-                Generating section {sequentialProgress.currentSection} with context from previous sections...
-              </p>
-              
-              {/* Show completed sections */}
-              {sequentialProgress.generatedSections.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-xs font-medium text-blue-800 mb-1">Completed Sections:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {sequentialProgress.generatedSections.map((section, index) => (
-                      <span 
-                        key={index}
-                        className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
-                      >
-                        {index + 1}. {section.title}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* No per-section sequential progress; sequencing handled on server for full script */}
 
           {/* Error Display */}
           {scriptGenerationError && (

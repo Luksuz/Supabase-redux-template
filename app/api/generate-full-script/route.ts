@@ -39,7 +39,8 @@ export async function POST(request: Request) {
       modelName = "gpt-4o-mini",
       povSelection = "3rd Person",
       scriptFormat = "Story",
-      audience = ""
+      audience = "",
+      generationMode = "async" // 'async' | 'sequential'
     } = requestData;
     
     console.log("Received request for script generation:");
@@ -150,16 +151,23 @@ CONSISTENCY REQUIREMENTS:
     };
 
     // Create an async function to process a single section
-    const processSection = async (section: ScriptSection, index: number) => {
+    const processSection = async (
+      section: ScriptSection,
+      index: number,
+      previousGeneratedSegments: string[] = []
+    ) => {
       try {
         console.log(`Started processing section ${index + 1}: ${section.title}`);
         
         // Build context from previous sections for consistency
         let contextInformation = "";
-        if (index > 0) {
+        if (previousGeneratedSegments.length > 0) {
+          const recent = previousGeneratedSegments.slice(-3);
           contextInformation = `
-PREVIOUS SECTION CONTEXT FOR CONSISTENCY:
-This is section ${index + 1} of ${sections.length}. Maintain consistency with the story established in previous sections.
+PREVIOUSLY GENERATED CONTENT (last ${recent.length} section${recent.length > 1 ? 's' : ''}):
+${recent.map((seg, i) => `--- Context ${i + 1} ---\n${seg.substring(0, 2400)}\n`).join('\n')}
+
+INSTRUCTIONS: Maintain strict continuity with names, places, facts, and narrative beats established above. Do not repeat; continue naturally from this context.
 `;
         }
 
@@ -283,13 +291,21 @@ Generate the spoken narrative content for this section, ensuring it flows natura
       }
     };
 
-    // Process all sections sequentially to maintain consistency
-    console.log("Starting sequential section processing...");
-    const scriptSegments: string[] = [];
-    
-    for (let i = 0; i < sections.length; i++) {
-      const segment = await processSection(sections[i], i);
-      scriptSegments.push(segment);
+    let scriptSegments: string[] = [];
+
+    if (generationMode === 'sequential') {
+      console.log("Starting SEQUENTIAL full script generation with rolling 3-section context...");
+      scriptSegments = [];
+      for (let i = 0; i < sections.length; i++) {
+        const prev = scriptSegments.slice(Math.max(0, i - 3), i);
+        const segment = await processSection(sections[i], i, prev);
+        scriptSegments.push(segment);
+      }
+    } else {
+      console.log("Starting ASYNC full script generation (no cross-section context)...");
+      scriptSegments = await Promise.all(
+        sections.map((section, i) => processSection(section, i, []))
+      );
     }
 
     // Combine all segments into the final script
