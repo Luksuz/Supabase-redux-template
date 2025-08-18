@@ -141,7 +141,7 @@ async function createCompressedAudio(originalAudioPath: string, outputDir: strin
 async function generateSubtitlesFromAudio(audioUrl: string, userId: string, origin: string): Promise<string> {
   console.log(`🔤 Generating subtitles for audio: ${audioUrl}`);
   try {
-    const resolvedOrigin = origin || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const resolvedOrigin = origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const apiUrl = new URL('/api/generate-subtitles', resolvedOrigin).toString();
     const response = await fetch(apiUrl, {
       method: 'POST',
