@@ -142,13 +142,14 @@ async function generateSubtitlesFromAudio(audioUrl: string, userId: string, orig
   console.log(`🔤 Generating subtitles for audio: ${audioUrl}`);
   try {
     const resolvedOrigin = origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    console.log("resolvedOrigin", resolvedOrigin)
     const apiUrl = new URL('/api/generate-subtitles', resolvedOrigin).toString();
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audioUrl: audioUrl, userId: userId })
     });
-
+    console.log("response", response)
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Subtitle generation failed: ${response.status} ${response.statusText} - ${errorText}`);
