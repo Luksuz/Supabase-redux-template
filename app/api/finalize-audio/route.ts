@@ -141,7 +141,7 @@ async function createCompressedAudio(originalAudioPath: string, outputDir: strin
 async function generateSubtitlesFromAudio(audioUrl: string, userId: string, origin: string): Promise<string> {
   console.log(`🔤 Generating subtitles for audio: ${audioUrl}`);
   try {
-    const resolvedOrigin = origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const resolvedOrigin = "https://welcome-exact-satyr.ngrok-free.app"
     console.log("resolvedOrigin", resolvedOrigin)
     const apiUrl = new URL('/api/generate-subtitles', resolvedOrigin).toString();
     const response = await fetch(apiUrl, {
