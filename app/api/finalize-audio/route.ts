@@ -138,10 +138,11 @@ async function createCompressedAudio(originalAudioPath: string, outputDir: strin
   }
 }
 
-async function generateSubtitlesFromAudio(audioUrl: string, userId: string): Promise<string> {
+async function generateSubtitlesFromAudio(audioUrl: string, userId: string, origin: string): Promise<string> {
   console.log(`🔤 Generating subtitles for audio: ${audioUrl}`);
   try {
-    const apiUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/generate-subtitles`;
+    const resolvedOrigin = origin || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const apiUrl = new URL('/api/generate-subtitles', resolvedOrigin).toString();
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -268,7 +269,8 @@ export async function POST(request: NextRequest) {
         if (generateSubtitles) {
             console.log(`🔤 Generating subtitles using compressed audio...`);
             try {
-                subtitlesUrl = await generateSubtitlesFromAudio(compressedAudioSupabaseUrl, userId);
+                const origin = request.nextUrl?.origin;
+                subtitlesUrl = await generateSubtitlesFromAudio(compressedAudioSupabaseUrl, userId, origin);
             } catch(subtitleError) {
                 console.warn(`⚠️ Could not generate subtitles.`, subtitleError)
             }
