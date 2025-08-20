@@ -314,9 +314,9 @@ export async function POST(request: NextRequest) {
         const getOverlayUrl = (effect: string): string => {
             const overlayMap: Record<string, string> = {
                 'dust': 'https://byktarizdjtreqwudqmv.supabase.co/storage/v1/object/public/video-generator/overlay.webm',
-                'fire-particles': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/Fire%20Particles%20Overlay.mov',
-                'screen-displacement': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/screen-displacement-map-glitch-effect-digital-pixe-2024-07-17-05-42-56-utc.mov',
-                'snow-falling': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/snow-falling-2023-11-27-04-51-47-utc.mp4'
+                'fire-particles': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/Fire%20Particles%20Overlay.webm',
+                'screen-displacement': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/screen-displacement-map-glitch-effect-digital-pixe-2024-07-17-05-42-56-utc.webm',
+                'snow-falling': 'https://wbbhdqthxqdzzdandrfy.supabase.co/storage/v1/object/public/audio/drive-download-20250803T085638Z-1-001/snow-falling-2023-11-27-04-51-47-utc.webm'
             }
             return overlayMap[effect] || ''
         }
