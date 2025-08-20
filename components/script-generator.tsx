@@ -1035,6 +1035,10 @@ Write the authentic, expert-level script content now:`
                     <SelectValue placeholder="Select AI model..." />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="gpt-5">GPT-5 (Smartest)</SelectItem>
+                    <SelectItem value="gpt-5-mini">GPT-5 Mini (Smart and Fast)</SelectItem>
+                    <SelectItem value="gpt-5-nano">GPT-5 Nano (Fast)</SelectItem>
+
                     <SelectItem value="gpt-4.1-nano">GPT-4.1 Nano (Ultra Fast)</SelectItem>
                     <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini (Fast)</SelectItem>
                     <SelectItem value="gpt-4.1">GPT-4.1 (Balanced)</SelectItem>
