@@ -31,9 +31,11 @@ const ELEVENLABS_VOICE_IDS: Record<string, string> = {
   'Sam': 'yoZ06aMxZJJ28mfd3POQ'
 };
 
+export const runtime = 'nodejs';
+
 // Constants for chunking and batching
 const ELEVENLABS_CHUNK_MAX_LENGTH = 10000;
-const MINIMAX_CHUNK_MAX_LENGTH = 3000;
+const MINIMAX_CHUNK_MAX_LENGTH = 2500;
 const BATCH_SIZE = 5; // 5 requests per batch
 const BATCH_DELAY = 60 * 1000; // 1 minute delay between batches
 
