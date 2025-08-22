@@ -109,7 +109,7 @@ const getCharacterLimits = (provider: AudioProvider) => {
     case 'elevenlabs':
       return { maxChars: 10000, batchSize: 5, batchDelay: 60 }
     case 'minimax':
-      return { maxChars: 3000, batchSize: 5, batchDelay: 60 }
+      return { maxChars: 2500, batchSize: 5, batchDelay: 60 }
     default:
       return { maxChars: 3000, batchSize: 5, batchDelay: 60 }
   }
@@ -139,6 +139,35 @@ export function SimpleAudioGenerator() {
   const [estimatedTime, setEstimatedTime] = useState(0)
   const [customFilename, setCustomFilename] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const splitIntoChunks = (text: string, maxLen: number): string[] => {
+    if (!text) return []
+    if (text.length <= maxLen) return [text]
+    const chunks: string[] = []
+    let cursor = 0
+    while (cursor < text.length) {
+      const end = Math.min(cursor + maxLen, text.length)
+      // try to split on sentence boundary or space within window
+      const window = text.slice(cursor, end)
+      let splitAt = -1
+      // prefer sentence end
+      const sentenceRegex = /[.?!]\s+/g
+      let match
+      while ((match = sentenceRegex.exec(window)) !== null) {
+        splitAt = match.index + match[0].length
+      }
+      if (splitAt === -1) {
+        const lastSpace = window.lastIndexOf(' ')
+        splitAt = lastSpace > 0 ? lastSpace + 1 : window.length
+      }
+      const part = window.slice(0, splitAt)
+      chunks.push(part.trim())
+      cursor += splitAt
+    }
+    return chunks.filter(Boolean)
+  }
 
   // Auto-populate with full script if available (only when text is empty)
   useEffect(() => {
@@ -233,50 +262,107 @@ export function SimpleAudioGenerator() {
     setProcessingStatus('Initializing batch processing...')
 
     try {
-      const requestBody = {
-        text: textToConvert,
-        provider: selectedProvider,
-        voice: selectedProvider === 'minimax' ? minimaxVoice : elevenLabsVoice,
-        model: selectedProvider === 'minimax' ? minimaxModel : elevenLabsModel,
-        language: selectedProvider === 'elevenlabs' ? elevenLabsLanguage : undefined,
-        scriptTitle: sectionedWorkflow.videoTitle || 'untitled-script',
-        customFilename: customFilename.trim() || undefined
+      const limits = getCharacterLimits(selectedProvider)
+
+      // ElevenLabs: single server-handled call
+      if (selectedProvider === 'elevenlabs') {
+        const requestBody = {
+          text: textToConvert,
+          provider: 'elevenlabs' as const,
+          voice: elevenLabsVoice,
+          model: elevenLabsModel,
+          language: elevenLabsLanguage,
+          scriptTitle: sectionedWorkflow.videoTitle || 'untitled-script',
+          customFilename: customFilename.trim() || undefined
+        }
+
+        if (processingEstimate.chunks > 1) {
+          setProcessingStatus(`Processing ${processingEstimate.chunks} chunks in ${processingEstimate.batches} batches...`)
+          setEstimatedTime(processingEstimate.estimatedMinutes)
+        } else {
+          setProcessingStatus('Generating audio...')
+        }
+
+        const response = await fetch('/api/generate-simple-audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        })
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to generate audio')
+        }
+        const data = await response.json()
+        setProcessingStatus('')
+        dispatch(completeGeneration({ audioUrl: data.audioUrl, filename: data.filename }))
+        if (data.chunksGenerated && data.totalChunks) {
+          console.log(`✅ Successfully generated ${data.chunksGenerated}/${data.totalChunks} chunks`)
+        }
+        return
       }
 
-      // Update status for batch processing
-      if (processingEstimate.chunks > 1) {
-        setProcessingStatus(`Processing ${processingEstimate.chunks} chunks in ${processingEstimate.batches} batches...`)
-        setEstimatedTime(processingEstimate.estimatedMinutes)
-      } else {
-        setProcessingStatus('Generating audio...')
+      // MiniMax: frontend-batched flow (5 per batch, 2500 chars, 60s delay)
+      const chunks = splitIntoChunks(textToConvert, limits.maxChars)
+      const totalChunks = chunks.length
+      const totalBatches = Math.ceil(totalChunks / limits.batchSize)
+      setProcessingStatus(`Processing ${totalChunks} chunks in ${totalBatches} batches...`)
+      setEstimatedTime(Math.max(1, totalBatches * (limits.batchDelay / 60)))
+
+      const batchAudioUrls: string[] = []
+      for (let batchStart = 0; batchStart < totalChunks; batchStart += limits.batchSize) {
+        const batchEnd = Math.min(batchStart + limits.batchSize, totalChunks)
+        const batchIndex = Math.floor(batchStart / limits.batchSize) + 1
+        setProcessingStatus(`Generating batch ${batchIndex}/${totalBatches} (chunks ${batchStart + 1}-${batchEnd})...`)
+
+        const batchText = chunks.slice(batchStart, batchEnd).join('\n\n')
+        const requestBody = {
+          text: batchText,
+          provider: 'minimax' as const,
+          voice: minimaxVoice,
+          model: minimaxModel,
+          scriptTitle: sectionedWorkflow.videoTitle || 'untitled-script',
+          customFilename: customFilename.trim() || undefined
+        }
+
+        const res = await fetch('/api/generate-simple-audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({} as any))
+          throw new Error(err.error || `Batch ${batchIndex} failed`)
+        }
+        const data = await res.json()
+        if (!data.audioUrl) throw new Error('Batch response missing audioUrl')
+        batchAudioUrls.push(data.audioUrl)
+
+        // Wait between batches except after the last
+        if (batchEnd < totalChunks) {
+          setProcessingStatus(`Waiting ${limits.batchDelay}s before next batch...`)
+          await sleep(limits.batchDelay * 1000)
+        }
       }
 
-      const response = await fetch('/api/generate-simple-audio', {
+      // Concatenate batch audio
+      setProcessingStatus('Concatenating batches...')
+      const concatRes = await fetch('/api/concatenate-audio-urls', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioDataUrls: batchAudioUrls }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate audio')
+      if (!concatRes.ok) {
+        const errJson = await concatRes.json().catch(() => ({} as any))
+        throw new Error(errJson.error || 'Failed to concatenate batch audio')
       }
+      const concatData = await concatRes.json()
 
-      const data = await response.json()
-      
       setProcessingStatus('')
       dispatch(completeGeneration({
-        audioUrl: data.audioUrl,
-        filename: data.filename
+        audioUrl: concatData.audioUrl,
+        filename: (customFilename.trim() ? `${customFilename.trim()}.mp3` : undefined) || `EN_${(sectionedWorkflow.videoTitle || 'untitled-script').replace(/[^a-zA-Z0-9\s-_]/g, '').replace(/\s+/g, '-').toLowerCase().substring(0, 50)}.mp3`
       }))
-      
-      // Show success message with processing info
-      if (data.chunksGenerated && data.totalChunks) {
-        console.log(`✅ Successfully generated ${data.chunksGenerated}/${data.totalChunks} chunks`)
-      }
-      
+
     } catch (error) {
       console.error('Error generating audio:', error)
       setProcessingStatus('')

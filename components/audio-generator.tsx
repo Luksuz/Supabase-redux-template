@@ -23,6 +23,13 @@ import { Checkbox } from './ui/checkbox'
 import { Label } from './ui/label'
 import { Volume2, Download, PlayCircle, PauseCircle, CheckCircle, AlertCircle, Loader2, FileText, Clock, Subtitles } from 'lucide-react'
 
+// MiniMax batching constraints
+const MINIMAX_CHUNK_MAX_LENGTH = 2500
+const MINIMAX_BATCH_SIZE = 5
+const MINIMAX_BATCH_DELAY_MS = 60 * 1000
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 // ElevenLabs voice options
 const elevenLabsVoices = [
   { id: 'Rachel', name: 'Rachel (Female, American)' },
@@ -121,6 +128,93 @@ export function AudioGenerator() {
         .join('\n\n')
 
       console.log(`📝 Combined text length: ${combinedText.length} characters`)
+
+      // Frontend-batched MiniMax flow (5 chunks/batch, 2500 chars, 60s between batches)
+      const isMinimax = typeof selectedModel === 'string' && selectedModel.startsWith('speech')
+      if (isMinimax) {
+        try {
+          const textChunks = splitTextIntoChunks(combinedText, MINIMAX_CHUNK_MAX_LENGTH)
+          const totalChunks = textChunks.length
+          if (totalChunks === 0) throw new Error('No content to process after chunking')
+
+          // Initialize chunk-based progress
+          dispatch(setAudioProgress({ total: totalChunks, completed: 0, phase: 'chunks' }))
+
+          // Frontend sends batches to generate-simple-audio, collects batch audio (data URLs)
+          const batchAudioDataUrls: string[] = []
+          let completed = 0
+
+          for (let batchStart = 0; batchStart < totalChunks; batchStart += MINIMAX_BATCH_SIZE) {
+            const batchEnd = Math.min(batchStart + MINIMAX_BATCH_SIZE, totalChunks)
+            const batchChunks = textChunks.slice(batchStart, batchEnd)
+
+            // Combine this batch's text so server will re-chunk within the batch
+            const batchText = batchChunks.join('\n\n')
+
+            const res = await fetch('/api/generate-simple-audio', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: batchText,
+                provider: 'minimax',
+                voice: selectedVoice,
+                model: selectedModel || 'speech-02-hd',
+              }),
+            })
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({} as any))
+              throw new Error(err.error || `Batch ${Math.floor(batchStart / MINIMAX_BATCH_SIZE) + 1} failed`)
+            }
+            const data = await res.json()
+            if (!data.audioUrl) throw new Error('Batch response missing audioUrl')
+            batchAudioDataUrls.push(data.audioUrl)
+
+            // Update progress by number of chunks completed in this batch
+            completed += (batchEnd - batchStart)
+            dispatch(setAudioProgress({ total: totalChunks, completed, phase: 'chunks' }))
+
+            // Wait between batches except after last
+            if (batchEnd < totalChunks) {
+              await sleep(MINIMAX_BATCH_DELAY_MS)
+            }
+          }
+
+          // Concatenate batch audio data URLs
+          dispatch(setAudioProgress({ total: totalChunks, completed: totalChunks, phase: 'concatenating' }))
+          const concatRes = await fetch('/api/concatenate-audio-urls', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audioDataUrls: batchAudioDataUrls }),
+          })
+          if (!concatRes.ok) {
+            const errJson = await concatRes.json().catch(() => ({} as any))
+            throw new Error(errJson.error || 'Failed to concatenate batch audio')
+          }
+          const concatData = await concatRes.json()
+
+          // Estimate duration (words/150 wpm) across all chunks
+          const totalWords = textChunks.reduce((sum, t) => sum + t.split(/\s+/).filter(Boolean).length, 0)
+          const estimatedFinalDuration = (totalWords / 150) * 60
+
+          dispatch(completeAudioGeneration({
+            audioUrl: concatData.audioUrl,
+            duration: estimatedFinalDuration,
+            scriptDurations: [],
+          }))
+
+          if (generateSubtitles) {
+            await handleGenerateSubtitles(concatData.finalAudioUrl)
+          } else {
+            dispatch(saveGenerationToHistory())
+          }
+
+          showMessage(`Successfully generated audio with MiniMax in ${totalChunks} chunks`, 'success')
+          return
+        } catch (mmErr: any) {
+          console.error('MiniMax batching error:', mmErr)
+          throw mmErr
+        }
+      }
 
       // Generate audio using simple audio generation
       const response = await fetch('/api/generate-simple-audio', {
