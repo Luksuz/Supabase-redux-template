@@ -18,7 +18,6 @@ export function createModelInstance(modelId: string, temperature: number = 0.7) 
     return new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
       modelName: modelId,
-      temperature,
     });
   } 
   

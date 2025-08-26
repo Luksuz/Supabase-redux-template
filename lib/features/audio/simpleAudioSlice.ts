@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
-export type AudioProvider = 'minimax' | 'elevenlabs'
+export type AudioProvider = 'minimax' | 'elevenlabs' | 'genaipro'
 
 export interface SimpleAudioState {
   // Audio generation state
@@ -20,6 +20,11 @@ export interface SimpleAudioState {
   elevenLabsVoice: string
   elevenLabsModel: string
   elevenLabsLanguage: string
+  
+  // GenAI Pro settings
+  genaiProVoice: string
+  genaiProModel: string
+  genaiProLanguage: string
   
   // Input text
   textToConvert: string
@@ -41,6 +46,11 @@ const initialState: SimpleAudioState = {
   elevenLabsVoice: 'Rachel',
   elevenLabsModel: 'eleven_multilingual_v2',
   elevenLabsLanguage: 'en',
+  
+  // Default GenAI Pro settings
+  genaiProVoice: 'Rachel',
+  genaiProModel: 'eleven_multilingual_v2',
+  genaiProLanguage: 'en',
   
   textToConvert: ''
 }
@@ -71,6 +81,18 @@ export const simpleAudioSlice = createSlice({
     
     setElevenLabsLanguage: (state, action: PayloadAction<string>) => {
       state.elevenLabsLanguage = action.payload
+    },
+    
+    setGenaiProVoice: (state, action: PayloadAction<string>) => {
+      state.genaiProVoice = action.payload
+    },
+    
+    setGenaiProModel: (state, action: PayloadAction<string>) => {
+      state.genaiProModel = action.payload
+    },
+    
+    setGenaiProLanguage: (state, action: PayloadAction<string>) => {
+      state.genaiProLanguage = action.payload
     },
     
     setTextToConvert: (state, action: PayloadAction<string>) => {
@@ -120,6 +142,9 @@ export const {
   setElevenLabsVoice,
   setElevenLabsModel,
   setElevenLabsLanguage,
+  setGenaiProVoice,
+  setGenaiProModel,
+  setGenaiProLanguage,
   setTextToConvert,
   startGeneration,
   completeGeneration,

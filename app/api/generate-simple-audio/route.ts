@@ -17,6 +17,9 @@ const elevenlabs = elevenLabsApiKey ? new ElevenLabsClient({ apiKey: elevenLabsA
 const MINIMAX_GROUP_ID = process.env.MINIMAX_GROUP_ID || "1905235425920819721";
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJMRcODTyBDVVJJT1NPIiwiVXNlck5hbWUiOiJMRcODTyBDVVJJT1NPIiwiQWNjb3VudCI6IiIsIlN1YmplY3RJRCI6IjE5MDUyMzU0MjU5MjkyMDgzMjkiLCJQaG9uZSI6IiIsIkdyb3VwSUQiOiIxOTA1MjM1NDI1OTIwODE5NzIxIiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiMTB0b3Bkb211bmRvQGdtYWlsLmNvbSIsIkNyZWF0ZVRpbWUiOiIyMDI1LTA0LTI5IDA1OjE5OjE3IiwiVG9rZW5UeXBlIjoxLCJpc3MiOiJtaW5pbWF4In0.Xxqk6EK5mA1PbIFHwJIftjLL9fXzIUoZapTbaRy-6LYtL1DuYJht-cVUZHHbWw3jiGFA5HJqhWC6K1CiT5PbTr76P381gme5HKJBhzU_g578sB43AoK4gm7mSWf-mmNcOKeBQF_WhVzmFcWb7YCRbED3Zx0c2p3lunshZOflz_9d-3iEC0199ia6v2ted8jA1NtKc21E7xfJxnwAYEjL-bGIz4b3D_i-MStZsJBxcvtFQ0l77KB1KIUMemBnrOhsEIsE088LOFNfazU0v9-DZTvwjplH8uSojo2P2IHlsdpUYnV0aVUj8ckIBHAStFRkH2Cf9hobMpU1n8QvStDlPA";
 
+// GenAI Pro configuration
+const GENAIPRO_API_KEY = process.env.GENAIPRO_API_KEY;
+
 // Voice ID mappings for ElevenLabs (name to ID)
 const ELEVENLABS_VOICE_IDS: Record<string, string> = {
   'Rachel': 'JBFqnCBsd6RMkjVDRZzb',
@@ -35,6 +38,7 @@ export const runtime = 'nodejs';
 
 // Constants for chunking and batching
 const ELEVENLABS_CHUNK_MAX_LENGTH = 10000;
+const GENAIPRO_CHUNK_MAX_LENGTH = 10000;
 const MINIMAX_CHUNK_MAX_LENGTH = 2500;
 const BATCH_SIZE = 5; // 5 requests per batch
 const BATCH_DELAY = 60 * 1000; // 1 minute delay between batches
@@ -197,6 +201,63 @@ async function generateElevenLabsAudio(text: string, voice: string, model: strin
   }
 }
 
+async function createGenaiProTask(text: string, voice: string, model: string, language: string): Promise<string> {
+  if (!GENAIPRO_API_KEY) {
+    throw new Error("GenAI Pro API key not configured");
+  }
+  
+  console.log(`🎵 Creating GenAI Pro task with voice: ${voice}, model: ${model}, language: ${language}`);
+  
+  // Get the voice ID from the mapping, fallback to the provided voice if it's already an ID
+  const voiceId = ELEVENLABS_VOICE_IDS[voice] || voice;
+  
+  console.log(`🎤 Using voice ID: ${voiceId} for voice: ${voice}`);
+  
+  try {
+    // Create task using GenAI Pro API
+    const taskResponse = await fetch('https://genaipro.vn/api/elevenlabs/task', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GENAIPRO_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: text,
+        voice_id: voiceId,
+        model_id: model || 'eleven_multilingual_v2',
+        style: 0.5,
+        speed: 1.0,
+        use_speaker_boost: true,
+        similarity: 0.75,
+        stability: 0.5,
+        export_subtitle: false,
+        max_characters_per_line: 42,
+        max_lines_per_cue: 2,
+        max_seconds_per_cue: 7
+      })
+    });
+    
+    if (!taskResponse.ok) {
+      const errorText = await taskResponse.text();
+      throw new Error(`GenAI Pro task creation failed: ${taskResponse.status} ${taskResponse.statusText}. Body: ${errorText}`);
+    }
+    
+    const taskData = await taskResponse.json();
+    const taskId = taskData.task_id;
+    
+    if (!taskId) {
+      throw new Error('No task ID received from GenAI Pro API');
+    }
+    
+    console.log(`📋 Created GenAI Pro task: ${taskId}`);
+    return taskId;
+    
+  } catch (error: any) {
+    console.error(`❌ GenAI Pro task creation error:`, error);
+    throw new Error(`GenAI Pro task creation failed: ${error.message}`);
+  }
+}
+
 // Generate single chunk
 async function generateSingleChunk(
   textChunk: string,
@@ -214,6 +275,9 @@ async function generateSingleChunk(
       
     case 'elevenlabs':
       return await generateElevenLabsAudio(textChunk, voice, model || 'eleven_multilingual_v2', language || 'en');
+      
+    case 'genaipro':
+      return await createGenaiProTask(textChunk, voice, model || 'eleven_multilingual_v2', language || 'en');
       
     default:
       throw new Error(`Unsupported provider: ${provider}`);
@@ -287,6 +351,51 @@ async function processBatches(
   console.log(`🎉 All batches completed! Generated ${completedChunks.length}/${textChunks.length} chunks successfully`);
   
   return completedChunks;
+}
+
+// Create GenAI Pro tasks asynchronously (all at once)
+async function createGenaiProTasks(
+  textChunks: string[],
+  voice: string,
+  model: string,
+  language?: string
+): Promise<string[]> {
+  const totalChunks = textChunks.length;
+  
+  console.log(`📦 Creating ${totalChunks} GenAI Pro tasks asynchronously (all at once)`);
+
+  // Validate all chunks first
+  for (let i = 0; i < totalChunks; i++) {
+    if (!textChunks[i]) {
+      throw new Error(`Text chunk ${i + 1} is empty or undefined`);
+    }
+  }
+
+  try {
+    // Create all tasks in parallel
+    const taskPromises = textChunks.map(async (textChunk, index) => {
+      console.log(`🔄 Creating GenAI Pro task ${index + 1}/${totalChunks}`);
+      
+      try {
+        const taskId = await createGenaiProTask(textChunk, voice, model, language || 'en');
+        console.log(`✅ GenAI Pro task ${index + 1} created successfully: ${taskId}`);
+        return taskId;
+      } catch (error: any) {
+        console.error(`❌ GenAI Pro task ${index + 1} creation failed:`, error);
+        throw new Error(`GenAI Pro task ${index + 1} creation failed: ${error.message}`);
+      }
+    });
+
+    // Wait for all tasks to be created
+    const taskIds = await Promise.all(taskPromises);
+
+    console.log(`🎉 All GenAI Pro tasks created asynchronously! Generated ${taskIds.length}/${totalChunks} task IDs successfully`);
+    return taskIds;
+
+  } catch (error: any) {
+    console.error(`❌ Error creating GenAI Pro tasks:`, error);
+    throw new Error(`Failed to create GenAI Pro tasks: ${error.message}`);
+  }
 }
 
 // Audio concatenation using ffmpeg
@@ -397,7 +506,9 @@ export async function POST(request: Request) {
     }
 
     // Determine chunk size based on provider
-    const maxChunkLength = provider === 'elevenlabs' ? ELEVENLABS_CHUNK_MAX_LENGTH : MINIMAX_CHUNK_MAX_LENGTH;
+    const maxChunkLength = provider === 'elevenlabs' ? ELEVENLABS_CHUNK_MAX_LENGTH 
+                         : provider === 'genaipro' ? GENAIPRO_CHUNK_MAX_LENGTH
+                         : MINIMAX_CHUNK_MAX_LENGTH;
     
     // Split text into chunks
     const textChunks = chunkText(text, maxChunkLength);
@@ -407,53 +518,101 @@ export async function POST(request: Request) {
       throw new Error("No text content to process after chunking.");
     }
 
-    // Process chunks in batches
-    const chunkUrls = await processBatches(textChunks, provider, voice, model, language);
-    
-    if (chunkUrls.length === 0) {
-      throw new Error("No audio chunks were generated successfully.");
-    }
-
-    // Concatenate chunks (simplified for now)
-    const finalAudioUrl = await concatenateAudioUrls(chunkUrls);
-
-    // Generate proper filename - use custom filename if provided, otherwise generate from script title
-    let filename: string;
-    
-    if (customFilename && customFilename.trim()) {
-      // Use custom filename, ensure it has .mp3 extension
-      const cleanCustomFilename = customFilename.trim()
-        .replace(/[^a-zA-Z0-9\s-_@]/g, '') // Allow @ symbol for the generator suffix
-        .replace(/\s+/g, '-');
+    if (provider === 'genaipro') {
+      // GenAI Pro: create tasks and return task IDs for frontend polling
+      const taskIds = await createGenaiProTasks(textChunks, voice, model, language);
       
-      filename = cleanCustomFilename.endsWith('.mp3') 
-        ? cleanCustomFilename 
-        : `${cleanCustomFilename}.mp3`;
+      if (taskIds.length === 0) {
+        throw new Error("No GenAI Pro tasks were created successfully.");
+      }
+
+      // Generate proper filename - use custom filename if provided, otherwise generate from script title
+      let filename: string;
+      
+      if (customFilename && customFilename.trim()) {
+        // Use custom filename, ensure it has .mp3 extension
+        const cleanCustomFilename = customFilename.trim()
+          .replace(/[^a-zA-Z0-9\s-_@]/g, '') // Allow @ symbol for the generator suffix
+          .replace(/\s+/g, '-');
+        
+        filename = cleanCustomFilename.endsWith('.mp3') 
+          ? cleanCustomFilename 
+          : `${cleanCustomFilename}.mp3`;
+      } else {
+        // Generate filename from script title and language
+        const languageCode = language || 'en';
+        const cleanTitle = (scriptTitle || 'untitled-script')
+          .replace(/[^a-zA-Z0-9\s-_]/g, '') // Remove special characters
+          .replace(/\s+/g, '-') // Replace spaces with hyphens
+          .toLowerCase()
+          .substring(0, 50); // Limit length
+        
+        filename = `${languageCode.toUpperCase()}_${cleanTitle}.mp3`;
+      }
+
+      console.log(`✅ GenAI Pro tasks created successfully!`);
+
+      return NextResponse.json({
+        success: true,
+        provider: 'genaipro',
+        taskIds: taskIds,
+        filename: filename,
+        voice,
+        model: model || 'eleven_multilingual_v2',
+        language: language || 'en',
+        totalTasks: taskIds.length,
+        totalChunks: textChunks.length
+      });
+      
     } else {
-      // Generate filename from script title and language
-      const languageCode = language || 'en';
-      const cleanTitle = (scriptTitle || 'untitled-script')
-        .replace(/[^a-zA-Z0-9\s-_]/g, '') // Remove special characters
-        .replace(/\s+/g, '-') // Replace spaces with hyphens
-        .toLowerCase()
-        .substring(0, 50); // Limit length
+      // ElevenLabs/MiniMax: process chunks in batches and return audio
+      const chunkUrls = await processBatches(textChunks, provider, voice, model, language);
       
-      filename = `${languageCode.toUpperCase()}_${cleanTitle}.mp3`;
+      if (chunkUrls.length === 0) {
+        throw new Error("No audio chunks were generated successfully.");
+      }
+
+      // Concatenate chunks
+      const finalAudioUrl = await concatenateAudioUrls(chunkUrls);
+
+      // Generate proper filename - use custom filename if provided, otherwise generate from script title
+      let filename: string;
+      
+      if (customFilename && customFilename.trim()) {
+        // Use custom filename, ensure it has .mp3 extension
+        const cleanCustomFilename = customFilename.trim()
+          .replace(/[^a-zA-Z0-9\s-_@]/g, '') // Allow @ symbol for the generator suffix
+          .replace(/\s+/g, '-');
+        
+        filename = cleanCustomFilename.endsWith('.mp3') 
+          ? cleanCustomFilename 
+          : `${cleanCustomFilename}.mp3`;
+      } else {
+        // Generate filename from script title and language
+        const languageCode = language || 'en';
+        const cleanTitle = (scriptTitle || 'untitled-script')
+          .replace(/[^a-zA-Z0-9\s-_]/g, '') // Remove special characters
+          .replace(/\s+/g, '-') // Replace spaces with hyphens
+          .toLowerCase()
+          .substring(0, 50); // Limit length
+        
+        filename = `${languageCode.toUpperCase()}_${cleanTitle}.mp3`;
+      }
+
+      console.log(`✅ Batch audio generation completed successfully!`);
+
+      return NextResponse.json({
+        success: true,
+        audioUrl: finalAudioUrl,
+        filename: filename,
+        provider,
+        voice,
+        model: model || (provider === 'minimax' ? 'speech-02-hd' : 'eleven_multilingual_v2'),
+        language: language || 'en',
+        chunksGenerated: chunkUrls.length,
+        totalChunks: textChunks.length
+      });
     }
-
-    console.log(`✅ Batch audio generation completed successfully!`);
-
-    return NextResponse.json({
-      success: true,
-      audioUrl: finalAudioUrl,
-      filename: filename,
-      provider,
-      voice,
-      model: model || (provider === 'minimax' ? 'speech-02-hd' : 'eleven_multilingual_v2'),
-      language: language || 'en',
-      chunksGenerated: chunkUrls.length,
-      totalChunks: textChunks.length
-    });
 
   } catch (error: any) {
     console.error("❌ Error in batch audio generation:", error.message);

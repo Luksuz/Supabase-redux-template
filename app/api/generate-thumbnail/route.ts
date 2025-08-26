@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 import { fal } from "@fal-ai/client";
 
 const LEONARDO_API_KEY = process.env.LEONARDO_API_KEY;
@@ -142,12 +142,12 @@ async function generateOpenAIThumbnail(prompt: string, width: number, height: nu
 }
 
 // Generate thumbnail using GPT Image 1
-async function generateGPTImage1Thumbnail(prompt: string, width: number, height: number): Promise<string> {
+async function generateGPTImage1Thumbnail(prompt: string, width: number, height: number, referenceImages?: string[]): Promise<string> {
   if (!openai) {
     throw new Error('OpenAI client not initialized - check API key');
   }
 
-  console.log(`🎨 Generating GPT Image 1 thumbnail with size: ${width}x${height}`);
+  console.log(`🎨 Generating GPT Image 1 thumbnail with size: ${width}x${height}${referenceImages ? ` and ${referenceImages.length} reference images` : ''}`);
   
   // Determine the closest supported size for GPT Image 1
   let gptImageSize: '1024x1024' | '1536x1024' | '1024x1536' = '1024x1024';
@@ -161,20 +161,57 @@ async function generateGPTImage1Thumbnail(prompt: string, width: number, height:
     gptImageSize = '1024x1024'; // Square
   }
 
-  const response = await openai.images.generate({
-    model: "gpt-image-1",
-    prompt: prompt,
-    n: 1,
-    size: gptImageSize,
-    quality: "auto", // Use auto quality for thumbnails
-    response_format: "b64_json"
-  });
+  // If reference images are provided, use the edit API
+  if (referenceImages && referenceImages.length > 0) {
+    console.log(`🖼️ Using GPT Image 1 edit API with ${referenceImages.length} reference images`);
+    
+    // Convert base64 images to File objects
+    const imageFiles = await Promise.all(
+      referenceImages.map(async (base64Image, index) => {
+        // Extract base64 data from data URL
+        const base64Match = base64Image.match(/^data:image\/[^;]+;base64,(.+)$/);
+        if (!base64Match) {
+          throw new Error(`Invalid base64 image format for reference image ${index + 1}`);
+        }
+        
+        const base64Data = base64Match[1];
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Convert to File using toFile helper
+        return await toFile(imageBuffer, `reference-${index + 1}.png`, {
+          type: "image/png",
+        });
+      })
+    );
 
-  if (!response.data?.[0]?.b64_json) {
-    throw new Error('No image data received from GPT Image 1');
+    const response = await openai.images.edit({
+      model: "gpt-image-1",
+      image: imageFiles,
+      prompt: prompt,
+    });
+
+    if (!response.data?.[0]?.b64_json) {
+      throw new Error('No image data received from GPT Image 1 edit API');
+    }
+
+    return `data:image/png;base64,${response.data[0].b64_json}`;
+  } else {
+    // Use the regular generate API when no reference images
+    const response = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt: prompt,
+      n: 1,
+      size: gptImageSize,
+      quality: "auto", // Use auto quality for thumbnails
+      response_format: "b64_json"
+    });
+
+    if (!response.data?.[0]?.b64_json) {
+      throw new Error('No image data received from GPT Image 1');
+    }
+
+    return `data:image/png;base64,${response.data[0].b64_json}`;
   }
-
-  return `data:image/png;base64,${response.data[0].b64_json}`;
 }
 
 // Generate thumbnail using Flux models via fal.ai
@@ -340,12 +377,13 @@ export async function POST(request: Request) {
     const { 
       prompt, 
       referenceImageId, 
+      referenceImages = [], // New: Array of base64 image strings for GPT Image 1
       guidanceStrength = 0.5,
       stylePrefix = "",
       customStylePrefix = "",
       enhancePrompt = true,
       aspectRatio = "16:9",
-      provider = "openai" as ThumbnailProvider // OpenAI as preferred default
+      provider = "gpt-image-1" as ThumbnailProvider // GPT Image 1 as preferred default
     } = await request.json();
 
     if (!prompt || typeof prompt !== 'string') {
@@ -353,7 +391,7 @@ export async function POST(request: Request) {
     }
 
     // Check API keys based on provider
-    if (provider === 'openai' && !OPENAI_API_KEY) {
+    if ((provider === 'openai' || provider === 'gpt-image-1') && !OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OpenAI API key is not configured.' }, { status: 500 });
     }
 
@@ -377,6 +415,19 @@ export async function POST(request: Request) {
     if (referenceImageId && !['leonardo', 'leonardo-phoenix', 'minimax'].includes(provider)) {
       return NextResponse.json({ 
         error: 'Reference images are only supported with Leonardo.ai, Leonardo Phoenix, and MiniMax providers.' 
+      }, { status: 400 });
+    }
+
+    // Validate reference images for GPT Image 1
+    if (referenceImages.length > 0 && provider !== 'gpt-image-1') {
+      return NextResponse.json({ 
+        error: 'Multiple reference images are only supported with GPT Image 1 provider.' 
+      }, { status: 400 });
+    }
+
+    if (referenceImages.length > 10) {
+      return NextResponse.json({ 
+        error: 'Maximum of 10 reference images allowed for GPT Image 1.' 
       }, { status: 400 });
     }
 
@@ -443,7 +494,7 @@ export async function POST(request: Request) {
         break;
 
       case 'gpt-image-1':
-        thumbnailUrl = await generateGPTImage1Thumbnail(finalPrompt, width, height);
+        thumbnailUrl = await generateGPTImage1Thumbnail(finalPrompt, width, height, referenceImages.length > 0 ? referenceImages : undefined);
         console.log('✅ GPT Image 1 thumbnail generated successfully');
         break;
 

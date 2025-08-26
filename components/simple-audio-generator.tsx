@@ -17,6 +17,9 @@ import {
   setElevenLabsVoice,
   setElevenLabsModel,
   setElevenLabsLanguage,
+  setGenaiProVoice,
+  setGenaiProModel,
+  setGenaiProLanguage,
   setTextToConvert,
   startGeneration,
   completeGeneration,
@@ -39,6 +42,7 @@ const minimaxVoices = [
   { value: 'English_magnetic_voiced_man', label: 'Magnetic-voiced Male (Channel Voice)' },
   { value: 'English_ReservedYoungMan', label: 'Reserved Young Man (Channel Voice)' },
   { value: 'English_expressive_narrator', label: 'Expressive Narrator (Channel Voice)' },
+  { value: 'moss_audio_9e4a7a43-7de1-11f0-b5f9-229ade71d471', label: 'Sleepy Spiritualist (Voice)' },
   // Add more of your custom MiniMax voices here
   { value: 'English_compelling_lady1', label: 'Compelling Lady' },
   { value: 'English_CalmWoman', label: 'Calm Woman' },
@@ -56,6 +60,8 @@ const minimaxVoices = [
 
 // Model options for MiniMax
 const minimaxModels = [
+  { value: 'speech-2.5-hd-preview', label: 'Speech 2.5 HD Preview (Ultimate Similarity, Ultra-High Quality)' },
+  { value: 'speech-2.5-turbo-preview', label: 'Speech 2.5 Turbo Preview (Ultimate Value, 40 Languages)' },
   { value: 'speech-02-hd', label: 'Speech 02 HD (Recommended)' },
   { value: 'speech-02-turbo', label: 'Speech 02 Turbo (Fast)' },
   { value: 'speech-01-hd', label: 'Speech 01 HD' },
@@ -108,11 +114,87 @@ const getCharacterLimits = (provider: AudioProvider) => {
   switch (provider) {
     case 'elevenlabs':
       return { maxChars: 10000, batchSize: 5, batchDelay: 60 }
+    case 'genaipro':
+      return { maxChars: 10000, batchSize: 1, batchDelay: 0 } // All tasks created simultaneously
     case 'minimax':
       return { maxChars: 2500, batchSize: 5, batchDelay: 60 }
     default:
       return { maxChars: 3000, batchSize: 5, batchDelay: 60 }
   }
+}
+
+// Helper function to poll GenAI Pro tasks (2 at a time with 1-minute delays)
+const pollGenaiProTasks = async (taskIds: string[], filename: string): Promise<string[]> => {
+  const completedAudioUrls: string[] = new Array(taskIds.length)
+  const pendingTasks = new Set(taskIds.map((_, index) => index))
+  
+  const pollInterval = 60000 // 1 minute between polling rounds
+  const batchSize = 2 // Poll 2 tasks at a time
+  const maxAttempts = 30 // 30 minutes total (30 * 1min)
+  let attempts = 0
+  
+  console.log(`🔄 Starting to poll ${taskIds.length} GenAI Pro tasks (${batchSize} at a time, every 1 minute)`)
+  
+  while (pendingTasks.size > 0 && attempts < maxAttempts) {
+    attempts++
+    
+    console.log(`📊 Polling round ${attempts}/${maxAttempts}, ${pendingTasks.size} tasks remaining`)
+    
+    // Get next batch of tasks to check (up to 3)
+    const pendingTasksArray = Array.from(pendingTasks)
+    const batchToCheck = pendingTasksArray.slice(0, batchSize)
+    
+    console.log(`🔍 Checking tasks: ${batchToCheck.map(i => i + 1).join(', ')} of ${taskIds.length}`)
+    
+    // Check this batch of tasks in parallel
+    const checkPromises = batchToCheck.map(async (taskIndex) => {
+      const taskId = taskIds[taskIndex]
+      
+      try {
+        const response = await fetch('/api/check-genaipro-task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId }),
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Status check failed for task ${taskIndex + 1}`)
+        }
+        
+        const data = await response.json()
+        
+        if (data.status === 'completed' && data.audioUrl) {
+          completedAudioUrls[taskIndex] = data.audioUrl
+          pendingTasks.delete(taskIndex)
+          console.log(`✅ GenAI Pro task ${taskIndex + 1}/${taskIds.length} completed`)
+          return { taskIndex, status: 'completed' }
+        } else if (data.status === 'failed' || data.status === 'error') {
+          throw new Error(`GenAI Pro task ${taskIndex + 1} failed: ${data.status}`)
+        } else {
+          console.log(`⏳ GenAI Pro task ${taskIndex + 1}/${taskIds.length} still ${data.status}`)
+          return { taskIndex, status: data.status }
+        }
+      } catch (error) {
+        console.error(`❌ Error checking GenAI Pro task ${taskIndex + 1}:`, error)
+        throw error
+      }
+    })
+    
+    await Promise.all(checkPromises)
+    
+    // Wait before next polling round (unless all tasks are complete)
+    if (pendingTasks.size > 0 && attempts < maxAttempts) {
+      console.log(`⏱️ Waiting 1 minute before next polling round...`)
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
+    }
+  }
+  
+  if (pendingTasks.size > 0) {
+    throw new Error(`GenAI Pro tasks timed out after 30 minutes. ${pendingTasks.size} tasks still pending.`)
+  }
+  
+  console.log(`🎉 All ${taskIds.length} GenAI Pro tasks completed successfully!`)
+  return completedAudioUrls.filter(url => url) // Filter out any undefined values
 }
 
 export function SimpleAudioGenerator() {
@@ -128,6 +210,9 @@ export function SimpleAudioGenerator() {
     elevenLabsVoice,
     elevenLabsModel,
     elevenLabsLanguage,
+    genaiProVoice,
+    genaiProModel,
+    genaiProLanguage,
     textToConvert
   } = useAppSelector(state => state.simpleAudio)
 
@@ -178,7 +263,9 @@ export function SimpleAudioGenerator() {
 
   // Auto-populate filename when script title or language changes
   useEffect(() => {
-    const languageCode = selectedProvider === 'elevenlabs' ? elevenLabsLanguage : 'en'
+    const languageCode = selectedProvider === 'elevenlabs' ? elevenLabsLanguage 
+                        : selectedProvider === 'genaipro' ? genaiProLanguage 
+                        : 'en'
     const scriptTitle = sectionedWorkflow.videoTitle
     
     if (scriptTitle || languageCode !== 'en') {
@@ -191,7 +278,7 @@ export function SimpleAudioGenerator() {
       const suggestedFilename = `${languageCode.toUpperCase()}_${cleanTitle}`
       setCustomFilename(suggestedFilename)
     }
-  }, [sectionedWorkflow.videoTitle, elevenLabsLanguage, selectedProvider])
+  }, [sectionedWorkflow.videoTitle, elevenLabsLanguage, genaiProLanguage, selectedProvider])
 
   // Calculate processing estimates
   const getProcessingEstimate = () => {
@@ -199,10 +286,20 @@ export function SimpleAudioGenerator() {
     
     const limits = getCharacterLimits(selectedProvider)
     const chunks = Math.ceil(textToConvert.length / limits.maxChars)
-    const batches = Math.ceil(chunks / limits.batchSize)
-    const estimatedMinutes = Math.max(1, batches * (limits.batchDelay / 60))
     
-    return { chunks, batches, estimatedMinutes }
+    if (selectedProvider === 'genaipro') {
+      // GenAI Pro: task creation is instant, main time is in polling (2 tasks per minute + processing time)
+      const pollingRounds = Math.ceil(chunks / 2) // 2 tasks checked per round
+      const pollingTime = pollingRounds * 1 // 1 minute per round
+      const processingTime = chunks * 3 // Estimate 3 minutes processing per task
+      const estimatedMinutes = Math.max(5, pollingTime + processingTime)
+      return { chunks, batches: pollingRounds, estimatedMinutes }
+    } else {
+      // Other providers: use batching logic
+      const batches = Math.ceil(chunks / limits.batchSize)
+      const estimatedMinutes = Math.max(1, batches * (limits.batchDelay / 60))
+      return { chunks, batches, estimatedMinutes }
+    }
   }
 
   const processingEstimate = getProcessingEstimate()
@@ -298,6 +395,76 @@ export function SimpleAudioGenerator() {
         if (data.chunksGenerated && data.totalChunks) {
           console.log(`✅ Successfully generated ${data.chunksGenerated}/${data.totalChunks} chunks`)
         }
+        return
+      }
+
+      // GenAI Pro: create tasks and handle frontend polling
+      if (selectedProvider === 'genaipro') {
+        const requestBody = {
+          text: textToConvert,
+          provider: 'genaipro' as const,
+          voice: genaiProVoice,
+          model: genaiProModel,
+          language: genaiProLanguage,
+          scriptTitle: sectionedWorkflow.videoTitle || 'untitled-script',
+          customFilename: customFilename.trim() || undefined
+        }
+
+        if (processingEstimate.chunks > 1) {
+          setProcessingStatus(`Creating ${processingEstimate.chunks} GenAI Pro tasks simultaneously...`)
+          setEstimatedTime(0) // Task creation is now fast, main time is in polling
+        } else {
+          setProcessingStatus('Creating GenAI Pro task...')
+        }
+
+        // Create GenAI Pro tasks
+        const response = await fetch('/api/generate-simple-audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        })
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to create GenAI Pro tasks')
+        }
+        const data = await response.json()
+        
+        if (!data.taskIds || data.taskIds.length === 0) {
+          throw new Error('No task IDs received from GenAI Pro')
+        }
+
+        console.log(`✅ Created ${data.taskIds.length} GenAI Pro tasks`)
+        setProcessingStatus(`Polling ${data.taskIds.length} GenAI Pro tasks (2 at a time, every 1 minute)...`)
+
+        // Start polling tasks
+        const audioUrls = await pollGenaiProTasks(data.taskIds, data.filename)
+        
+        // Concatenate audio if multiple chunks
+        if (audioUrls.length > 1) {
+          setProcessingStatus('Concatenating GenAI Pro audio chunks...')
+          const concatResponse = await fetch('/api/concatenate-genaipro-audio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              audioUrls: audioUrls,
+              filename: data.filename 
+            }),
+          })
+          
+          if (!concatResponse.ok) {
+            const errJson = await concatResponse.json().catch(() => ({} as any))
+            throw new Error(errJson.error || 'Failed to concatenate GenAI Pro audio')
+          }
+          
+          const concatData = await concatResponse.json()
+          setProcessingStatus('')
+          dispatch(completeGeneration({ audioUrl: concatData.audioUrl, filename: data.filename }))
+        } else {
+          setProcessingStatus('')
+          dispatch(completeGeneration({ audioUrl: audioUrls[0], filename: data.filename }))
+        }
+        
+        console.log(`✅ GenAI Pro audio generation completed successfully`)
         return
       }
 
@@ -410,9 +577,13 @@ export function SimpleAudioGenerator() {
 
   const getProviderInfo = () => {
     const limits = getCharacterLimits(selectedProvider)
-    return selectedProvider === 'minimax' 
-      ? { name: 'MiniMax', desc: `Fast, reliable AI audio (${limits.maxChars} chars/chunk, ${limits.batchSize} chunks/batch)` }
-      : { name: 'ElevenLabs', desc: `High-quality AI voices (${limits.maxChars} chars/chunk, ${limits.batchSize} chunks/batch)` }
+    if (selectedProvider === 'minimax') {
+      return { name: 'MiniMax', desc: `Fast, reliable AI audio (${limits.maxChars} chars/chunk, ${limits.batchSize} chunks/batch)` }
+    } else if (selectedProvider === 'elevenlabs') {
+      return { name: 'ElevenLabs', desc: `High-quality AI voices (${limits.maxChars} chars/chunk, ${limits.batchSize} chunks/batch)` }
+    } else {
+      return { name: 'GenAI Pro', desc: `Affordable ElevenLabs-powered voices (${limits.maxChars} chars/chunk, 2 polls/minute)` }
+    }
   }
 
   const providerInfo = getProviderInfo()
@@ -423,7 +594,7 @@ export function SimpleAudioGenerator() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Audio Generator</h1>
         <p className="text-gray-600">
-          Convert text to speech using MiniMax or ElevenLabs AI models with automatic batching and concatenation
+          Convert text to speech using MiniMax, ElevenLabs, or GenAI Pro AI models with automatic batching and concatenation
         </p>
       </div>
 
@@ -468,21 +639,24 @@ export function SimpleAudioGenerator() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
-              Batch Processing Estimate
+              {selectedProvider === 'genaipro' ? 'Task Processing Estimate' : 'Batch Processing Estimate'}
             </CardTitle>
             <CardDescription>
-              Text will be processed in batches due to length
+              {selectedProvider === 'genaipro' 
+                ? 'Tasks created simultaneously, then polled 2 at a time every minute'
+                : 'Text will be processed in batches due to length'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{processingEstimate.chunks}</div>
-                <div className="text-sm text-blue-700">Chunks</div>
+                <div className="text-sm text-blue-700">{selectedProvider === 'genaipro' ? 'Tasks' : 'Chunks'}</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">{processingEstimate.batches}</div>
-                <div className="text-sm text-purple-700">Batches</div>
+                <div className="text-sm text-purple-700">{selectedProvider === 'genaipro' ? 'Poll Rounds' : 'Batches'}</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">~{processingEstimate.estimatedMinutes}</div>
@@ -533,12 +707,12 @@ export function SimpleAudioGenerator() {
             Audio Provider
           </CardTitle>
           <CardDescription>
-            Choose between MiniMax for speed or ElevenLabs for quality
+            Choose between MiniMax for speed, ElevenLabs for quality, or GenAI Pro for affordability
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(['minimax', 'elevenlabs'] as AudioProvider[]).map((provider) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(['minimax', 'elevenlabs', 'genaipro'] as AudioProvider[]).map((provider) => (
               <div
                 key={provider}
                 className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -557,8 +731,10 @@ export function SimpleAudioGenerator() {
                   </div>
                   <p className="text-sm text-gray-600">
                     {provider === 'minimax' 
-                      ? 'Fast, reliable AI audio (3000 chars/chunk)'
-                      : 'High-quality AI voices (10000 chars/chunk)'
+                      ? 'Fast, reliable AI audio (2500 chars/chunk)'
+                      : provider === 'elevenlabs'
+                      ? 'High-quality AI voices (10000 chars/chunk)'
+                      : 'GenAI Pro ElevenLabs - Affordable, rate-limited polling (10000 chars/chunk)'
                     }
                   </p>
                 </div>
@@ -617,7 +793,7 @@ export function SimpleAudioGenerator() {
                 </Select>
               </div>
             </div>
-          ) : (
+          ) : selectedProvider === 'elevenlabs' ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="elevenlabs-voice">Voice</Label>
@@ -667,6 +843,68 @@ export function SimpleAudioGenerator() {
                   disabled={isGenerating}
                 >
                   <SelectTrigger id="elevenlabs-language">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {elevenLabsLanguages.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="genaipro-voice">Voice</Label>
+                <Select
+                  value={genaiProVoice}
+                  onValueChange={(value) => dispatch(setGenaiProVoice(value))}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger id="genaipro-voice">
+                    <SelectValue placeholder="Select voice" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {elevenLabsVoices.map((voice) => (
+                      <SelectItem key={voice.value} value={voice.value}>
+                        {voice.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="genaipro-model">Model</Label>
+                <Select
+                  value={genaiProModel}
+                  onValueChange={(value) => dispatch(setGenaiProModel(value))}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger id="genaipro-model">
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {elevenLabsModels.map((model) => (
+                      <SelectItem key={model.value} value={model.value}>
+                        {model.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="genaipro-language">Language</Label>
+                <Select
+                  value={genaiProLanguage}
+                  onValueChange={(value) => dispatch(setGenaiProLanguage(value))}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger id="genaipro-language">
                     <SelectValue placeholder="Select language" />
                   </SelectTrigger>
                   <SelectContent>
@@ -747,7 +985,9 @@ export function SimpleAudioGenerator() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const languageCode = selectedProvider === 'elevenlabs' ? elevenLabsLanguage : 'en'
+                  const languageCode = selectedProvider === 'elevenlabs' ? elevenLabsLanguage 
+                                      : selectedProvider === 'genaipro' ? genaiProLanguage 
+                                      : 'en'
                   const scriptTitle = sectionedWorkflow.videoTitle
                   const cleanTitle = (scriptTitle || 'untitled-script')
                     .replace(/[^a-zA-Z0-9\s-_]/g, '')

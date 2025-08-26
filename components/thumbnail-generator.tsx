@@ -44,8 +44,9 @@ export function ThumbnailGenerator() {
   const [title, setTitle] = useState('')
   const [prompt, setPrompt] = useState('')
   const [selectedReferenceId, setSelectedReferenceId] = useState<string>('')
+  const [referenceImages, setReferenceImages] = useState<string[]>([])
   const [guidanceStrength, setGuidanceStrength] = useState(0.5)
-  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'leonardo' | 'leonardo-phoenix' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax'>('openai')
+  const [selectedProvider, setSelectedProvider] = useState<'gpt-image-1' | 'openai' | 'leonardo' | 'leonardo-phoenix' | 'flux-dev' | 'recraft-v3' | 'stable-diffusion-v35-large' | 'minimax'>('gpt-image-1')
   const [stylePrefix, setStylePrefix] = useState<string>('')
   const [customStylePrefix, setCustomStylePrefix] = useState('')
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1' | '9:16' | '4:3'>('16:9')
@@ -66,6 +67,10 @@ export function ThumbnailGenerator() {
       if (referenceThumbnail) {
         parts.push(`Using previous thumbnail "${referenceThumbnail.title || 'Generated Thumbnail'}" as style guide.`)
       }
+    }
+    
+    if (referenceImages.length > 0) {
+      parts.push(`Using ${referenceImages.length} reference image${referenceImages.length > 1 ? 's' : ''} to guide the generation.`)
     }
     
     const finalPrompt = parts.join('. ')
@@ -98,6 +103,7 @@ export function ThumbnailGenerator() {
         body: JSON.stringify({
           prompt: finalPrompt,
           referenceImageId: selectedReferenceId || undefined,
+          referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
           guidanceStrength: guidanceStrength,
           provider: selectedProvider,
           stylePrefix: stylePrefix || undefined,
@@ -126,6 +132,7 @@ export function ThumbnailGenerator() {
       setTitle('')
       setPrompt('')
       setSelectedReferenceId('')
+      setReferenceImages([])
       
     } catch (error) {
       console.error('Error generating thumbnail:', error)
@@ -155,6 +162,7 @@ export function ThumbnailGenerator() {
         body: JSON.stringify({
           prompt: newPrompt,
           referenceImageId: thumbnail.referenceImageId,
+          referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
           guidanceStrength: thumbnail.guidanceStrength || 0.5,
           provider: selectedProvider,
           stylePrefix: stylePrefix || undefined,
@@ -210,6 +218,7 @@ export function ThumbnailGenerator() {
 
   useEffect(() => {
     setSelectedReferenceId('')
+    setReferenceImages([])
   }, [selectedProvider])
 
   return (
@@ -218,7 +227,7 @@ export function ThumbnailGenerator() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-gray-900">Thumbnail Generator</h1>
         <p className="text-gray-600">
-          Create compelling thumbnails using multiple AI models including OpenAI DALL-E 3, Leonardo.ai, Flux, and more
+          Create compelling thumbnails using multiple AI models including GPT Image 1, OpenAI DALL-E 3, Leonardo.ai, Flux, and more
         </p>
       </div>
 
@@ -258,7 +267,8 @@ export function ThumbnailGenerator() {
                 <SelectValue placeholder="Select AI model..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="openai">OpenAI DALL-E 3 (Recommended)</SelectItem>
+                <SelectItem value="gpt-image-1">GPT Image 1 (Default)</SelectItem>
+                <SelectItem value="openai">OpenAI DALL-E 3</SelectItem>
                 <SelectItem value="leonardo">Leonardo.ai</SelectItem>
                 <SelectItem value="leonardo-phoenix">Leonardo Phoenix</SelectItem>
                 <SelectItem value="flux-dev">Flux Dev</SelectItem>
@@ -268,7 +278,7 @@ export function ThumbnailGenerator() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              OpenAI DALL-E 3 provides the highest quality results for thumbnails
+              GPT Image 1 is the recommended default model for high-quality thumbnail generation
             </p>
           </div>
 
@@ -380,11 +390,20 @@ export function ThumbnailGenerator() {
                 </div>
               )}
 
-              {!['leonardo', 'leonardo-phoenix', 'minimax'].includes(selectedProvider) && (
+              {selectedProvider === 'gpt-image-1' && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800 font-medium">GPT Image 1: Reference Images</p>
+                  <p className="text-xs text-green-600 mt-1">
+                    Upload multiple reference images to guide the generation. GPT Image 1 will analyze and combine elements from all uploaded images.
+                  </p>
+                </div>
+              )}
+
+              {!['leonardo', 'leonardo-phoenix', 'minimax', 'gpt-image-1'].includes(selectedProvider) && (
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                   <p className="text-sm text-gray-600">
                     Reference images are not supported with {selectedProvider.toUpperCase()}. 
-                    Switch to Leonardo.ai, Leonardo Phoenix (style reference) or MiniMax (character reference) to use this feature.
+                    Switch to GPT Image 1 (multiple images), Leonardo.ai, Leonardo Phoenix (style reference) or MiniMax (character reference) to use this feature.
                   </p>
                 </div>
               )}
@@ -482,6 +501,91 @@ export function ThumbnailGenerator() {
                 </div>
               )}
 
+              {/* Multiple file upload for GPT Image 1 */}
+              {selectedProvider === 'gpt-image-1' && (
+                <div className="space-y-3">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 mb-2">Upload Reference Images (Up to 10)</p>
+                    <p className="text-xs text-gray-500 mb-4">
+                      JPG, JPEG, PNG • Max 10MB each • Multiple images will be analyzed together
+                    </p>
+                    <Input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length > 10) {
+                          alert('Maximum 10 images allowed');
+                          return;
+                        }
+                        
+                        // Convert all files to base64
+                        Promise.all(
+                          files.map((file) => {
+                            return new Promise<string>((resolve) => {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                resolve(event.target?.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            });
+                          })
+                        ).then((base64Images) => {
+                          setReferenceImages(base64Images);
+                        });
+                      }}
+                      disabled={isGenerating}
+                      className="max-w-xs"
+                    />
+                  </div>
+                  
+                  {referenceImages.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-green-700">
+                          {referenceImages.length} reference image{referenceImages.length > 1 ? 's' : ''} uploaded
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setReferenceImages([])}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Clear All
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {referenceImages.map((image, index) => (
+                          <div key={index} className="relative">
+                            <div className="w-20 h-20 border-2 border-gray-300 rounded-lg overflow-hidden">
+                              <img 
+                                src={image} 
+                                alt={`Reference ${index + 1}`} 
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="absolute -top-2 -right-2 rounded-full w-5 h-5 p-0"
+                              onClick={() => {
+                                const newImages = referenceImages.filter((_, i) => i !== index);
+                                setReferenceImages(newImages);
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Empty state for Leonardo and Leonardo Phoenix when no thumbnails */}
               {(selectedProvider === 'leonardo' || selectedProvider === 'leonardo-phoenix') && thumbnails.length === 0 && (
                 <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
@@ -538,6 +642,11 @@ export function ThumbnailGenerator() {
                     {selectedReferenceId && selectedProvider === 'minimax' && (
                       <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
                         Character Reference: Uploaded
+                      </Badge>
+                    )}
+                    {referenceImages.length > 0 && selectedProvider === 'gpt-image-1' && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                        Reference Images: {referenceImages.length} uploaded
                       </Badge>
                     )}
                     {stylePrefix && (
