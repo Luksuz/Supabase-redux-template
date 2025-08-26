@@ -131,7 +131,6 @@ async function generateOpenAIThumbnail(prompt: string, width: number, height: nu
     n: 1,
     size: dalleSize,
     quality: "hd", // Use HD quality for thumbnails
-    response_format: "b64_json"
   });
 
   if (!response.data?.[0]?.b64_json) {
@@ -188,6 +187,7 @@ async function generateGPTImage1Thumbnail(prompt: string, width: number, height:
       model: "gpt-image-1",
       image: imageFiles,
       prompt: prompt,
+      size: gptImageSize,
     });
 
     if (!response.data?.[0]?.b64_json) {
@@ -203,7 +203,6 @@ async function generateGPTImage1Thumbnail(prompt: string, width: number, height:
       n: 1,
       size: gptImageSize,
       quality: "auto", // Use auto quality for thumbnails
-      response_format: "b64_json"
     });
 
     if (!response.data?.[0]?.b64_json) {
