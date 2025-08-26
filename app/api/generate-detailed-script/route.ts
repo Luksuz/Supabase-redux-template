@@ -304,8 +304,6 @@ Your goal is to inform, engage, and inspire through authentic human communicatio
                 content: prompt
               }
             ],
-            max_tokens: 2000,
-            temperature: 0.7,
           });
 
           detailedContent = response.choices[0]?.message?.content?.trim() || '';

@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
             ],
           }
         ],
-        max_tokens: maxTokens,
       })
 
       const script = response.choices[0]?.message?.content?.trim()
