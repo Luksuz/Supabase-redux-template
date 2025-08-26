@@ -144,10 +144,6 @@ function ProgressBar({ current, total, message, className = '' }: ProgressBarPro
         <span className="text-gray-600">{percentage}%</span>
       </div>
       <Progress value={percentage} className="h-2" />
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>{current} of {total}</span>
-        <span>{total - current} remaining</span>
-      </div>
     </div>
   )
 }

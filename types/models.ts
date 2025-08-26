@@ -10,6 +10,30 @@ export interface ModelConfig {
 export const AVAILABLE_MODELS: ModelConfig[] = [
   // OpenAI Models
   {
+    id: 'gpt-5',
+    name: 'GPT-5',
+    provider: 'openai',
+    description: 'newest GPT-5 model - highest performance, but expensive',
+    maxTokens: 20000,
+    costTier: 'high'
+  },
+  {
+    id: 'gpt-5-mini',
+    name: 'GPT-5 Mini',
+    provider: 'openai',
+    description: 'newest GPT-5 model - high performance, low to moderate cost',
+    maxTokens: 20000,
+    costTier: 'high'
+  },
+  {
+    id: 'gpt-5-nano',
+    name: 'GPT-5 Nano',
+    provider: 'openai',
+    description: 'newest GPT-5 model - good performance, very low cost',
+    maxTokens: 20000,
+    costTier: 'high'
+  },
+  {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
     provider: 'openai',
