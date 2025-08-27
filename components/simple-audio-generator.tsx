@@ -80,6 +80,21 @@ const fallbackElevenLabsVoices = [
   { value: 'Sam', label: 'Sam (Default)' }
 ]
 
+// GenAI Pro specific voices to add to the fetched ElevenLabs voices
+const genaiProOnlyVoices = [
+  { value: 'G17SuINrv2H9FC6nvetn', label: 'Christopher (GenAI Pro)', category: 'generated', is_legacy: false }
+]
+
+// Helper function to get the appropriate voice list based on provider
+const getVoicesForProvider = (provider: string, elevenLabsVoices: any[]) => {
+  if (provider === 'genaipro') {
+    // For GenAI Pro, add the GenAI Pro specific voices to the fetched voices
+    return [...genaiProOnlyVoices, ...elevenLabsVoices]
+  }
+  // For ElevenLabs, just return the fetched voices
+  return elevenLabsVoices
+}
+
 // Model options for ElevenLabs
 const elevenLabsModels = [
   { value: 'eleven_multilingual_v2', label: 'Multilingual V2 (29 languages)' },
@@ -903,7 +918,7 @@ export function SimpleAudioGenerator() {
                     <SelectValue placeholder={isLoadingVoices ? "Loading all voices..." : "Select voice"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {elevenLabsVoices.map((voice) => (
+                    {getVoicesForProvider('elevenlabs', elevenLabsVoices).map((voice) => (
                       <SelectItem key={voice.value} value={voice.value}>
                         {voice.label}
                       </SelectItem>
@@ -1004,7 +1019,7 @@ export function SimpleAudioGenerator() {
                     <SelectValue placeholder={isLoadingVoices ? "Loading all voices..." : "Select voice"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {elevenLabsVoices.map((voice) => (
+                    {getVoicesForProvider('genaipro', elevenLabsVoices).map((voice) => (
                       <SelectItem key={voice.value} value={voice.value}>
                         {voice.label}
                       </SelectItem>
