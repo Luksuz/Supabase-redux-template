@@ -68,12 +68,8 @@ const minimaxModels = [
   { value: 'speech-01-turbo', label: 'Speech 01 Turbo' }
 ]
 
-// Voice options for ElevenLabs - Updated with channel voices
-const elevenLabsVoices = [
-  // Your channel voices (actual voice IDs)
-  { value: 'ZQe5CZNOzWyzPSCn5a3c', label: 'Law Of Insights (Channel Voice)' },
-  { value: 'eObHpSs7wZ69N0qM3xTM', label: 'Library of Thoth (Channel Voice)' },
-  // Keep some popular defaults as backup
+// Default fallback voices for ElevenLabs (used when API is not available)
+const fallbackElevenLabsVoices = [
   { value: 'Rachel', label: 'Rachel (Default)' },
   { value: 'Adam', label: 'Adam (Default)' },
   { value: 'Antoni', label: 'Antoni (Default)' },
@@ -223,6 +219,9 @@ export function SimpleAudioGenerator() {
   const [processingStatus, setProcessingStatus] = useState('')
   const [estimatedTime, setEstimatedTime] = useState(0)
   const [customFilename, setCustomFilename] = useState('')
+  const [elevenLabsVoices, setElevenLabsVoices] = useState(fallbackElevenLabsVoices)
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false)
+  const [voicesError, setVoicesError] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -279,6 +278,53 @@ export function SimpleAudioGenerator() {
       setCustomFilename(suggestedFilename)
     }
   }, [sectionedWorkflow.videoTitle, elevenLabsLanguage, genaiProLanguage, selectedProvider])
+
+  // Fetch ElevenLabs voices when component mounts or when switching to ElevenLabs/GenAI Pro
+  useEffect(() => {
+    if (selectedProvider === 'elevenlabs' || selectedProvider === 'genaipro') {
+      const fetchVoices = async () => {
+        setIsLoadingVoices(true)
+        setVoicesError(null)
+        
+        try {
+          console.log('🔄 Fetching ALL ElevenLabs voices from API (this may take a moment)...')
+          const response = await fetch('/api/elevenlabs-voices')
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch voices: ${response.status} ${response.statusText}`)
+          }
+          
+          const data = await response.json()
+          
+          if (data.error) {
+            throw new Error(data.error)
+          }
+          
+          if (data.voices && Array.isArray(data.voices)) {
+            console.log(`✅ Successfully loaded ${data.voices.length} ElevenLabs voices`)
+            console.log(`📊 Total voices loaded: ${data.total_count || 'unknown'}`)
+            console.log(`📄 Pages fetched: ${data.pages_fetched || 'unknown'}`)
+            setElevenLabsVoices(data.voices)
+            setVoicesError(null)
+          } else {
+            throw new Error('Invalid response format from voices API')
+          }
+          
+        } catch (error) {
+          console.error('❌ Error fetching ElevenLabs voices:', error)
+          setVoicesError(error instanceof Error ? error.message : 'Failed to load voices')
+          
+          // Keep fallback voices if API fails
+          console.log('🔄 Using fallback voices due to API error')
+          setElevenLabsVoices(fallbackElevenLabsVoices)
+        } finally {
+          setIsLoadingVoices(false)
+        }
+      }
+      
+      fetchVoices()
+    }
+  }, [selectedProvider])
 
   // Calculate processing estimates
   const getProcessingEstimate = () => {
@@ -748,7 +794,24 @@ export function SimpleAudioGenerator() {
       <Card>
         <CardHeader>
           <CardTitle>{providerInfo.name} Settings</CardTitle>
-          <CardDescription>{providerInfo.desc}</CardDescription>
+          <CardDescription>
+            {providerInfo.desc}
+            {(selectedProvider === 'elevenlabs' || selectedProvider === 'genaipro') && (
+              <span className="block mt-1 text-xs">
+                {isLoadingVoices ? (
+                  <span className="text-blue-600">🔄 Loading all voices from ElevenLabs API...</span>
+                ) : voicesError ? (
+                  <span className="text-red-600">⚠️ Using fallback voices</span>
+                ) : (
+                  <span className="text-green-600">
+                    ✅ All voices loaded from ElevenLabs API{' '}
+                    <span className="text-orange-500">(custom voices wont work on genai pro)</span>{' '}
+                    <span className="text-blue-500">({elevenLabsVoices.length} available)</span>
+                  </span>
+                )}
+              </span>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {selectedProvider === 'minimax' ? (
@@ -796,14 +859,48 @@ export function SimpleAudioGenerator() {
           ) : selectedProvider === 'elevenlabs' ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="elevenlabs-voice">Voice</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="elevenlabs-voice">Voice</Label>
+                  {isLoadingVoices && (
+                    <span className="text-xs text-blue-600 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading all voices...
+                    </span>
+                  )}
+                  {voicesError && (
+                    <button
+                      onClick={() => {
+                        // Trigger re-fetch by calling the useEffect logic
+                        setIsLoadingVoices(true)
+                        setVoicesError(null)
+                        fetch('/api/elevenlabs-voices')
+                          .then(res => res.json())
+                          .then(data => {
+                            if (data.voices) {
+                              console.log(`🔄 Retry successful: loaded ${data.voices.length} voices`)
+                              setElevenLabsVoices(data.voices)
+                              setVoicesError(null)
+                            }
+                          })
+                          .catch((err) => {
+                            console.error('🔄 Retry failed:', err)
+                            setElevenLabsVoices(fallbackElevenLabsVoices)
+                          })
+                          .finally(() => setIsLoadingVoices(false))
+                      }}
+                      className="text-xs text-red-600 hover:text-red-700 underline"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
                 <Select
                   value={elevenLabsVoice}
                   onValueChange={(value) => dispatch(setElevenLabsVoice(value))}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isLoadingVoices}
                 >
                   <SelectTrigger id="elevenlabs-voice">
-                    <SelectValue placeholder="Select voice" />
+                    <SelectValue placeholder={isLoadingVoices ? "Loading all voices..." : "Select voice"} />
                   </SelectTrigger>
                   <SelectContent>
                     {elevenLabsVoices.map((voice) => (
@@ -813,6 +910,11 @@ export function SimpleAudioGenerator() {
                     ))}
                   </SelectContent>
                 </Select>
+                {voicesError && (
+                  <p className="text-xs text-red-600">
+                    ⚠️ Using fallback voices. {voicesError}
+                  </p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -858,14 +960,48 @@ export function SimpleAudioGenerator() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="genaipro-voice">Voice</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="genaipro-voice">Voice (ElevenLabs)</Label>
+                  {isLoadingVoices && (
+                    <span className="text-xs text-blue-600 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading all voices...
+                    </span>
+                  )}
+                  {voicesError && (
+                    <button
+                      onClick={() => {
+                        // Trigger re-fetch by calling the useEffect logic
+                        setIsLoadingVoices(true)
+                        setVoicesError(null)
+                        fetch('/api/elevenlabs-voices')
+                          .then(res => res.json())
+                          .then(data => {
+                            if (data.voices) {
+                              console.log(`🔄 Retry successful: loaded ${data.voices.length} voices`)
+                              setElevenLabsVoices(data.voices)
+                              setVoicesError(null)
+                            }
+                          })
+                          .catch((err) => {
+                            console.error('🔄 Retry failed:', err)
+                            setElevenLabsVoices(fallbackElevenLabsVoices)
+                          })
+                          .finally(() => setIsLoadingVoices(false))
+                      }}
+                      className="text-xs text-red-600 hover:text-red-700 underline"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
                 <Select
                   value={genaiProVoice}
                   onValueChange={(value) => dispatch(setGenaiProVoice(value))}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isLoadingVoices}
                 >
                   <SelectTrigger id="genaipro-voice">
-                    <SelectValue placeholder="Select voice" />
+                    <SelectValue placeholder={isLoadingVoices ? "Loading all voices..." : "Select voice"} />
                   </SelectTrigger>
                   <SelectContent>
                     {elevenLabsVoices.map((voice) => (
@@ -875,6 +1011,11 @@ export function SimpleAudioGenerator() {
                     ))}
                   </SelectContent>
                 </Select>
+                {voicesError && (
+                  <p className="text-xs text-red-600">
+                    ⚠️ Using fallback voices. {voicesError}
+                  </p>
+                )}
               </div>
               
               <div className="space-y-2">
