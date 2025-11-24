@@ -253,7 +253,7 @@ const initialSectionedWorkflowState: SectionedWorkflowState = {
   themeId: '',
   emotionalTone: '',
   additionalInstructions: '',
-  selectedModel: 'claude-sonnet-4-20250514',
+  selectedModel: 'claude-sonnet-4-5',
   selectedStyle: null,
   quote: {
     text: '',

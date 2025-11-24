@@ -101,7 +101,7 @@ CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phras
 - If the theme mentions specific phrases, treat them as occasional accent points, not repetitive mantras
 ` : '';
 
-    const modelId = selectedModel || 'gpt-4o-mini';
+    const modelId = selectedModel || 'claude-sonnet-4-5';
     const modelConfig = getModelById(modelId);
     
     console.log(`🚀 Generating detailed script for ${sections.length} sections in parallel: "${title}" using ${modelConfig?.name || modelId}`);

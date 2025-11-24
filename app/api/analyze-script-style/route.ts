@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     // Analyze writing style with LLM
     console.log('🤖 Analyzing writing style with AI...');
     
-    const model = createModelInstance(selectedModel || 'gpt-4o-mini', 0.7);
+    const model = createModelInstance(selectedModel || 'claude-sonnet-4-5', 0.7);
 
     const prompt = `Analyze the following script and extract the writing style, emotion, writing instructions, remarks and a chunk of text that would be enough for anyone to copy and produce a similar script.
 
@@ -191,7 +191,7 @@ Format your response as a style guide that could be used to train someone to wri
       analyzedStyle,
       meta: {
         analyzedAt: new Date().toISOString(),
-        modelUsed: selectedModel || 'gpt-4o-mini',
+        modelUsed: selectedModel || 'claude-sonnet-4-5',
         inputType: contentType?.includes('multipart/form-data') ? 'file' : 'text',
         contentLength: textContent.length
       }

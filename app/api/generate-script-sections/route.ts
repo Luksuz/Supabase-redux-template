@@ -130,7 +130,7 @@ CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phras
     if (generateQuote) {
       console.log('📜 Generating relevant quote...');
       try {
-        const quoteModel = createModelInstance(selectedModel || 'gpt-4o-mini', 0.3); // Lower temperature for more focused results
+        const quoteModel = createModelInstance(selectedModel || 'claude-sonnet-4-5', 0.3); // Lower temperature for more focused results
         
         // First, analyze the script content to understand the main themes
         const scriptAnalysisPrompt = `Analyze this video script content and identify the main subject, key themes, and any prominent figures mentioned:
@@ -252,7 +252,7 @@ Do NOT include any explanation, context, or additional text.`;
     }
 
     // Initialize the model using the factory
-    const model = createModelInstance(selectedModel || 'gpt-4o-mini', 0.7);
+    const model = createModelInstance(selectedModel || 'claude-sonnet-4-5', 0.7);
 
     // Build additions to the prompt based on optional parameters
     let additionalInstructions = "";

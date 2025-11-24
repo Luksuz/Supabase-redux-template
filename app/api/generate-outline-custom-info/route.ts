@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const modelId = selectedModel || 'gpt-4o-mini';
+    const modelId = selectedModel || 'claude-sonnet-4-5';
     const modelConfig = getModelById(modelId);
     
     console.log(`🚀 Generating outline from custom information for: "${title}" using ${modelConfig?.name || modelId}`);
@@ -137,7 +137,7 @@ CRITICAL: These are thematic guidelines for APPROACH and TONE, not literal phras
     if (generateQuote) {
       console.log('📜 Generating relevant quote...');
       try {
-        const quoteModel = createModelInstance(selectedModel || 'gpt-4o-mini', 0.3);
+        const quoteModel = createModelInstance(selectedModel || 'claude-sonnet-4-5', 0.3);
         
         const scriptAnalysisPrompt = `Analyze this video script content and identify the main subject, key themes, and any prominent figures mentioned:
 

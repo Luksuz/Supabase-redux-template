@@ -158,7 +158,7 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   },
 ]
 
-export const DEFAULT_MODEL_ID = 'gpt-4o-mini'
+export const DEFAULT_MODEL_ID = 'claude-sonnet-4-5'
 
 export function getModelById(modelId: string): ModelConfig | undefined {
   return AVAILABLE_MODELS.find(model => model.id === modelId)
