@@ -83,6 +83,90 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profileError || !profile?.is_admin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    const { email, password } = await request.json()
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'Missing required fields: email, password' },
+        { status: 400 }
+      )
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters long' },
+        { status: 400 }
+      )
+    }
+
+    // Create service role client for admin operations
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!serviceRoleKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
+      return NextResponse.json({ error: 'Service role key not configured' }, { status: 500 })
+    }
+
+    const supabaseService = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceRoleKey
+    )
+
+    // Create user using service role client
+    const { data: newUser, error: createError } = await supabaseService.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true // Auto-confirm email since admin is creating
+    })
+
+    if (createError) {
+      console.error('Error creating user:', createError)
+      return NextResponse.json(
+        { error: 'Failed to create user: ' + createError.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      user: {
+        id: newUser.user.id,
+        email: newUser.user.email
+      }
+    })
+
+  } catch (error) {
+    console.error('Admin users POST error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error: ' + (error as Error).message },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -134,6 +218,80 @@ export async function PATCH(request: NextRequest) {
     console.error('Admin users PATCH error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profileError || !profile?.is_admin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    const { userId } = await request.json()
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Missing required field: userId' },
+        { status: 400 }
+      )
+    }
+
+    // Prevent admin from deleting themselves
+    if (userId === user.id) {
+      return NextResponse.json(
+        { error: 'Cannot delete your own account' },
+        { status: 400 }
+      )
+    }
+
+    // Create service role client for admin operations
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!serviceRoleKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
+      return NextResponse.json({ error: 'Service role key not configured' }, { status: 500 })
+    }
+
+    const supabaseService = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceRoleKey
+    )
+
+    // Delete user using service role client
+    const { error: deleteError } = await supabaseService.auth.admin.deleteUser(userId)
+
+    if (deleteError) {
+      console.error('Error deleting user:', deleteError)
+      return NextResponse.json(
+        { error: 'Failed to delete user: ' + deleteError.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+
+  } catch (error) {
+    console.error('Admin users DELETE error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error: ' + (error as Error).message },
       { status: 500 }
     )
   }

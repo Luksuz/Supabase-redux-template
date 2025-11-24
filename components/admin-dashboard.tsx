@@ -6,12 +6,18 @@ import { createClient } from '../lib/supabase/client'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
 import { 
   Users, 
   Shield, 
   AlertCircle, 
   Crown,
   RefreshCw,
+  UserPlus,
+  Trash2,
+  Loader2,
+  CheckCircle
 } from 'lucide-react'
 
 interface UserProfile {
@@ -28,6 +34,15 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info')
+  
+  // Create user form state
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newUserEmail, setNewUserEmail] = useState('')
+  const [newUserPassword, setNewUserPassword] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  
+  // Delete user state
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
   useEffect(() => {
     if (user.isAdmin) {
@@ -85,6 +100,80 @@ export function AdminDashboard() {
     }
   }
 
+  const createUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!newUserEmail || !newUserPassword) {
+      showMessage('Please enter both email and password', 'error')
+      return
+    }
+
+    if (newUserPassword.length < 6) {
+      showMessage('Password must be at least 6 characters long', 'error')
+      return
+    }
+
+    setIsCreating(true)
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: newUserEmail,
+          password: newUserPassword
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create user')
+      }
+
+      showMessage(`User ${newUserEmail} created successfully`, 'success')
+      setNewUserEmail('')
+      setNewUserPassword('')
+      setShowCreateForm(false)
+      fetchUsers() // Refresh the list
+    } catch (error) {
+      showMessage('Error creating user: ' + (error as Error).message, 'error')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const deleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to delete user ${userEmail}? This action cannot be undone.`)) {
+      return
+    }
+
+    setDeletingUserId(userId)
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete user')
+      }
+
+      showMessage(`User ${userEmail} deleted successfully`, 'success')
+      fetchUsers() // Refresh the list
+    } catch (error) {
+      showMessage('Error deleting user: ' + (error as Error).message, 'error')
+    } finally {
+      setDeletingUserId(null)
+    }
+  }
+
   if (!user.isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
@@ -133,6 +222,72 @@ export function AdminDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Create User Form */}
+        <Card className="bg-white shadow-sm border border-gray-200">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Create New User
+              </div>
+              <Button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                size="sm"
+                variant={showCreateForm ? "outline" : "default"}
+              >
+                {showCreateForm ? 'Cancel' : 'New User'}
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Create new users - only admins can create accounts
+            </CardDescription>
+          </CardHeader>
+          {showCreateForm && (
+            <CardContent>
+              <form onSubmit={createUser} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="newUserEmail">Email</Label>
+                  <Input
+                    id="newUserEmail"
+                    type="email"
+                    placeholder="user@example.com"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    required
+                    disabled={isCreating}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="newUserPassword">Password</Label>
+                  <Input
+                    id="newUserPassword"
+                    type="password"
+                    placeholder="Minimum 6 characters"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    disabled={isCreating}
+                  />
+                </div>
+                <Button type="submit" disabled={isCreating} className="w-full">
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating User...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Create User
+                    </>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          )}
+        </Card>
 
         {/* Users Overview */}
         <Card className="bg-white shadow-sm border border-gray-200">
@@ -205,14 +360,29 @@ export function AdminDashboard() {
                         
                         <div className="flex items-center gap-2">
                           {userProfile.id !== user.id && (
-                          <Button
-                            onClick={() => toggleUserAdminStatus(userProfile.id, userProfile.is_admin)}
-                            size="sm"
-                            variant={userProfile.is_admin ? "destructive" : "default"}
-                          >
-                              <Shield className="h-3 w-3 mr-1" />
-                            {userProfile.is_admin ? 'Remove Admin' : 'Make Admin'}
-                          </Button>
+                            <>
+                              <Button
+                                onClick={() => toggleUserAdminStatus(userProfile.id, userProfile.is_admin)}
+                                size="sm"
+                                variant={userProfile.is_admin ? "outline" : "default"}
+                              >
+                                <Shield className="h-3 w-3 mr-1" />
+                                {userProfile.is_admin ? 'Remove Admin' : 'Make Admin'}
+                              </Button>
+                              <Button
+                                onClick={() => deleteUser(userProfile.id, userProfile.email)}
+                                size="sm"
+                                variant="destructive"
+                                disabled={deletingUserId === userProfile.id}
+                              >
+                                {deletingUserId === userProfile.id ? (
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                )}
+                                Remove User
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>

@@ -30,7 +30,7 @@ export function createModelInstance(modelId: string, temperature: number = 0.7) 
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       modelName: modelId,
       temperature,
-      maxTokens: (modelId.includes("3-5")) ? 8192 : 40000,
+      maxTokens: (modelId.includes("3-5") || modelId.includes("4-5")) ? 8192 : 40000,
       streaming: true,
     });
   }

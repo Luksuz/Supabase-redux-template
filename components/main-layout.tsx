@@ -7,8 +7,9 @@ import { SimpleAudioGenerator } from './simple-audio-generator'
 import { ScriptGenerator } from './script-generator'
 import { AdminDashboard } from './admin-dashboard'
 import { ThumbnailGenerator } from './thumbnail-generator'
+import { DocumentTranslator } from './document-translator'
 
-type NavigationView = 'script-generator' | 'image-generation' | 'thumbnail-generator' | 'audio-generator' | 'admin-dashboard'
+type NavigationView = 'script-generator' | 'translation' | 'image-generation' | 'thumbnail-generator' | 'audio-generator' | 'admin-dashboard'
 
 export function MainLayout() {
   const [activeView, setActiveView] = useState<NavigationView>('script-generator')
@@ -17,6 +18,8 @@ export function MainLayout() {
     switch (activeView) {
       case 'script-generator':
         return <ScriptGenerator />
+      case 'translation':
+        return <DocumentTranslator />
       case 'image-generation':
         return <AIImageGenerator />
       case 'thumbnail-generator':

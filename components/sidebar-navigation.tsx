@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useAppSelector } from '../lib/hooks'
 import { Card } from './ui/card'
 import { Badge } from './ui/badge'
-import { ImageIcon, FileText, Key, Volume2, Palette, BarChart3, ChevronRight, Crown, Camera } from 'lucide-react'
+import { ImageIcon, FileText, Key, Volume2, Palette, BarChart3, ChevronRight, Crown, Camera, Languages } from 'lucide-react'
 
-type NavigationView = 'script-generator' | 'image-generation' | 'thumbnail-generator' | 'audio-generator' | 'admin-dashboard'
+type NavigationView = 'script-generator' | 'translation' | 'image-generation' | 'thumbnail-generator' | 'audio-generator' | 'admin-dashboard'
 
 interface SidebarNavigationProps {
   activeView: NavigationView
@@ -27,6 +27,15 @@ export function SidebarNavigation({ activeView, onViewChange }: SidebarNavigatio
       description: 'Generate narration scripts',
       hasData: hasGeneratedScripts,
       dataCount: scripts.filter(s => s.generated).length,
+      disabled: false
+    },
+    {
+      id: 'translation' as NavigationView,
+      label: 'Translation',
+      icon: Languages,
+      description: 'Translate documents',
+      hasData: false,
+      dataCount: 0,
       disabled: false
     },
     {

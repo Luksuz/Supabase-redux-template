@@ -71,6 +71,32 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     costTier: 'high'
   },
   
+  // Anthropic Models - Claude 4.5 Series (Latest)
+  {
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    provider: 'anthropic',
+    description: 'Latest Claude Sonnet - excellent balance of speed and intelligence',
+    maxTokens: 200000,
+    costTier: 'medium'
+  },
+  {
+    id: 'claude-haiku-4-5',
+    name: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+    description: 'Latest Claude Haiku - fastest and most cost-effective',
+    maxTokens: 200000,
+    costTier: 'low'
+  },
+  {
+    id: 'claude-opus-4-1',
+    name: 'Claude Opus 4.1',
+    provider: 'anthropic',
+    description: 'Latest Claude Opus - highest intelligence for complex tasks',
+    maxTokens: 200000,
+    costTier: 'high'
+  },
+  
   // Anthropic Models - Claude 3.5 Series
   {
     id: 'claude-3-5-sonnet-20241022',

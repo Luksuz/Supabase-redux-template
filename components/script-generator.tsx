@@ -63,7 +63,6 @@ import {
   Users,
   Zap,
   Lightbulb,
-  Languages,
   List,
   Search,
   Megaphone,
@@ -73,12 +72,10 @@ import {
   Palette,
   BookOpen,
   PenTool,
-  Globe,
   Info
 } from 'lucide-react'
 import { ResearchAssistant } from './research-assistant'
 import { StyleFileUpload } from './style-file-upload'
-import { ScriptTranslator } from './script-translator'
 
 // Stepper component
 interface StepperProps {
@@ -199,7 +196,7 @@ export function ScriptGenerator() {
   const { sectionedWorkflow, research } = useAppSelector(state => state.scripts)
   
   // Stepper state - now from Redux
-  const steps = ['Script Style', 'Configuration', 'Research', 'Outline', 'Generation', 'Translation']
+  const steps = ['Script Style', 'Configuration', 'Research', 'Outline', 'Generation']
   
   // UI state (keep these as local state since they're temporary UI states)
   const [message, setMessage] = useState("")
@@ -248,8 +245,6 @@ export function ScriptGenerator() {
         return sectionedWorkflow.sections.length > 0
       case 4: // Generation
         return sectionedWorkflow.sections.some(s => s.generatedScript.trim())
-      case 5: // Translation
-        return true
       default:
         return false
     }
@@ -1041,6 +1036,9 @@ Write the authentic, expert-level script content now:`
                     <SelectItem value="gpt-4o-mini">GPT-4o Mini (Fast)</SelectItem>
                     <SelectItem value="gpt-4o">GPT-4o (Balanced)</SelectItem>
                     
+                    <SelectItem value="claude-sonnet-4-5">Claude Sonnet 4.5 (Latest)</SelectItem>
+                    <SelectItem value="claude-haiku-4-5">Claude Haiku 4.5 (Latest)</SelectItem>
+                    <SelectItem value="claude-opus-4-1">Claude Opus 4.1 (Latest)</SelectItem>
                     <SelectItem value="claude-3-5-haiku-20241022">Claude Haiku 3.5</SelectItem>
                     <SelectItem value="claude-3-5-sonnet-20241022">Claude Sonnet 3.5</SelectItem>
                     <SelectItem value="claude-3-7-sonnet-20250219">Claude Sonnet 3.7</SelectItem>
@@ -2407,25 +2405,6 @@ This style works best for content that challenges conventional thinking while pr
     </div>
   )
 
-  // Step 6: Translation
-  const renderTranslationStep = () => (
-    <div className="space-y-6">
-            <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            Script Translation
-            </CardTitle>
-                <CardDescription>
-            Translate your generated script to other languages
-                </CardDescription>
-              </CardHeader>
-                </Card>
-      
-      <ScriptTranslator />
-                </div>
-  )
-
   const renderCurrentStep = () => {
     switch (sectionedWorkflow.currentStep) {
       case 0: return renderScriptStyleStep()
@@ -2433,7 +2412,6 @@ This style works best for content that challenges conventional thinking while pr
       case 2: return renderResearchStep()
       case 3: return renderOutlineStep()
       case 4: return renderGenerationStep()
-      case 5: return renderTranslationStep()
       default: return null
     }
   }
