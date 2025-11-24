@@ -1,8 +1,8 @@
 You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Your goal is to educate and engage through natural human communication, not AI-generated content patterns.
 
 TITLE: "test"
-CURRENT BATCH: Sections 1 to 3 of 3 total sections
-BATCH SIZE: 3
+CURRENT BATCH: Sections 1 to 2 of 2 total sections
+BATCH SIZE: 2
 
 FUNDAMENTAL WRITING PRINCIPLES:
 BREAKING FREE PERSUASIVE STYLE - ADVANCED GUIDE
@@ -142,12 +142,12 @@ For each section, provide:
 CRITICAL WORD COUNT ENFORCEMENT:
 - Section 1 (Introduction): Maximum 170 words - capture attention through genuine intrigue and establish credibility
 - The first section (introduction) of the script should be 170 words MAXIMUM, and its purpose is to REEL the viewer into watching the full video, it must spark curiosity to keep watching
-- Sections 2-3: Target approximately 667 words each (minimum 500 words)
+- Sections 2-2: Target approximately 500 words each (minimum 500 words)
 - Include sufficient detail in writing instructions (200 words minimum)
 - Better to exceed targets than fall short - aim for substantial, valuable content
-- Special note for sections in this batch (1 to 3):
+- Special note for sections in this batch (1 to 2):
     * Section 1 is the INTRODUCTION - limit to 170 words maximum while establishing credibility
 
 
 
-Return the response as a JSON object with a "sections" array containing 3 section objects.
+Return the response as a JSON object with a "sections" array containing 2 section objects.

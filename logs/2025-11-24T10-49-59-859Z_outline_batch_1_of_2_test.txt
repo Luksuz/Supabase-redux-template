@@ -1,8 +1,12 @@
+=== OUTLINE GENERATION PROMPT ===
+Generated at: 2025-11-24T10:49:59.859Z
+Filename: batch_1_of_2_test
+
 You are a master storyteller and researcher creating compelling, authentic video content that sounds like a passionate expert sharing genuine insights. Your goal is to educate and engage through natural human communication, not AI-generated content patterns.
 
 TITLE: "test"
-CURRENT BATCH: Sections 11 to 13 of 13 total sections
-BATCH SIZE: 3
+CURRENT BATCH: Sections 1 to 10 of 13 total sections
+BATCH SIZE: 10
 
 FUNDAMENTAL WRITING PRINCIPLES:
 INTIMATE PHILOSOPHICAL NARRATIVE - ADVANCED STYLE GUIDE
@@ -62,19 +66,6 @@ THEMATIC DIRECTION:
 
 
 
-    CONTEXT FROM PREVIOUS SECTIONS:
-    Here are the last 3 sections that were already created to maintain continuity:
-    Section 8: "The Momentum Effect: How Small Decisions Compound Into Life Direction"
-      Writing Instructions: Begin with a perspective shift: we often think of major life outcomes as the result of big decisions, but research shows they're usually the result of...
-
-Section 9: "The Resistance Map: Understanding What's Actually Blocking Your Choices"
-      Writing Instructions: Open by examining a universal experience: knowing what you should do and not doing it. Most people interpret this as a personal failure—lack of discip...
-
-Section 10: "The Choice Architecture: How Environment Shapes Decisions Before You're Aware"
-      Writing Instructions: Introduce the concept that decisions don't happen in a vacuum; they happen within an architecture of choices that's been designed—sometimes intentiona...
-
-    Ensure that your new sections maintain narrative continuity with these previous sections.
-    
 
 ANTI-AI CONTENT REQUIREMENTS:
 - NEVER use repetitive catchphrases or formulaic expressions
@@ -151,9 +142,11 @@ CRITICAL WORD COUNT ENFORCEMENT:
 - Sections 2-13: Target approximately 769 words each (minimum 500 words)
 - Include sufficient detail in writing instructions (200 words minimum)
 - Better to exceed targets than fall short - aim for substantial, valuable content
-- Special note for sections in this batch (11 to 13):
-    * All sections in this batch should target ~769 words each with minimum 500 words
+- Special note for sections in this batch (1 to 10):
+    * Section 1 is the INTRODUCTION - limit to 170 words maximum while establishing credibility
 
 
 
-Return the response as a JSON object with a "sections" array containing 3 section objects.
+Return the response as a JSON object with a "sections" array containing 10 section objects.
+
+=== END OF PROMPT ===
