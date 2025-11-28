@@ -73,17 +73,17 @@ export function SignUpUserSteps() {
           </Link>
         </TutorialStep>
       ) : null}
-      <TutorialStep title="Sign up your first user">
+      <TutorialStep title="Add your first user">
         <p>
-          Head over to the{" "}
+          As an admin, you can add users directly through the{" "}
           <Link
-            href="auth/sign-up"
+            href="https://supabase.com/dashboard/project/_/auth/users"
+            target="_blank"
             className="font-bold hover:underline text-foreground/80"
           >
-            Sign up
-          </Link>{" "}
-          page and sign up your first user. It&apos;s okay if this is just you
-          for now. Your awesome idea will have plenty of users later!
+            Supabase Dashboard
+          </Link>
+          . Regular users cannot sign up themselves - only admins can create new accounts.
         </p>
       </TutorialStep>
     </ol>

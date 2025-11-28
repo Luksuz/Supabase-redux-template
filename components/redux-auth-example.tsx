@@ -6,7 +6,6 @@ import {
   initializeAuth, 
   loginUser, 
   logoutUser, 
-  signUpUser, 
   clearError 
 } from '../lib/features/user/userSlice'
 
@@ -17,7 +16,6 @@ export function ReduxAuthExample() {
   // Local form state
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isSignUp, setIsSignUp] = useState(false)
 
   // Initialize auth state when component mounts
   useEffect(() => {
@@ -39,22 +37,6 @@ export function ReduxAuthExample() {
     } catch (error) {
       // Error is handled by Redux slice
       console.error('Login error:', error)
-    }
-  }
-
-  // Handle sign up
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email || !password) return
-    
-    try {
-      await dispatch(signUpUser({ email, password })).unwrap()
-      // Clear form on success
-      setEmail('')
-      setPassword('')
-    } catch (error) {
-      // Error is handled by Redux slice
-      console.error('Sign up error:', error)
     }
   }
 
@@ -148,30 +130,11 @@ export function ReduxAuthExample() {
         <div className="space-y-4">
           <div className="bg-gray-50 p-4 rounded">
             <p className="text-gray-700">Not authenticated</p>
+            <p className="text-xs text-gray-500 mt-1">Contact admin to create your account</p>
           </div>
           
-          {/* Toggle between login and sign up */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIsSignUp(false)}
-              className={`px-3 py-1 rounded text-sm ${
-                !isSignUp ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-              }`}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => setIsSignUp(true)}
-              className={`px-3 py-1 rounded text-sm ${
-                isSignUp ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-              }`}
-            >
-              Sign Up
-            </button>
-          </div>
-          
-          {/* Login/Sign up form */}
-          <form onSubmit={isSignUp ? handleSignUp : handleLogin} className="space-y-3">
+          {/* Login form */}
+          <form onSubmit={handleLogin} className="space-y-3">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email
@@ -208,18 +171,9 @@ export function ReduxAuthExample() {
               disabled={user.loading || !email || !password}
               className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
             >
-              {user.loading 
-                ? (isSignUp ? 'Signing up...' : 'Logging in...') 
-                : (isSignUp ? 'Sign Up' : 'Login')
-              }
+              {user.loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
-          
-          {isSignUp && (
-            <p className="text-xs text-gray-600">
-              Note: You may need to confirm your email before logging in.
-            </p>
-          )}
         </div>
       )}
       
