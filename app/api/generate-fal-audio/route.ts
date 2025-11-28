@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           input: {
             text: text,
             voice: voice || "male_narrator"
-          },
+          } as any, // Type assertion: voice parameter may not be in type definitions but is supported by API
           logs: true,
           onQueueUpdate: (update) => {
             if (update.status === "IN_PROGRESS") {
