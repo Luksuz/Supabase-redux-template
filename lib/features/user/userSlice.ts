@@ -97,7 +97,8 @@ export const logoutUser = createAsyncThunk(
   }
 )
 
-// Async thunk for sign up
+// Async thunk for sign up (Admin use only - not exposed in UI)
+// Only admins should be able to create new users through the Supabase Dashboard
 export const signUpUser = createAsyncThunk(
   'user/signUpUser',
   async ({ email, password }: { email: string; password: string }) => {

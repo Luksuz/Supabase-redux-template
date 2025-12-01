@@ -111,7 +111,8 @@ dispatch(loginUser({ email, password }))
 // Logout user  
 dispatch(logoutUser())
 
-// Sign up new user
+// Sign up new user (Admin use only - not exposed in UI)
+// Note: Users cannot self-register. Only admins can create accounts through Supabase Dashboard.
 dispatch(signUpUser({ email, password }))
 ```
 

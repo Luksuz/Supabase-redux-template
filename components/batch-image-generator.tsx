@@ -691,32 +691,20 @@ export function BatchImageGenerator() {
       // Sync saved images with the images slice for video generator compatibility
       if (successCount > 0) {
         try {
-          const savedImagesPromises = results.filter(r => r.success).map(async (result: any, index: number): Promise<ProcessedImage> => {
+          // First, quickly create all image objects without heavy processing
+          const savedImages: ProcessedImage[] = results.filter(r => r.success).map((result: any, index: number): ProcessedImage => {
             const card = result.card
             const imageId = card.promptId.replace(/-(?:search|ai)$/, '') // Use original chunk ID
             
-            // Try to convert the URL to dataUrl for better compatibility
-            let dataUrl = card.selectedImageUrl
-            try {
-              dataUrl = await convertUrlToDataUrl(card.selectedImageUrl)
-            } catch (error) {
-              console.warn('Failed to convert to dataUrl, using original URL:', error)
-            }
-            
-            // Detect video duration when media is video
-            let videoDurationSeconds: number | undefined = undefined
-            if (card.selectedImageType === 'video') {
-              const detected = await getVideoDurationSeconds(result.savedUrl || card.selectedImageUrl)
-              if (detected && isFinite(detected)) {
-                videoDurationSeconds = detected
-              }
-            }
+            // Use the saved Supabase URL directly - no need to re-download and convert to dataUrl
+            // The supabasePath is what's needed for video generation
+            const displayUrl = result.savedUrl || card.selectedImageUrl
             
             return {
               id: imageId,
               name: `scene-${index + 1}.jpg`, // Use selection index for naming
               originalName: `scene-${index + 1}.jpg`,
-              dataUrl: dataUrl,
+              dataUrl: displayUrl, // Use URL directly for display - no base64 conversion needed
               processed: true,
               chapter: Math.ceil((index + 1) / 10), // Group by selection order, not scene number
               imageNumber: index + 1, // Use selection index
@@ -724,11 +712,34 @@ export function BatchImageGenerator() {
               supabasePath: result.savedUrl, // Store the complete public URL directly
               savedToSupabase: true,
               mediaType: card.selectedImageType || 'image', // Preserve media type for Shotstack
-              ...(videoDurationSeconds ? { videoDurationSeconds } : {})
             }
           })
           
-          const savedImages = await Promise.all(savedImagesPromises)
+          // Detect video durations in parallel (only for videos, non-blocking)
+          const videoItems = savedImages.filter(img => img.mediaType === 'video')
+          if (videoItems.length > 0) {
+            // Run video duration detection in parallel without blocking
+            Promise.all(videoItems.map(async (img) => {
+              try {
+                const detected = await getVideoDurationSeconds(img.supabasePath || img.dataUrl)
+                if (detected && isFinite(detected)) {
+                  img.videoDurationSeconds = detected
+                }
+              } catch (error) {
+                console.warn(`Failed to detect duration for video ${img.id}:`, error)
+              }
+            })).then(() => {
+              // Update Redux state with video durations after detection completes
+              const existingImages = originalImages.filter(img => 
+                !savedImages.some(newImg => newImg.id === img.id)
+              )
+              const mergedImages = [...existingImages, ...savedImages].sort((a, b) => 
+                (a.sortOrder || 0) - (b.sortOrder || 0)
+              )
+              dispatch(setOriginalImages(mergedImages))
+              console.log('📹 Video durations detected and updated')
+            })
+          }
           
           // Merge with existing images, replacing any with the same ID
           const existingImages = originalImages.filter(img => 
